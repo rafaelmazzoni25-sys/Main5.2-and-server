@@ -1,0 +1,437 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Guia Completo: Sistema de Itens estilo Main no Unreal Engine 5</title>
+  <style>
+    :root {
+      color-scheme: light dark;
+      --bg-color: #0f172a;
+      --text-color: #e2e8f0;
+      --accent: #38bdf8;
+      --accent-dark: #0ea5e9;
+      --heading: #f8fafc;
+      --muted: #94a3b8;
+      --card-bg: rgba(15, 23, 42, 0.8);
+      --card-border: rgba(148, 163, 184, 0.3);
+      --code-bg: rgba(15, 118, 110, 0.15);
+      font-family: "Segoe UI", system-ui, -apple-system, BlinkMacSystemFont, "Helvetica Neue", sans-serif;
+    }
+
+    body {
+      margin: 0;
+      padding: 0 1.5rem 4rem;
+      background: linear-gradient(180deg, #020617 0%, #0f172a 60%, #020617 100%);
+      color: var(--text-color);
+      line-height: 1.65;
+    }
+
+    header {
+      max-width: 1100px;
+      margin: 0 auto;
+      padding: 3rem 0 1rem;
+      text-align: center;
+    }
+
+    header h1 {
+      color: var(--heading);
+      font-size: clamp(2rem, 3vw, 3.6rem);
+      margin-bottom: 0.5rem;
+    }
+
+    header p {
+      color: var(--muted);
+      font-size: 1.05rem;
+      max-width: 860px;
+      margin: 0 auto;
+    }
+
+    main {
+      max-width: 1100px;
+      margin: 0 auto;
+      display: grid;
+      gap: 2rem;
+    }
+
+    section {
+      background-color: var(--card-bg);
+      border: 1px solid var(--card-border);
+      border-radius: 18px;
+      padding: 2rem;
+      box-shadow: 0 20px 45px rgba(15, 23, 42, 0.45);
+      backdrop-filter: blur(10px);
+    }
+
+    h2 {
+      color: var(--heading);
+      margin-top: 0;
+      font-size: 1.85rem;
+    }
+
+    h3 {
+      color: var(--accent);
+      font-size: 1.3rem;
+      margin-top: 2rem;
+    }
+
+    p {
+      margin: 0 0 1.1rem;
+    }
+
+    ul, ol {
+      margin: 0 0 1.2rem 1.2rem;
+      padding-left: 1rem;
+    }
+
+    li {
+      margin-bottom: 0.6rem;
+    }
+
+    .highlight {
+      color: var(--accent);
+      font-weight: 600;
+    }
+
+    .note {
+      border-left: 4px solid var(--accent);
+      padding: 0.8rem 1rem;
+      background: rgba(8, 47, 73, 0.4);
+      border-radius: 0 12px 12px 0;
+      color: var(--muted);
+      margin: 1.5rem 0;
+      font-size: 0.95rem;
+    }
+
+    code, pre {
+      font-family: "JetBrains Mono", "Fira Code", Consolas, "Courier New", monospace;
+      background-color: var(--code-bg);
+      border-radius: 8px;
+      padding: 0.4rem 0.6rem;
+      color: #22d3ee;
+    }
+
+    pre {
+      overflow-x: auto;
+      padding: 1rem;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-bottom: 1.5rem;
+    }
+
+    th, td {
+      border: 1px solid rgba(148, 163, 184, 0.3);
+      padding: 0.8rem 1rem;
+      text-align: left;
+    }
+
+    th {
+      background: rgba(14, 116, 144, 0.25);
+      color: var(--heading);
+    }
+
+    footer {
+      max-width: 1100px;
+      margin: 0 auto;
+      text-align: center;
+      padding: 2rem 0 4rem;
+      color: var(--muted);
+      font-size: 0.85rem;
+    }
+
+    .timeline {
+      display: grid;
+      gap: 1.5rem;
+      margin-top: 1rem;
+    }
+
+    .timeline-step {
+      border-left: 3px solid var(--accent-dark);
+      padding-left: 1.5rem;
+      position: relative;
+    }
+
+    .timeline-step::before {
+      content: "";
+      position: absolute;
+      left: -1rem;
+      top: 0.5rem;
+      width: 0.85rem;
+      height: 0.85rem;
+      background: var(--accent);
+      border-radius: 50%;
+      box-shadow: 0 0 0 6px rgba(56, 189, 248, 0.25);
+    }
+
+    @media (max-width: 768px) {
+      body {
+        padding: 0 1rem 3rem;
+      }
+
+      section {
+        padding: 1.6rem;
+      }
+
+      h2 {
+        font-size: 1.6rem;
+      }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Sistema de Itens estilo “Main” no Unreal Engine 5</h1>
+    <p>
+      Guia completo, inspirado no comportamento do projeto <span class="highlight">Main</span>, para criar um sistema de itens, inventário, drop e renderização 3D no Unreal Engine 5.
+      Inclui mapeamento dos componentes legados, artefatos necessários e um passo a passo detalhado para implementação multiplataforma e multiplayer.
+    </p>
+  </header>
+
+  <main>
+    <section>
+      <h2>Mapa conceitual entre o projeto Main e o UE5</h2>
+      <p>
+        Antes de construir no UE5, é essencial reconhecer onde cada responsabilidade do projeto original vive.
+        A tabela a seguir mostra o paralelismo entre os principais arquivos do cliente legado e seus equivalentes sugeridos no UE5.
+      </p>
+      <table>
+        <thead>
+          <tr>
+            <th>Projeto Main 5.2</th>
+            <th>Responsabilidade</th>
+            <th>Unreal Engine 5 (recomendado)</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>_struct.h</code> – <code>ITEM_ATTRIBUTE</code>, <code>ITEM</code></td>
+            <td>Estruturas compactadas com metadados de itens e estado dinâmico.</td>
+            <td><code>UStruct</code> (ex.: <code>FItemAttribute</code>, <code>FItemInstance</code>) e <code>DataAssets</code>.</td>
+          </tr>
+          <tr>
+            <td><code>ZzzInventory.cpp</code></td>
+            <td>Buffers globais de inventário, loja e itens no mundo.</td>
+            <td><code>UInventoryComponent</code> + <code>UGameInstanceSubsystem</code> para acesso global.</td>
+          </tr>
+          <tr>
+            <td><code>NewUIItemMng.cpp</code></td>
+            <td>Instanciação, duplicação e gerenciamento de vida dos itens.</td>
+            <td><code>UItemManagerSubsystem</code> com <code>TSharedPtr</code>/<code>TWeakObjectPtr</code>.</td>
+          </tr>
+          <tr>
+            <td><code>NewUIInventoryCtrl.cpp</code></td>
+            <td>Drag &amp; drop, grid de slots, renderização 3D/2D dos ícones.</td>
+            <td><code>UUserWidget</code> baseado em <code>UGridPanel</code> e componentes Slate.</td>
+          </tr>
+          <tr>
+            <td><code>WSclient.cpp</code> – <code>ReceiveDropItem</code></td>
+            <td>Confirmação de drop via rede e rollback em caso de falha.</td>
+            <td>RPCs em <code>APlayerController</code> + <code>Server</code>/<code>Client</code> callbacks.</td>
+          </tr>
+          <tr>
+            <td><code>Items[MAX_ITEMS]</code> (lista de drops)</td>
+            <td>Renderização de itens no chão e interação.</td>
+            <td><code>AItemPickup</code> + <code>UStaticMeshComponent</code> com replicação.</td>
+          </tr>
+        </tbody>
+      </table>
+      <div class="note">
+        💡 <strong>Dica:</strong> mantenha nomes de enums/IDs compatíveis para facilitar a ponte com o servidor legado, caso a comunicação em rede seja reaproveitada.
+      </div>
+    </section>
+
+    <section>
+      <h2>Checklist de preparação</h2>
+      <ul>
+        <li>Instale o Unreal Engine 5.3+ com módulos <span class="highlight">C++</span> e <span class="highlight">Editor Tools</span>.</li>
+        <li>Ative plugins úteis: <em>Gameplay Ability System</em> (se desejar bônus/passivas), <em>UMG</em>, <em>Enhanced Input</em> e <em>Data Table Editor</em>.</li>
+        <li>Configure um projeto C++ (não apenas Blueprint) para implementar structs, componentes e RPCs.</li>
+        <li>Separe referências visuais: ícones 2D, malhas 3D, materiais e tabelas CSV/JSON equivalentes ao banco de itens original.</li>
+        <li>Defina padrão de naming (ex.: prefixo <code>MU_</code>) para classes e assets relacionados a itens para facilitar a migração.</li>
+      </ul>
+    </section>
+
+    <section>
+      <h2>Passo a passo detalhado</h2>
+      <p>
+        O roteiro abaixo conduz desde a modelagem de dados até a renderização e replicação em rede, com referências diretas ao comportamento observado no projeto Main.
+      </p>
+      <div class="timeline">
+        <div class="timeline-step">
+          <h3>1. Modelagem dos dados de item</h3>
+          <ol>
+            <li>Crie um <code>UStruct</code> <strong>FItemAttribute</strong> com campos: <em>ID</em>, <em>Nome</em>, <em>Descrição</em>, <em>Largura</em>, <em>Altura</em>, <em>Nível mínimo</em>, <em>Classe requerida</em>, <em>Resistências</em>, <em>Mesh/Icon Path</em>.</li>
+            <li>Crie um <code>UStruct</code> <strong>FItemInstance</strong> inspirado em <code>ITEM</code>: ID, Serial, Quantidade, <em>GridX</em>, <em>GridY</em>, sockets, opções extras, flags de período e tempo restante.</li>
+            <li>Implemente <code>DataTable</code> baseado em <code>FItemAttribute</code> carregando dados a partir de CSV ou JSON que reflitam as tabelas originais.</li>
+            <li>Implemente um <code>UPrimaryDataAsset</code> opcional para agrupar coleções (ex.: itens de evento, kits iniciais, etc.).</li>
+          </ol>
+          <div class="note">
+            <strong>Automatize a migração:</strong> use o script
+            <code>tools/item_converter/main_to_ue5_converter.py</code> para converter
+            <code>MuServer_Season_5_Update_15/Data/Item/Item.txt</code> diretamente em
+            CSV/JSON importável por um <code>UDataTable</code>. Ele mantém o identificador
+            de seção, converte flags em booleanos e gera nomes de linha compatíveis com o
+            fluxo da Unreal Engine 5.
+          </div>
+        </div>
+
+        <div class="timeline-step">
+          <h3>2. Subsistema de gerenciamento</h3>
+          <ol>
+            <li>Derive de <code>UGameInstanceSubsystem</code> e crie <strong>UItemManagerSubsystem</strong>.</li>
+            <li>Implemente funções:</li>
+          </ol>
+          <ul>
+            <li><code>const FItemAttribute* FindAttribute(int32 ItemID) const;</code></li>
+            <li><code>FItemInstance CreateInstance(int32 ItemID, int32 Serial, const FItemLocation& Location);</code></li>
+            <li><code>FItemInstance DuplicateInstance(const FItemInstance&amp; Source);</code> para drag &amp; drop temporário, seguindo <code>CNewUIPickedItem</code>.</li>
+            <li><code>void RemoveInstance(const FGuid&amp; InstanceId);</code> com contagem de referências similar a <code>DeleteItem</code>.</li>
+          </ul>
+          <ol start="3">
+            <li>Adicione <span class="highlight">delegates</span> para notificar UI e componentes quando um item for adicionado, movido ou removido.</li>
+            <li>Implemente cache de meshes e ícones para evitar carregamento repetido ao abrir o inventário.</li>
+          </ol>
+        </div>
+
+        <div class="timeline-step">
+          <h3>3. Componente de Inventário</h3>
+          <ol>
+            <li>Crie <strong>UInventoryComponent</strong> (derivado de <code>UActorComponent</code>) e anexe ao <code>APlayerState</code> ou <code>ACharacter</code>.</li>
+            <li>Armazene um <code>TArray</code> bidimensional ou um vetor linear com <code>Width * Height</code> slots, replicando os buffers de <code>ZzzInventory.cpp</code>.</li>
+            <li>Implemente métodos:</li>
+          </ol>
+          <ul>
+            <li><code>bool CanPlaceItem(const FItemInstance&amp; Item, FIntPoint TargetSlot) const;</code></li>
+            <li><code>bool TryPlaceItem(const FItemInstance&amp; Item, FIntPoint TargetSlot);</code></li>
+            <li><code>bool TrySwapItems(FIntPoint Source, FIntPoint Target);</code></li>
+            <li><code>FItemInstance* FindItemBySerial(int32 Serial);</code></li>
+          </ul>
+          <ol start="4">
+            <li>Implemente lógica de arrastar com estados: <em>Idle</em>, <em>Picking</em>, <em>Dragging</em>, <em>Dropped</em>, <em>Cancelled</em>.</li>
+            <li>Crie eventos multicast para atualizar widgets de inventário em tempo real.</li>
+          </ol>
+        </div>
+
+        <div class="timeline-step">
+          <h3>4. Interface de usuário (UMG)</h3>
+          <ol>
+            <li>Construa um <code>UUserWidget</code> <strong>WBP_Inventory</strong> com um <code>UniformGridPanel</code> para os slots.</li>
+            <li>Cada slot deve ser um <code>UserWidget</code> (<strong>WBP_InventorySlot</strong>) com eventos de <code>OnMouseButtonDown</code>, <code>OnDragDetected</code>, <code>OnDrop</code>.</li>
+            <li>Use <code>RetainerBox</code> ou <code>MaterialInstanceDynamic</code> para renderizar ícones, replicando <code>RenderItem3D</code>. Para itens 3D, utilize <code>SceneCapture2D</code> e <code>RenderTarget</code>.</li>
+            <li>Para o item sob o cursor, crie um widget <strong>WBP_PickedItem</strong> que segue o mouse e usa a cópia duplicada retornada pelo subsistema.</li>
+            <li>Adicione feedback visual: destaque de slots disponíveis, animação de encaixe e sons (pickup/drop) usando <code>UAudioComponent</code>.</li>
+          </ol>
+        </div>
+
+        <div class="timeline-step">
+          <h3>5. Fluxo de drop no mundo</h3>
+          <ol>
+            <li>Crie <strong>AItemPickup</strong> derivado de <code>AActor</code> com componentes: <code>UStaticMeshComponent</code> (mesh), <code>UNiagaraComponent</code> (efeitos), <code>USphereComponent</code> (trigger).</li>
+            <li>No servidor, instancie <code>AItemPickup</code> ao confirmar drop; replique <code>FItemInstance</code> via <code>UPROPERTY(ReplicatedUsing=OnRep_Item)</code>.</li>
+            <li>Implemente interação via <code>OnComponentBeginOverlap</code> chamando RPC <code>ServerPickupItem</code>, validando peso, slots livres e status do jogador.</li>
+            <li>Ao coletar, remova o actor (chame <code>Destroy()</code>) e atualize inventário + UI. Sincronize com clientes através de <code>NetMulticast</code>.</li>
+          </ol>
+        </div>
+
+        <div class="timeline-step">
+          <h3>6. Sincronização de rede</h3>
+          <ol>
+            <li>Adicione RPCs em <code>APlayerController</code> ou <code>APlayerState</code>:</li>
+          </ol>
+          <ul>
+            <li><code>ServerRequestDropItem(FGuid InstanceId, FVector_NetQuantize Location);</code></li>
+            <li><code>ClientConfirmDropItem(FGuid InstanceId, bool bSuccess);</code></li>
+            <li><code>ServerRequestMoveItem(FGuid InstanceId, FIntPoint TargetSlot);</code></li>
+          </ul>
+          <ol start="2">
+            <li>Implemente <span class="highlight">rollback</span> local: ao iniciar um drop, remova o item visualmente, mas restaure caso o servidor negue (espelhando <code>ReceiveDropItem</code>).</li>
+            <li>Utilize <code>FScopedPredictionWindow</code> se adotar GAS para prever ações e reverter automaticamente.</li>
+            <li>Logue eventos de rede com <code>UE_LOG(LogTemp, Verbose, ...)</code> para depurar divergências entre cliente e servidor.</li>
+          </ol>
+        </div>
+
+        <div class="timeline-step">
+          <h3>7. Persistência e salvamento</h3>
+          <ol>
+            <li>Crie um objeto <strong>USaveGame</strong> (<code>UMUSaveGame</code>) com arrays de <code>FItemInstance</code> para Inventário, Baú, Loja.</li>
+            <li>Serializar sockets e opções extras para manter compatibilidade com o banco legado.</li>
+            <li>Implemente criptografia/hashing se necessário para evitar manipulação.</li>
+            <li>Sincronize com backend via REST/RPC ou integre diretamente com o servidor Season 5, convertendo <code>FItemInstance</code> em pacotes binários equivalentes.</li>
+          </ol>
+        </div>
+
+        <div class="timeline-step">
+          <h3>8. Testes e validação</h3>
+          <ol>
+            <li>Automatize testes unitários com <code>Functional Testing</code> ou <code>Automation Spec</code> para verificar encaixe, swap e rollback.</li>
+            <li>Use PIE com instâncias múltiplas para validar replicação de drop.</li>
+            <li>Perfis de desempenho: monitore <code>Stat Slate</code> e <code>Stat GPU</code> ao exibir ícones 3D.</li>
+          </ol>
+        </div>
+      </div>
+    </section>
+
+    <section>
+      <h2>Referências de código úteis</h2>
+      <pre><code>// Exemplo de struct no UE5 inspirado em ITEM_ATTRIBUTE
+USTRUCT(BlueprintType)
+struct FItemAttribute
+{
+    GENERATED_BODY();
+
+    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Item")
+    int32 ItemId = 0;
+
+    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Item")
+    FText DisplayName;
+
+    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Item")
+    int32 Width = 1;
+
+    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Item")
+    int32 Height = 1;
+
+    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Item")
+    TSoftObjectPtr&lt;UTexture2D&gt; Icon;
+};
+
+// Fragmento de inventário 10x8 inspirado nos arrays globais
+UPROPERTY(ReplicatedUsing=OnRep_Slots)
+TArray&lt;FItemInstance&gt; Slots;
+
+void UInventoryComponent::InitializeInventory(int32 InWidth, int32 InHeight)
+{
+    Width = InWidth;
+    Height = InHeight;
+    Slots.SetNum(Width * Height);
+}
+</code></pre>
+      <p>
+        Estes trechos servem como ponto de partida para estruturar os dados conforme o layout original, mantendo a clareza da API no UE5.
+      </p>
+    </section>
+
+    <section>
+      <h2>Checklist final de migração</h2>
+      <ul>
+        <li>✅ Estruturas compatíveis com o legado criadas (<code>FItemAttribute</code>, <code>FItemInstance</code>).</li>
+        <li>✅ Subsistema de itens com duplicação/rollback implementado.</li>
+        <li>✅ UI interativa com arrastar e soltar, slots e item selecionado.</li>
+        <li>✅ Fluxo de drop com confirmação via servidor e efeito visual no mundo.</li>
+        <li>✅ Persistência local e integração com backend Season 5.</li>
+        <li>✅ Testes automatizados cobrindo encaixe, drop e replicação.</li>
+      </ul>
+      <div class="note">
+        Em caso de divergência visual entre Main e UE5, compare a lógica de <code>RenderItem3D</code> para reproduzir ângulos de câmera, iluminação e shading do item.
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    Atualizado para Unreal Engine 5.3 · Mantém compatibilidade conceitual com o cliente Main 5.2 · Preparado para projetos multiplayer.
+  </footer>
+</body>
+</html>
