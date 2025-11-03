@@ -16,7 +16,7 @@
     <main class="container pb-5">
         <header class="mb-5 text-center">
             <h1 class="display-5 fw-bold">Pipeline de Sprites e Recomposição da HUD</h1>
-            <p class="lead">Resumo organizado do fluxo de leitura de sprites do cliente e orientações para reconstruir a HUD na Unreal Engine 5.</p>
+            <p class="lead">Resumo organizado, com apontadores diretos para o código-fonte, do fluxo de leitura de sprites do cliente e das orientações práticas para reconstruir a HUD na Unreal Engine 5.</p>
         </header>
 
         <section class="mb-5">
@@ -25,23 +25,40 @@
                     <h2 class="h4 mb-0">Pipeline de leitura de sprites</h2>
                 </div>
                 <div class="card-body">
-                    <ol class="mb-0">
+                    <ol class="mb-4">
                         <li class="mb-3">
-                            <strong>Chamadas iniciais:</strong> as telas invocam <code>LoadBitmap</code> com um caminho relativo à pasta <code>Data\</code> e um índice numérico. A função resolve o caminho completo, configura filtros/policies OpenGL e delega ao singleton <code>Bitmaps</code> para gerir o recurso.
+                            <strong>Entrada pelas telas:</strong> cada janela chama <code>LoadBitmap</code> (ver <code>Source Main 5.2/source/ZzzTexture.cpp</code>) informando o caminho relativo sob <code>Data/</code>, o índice do atlas e os parâmetros de filtro/wrap. A função monta o caminho absoluto (considerando a flag <code>bFullPath</code> quando disponível) e delega o carregamento para <code>CGlobalBitmap::LoadImage</code>.<br>
+                            <em>Pontos de atenção:</em> toda textura deve estar pré-registrada com um índice (<code>#define IMAGE_*</code>) e <code>LoadBitmap</code> é quem garante mensagens de erro fatais caso o arquivo não esteja acessível.
                         </li>
                         <li class="mb-3">
-                            <strong>Cache e escolha do leitor:</strong> <code>CGlobalBitmap::LoadImage</code> verifica o cache e seleciona o leitor apropriado de acordo com a extensão do arquivo (<code>.jpg</code> ou <code>.tga</code>).
+                            <strong>Gerenciamento centralizado:</strong> <code>CGlobalBitmap::LoadImage</code> (<code>Source Main 5.2/source/GlobalBitmap.cpp</code>) verifica se a textura já está em cache e, se necessário, decide qual leitor usar com base na extensão. O cache interno (<code>CBitmapCache</code>) mantém mapas por categoria e “quick caches” para texturas frequentes (map tiles, HUD principal, etc.), reduzindo chamadas repetidas a <code>glBindTexture</code>.<br>
+                            <em>Dica:</em> o contador <code>Ref</code> do <code>BITMAP_t</code> controla o descarregamento automático via <code>DeleteBitmap</code>; reaproveite esta lógica ao migrar para um asset manager moderno.
                         </li>
                         <li class="mb-3">
-                            <strong>Assets empacotados:</strong> as imagens ficam em arquivos proprietários <code>.OZJ</code> (JPEG) ou <code>.OZT</code> (TGA). As funções <code>OpenJpeg</code> e <code>OpenTga</code> trocam a extensão, abrem o arquivo convertido, pulam cabeçalhos específicos e decodificam para buffers RGB/RGBA alinhados a potências de dois antes de chamar <code>glTexImage2D</code>.
+                            <strong>Conversão para potências de dois:</strong> tanto <code>OpenJpeg</code> quanto <code>OpenTga</code> ajustam largura/altura para o próximo valor potência de dois até 1024 (<code>MAX_WIDTH/MAX_HEIGHT</code>), preenchendo o buffer RGB(A). Este redimensionamento explica sobras transparentes/bordas nas texturas originais e deve ser considerado ao criar spritesheetes em engines atuais.
                         </li>
                         <li class="mb-3">
-                            <strong>Utilitários auxiliares:</strong> funções como <code>ExchangeExt</code> gerenciam extensões, enquanto <code>Convert_Format</code> e <code>Save_Image</code> permitem exportar <code>.JPG</code>/<code>.TGA</code>/<code>.BMP</code> convencionais reutilizando cabeçalhos do runtime.
+                            <strong>Leitura de <code>.OZJ</code> (JPEG empacotado):</strong> <code>OpenJpeg</code> usa <code>ExchangeExt</code> para localizar o par <code>.OZJ</code>, abre o arquivo, descarta os primeiros 24 bytes (header proprietário) e delega a descompressão ao libjpeg. As linhas são copiadas diretamente para o buffer RGB e um <code>glTexImage2D</code> com <code>GL_RGB</code> é emitido usando o filtro/wrap recebidos.<br>
+                            Para reproduzir a extração offline, abra o arquivo em modo binário, descarte 24 bytes e passe o restante para qualquer decodificador JPEG padrão.
+                        </li>
+                        <li class="mb-3">
+                            <strong>Leitura de <code>.OZT</code> (TGA empacotado):</strong> <code>OpenTga</code> troca a extensão para <code>.OZT</code>, carrega todo o arquivo na memória, pula 16 bytes após o cabeçalho original e lê dimensões/bitdepth. Apenas arquivos 32 bits são aceitos. Os pixels são convertidos de BGRA para RGBA, invertendo a ordem das linhas (o runtime espera origem no canto inferior esquerdo). Depois disso a textura é criada com <code>GL_RGBA</code> e <code>GL_MODULATE</code>.
+                        </li>
+                        <li class="mb-3">
+                            <strong>Utilitários auxiliares:</strong> <code>ExchangeExt</code>, <code>SplitFileName</code> e <code>SplitExt</code> (mesmo arquivo) facilitam a manipulação de nomes, enquanto <code>Save_Image</code> e <code>Convert_Format</code> geram as versões empacotadas: elas escrevem o cabeçalho de 24 bytes seguido do arquivo bruto (<code>.jpg</code>, <code>.tga</code> ou <code>.bmp</code>). Essa rotina é útil para gerar novos pacotes sem depender do cliente original.
                         </li>
                         <li>
-                            <strong>Uso pelos sprites:</strong> <code>CSprite</code> consulta <code>Bitmaps.FindTexture</code> para obter o <code>BITMAP_t</code> carregado, calcula coordenadas de textura (incluindo animações quadro a quadro) e determina as coordenadas de tela baseadas na altura da janela e nos fatores de escala fornecidos.
+                            <strong>Consumo pelos sprites:</strong> <code>CSprite::Create</code> (<code>Source Main 5.2/source/Sprite.cpp</code>) obtém o <code>BITMAP_t</code> via <code>Bitmaps.FindTexture</code>, calcula as coordenadas UV considerando o padding do atlas e inicializa quadros de animação quando há <code>SFrameCoord</code>. A posição de tela usa <code>WindowHeight</code> para converter o eixo Y invertido e respeita o sistema de ancoragem em <code>m_nSizingDatums</code>.
                         </li>
                     </ol>
+                    <div class="alert alert-info">
+                        <h3 class="h5">Estrutura dos arquivos empacotados</h3>
+                        <ul class="mb-0">
+                            <li><strong>Header proprietário (24 bytes):</strong> preservado tanto em <code>.OZJ</code> quanto em <code>.OZT</code>; contém metadados que o runtime ignora. Ao exportar, mantenha esse bloco na frente do arquivo original.</li>
+                            <li><strong>Dados comprimidos:</strong> após o header, o conteúdo é idêntico a um <code>.jpg</code> ou <code>.tga</code> padrão. Conversores externos podem trabalhar diretamente com esse payload.</li>
+                            <li><strong>Pastas principais:</strong> HUD e menus vivem em <code>Data/Interface/</code>; efeitos e personagens usam <code>Data/Effect/</code>, <code>Data/Character/</code>, etc. Utilize os caminhos literais passados a <code>LoadBitmap</code> como guia.</li>
+                        </ul>
+                    </div>
                 </div>
             </div>
         </section>
@@ -49,19 +66,99 @@
         <section class="mb-5">
             <div class="card shadow-sm">
                 <div class="card-header bg-primary text-white">
-                    <h2 class="h4 mb-0">Sprites na HUD</h2>
+                    <h2 class="h4 mb-0">Sprites e layout da HUD</h2>
                 </div>
                 <div class="card-body">
-                    <ul class="mb-0">
-                        <li class="mb-3">
-                            Cada janela da HUD possui um método <code>LoadImages()</code> que importa barras e botões a partir de <code>Interface\*.jpg/.tga</code>, armazena os índices em constantes e registra a UI no gerenciador para renderização e descarregamento.
-                        </li>
-                        <li class="mb-3">
-                            A composição (botões, barras, gauges) é feita por controles que instanciam <code>CSprite</code> com tamanhos/offsets pré-calculados, aplicando <code>SetPosition</code>/<code>SetSize</code> conforme os valores de ancoragem definidos em <code>m_nSizingDatums</code>.
-                        </li>
-                        <li>
-                            Esse sistema garante alinhamento às bordas, preservando o layout em diferentes resoluções.
-                        </li>
+                    <p>O sistema de HUD se apoia fortemente em <code>CSprite</code> e nos controles <code>CNewUI*</code>. Abaixo estão os principais pontos que influenciam a reconstrução em outra engine:</p>
+                    <div class="row">
+                        <div class="col-lg-6">
+                            <h3 class="h5">Sistema de coordenadas</h3>
+                            <ul>
+                                <li><strong>Resoluções alvo:</strong> o cliente trabalha com resoluções discretas (640×480, 800×600, 1024×768, …) configuradas em <code>Winmain.cpp</code>. O cálculo <code>WindowHeight / 480.0f</code> reaparece em diversos lugares para normalizar offsets.</li>
+                                <li><strong>Ancoragem (<code>m_nSizingDatums</code>):</strong> valores constantes em <code>Sprite.h</code> definem o canto de referência (LT, LB, RT, RB). <code>SetPosition</code> e <code>SetSize</code> ajustam os vértices com base nesses bits, simulando ancoragem/justificativa.</li>
+                                <li><strong>Escala:</strong> os parâmetros <code>fScaleX</code>/<code>fScaleY</code> permitem reutilizar sprites para resoluções maiores sem alterar UVs. Normalmente permanecem em 1.0, mas são importantes ao portar para um layout responsivo.</li>
+                            </ul>
+                        </div>
+                        <div class="col-lg-6">
+                            <h3 class="h5">Componentes do Main Frame</h3>
+                            <p>As texturas e posições abaixo vêm diretamente de <code>NewUIMainFrameWindow.cpp</code>:</p>
+                            <div class="table-responsive">
+                                <table class="table table-sm">
+                                    <thead>
+                                        <tr>
+                                            <th>Elemento</th>
+                                            <th>Textura (indice)</th>
+                                            <th>Tamanho (px)</th>
+                                            <th>Posição base (640×480)</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <tr>
+                                            <td>Faixa esquerda</td>
+                                            <td><code>Interface\newui_menu01.jpg</code> (<code>IMAGE_MENU_1</code>)</td>
+                                            <td>256 × 51</td>
+                                            <td>(0, 429)</td>
+                                        </tr>
+                                        <tr>
+                                            <td>Faixa central</td>
+                                            <td><code>Interface\newui_menu02.jpg</code> (<code>IMAGE_MENU_2</code>)</td>
+                                            <td>128 × 51</td>
+                                            <td>(256, 429)</td>
+                                        </tr>
+                                        <tr>
+                                            <td>Faixa direita</td>
+                                            <td><code>Interface\partCharge1\newui_menu03.jpg</code> (<code>IMAGE_MENU_3</code>)</td>
+                                            <td>256 × 51</td>
+                                            <td>(384, 429)</td>
+                                        </tr>
+                                        <tr>
+                                            <td>Gauge HP</td>
+                                            <td><code>Interface\newui_menu_red.jpg</code></td>
+                                            <td>45 × 39 (region)</td>
+                                            <td>(158, 432) – altura proporcional a HP</td>
+                                        </tr>
+                                        <tr>
+                                            <td>Gauge MP</td>
+                                            <td><code>Interface\newui_menu_blue.jpg</code></td>
+                                            <td>45 × 39 (region)</td>
+                                            <td>(437, 432) – altura proporcional a MP</td>
+                                        </tr>
+                                        <tr>
+                                            <td>Gauge AG</td>
+                                            <td><code>Interface\newui_menu_ag.jpg</code></td>
+                                            <td>16 × 39</td>
+                                            <td>(420, 431)</td>
+                                        </tr>
+                                        <tr>
+                                            <td>Gauge SD</td>
+                                            <td><code>Interface\newui_menu_sd.jpg</code></td>
+                                            <td>16 × 39</td>
+                                            <td>(178, 431)</td>
+                                        </tr>
+                                        <tr>
+                                            <td>Experiência</td>
+                                            <td><code>Interface\newui_exbar.jpg</code> + <code>Interface\Exbar_Master.jpg</code></td>
+                                            <td>Largura 629, altura 4</td>
+                                            <td>Faixa horizontal iniciando em (2, 473); lógica detalhada em <code>RenderExperience()</code>.</td>
+                                        </tr>
+                                        <tr>
+                                            <td>Botões (Char, Inventário, Friend, Window, Cash)</td>
+                                            <td><code>Interface\partCharge1\newui_menu_Bt*.jpg</code></td>
+                                            <td>30 × 41 cada</td>
+                                            <td>Começam em (489, 429) e avançam 30 px; estados configurados em <code>SetButtonInfo()</code>.</td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                    <hr>
+                    <h3 class="h5">Outras janelas relevantes</h3>
+                    <p>Múltiplos módulos (<code>NewUIMyInventory</code>, <code>NewUICharacterInfo</code>, etc.) repetem o padrão: método <code>LoadImages()</code>, criação via <code>m_pNewUIMng->AddUIObj</code>, <code>SetPosition</code> baseado na resolução normalizada e limpeza em <code>Release()</code>. Ao mapear cada HUD, procure por:</p>
+                    <ul>
+                        <li><strong>Constantes de tamanho:</strong> geralmente definidas no início do arquivo (<code>const float UI_WIDTH = ...</code>).</li>
+                        <li><strong>Chamadas <code>RenderBitmap</code>/<code>RenderImage</code>:</strong> indicam fatias específicas do atlas. As coordenadas UV adicionais (parâmetros 5–8) revelam sub-regiões e devem ser replicadas ao cortar sprites em editores.</li>
+                        <li><strong>Tratamento de texto/números:</strong> funções como <code>SEASON3B::RenderNumber</code> desenham overlays numéricos. Planeje camadas separadas para textos dinâmicos no UMG.</li>
                     </ul>
                 </div>
             </div>
@@ -77,48 +174,56 @@
                         <div class="accordion-item">
                             <h2 class="accordion-header" id="headingOne">
                                 <button class="accordion-button" type="button" data-bs-toggle="collapse" data-bs-target="#collapseOne" aria-expanded="true" aria-controls="collapseOne">
-                                    1. Extrair as texturas
+                                    1. Extrair e organizar as texturas
                                 </button>
                             </h2>
                             <div id="collapseOne" class="accordion-collapse collapse show" aria-labelledby="headingOne" data-bs-parent="#ue5Steps">
                                 <div class="accordion-body">
-                                    <ul>
-                                        <li>Use os caminhos de carregamento (<code>Interface\newui_menu01.jpg</code>, etc.) para localizar os arquivos <code>.OZJ</code>/<code>.OZT</code> em <code>Data\Interface\</code>.</li>
-                                        <li>Reaproveite a lógica de <code>Convert_Format</code> ou escreva um utilitário inspirado em <code>OpenJpeg</code>/<code>OpenTga</code> para converter os formatos proprietários em <code>.jpg</code>/<code>.tga</code> padrão.</li>
-                                        <li>Com as texturas convertidas, você terá assets prontos para importação no UE5.</li>
-                                    </ul>
+                                    <ol>
+                                        <li>Localize os caminhos referenciados em cada <code>LoadImages()</code>. Por exemplo, a HUD principal usa <code>Interface\newui_menu01.jpg</code>, <code>Interface\newui_menu_red.jpg</code>, etc.</li>
+                                        <li>Converta os arquivos <code>.OZJ/.OZT</code> gerando <code>.jpg/.tga</code> puros. Opções:
+                                            <ul>
+                                                <li>Utilizar <code>CGlobalBitmap::Convert_Format</code> (executado dentro do cliente) para produzir os pacotes empacotados; depois, remover os 24 bytes iniciais manualmente.</li>
+                                                <li>Escrever um script externo que leia o arquivo binário, pule 24 bytes e salve o restante. Para <code>.OZT</code>, garanta que o resultado mantenha 32 bits e origem inferior.</li>
+                                            </ul>
+                                        </li>
+                                        <li>Cheque se as dimensões finais são potências de dois. Caso deseje otimizar para UE5, considere recortar o padding vazio mantendo UVs corretos – mas documente o offset aplicado para ajustar <code>DrawImage</code> depois.</li>
+                                        <li>Importe para o UE5 como <code>Texture2D</code>, definindo o <em>Compression Settings</em> como <strong>User Interface</strong> e <em>Mip Gen Settings</em> para <strong>NoMipmaps</strong> (a HUD original não usa mipmaps).</li>
+                                    </ol>
                                 </div>
                             </div>
                         </div>
                         <div class="accordion-item">
                             <h2 class="accordion-header" id="headingTwo">
                                 <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapseTwo" aria-expanded="false" aria-controls="collapseTwo">
-                                    2. Mapear layout e âncoras
+                                    2. Mapear layout, âncoras e lógica
                                 </button>
                             </h2>
                             <div id="collapseTwo" class="accordion-collapse collapse" aria-labelledby="headingTwo" data-bs-parent="#ue5Steps">
                                 <div class="accordion-body">
-                                    <ul>
-                                        <li>Verifique cada janela (<code>NewUIMainFrameWindow</code>, <code>NewUIMyInventory</code>, etc.) para identificar texturas, tamanhos e posições relativas.</li>
-                                        <li>Os valores passados para <code>ChangeButtonInfo</code>, <code>SetPosition</code> e similares indicam offsets no espaço 2D original (640×480 ou 800×600).</li>
-                                        <li>Observe como <code>CSprite::Create</code> usa <code>m_fDatumX</code>/<code>m_fDatumY</code> e <code>m_nSizingDatums</code> para âncoras; replique essas configurações com os Anchors do UMG no UE5.</li>
-                                    </ul>
+                                    <ol>
+                                        <li>Para cada janela (<code>NewUIMainFrameWindow</code>, <code>NewUIMyInventory</code>, etc.), anote: tamanhos fixos, posição base em 640×480, <code>m_nSizingDatums</code> usado e elementos dinâmicos (<code>RenderNumber</code>, <code>RenderTipText</code>, animações).</li>
+                                        <li>Transcreva o sistema de ancoragem criando enums equivalentes no UE5 (ex.: <em>TopLeft</em>, <em>BottomRight</em>) e ajuste os <em>Anchors</em>/<em>Alignment</em> dos Widgets conforme os bits <code>IS_SIZING_DATUMS_R/B</code> exigem.</li>
+                                        <li>Implemente lógica de preenchimento para gauges e barras. As funções <code>RenderLifeMana</code>, <code>RenderGuageAG</code>, <code>RenderGuageSD</code> e <code>RenderExperience</code> mostram exatamente como o preenchimento proporcional é calculado – converta isso para <code>UMG Progress Bars</code> ou máscaras dinâmicas.</li>
+                                        <li>Mantenha o sistema de escala: o runtime calcula offsets com <code>WindowHeight</code>. Em UE5, isso pode ser reproduzido definindo um <em>Design Size</em> 640×480 e habilitando <em>Screen Size</em> adaptativo (DPI Scaling) para replicar os fatores <code>g_fScreenRate_y</code>.</li>
+                                    </ol>
                                 </div>
                             </div>
                         </div>
                         <div class="accordion-item">
                             <h2 class="accordion-header" id="headingThree">
                                 <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapseThree" aria-expanded="false" aria-controls="collapseThree">
-                                    3. Importar e configurar no UE5
+                                    3. Implementar no UMG e validar
                                 </button>
                             </h2>
                             <div id="collapseThree" class="accordion-collapse collapse" aria-labelledby="headingThree" data-bs-parent="#ue5Steps">
                                 <div class="accordion-body">
-                                    <ul>
-                                        <li>Importe as texturas convertidas como <code>Texture2D</code>, configurando Address Mode como “Clamp” quando necessário.</li>
-                                        <li>Crie Widgets UMG correspondentes às janelas do cliente original, aplicando tamanhos/posições obtidos e utilizando o canal alfa para sprites provenientes de <code>.OZT</code>.</li>
-                                        <li>Para animações, use Flipbooks ou animações UMG baseadas nas coordenadas de frame derivadas de <code>SFrameCoord</code>.</li>
-                                    </ul>
+                                    <ol>
+                                        <li>Crie Widgets para cada janela do cliente. Estruture-os em <code>Canvas Panels</code> com resolução de design 640×480, posicionando sprites conforme a tabela anterior e usando <em>Anchors</em> equivalentes.</li>
+                                        <li>Para animações quadro a quadro (ex.: ícones piscando), replique <code>CSprite::SetAction</code>/<code>Update</code> usando <code>Flipbooks</code> ou <code>UMG Timeline</code> que avancem pelo array de UVs.</li>
+                                        <li>Implemente bindings para estados de jogo (HP, Mana, SD, AG, EXP) seguindo os cálculos dos métodos <code>Render*</code>. Verifique que os valores clamped (<code>min/max</code>) coincidam com o comportamento original.</li>
+                                        <li>Teste em múltiplas resoluções suportadas pelo cliente original. Ajuste o DPI Curve para que 800×600 e 1024×768 repliquem o espaçamento previsto pelos fatores <code>WindowWidth/Height</code>. Compare capturas lado a lado para garantir paridade visual.</li>
+                                    </ol>
                                 </div>
                             </div>
                         </div>
@@ -127,9 +232,26 @@
             </div>
         </section>
 
+        <section class="mb-5">
+            <div class="card shadow-sm">
+                <div class="card-header bg-secondary text-white">
+                    <h2 class="h5 mb-0">Referências de código úteis</h2>
+                </div>
+                <div class="card-body">
+                    <ul class="mb-0">
+                        <li><code>Source Main 5.2/source/ZzzTexture.cpp</code>: entry-point de carregamento (<code>LoadBitmap</code>, <code>DeleteBitmap</code>, helpers JPEG).</li>
+                        <li><code>Source Main 5.2/source/GlobalBitmap.cpp</code>: cache de texturas, decodificação <code>.OZJ/.OZT</code>, conversores.</li>
+                        <li><code>Source Main 5.2/source/Sprite.cpp</code>: implementação de <code>CSprite</code> (ancoragem, dimensionamento, animação, render).</li>
+                        <li><code>Source Main 5.2/source/NewUIMainFrameWindow.cpp</code>: casos concretos de composição de HUD, cálculos de gauges e botões.</li>
+                        <li>Outras janelas UI: procure por arquivos <code>NewUI*.cpp</code> para padrões semelhantes (<code>LoadImages</code>, <code>SetButtonInfo</code>, <code>Render*</code>).</li>
+                    </ul>
+                </div>
+            </div>
+        </section>
+
         <footer class="text-center text-muted small">
-            <p class="mb-1">Referência rápida construída a partir da análise do cliente Source Main 5.2.</p>
-            <p class="mb-0">Atualizado para orientar a migração da HUD para Unreal Engine 5.</p>
+            <p class="mb-1">Referência detalhada construída a partir da análise do cliente Source Main 5.2.</p>
+            <p class="mb-0">Atualizado para orientar a migração da HUD para Unreal Engine 5 com informações completas.</p>
         </footer>
     </main>
 
