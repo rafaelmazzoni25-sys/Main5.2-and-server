@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Pipeline de Sprites e HUD - Source Main</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-QWTKZyjpPEjISv5WaRU9OFeRpok6YctnYmDr5pNlyT2bRjXh0JMhjY6hW+ALEwIH" crossorigin="anonymous">
+</head>
+<body class="bg-light text-body">
+    <nav class="navbar navbar-expand-lg navbar-dark bg-dark mb-4">
+        <div class="container-fluid">
+            <span class="navbar-brand">Source Main 5.2</span>
+        </div>
+    </nav>
+
+    <main class="container pb-5">
+        <header class="mb-5 text-center">
+            <h1 class="display-5 fw-bold">Pipeline de Sprites e Recomposição da HUD</h1>
+            <p class="lead">Resumo organizado do fluxo de leitura de sprites do cliente e orientações para reconstruir a HUD na Unreal Engine 5.</p>
+        </header>
+
+        <section class="mb-5">
+            <div class="card shadow-sm">
+                <div class="card-header bg-primary text-white">
+                    <h2 class="h4 mb-0">Pipeline de leitura de sprites</h2>
+                </div>
+                <div class="card-body">
+                    <ol class="mb-0">
+                        <li class="mb-3">
+                            <strong>Chamadas iniciais:</strong> as telas invocam <code>LoadBitmap</code> com um caminho relativo à pasta <code>Data\</code> e um índice numérico. A função resolve o caminho completo, configura filtros/policies OpenGL e delega ao singleton <code>Bitmaps</code> para gerir o recurso.
+                        </li>
+                        <li class="mb-3">
+                            <strong>Cache e escolha do leitor:</strong> <code>CGlobalBitmap::LoadImage</code> verifica o cache e seleciona o leitor apropriado de acordo com a extensão do arquivo (<code>.jpg</code> ou <code>.tga</code>).
+                        </li>
+                        <li class="mb-3">
+                            <strong>Assets empacotados:</strong> as imagens ficam em arquivos proprietários <code>.OZJ</code> (JPEG) ou <code>.OZT</code> (TGA). As funções <code>OpenJpeg</code> e <code>OpenTga</code> trocam a extensão, abrem o arquivo convertido, pulam cabeçalhos específicos e decodificam para buffers RGB/RGBA alinhados a potências de dois antes de chamar <code>glTexImage2D</code>.
+                        </li>
+                        <li class="mb-3">
+                            <strong>Utilitários auxiliares:</strong> funções como <code>ExchangeExt</code> gerenciam extensões, enquanto <code>Convert_Format</code> e <code>Save_Image</code> permitem exportar <code>.JPG</code>/<code>.TGA</code>/<code>.BMP</code> convencionais reutilizando cabeçalhos do runtime.
+                        </li>
+                        <li>
+                            <strong>Uso pelos sprites:</strong> <code>CSprite</code> consulta <code>Bitmaps.FindTexture</code> para obter o <code>BITMAP_t</code> carregado, calcula coordenadas de textura (incluindo animações quadro a quadro) e determina as coordenadas de tela baseadas na altura da janela e nos fatores de escala fornecidos.
+                        </li>
+                    </ol>
+                </div>
+            </div>
+        </section>
+
+        <section class="mb-5">
+            <div class="card shadow-sm">
+                <div class="card-header bg-primary text-white">
+                    <h2 class="h4 mb-0">Sprites na HUD</h2>
+                </div>
+                <div class="card-body">
+                    <ul class="mb-0">
+                        <li class="mb-3">
+                            Cada janela da HUD possui um método <code>LoadImages()</code> que importa barras e botões a partir de <code>Interface\*.jpg/.tga</code>, armazena os índices em constantes e registra a UI no gerenciador para renderização e descarregamento.
+                        </li>
+                        <li class="mb-3">
+                            A composição (botões, barras, gauges) é feita por controles que instanciam <code>CSprite</code> com tamanhos/offsets pré-calculados, aplicando <code>SetPosition</code>/<code>SetSize</code> conforme os valores de ancoragem definidos em <code>m_nSizingDatums</code>.
+                        </li>
+                        <li>
+                            Esse sistema garante alinhamento às bordas, preservando o layout em diferentes resoluções.
+                        </li>
+                    </ul>
+                </div>
+            </div>
+        </section>
+
+        <section class="mb-5">
+            <div class="card shadow-sm">
+                <div class="card-header bg-success text-white">
+                    <h2 class="h4 mb-0">Recriando a HUD na Unreal Engine 5</h2>
+                </div>
+                <div class="card-body">
+                    <div class="accordion" id="ue5Steps">
+                        <div class="accordion-item">
+                            <h2 class="accordion-header" id="headingOne">
+                                <button class="accordion-button" type="button" data-bs-toggle="collapse" data-bs-target="#collapseOne" aria-expanded="true" aria-controls="collapseOne">
+                                    1. Extrair as texturas
+                                </button>
+                            </h2>
+                            <div id="collapseOne" class="accordion-collapse collapse show" aria-labelledby="headingOne" data-bs-parent="#ue5Steps">
+                                <div class="accordion-body">
+                                    <ul>
+                                        <li>Use os caminhos de carregamento (<code>Interface\newui_menu01.jpg</code>, etc.) para localizar os arquivos <code>.OZJ</code>/<code>.OZT</code> em <code>Data\Interface\</code>.</li>
+                                        <li>Reaproveite a lógica de <code>Convert_Format</code> ou escreva um utilitário inspirado em <code>OpenJpeg</code>/<code>OpenTga</code> para converter os formatos proprietários em <code>.jpg</code>/<code>.tga</code> padrão.</li>
+                                        <li>Com as texturas convertidas, você terá assets prontos para importação no UE5.</li>
+                                    </ul>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="accordion-item">
+                            <h2 class="accordion-header" id="headingTwo">
+                                <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapseTwo" aria-expanded="false" aria-controls="collapseTwo">
+                                    2. Mapear layout e âncoras
+                                </button>
+                            </h2>
+                            <div id="collapseTwo" class="accordion-collapse collapse" aria-labelledby="headingTwo" data-bs-parent="#ue5Steps">
+                                <div class="accordion-body">
+                                    <ul>
+                                        <li>Verifique cada janela (<code>NewUIMainFrameWindow</code>, <code>NewUIMyInventory</code>, etc.) para identificar texturas, tamanhos e posições relativas.</li>
+                                        <li>Os valores passados para <code>ChangeButtonInfo</code>, <code>SetPosition</code> e similares indicam offsets no espaço 2D original (640×480 ou 800×600).</li>
+                                        <li>Observe como <code>CSprite::Create</code> usa <code>m_fDatumX</code>/<code>m_fDatumY</code> e <code>m_nSizingDatums</code> para âncoras; replique essas configurações com os Anchors do UMG no UE5.</li>
+                                    </ul>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="accordion-item">
+                            <h2 class="accordion-header" id="headingThree">
+                                <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapseThree" aria-expanded="false" aria-controls="collapseThree">
+                                    3. Importar e configurar no UE5
+                                </button>
+                            </h2>
+                            <div id="collapseThree" class="accordion-collapse collapse" aria-labelledby="headingThree" data-bs-parent="#ue5Steps">
+                                <div class="accordion-body">
+                                    <ul>
+                                        <li>Importe as texturas convertidas como <code>Texture2D</code>, configurando Address Mode como “Clamp” quando necessário.</li>
+                                        <li>Crie Widgets UMG correspondentes às janelas do cliente original, aplicando tamanhos/posições obtidos e utilizando o canal alfa para sprites provenientes de <code>.OZT</code>.</li>
+                                        <li>Para animações, use Flipbooks ou animações UMG baseadas nas coordenadas de frame derivadas de <code>SFrameCoord</code>.</li>
+                                    </ul>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <footer class="text-center text-muted small">
+            <p class="mb-1">Referência rápida construída a partir da análise do cliente Source Main 5.2.</p>
+            <p class="mb-0">Atualizado para orientar a migração da HUD para Unreal Engine 5.</p>
+        </footer>
+    </main>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js" integrity="sha384-YvpcrYf0tY3lHB60NNkmXc5s9fDVZLESaAA55NDzOxhy9GkcIdslK1eN7N6jIeHz" crossorigin="anonymous"></script>
+</body>
+</html>
