@@ -315,6 +315,7 @@
         <li><a href="#rede">Ciclo de Rede e Sincronização</a></li>
         <li><a href="#servidor">Servidor Dedicado e Backend</a></li>
         <li><a href="#ue5">Mapeamento para Unreal Engine 5</a></li>
+        <li><a href="#fx">Efeitos, Animações e Feedback Visual</a></li>
         <li><a href="#passo-a-passo">Passo a Passo de Implementação</a></li>
         <li><a href="#testes">Plano de Testes e QA</a></li>
         <li><a href="#checklist">Checklist de Validação</a></li>
@@ -642,6 +643,80 @@ desenha cantos/bordas fixas e, se um item estiver sendo arrastado,
         <li><strong>EquipmentPanel</strong>: mostra slots equipados, replicando <code>RenderEquippedItem()</code>.</li>
         <li><strong>TooltipLayer</strong>: controla pop-ups com <code>WidgetSwitcher</code>.</li>
       </ol>
+    </section>
+
+    <section id="fx">
+      <h2>Efeitos, Animações e Feedback Visual</h2>
+      <h3>Como o cliente original trata os efeitos</h3>
+      <p>
+        O cliente Main posiciona e orienta cada ícone 3D via <code>RenderItem3D</code>, que desloca a malha conforme o tipo do item
+        (espadas, arcos, poções, asas) antes de chamar <code>RenderObjectScreen</code>. Esse segundo método projeta o modelo em tela,
+        ajusta ângulos específicos e aproxima/afasta do cursor para simular “hover”.<br />
+        Esses offsets e rotações estão codificados entre as linhas 10605–11174 e 8553–8776, respeitando cada categoria de item.
+      </p>
+      <ul>
+        <li>
+          <strong>Offsets por tipo:</strong> armas de duas mãos deslocam mais (largura × 0,8), enquanto poções e joias mantêm centro em 0,5.
+          Referência: <code>RenderItem3D</code> ajusta <code>sx/sy</code> para todos os grupos antes de criar o vetor de tela.
+        </li>
+        <li>
+          <strong>Orientações dedicadas:</strong> <code>RenderObjectScreen</code> define ângulos distintos para armas, armaduras,
+          asas e consumíveis, garantindo que a silhueta fique legível.<br />
+          Ex.: asas usam rotações de 270°/270°; pets ajustam inclinação para não atravessar o plano 2D.
+        </li>
+      </ul>
+
+      <h3>Efeitos ligados a equipamentos e pets</h3>
+      <p>
+        Ao equipar montarias, helpers ou mascotes, o código chama <code>CreateBug</code> para instanciar o ator e, fora de zonas seguras,
+        aciona <code>CreateEffect(BITMAP_MAGIC+1,...)</code> para gerar brilhos contínuos. Esse fluxo está em
+        <code>InsertInventory</code>, linhas 7644–7710, e garante que cada ajudante tenha partículas específicas.
+      </p>
+      <ul>
+        <li>Fenrirs escolhem o modelo conforme <code>Option1</code> e sempre disparam o mesmo efeito mágico.</li>
+        <li>Pets Dark Spirit são recriados quando equipados no slot da mão esquerda (arma auxiliar).</li>
+        <li>Sem essas chamadas, o inventário pareceria “morto” após equipar um item especial.</li>
+      </ul>
+
+      <h3>Feedback visual do HUD</h3>
+      <p>
+        Cores de slot, contornos e destaques são definidos por <code>InventoryColor</code>, que troca o material do bitmap
+        antes de desenhar cada peça no painel de equipamento (linhas 11178–11339). Os estados vão de branco neutro até
+        tons avermelhados para alertas de durabilidade ou itens bloqueados.
+      </p>
+      <div class="callout">
+        <strong>Resumo legado:</strong> Ícone 3D + rotação correta + partículas de apoio + coloração contextual compõem a sensação de inventário vivo.
+      </div>
+
+      <h3>Como reproduzir no Unreal Engine 5</h3>
+      <ol>
+        <li>
+          <strong>Captura 3D com offsets:</strong> no <code>USceneCaptureComponent2D</code>, adicione um <code>UArrowComponent</code> por categoria.
+          Armazene offsets/rotinas em um <code>DataTable</code> para replicar os ajustes de <code>RenderItem3D</code>.<br />
+          Crie um <code>FItemIconOffset</code> com campos <em>PivotOffset</em>, <em>Rotation</em> e <em>Zoom</em> e alimente no capture antes de renderizar.
+        </li>
+        <li>
+          <strong>Blueprint de efeitos:</strong> para cada pet/montaria, monte um <code>Actor</code> com um <code>NiagaraComponent</code> padrão.
+          Ao equipar, invoque <code>SpawnActorDeferred</code>, configure mesh/cor e finalize com <code>FinishSpawning</code>. Ligue/desligue o Niagara via
+          <code>SetAsset</code> para replicar <code>CreateEffect</code>.
+        </li>
+        <li>
+          <strong>Feedback de slots:</strong> crie um <code>MaterialInstanceDynamic</code> para o brush de cada slot e mapeie estados “Normal”,
+          “Aviso” e “Bloqueado”. Use <code>Timeline</code> ou <code>Widget Animation</code> para animar escala/opacidade quando um item fica inválido ou ao concluir drag &amp; drop.
+        </li>
+        <li>
+          <strong>Sequência sonora/op visual:</strong> dispare <code>UAudioComponent</code> e um <code>NiagaraSystem</code> leve quando o servidor confirma uma ação,
+          substituindo o feedback imediato do cliente legado.</li>
+      </ol>
+
+      <h4>Checklist rápido para iniciantes</h4>
+      <ul>
+        <li>Implemente um <code>DataTable</code> chamado <em>ItemIconRules</em> com uma linha por tipo (arma, asa, pet, poção).</li>
+        <li>Teste cada categoria no editor pressionando um botão “Preview Icon” dentro do widget de inventário.</li>
+        <li>Configure um <code>GameplayCue</code> (ou <code>ActorComponent</code> simples) para encapsular partículas de pet/montaria.</li>
+        <li>Crie animações “Glow In/Out” no UMG e vincule ao evento <code>OnItemStateChanged</code> do seu grid.</li>
+        <li>Grave GIFs curtos após concluir cada passo — serão úteis para designers validarem o resultado.</li>
+      </ul>
     </section>
 
     <section id="passo-a-passo">
