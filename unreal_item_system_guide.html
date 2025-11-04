@@ -688,6 +688,48 @@ desenha cantos/bordas fixas e, se um item estiver sendo arrastado,
         <strong>Resumo legado:</strong> Ícone 3D + rotação correta + partículas de apoio + coloração contextual compõem a sensação de inventário vivo.
       </div>
 
+      <h3>Efeitos de itens Excellent e brilho por nível</h3>
+      <p>
+        O cliente aplica dois tipos de "glow" diretamente no mesh 3D. Primeiro, <code>RenderPartObjectEffect</code>
+        verifica os bits de <code>Option1</code> (excellent) e alterna o corpo para um material brilhante com cor pulsante
+        baseada em <code>sinf(WorldTime)</code>, cobrindo armaduras, armas e capacetes não alados
+        (linhas 10283–10329 de <code>ZzzObject.cpp</code>). Depois, o mesmo método avalia <code>Level</code> e escala uma
+        sequência de materiais cromados/metálicos conforme o upgrade (+7 até +15), habilitando camadas extras apenas quando
+        <code>g_pOption-&gt;GetRenderLevel()</code> permite (linhas 10183–10268). Esse pipeline é o responsável pelo brilho
+        verde/azul típico dos itens excellent e pela aura progressiva dos itens +9, +11, +13 etc.
+      </p>
+      <ul>
+        <li>
+          <strong>Controle por parâmetros:</strong> o brilho usa o valor dinâmico <code>Luminosity = sinf(WorldTime*0.002f)</code>
+          e troca materiais via <code>RenderPartObjectBody*</code>. Leve esse fluxo para UE5 com Material Instances e uma
+          <em>scalar parameter</em> alimentada por <code>UKismetMathLibrary::Sin</code> no <code>Tick</code> do widget ou actor.
+        </li>
+        <li>
+          <strong>Set items:</strong> quando <code>ExtOption</code> marca set option, o jogo troca para um material cromado que
+          pisca mais devagar (<code>sinf(WorldTime*0.001f)</code>). Preserve esse comportamento criando uma curva separada para
+          set/ancient no UE5.
+        </li>
+        <li>
+          <strong>Mapeamento de nível:</strong> os degraus de upgrade são discretos; monte uma tabela UE5 ligando o nível (0–15)
+          aos mesmos pacotes de materiais para replicar o aspecto de cada faixa (+7, +9, +11, +13, +15).
+        </li>
+      </ul>
+
+      <h3>Animação de drop no mundo e renderização 3D</h3>
+      <p>
+        Os itens dropados usam física própria: <code>MoveItems</code> integra uma gravidade simples, calcula o solo com
+        <code>RequestTerrainHeight</code> e gira o objeto conforme o tipo (linhas 6344–6368 de <code>ZzzObject.cpp</code>), além
+        de disparar <code>CreateShiny</code> para o flash inicial. Na renderização, <code>RenderItems</code> chama
+        <code>RenderPartObject</code> com os mesmos parâmetros de nível/opções utilizados pelo inventário, garantindo que o
+        drop mostre o glow de upgrade/excellent (linhas 6391–6468). Já os ícones 3D do inventário vêm de
+        <code>RenderItem3D</code>, que reajusta o pivot de cada categoria antes de chamar <code>RenderObjectScreen</code>
+        (linhas 10605–10745 de <code>ZzzInventory.cpp</code>).
+      </p>
+      <div class="callout">
+        <strong>Dica prática:</strong> mantenha dois caminhos na UE5 – um <code>SceneCapture2D</code> com offsets para os ícones
+        e um <code>AActor</code> de drop que aplica uma timeline de queda + rotação, reaproveitando o mesmo material emissivo.
+      </div>
+
       <h3>Como reproduzir no Unreal Engine 5</h3>
       <ol>
         <li>
@@ -703,6 +745,16 @@ desenha cantos/bordas fixas e, se um item estiver sendo arrastado,
         <li>
           <strong>Feedback de slots:</strong> crie um <code>MaterialInstanceDynamic</code> para o brush de cada slot e mapeie estados “Normal”,
           “Aviso” e “Bloqueado”. Use <code>Timeline</code> ou <code>Widget Animation</code> para animar escala/opacidade quando um item fica inválido ou ao concluir drag &amp; drop.
+        </li>
+        <li>
+          <strong>Brilho excellent/nível:</strong> implemente um material mestre com parâmetros <em>ExcellentGlow</em>, <em>SetGlow</em> e
+          <em>UpgradeTier</em>. No <code>UItemRenderComponent</code>, atualize esses valores antes da captura/renderização usando os mesmos thresholds
+          descritos em <code>RenderPartObjectEffect</code>, garantindo cores animadas para excellent e camadas extras para +7/+9/+11/+13/+15.
+        </li>
+        <li>
+          <strong>Drop animado:</strong> crie um <code>AWorldItemDrop</code> com <code>UCurveFloat</code> para posição Z e rotação. Ao spawnar,
+          aplique a curva (queda → repouso) e toque o efeito brilhante inicial. Quando o item pousar, mantenha o mesh usando o mesmo material emissivo
+          que o inventário para preservar o glow de nível/excellent.
         </li>
         <li>
           <strong>Sequência sonora/op visual:</strong> dispare <code>UAudioComponent</code> e um <code>NiagaraSystem</code> leve quando o servidor confirma uma ação,
