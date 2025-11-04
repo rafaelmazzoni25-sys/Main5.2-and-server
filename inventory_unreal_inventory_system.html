@@ -1,0 +1,533 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Guia Completo do Sistema de Inventário e Itens – Unreal Engine 5</title>
+    <link
+      href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css"
+      rel="stylesheet"
+      integrity="sha384-QWTKZyjpPEjISv5WaRU9OFeRpok6YctnYmDr5pNlyT2bRjXh0JMhjY6hW+ALEwIH"
+      crossorigin="anonymous"
+    />
+    <style>
+      body {
+        background-color: #0f172a;
+        color: #e2e8f0;
+        font-family: "Segoe UI", system-ui, -apple-system, BlinkMacSystemFont, "Helvetica Neue", sans-serif;
+      }
+      h1,
+      h2,
+      h3,
+      h4 {
+        color: #38bdf8;
+      }
+      .card {
+        background-color: #1e293b;
+        border: 1px solid rgba(148, 163, 184, 0.2);
+        border-radius: 1rem;
+      }
+      .step-number {
+        display: inline-flex;
+        justify-content: center;
+        align-items: center;
+        width: 2.2rem;
+        height: 2.2rem;
+        border-radius: 50%;
+        background: linear-gradient(145deg, #38bdf8, #0284c7);
+        color: #0f172a;
+        font-weight: 700;
+        margin-right: 0.75rem;
+      }
+      .gradient-section {
+        background: radial-gradient(circle at top, rgba(56, 189, 248, 0.15), transparent),
+          linear-gradient(160deg, rgba(14, 165, 233, 0.2), rgba(147, 197, 253, 0));
+        border-radius: 1.5rem;
+        padding: 2.5rem;
+        margin-bottom: 2rem;
+        box-shadow: 0 30px 50px -25px rgba(15, 23, 42, 0.9);
+      }
+      .code-block {
+        background-color: rgba(15, 23, 42, 0.65);
+        border-radius: 0.75rem;
+        padding: 1.25rem;
+        font-family: "Fira Code", "Courier New", monospace;
+        border: 1px solid rgba(148, 163, 184, 0.15);
+        color: #f8fafc;
+        white-space: pre-wrap;
+      }
+      .table-dark th,
+      .table-dark td {
+        border-color: rgba(148, 163, 184, 0.2);
+      }
+      .badge {
+        background-color: rgba(56, 189, 248, 0.15);
+        color: #bae6fd;
+      }
+      .timeline::before {
+        content: "";
+        position: absolute;
+        top: 0;
+        left: 1.1rem;
+        width: 2px;
+        height: 100%;
+        background: linear-gradient(180deg, rgba(56, 189, 248, 0.7), rgba(2, 132, 199, 0));
+      }
+      .timeline-step {
+        position: relative;
+        padding-left: 3.5rem;
+        margin-bottom: 2.5rem;
+      }
+      .timeline-step::before {
+        content: "";
+        position: absolute;
+        top: 0;
+        left: 0.6rem;
+        width: 1rem;
+        height: 1rem;
+        border-radius: 50%;
+        border: 3px solid #38bdf8;
+        background-color: #0f172a;
+      }
+      .accordion-button:not(.collapsed) {
+        color: #38bdf8;
+        background-color: rgba(56, 189, 248, 0.1);
+      }
+      a {
+        color: #38bdf8;
+      }
+      a:hover {
+        color: #e0f2fe;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container py-5">
+      <header class="mb-5 text-center">
+        <h1 class="display-4 fw-bold">
+          Sistema Completo de Inventário e Itens<br />
+          <span class="text-info">Unreal Engine 5 – Guia Definitivo</span>
+        </h1>
+        <p class="lead text-secondary">
+          Aprenda a replicar o fluxo completo do inventário de um MMORPG, desde o recebimento dos dados do servidor até a
+          renderização 3D dos itens no inventário e no mundo, utilizando Blueprints e C++ na Unreal Engine 5.
+        </p>
+      </header>
+
+      <section class="gradient-section">
+        <div class="row align-items-center">
+          <div class="col-lg-7">
+            <h2 class="mb-4">1. Conceitos Fundamentais</h2>
+            <p>
+              O sistema original separa claramente os itens em três contextos principais:
+            </p>
+            <ul>
+              <li><strong>Inventário do Jogador:</strong> Armazena itens equipados, slots livres e inventário de loja pessoal.</li>
+              <li><strong>Itens no Mundo:</strong> Entidades independentes que podem ser coletadas pelos jogadores.</li>
+              <li><strong>Sincronização com o Servidor:</strong> Pacotes distintos enviam atualizações do inventário e criação de itens no chão.</li>
+            </ul>
+            <p class="mb-0">
+              Na Unreal Engine 5, vamos dividir esse fluxo em <span class="badge">Data Assets</span>, <span class="badge">Actors</span>,
+              <span class="badge">Widgets</span> e <span class="badge">Subsystems</span> para obter a mesma organização modular.
+            </p>
+          </div>
+          <div class="col-lg-5">
+            <div class="card border-info p-4">
+              <h3 class="h5 text-info">Mapa Mental</h3>
+              <ul class="list-unstyled mb-0">
+                <li class="mb-2">• Dados vindos do servidor ➝ <strong>InventorySubsystem</strong></li>
+                <li class="mb-2">• Itens equipados ➝ <strong>EquipmentComponent</strong></li>
+                <li class="mb-2">• Slots do inventário ➝ <strong>InventoryWidget</strong></li>
+                <li class="mb-2">• Itens no chão ➝ <strong>WorldItemActor</strong></li>
+                <li>• Renderização 3D ➝ <strong>ItemPreviewScene</strong></li>
+              </ul>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="mb-5">
+        <h2 class="mb-4">2. Estrutura de Dados Recomendadas</h2>
+        <div class="row g-4">
+          <div class="col-lg-6">
+            <div class="card p-4 h-100">
+              <h3 class="h5">Tabelas de Dados (Primary Data Assets)</h3>
+              <p>
+                Crie uma <strong>ItemDataAsset</strong> com informações estáticas (nome, tipo, mesh, ícone, opções, sons). Em seguida, utilize uma
+                <strong>DataTable</strong> baseada em <code>FItemStaticData</code> para preencher todos os tipos de itens.
+              </p>
+              <div class="code-block">
+FItemStaticData {
+    FName ItemId;
+    TSubclassOf<AActor> WorldActorClass;
+    TSoftObjectPtr<UStaticMesh> InventoryMesh;
+    TSoftObjectPtr<UTexture2D> IconTexture;
+    EItemCategory Category;
+    int32 StackSize;
+    FGameplayTagContainer Tags;
+}
+              </div>
+            </div>
+          </div>
+          <div class="col-lg-6">
+            <div class="card p-4 h-100">
+              <h3 class="h5">Estruturas Dinâmicas</h3>
+              <p>
+                Use um <strong>struct</strong> para representar o item em tempo real. Ele guardará referências ao ID estático, quantidade, nível e opções
+                adicionais (excellent, socket, etc.).
+              </p>
+              <div class="code-block">
+USTRUCT(BlueprintType)
+struct FInventoryItem {
+    GENERATED_BODY();
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite)
+    FName ItemId;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite)
+    int32 SlotIndex = INDEX_NONE;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite)
+    int32 Quantity = 1;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite)
+    int32 ItemLevel = 0;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite)
+    FGameplayTagContainer ExtraOptions;
+};
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="mb-5">
+        <h2 class="mb-4">3. Fluxo de Sincronização com o Servidor</h2>
+        <div class="timeline position-relative">
+          <div class="timeline-step">
+            <h3 class="h5"><span class="step-number">1</span>Receber Pacote de Inventário</h3>
+            <p>
+              Implemente um <strong>InventoryNetworkHandler</strong> (Blueprint Function Library ou classe C++). Ao receber os bytes do servidor (por
+              exemplo, <code>0xF3 0x10</code>), faça o parsing para uma lista de <code>FInventoryItem</code>.
+            </p>
+            <ul>
+              <li>Limpe o inventário atual chamando <code>InventorySubsystem->ResetInventory()</code>.</li>
+              <li>Classifique os itens em <em>equipamento</em>, <em>slots normais</em> e <em>loja pessoal</em> com base no índice.</li>
+              <li>Insira os itens nas listas correspondentes.</li>
+            </ul>
+          </div>
+          <div class="timeline-step">
+            <h3 class="h5"><span class="step-number">2</span>Atualizar Componentes de Gameplay</h3>
+            <p>
+              Utilize um <strong>UInventorySubsystem</strong> (derivado de <code>UGameInstanceSubsystem</code>) para guardar o estado em memória:
+            </p>
+            <ol>
+              <li>Mantenha <strong>Arrays</strong> separados para <code>Equipment</code>, <code>InventorySlots</code> e <code>ShopInventory</code>.</li>
+              <li>Exponha <code>OnInventoryChanged</code> como <code>DECLARE_DYNAMIC_MULTICAST_DELEGATE</code> para atualizar HUDs automaticamente.</li>
+              <li>Implemente funções como <code>EquipItem</code>, <code>MoveItem</code>, <code>SplitStack</code> e <code>DropItemToWorld</code>.</li>
+            </ol>
+          </div>
+          <div class="timeline-step">
+            <h3 class="h5"><span class="step-number">3</span>Pacote de Item no Chão</h3>
+            <p>
+              Ao receber o pacote <code>0x20</code>, instancie um <strong>AWorldItemActor</strong> com base no <code>ItemId</code> informado. Configure:
+            </p>
+            <ul>
+              <li>Malha 3D via <code>SetStaticMesh</code> ou <code>SetSkeletalMesh</code> (para armaduras).</li>
+              <li>Material emissivo ou efeitos de partículas conforme raridade.</li>
+              <li>Som de impacto usando <code>UGameplayStatics::PlaySoundAtLocation</code>.</li>
+            </ul>
+          </div>
+        </div>
+      </section>
+
+      <section class="mb-5">
+        <h2 class="mb-4">4. Interface do Inventário (UMG)</h2>
+        <div class="row g-4">
+          <div class="col-lg-4">
+            <div class="card p-4 h-100">
+              <h3 class="h5">Widget Principal</h3>
+              <p>
+                Crie um <strong>UInventoryWidget</strong> com um <code>UniformGridPanel</code> para slots. Vincule cada célula a um <strong>UInventorySlotWidget</strong>.
+                Use <code>BindWidget</code> para receber o <code>InventorySubsystem</code> e repintar quando <code>OnInventoryChanged</code> for acionado.
+              </p>
+            </div>
+          </div>
+          <div class="col-lg-4">
+            <div class="card p-4 h-100">
+              <h3 class="h5">Renderização 3D no Slot</h3>
+              <p>
+                Para replicar a visualização 3D, adicione um <strong>USceneCaptureComponent2D</strong> em um <em>Actor auxiliar</em>. Cada item chama
+                <code>RenderItemPreview(ItemId)</code>, que instancia o mesh correspondente, posiciona a câmera e atualiza uma <em>Render Target</em> usada pelo widget.
+              </p>
+            </div>
+          </div>
+          <div class="col-lg-4">
+            <div class="card p-4 h-100">
+              <h3 class="h5">Interação com o Mouse</h3>
+              <p>
+                Habilite arrastar e soltar com <strong>Drag &amp; Drop Operation</strong>. Ao iniciar o drag:
+              </p>
+              <ol>
+                <li>Crie um <code>UInventoryDragDropOperation</code> contendo o <code>FInventoryItem</code>.</li>
+                <li>Mostre um widget flutuante com o preview renderizado.</li>
+                <li>Ao soltar, chame <code>InventorySubsystem->MoveItem(Origem, Destino)</code>.</li>
+              </ol>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="mb-5">
+        <h2 class="mb-4">5. Itens no Mundo (Actors)</h2>
+        <div class="row g-4">
+          <div class="col-lg-6">
+            <div class="card p-4 h-100">
+              <h3 class="h5">Classe Base <code>AWorldItemActor</code></h3>
+              <ul>
+                <li>Derive de <code>AActor</code> com <code>UStaticMeshComponent</code> ou <code>USkeletalMeshComponent</code>.</li>
+                <li>Adicione um <code>USphereComponent</code> para colisão e interação.</li>
+                <li>Implemente <code>Tick</code> para aplicar rotação e flutuação (efeito hover).</li>
+                <li>Crie funções <code>InitializeFromItem</code> e <code>OnPickedUp</code>.</li>
+              </ul>
+            </div>
+          </div>
+          <div class="col-lg-6">
+            <div class="card p-4 h-100">
+              <h3 class="h5">Feedback Visual e Sonoro</h3>
+              <p>
+                Utilize <strong>Niagara</strong> para efeitos de brilho, <strong>Material Instances</strong> para alterar cores conforme raridade e <strong>Sound Cues</strong> para
+                sons diferenciados. Ao spawnar, ative uma animação de queda via <code>Timeline</code> Blueprint (altura inicial + gravidade simulada).
+              </p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="mb-5">
+        <h2 class="mb-4">6. Passo a Passo Prático</h2>
+        <div class="accordion" id="accordionSteps">
+          <div class="accordion-item">
+            <h2 class="accordion-header" id="stepOne">
+              <button class="accordion-button" type="button" data-bs-toggle="collapse" data-bs-target="#collapseOne" aria-expanded="true" aria-controls="collapseOne">
+                Etapa 1 – Preparar os Dados de Item
+              </button>
+            </h2>
+            <div id="collapseOne" class="accordion-collapse collapse show" aria-labelledby="stepOne" data-bs-parent="#accordionSteps">
+              <div class="accordion-body">
+                <ol>
+                  <li>Crie uma pasta <strong>/Game/Data/Items</strong>.</li>
+                  <li>Adicione um <strong>Primary Data Asset</strong> chamado <em>DA_ItemDatabase</em> com array de <code>FItemStaticData</code>.</li>
+                  <li>Preencha cada item com o mesh correspondente, categoria e tags (por exemplo, <code>Item.Category = Weapon</code>).</li>
+                  <li>Crie um <strong>Blueprint Function Library</strong> <em>BP_ItemHelpers</em> para obter dados usando o ID.</li>
+                </ol>
+              </div>
+            </div>
+          </div>
+          <div class="accordion-item">
+            <h2 class="accordion-header" id="stepTwo">
+              <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapseTwo" aria-expanded="false" aria-controls="collapseTwo">
+                Etapa 2 – Inventário e Equipamentos
+              </button>
+            </h2>
+            <div id="collapseTwo" class="accordion-collapse collapse" aria-labelledby="stepTwo" data-bs-parent="#accordionSteps">
+              <div class="accordion-body">
+                <ol>
+                  <li>Implemente <strong>UInventorySubsystem</strong> em C++ e exponha métodos a Blueprint (<code>BlueprintCallable</code>).</li>
+                  <li>Adicione componentes <strong>UEquipmentComponent</strong> ao personagem para slots de equipamento com replicação.</li>
+                  <li>Crie eventos <em>OnEquipChanged</em> para atualizar a malha do personagem em tempo real.</li>
+                  <li>Configure <em>NetMulticast RPCs</em> para sincronizar uso de itens entre cliente e servidor.</li>
+                </ol>
+              </div>
+            </div>
+          </div>
+          <div class="accordion-item">
+            <h2 class="accordion-header" id="stepThree">
+              <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapseThree" aria-expanded="false" aria-controls="collapseThree">
+                Etapa 3 – Interface do Usuário
+              </button>
+            </h2>
+            <div id="collapseThree" class="accordion-collapse collapse" aria-labelledby="stepThree" data-bs-parent="#accordionSteps">
+              <div class="accordion-body">
+                <ol>
+                  <li>Construa <em>WBP_Inventory</em> com painel de slots, abas para Equipamento e Loja.</li>
+                  <li>Associe <code>OnInventoryChanged</code> para repintar os slots.</li>
+                  <li>Crie <em>WBP_ItemTooltip</em> exibindo atributos (dano, defesa, sockets) ao passar o mouse.</li>
+                  <li>Implemente arrastar e soltar chamando <code>InventorySubsystem->MoveItem</code>.</li>
+                </ol>
+              </div>
+            </div>
+          </div>
+          <div class="accordion-item">
+            <h2 class="accordion-header" id="stepFour">
+              <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapseFour" aria-expanded="false" aria-controls="collapseFour">
+                Etapa 4 – Renderização 3D e Previews
+              </button>
+            </h2>
+            <div id="collapseFour" class="accordion-collapse collapse" aria-labelledby="stepFour" data-bs-parent="#accordionSteps">
+              <div class="accordion-body">
+                <ol>
+                  <li>Crie um <em>BP_ItemPreviewScene</em> com <code>SceneCapture2D</code>, luz direcional e plano de fundo neutro.</li>
+                  <li>Quando o inventário solicitar preview, spawne um <code>AItemPreviewActor</code> com o mesh apropriado.</li>
+                  <li>Atualize a textura da Render Target e aplique ao widget via <code>Brush From Texture</code>.</li>
+                  <li>Adicione rotação automática com <code>SetActorRotation</code> no Tick ou Timeline.</li>
+                </ol>
+              </div>
+            </div>
+          </div>
+          <div class="accordion-item">
+            <h2 class="accordion-header" id="stepFive">
+              <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapseFive" aria-expanded="false" aria-controls="collapseFive">
+                Etapa 5 – Itens no Mundo e Coleta
+              </button>
+            </h2>
+            <div id="collapseFive" class="accordion-collapse collapse" aria-labelledby="stepFive" data-bs-parent="#accordionSteps">
+              <div class="accordion-body">
+                <ol>
+                  <li>Crie <em>BP_WorldItem</em> com mesh, colisão e widget <em>FloatingName</em>.</li>
+                  <li>Ao spawnar, reproduza um som e efeito Niagara conforme raridade.</li>
+                  <li>No overlap com o jogador, chame RPC para solicitar coleta ao servidor.</li>
+                  <li>Servidor remove o item do mundo e envia pacote para adicionar ao inventário do jogador.</li>
+                </ol>
+              </div>
+            </div>
+          </div>
+          <div class="accordion-item">
+            <h2 class="accordion-header" id="stepSix">
+              <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapseSix" aria-expanded="false" aria-controls="collapseSix">
+                Etapa 6 – Testes e Depuração
+              </button>
+            </h2>
+            <div id="collapseSix" class="accordion-collapse collapse" aria-labelledby="stepSix" data-bs-parent="#accordionSteps">
+              <div class="accordion-body">
+                <ol>
+                  <li>Use <strong>Automation Tests</strong> para validar parsing de pacotes.</li>
+                  <li>Registre logs com <code>UE_LOG(LogInventory, Verbose, TEXT("Slot %d atualizado"), SlotIndex)</code>.</li>
+                  <li>Crie mapas de teste dedicados: <em>Map_InventoryUI</em>, <em>Map_WorldItems</em>.</li>
+                  <li>Faça <em>Play In Editor</em> com múltiplos clientes para validar replicação.</li>
+                </ol>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="mb-5">
+        <h2 class="mb-4">7. Boas Práticas e Otimizações</h2>
+        <div class="card p-4">
+          <div class="row">
+            <div class="col-lg-6">
+              <h3 class="h5">Desempenho</h3>
+              <ul>
+                <li>Carregue meshes e texturas com <strong>Soft References</strong> e carregamento assíncrono.</li>
+                <li>Utilize <strong>Instanced Static Meshes</strong> para itens repetidos no chão.</li>
+                <li>Faça <strong>Pooling</strong> de atores de item para evitar spawn/despawn constante.</li>
+              </ul>
+            </div>
+            <div class="col-lg-6">
+              <h3 class="h5">Organização</h3>
+              <ul>
+                <li>Separe código de rede em <strong>InventoryNetworkHandler</strong> com interfaces claras.</li>
+                <li>Padronize enums (<code>EItemCategory</code>, <code>EInventoryLocation</code>) para facilitar Blueprints.</li>
+                <li>Mantenha documentação interna descrevendo cada pacote e estrutura.</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="mb-5">
+        <h2 class="mb-4">8. Checklist Final Antes de Publicar</h2>
+        <table class="table table-dark table-striped">
+          <thead>
+            <tr>
+              <th>Item</th>
+              <th>Verificação</th>
+              <th>Observações</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>Parsing de pacotes (inventário, drop)</td>
+              <td>✔️</td>
+              <td>Testar com pacotes corrompidos e reconexão.</td>
+            </tr>
+            <tr>
+              <td>Atualização de HUD em tempo real</td>
+              <td>✔️</td>
+              <td>Delegates disparando corretamente.</td>
+            </tr>
+            <tr>
+              <td>Renderização 3D dos itens</td>
+              <td>✔️</td>
+              <td>Previews consistentes com o mundo.</td>
+            </tr>
+            <tr>
+              <td>Interação com o mouse (arrastar, tooltip)</td>
+              <td>✔️</td>
+              <td>Verificar feedback visual e sons.</td>
+            </tr>
+            <tr>
+              <td>Replicação de itens no chão</td>
+              <td>✔️</td>
+              <td>Spawn e coleta sincronizados.</td>
+            </tr>
+            <tr>
+              <td>Logs e métricas</td>
+              <td>✔️</td>
+              <td>Adicionar <em>Stats</em> para monitorar uso de memória.</td>
+            </tr>
+          </tbody>
+        </table>
+      </section>
+
+      <section class="mb-5">
+        <h2 class="mb-4">9. Recursos Complementares</h2>
+        <div class="row g-4">
+          <div class="col-lg-4">
+            <div class="card p-4 h-100">
+              <h3 class="h6 text-uppercase text-info">Documentação Oficial</h3>
+              <ul class="list-unstyled">
+                <li><a href="https://docs.unrealengine.com/5.0/en-US/gameplay-ability-system-in-unreal-engine/" target="_blank">Gameplay Ability System</a></li>
+                <li><a href="https://docs.unrealengine.com/5.0/en-US/subsystems-in-unreal-engine/" target="_blank">Subsystems</a></li>
+                <li><a href="https://docs.unrealengine.com/5.0/en-US/umg-ui-designer-in-unreal-engine/" target="_blank">UMG UI Designer</a></li>
+              </ul>
+            </div>
+          </div>
+          <div class="col-lg-4">
+            <div class="card p-4 h-100">
+              <h3 class="h6 text-uppercase text-info">Ferramentas Úteis</h3>
+              <ul class="list-unstyled">
+                <li><strong>Packet Capture:</strong> Wireshark ou soluções customizadas.</li>
+                <li><strong>Perf Insight:</strong> Unreal Insights para medir desempenho.</li>
+                <li><strong>Versionamento:</strong> Use Perforce ou Git com LFS para assets.</li>
+              </ul>
+            </div>
+          </div>
+          <div class="col-lg-4">
+            <div class="card p-4 h-100">
+              <h3 class="h6 text-uppercase text-info">Boas Práticas Online</h3>
+              <ul class="list-unstyled">
+                <li>Sincronize horário do servidor para eventos de drop.</li>
+                <li>Implemente <em>Anti-cheat</em> no lado servidor para validar itens.</li>
+                <li>Use compressão de pacotes para grandes inventários.</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <footer class="text-center text-secondary">
+        <p class="mb-1">Este guia foi elaborado para acelerar a implementação do seu sistema de inventário MMORPG na Unreal Engine 5.</p>
+        <p class="small">Mantenha uma iteração contínua: planeje, implemente, teste e monitore.</p>
+      </footer>
+    </div>
+
+    <script
+      src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"
+      integrity="sha384-YvpcrYf0tY3lHB60NNkmXc5s9fDVZLESaAA55NDzOxhy9GkcIdslK1eN7N6jIeHz"
+      crossorigin="anonymous"
+    ></script>
+  </body>
+</html>
