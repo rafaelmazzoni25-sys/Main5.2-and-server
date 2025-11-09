@@ -1,0 +1,1025 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Plano Direcionado para Recriação do Projeto na Unreal Engine 5</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --azul-escuro: #123a63;
+      --azul: #0c8dd9;
+      --azul-claro: #ecf4ff;
+      --cinza: #455a74;
+      --verde: #35a07e;
+      --amarelo: #f6b73c;
+      --vermelho: #d9534f;
+      --fundo: #f3f6fb;
+    }
+    * {
+      box-sizing: border-box;
+    }
+    body {
+      font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+      line-height: 1.65;
+      margin: 0;
+      background: var(--fundo);
+      color: #1f2a3a;
+    }
+    header {
+      background: linear-gradient(135deg, var(--azul-escuro), var(--azul));
+      color: #fff;
+      padding: 3rem 1.5rem 2.5rem;
+      text-align: center;
+      position: relative;
+      overflow: hidden;
+    }
+    header::after {
+      content: "";
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+      background: radial-gradient(circle at top right, rgba(255, 255, 255, 0.28), transparent 55%);
+    }
+    header h1 {
+      margin: 0 auto 0.75rem;
+      max-width: 720px;
+      font-size: clamp(2.25rem, 2.7vw + 1.1rem, 3.25rem);
+    }
+    header p {
+      margin: 0 auto;
+      max-width: 720px;
+      font-size: 1.05rem;
+      opacity: 0.95;
+    }
+    main {
+      max-width: 1160px;
+      margin: -2.75rem auto 4rem;
+      padding: 0 1.5rem 4rem;
+    }
+    section {
+      background: #fff;
+      margin: 2rem 0;
+      padding: 2.5rem 2.25rem;
+      border-radius: 20px;
+      box-shadow: 0 26px 60px rgba(18, 58, 99, 0.12);
+      position: relative;
+      overflow: hidden;
+    }
+    section::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      border-radius: inherit;
+      background: linear-gradient(145deg, rgba(12, 141, 217, 0.05), transparent 60%);
+      pointer-events: none;
+    }
+    h2 {
+      margin: 0 0 1.75rem;
+      padding-left: 0.85rem;
+      border-left: 5px solid var(--azul);
+      color: var(--azul-escuro);
+      font-size: 1.75rem;
+    }
+    h3 {
+      margin-top: 1.75rem;
+      color: var(--cinza);
+      font-size: 1.25rem;
+    }
+    p {
+      margin: 0 0 1rem;
+    }
+    ol, ul {
+      margin: 0 0 1.35rem 1.25rem;
+    }
+    li {
+      margin-bottom: 0.45rem;
+    }
+    strong.badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.45rem;
+      font-size: 0.85rem;
+      letter-spacing: 0.02em;
+      text-transform: uppercase;
+      background: rgba(12, 141, 217, 0.14);
+      color: var(--azul-escuro);
+      border-radius: 999px;
+      padding: 0.35rem 0.9rem;
+    }
+    .grid-3 {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+      gap: 1.25rem;
+      margin-top: 1.5rem;
+    }
+    .atlas-tabs {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.75rem;
+      margin: 1.75rem 0 1.5rem;
+    }
+    .atlas-tab {
+      background: rgba(12, 141, 217, 0.14);
+      border: 1px solid rgba(12, 141, 217, 0.35);
+      color: var(--azul-escuro);
+      border-radius: 999px;
+      padding: 0.55rem 1.25rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: transform 0.2s ease, box-shadow 0.2s ease, background 0.2s ease;
+    }
+    .atlas-tab.active {
+      background: linear-gradient(135deg, var(--azul), #0b6ac1);
+      color: #fff;
+      box-shadow: 0 12px 24px rgba(12, 141, 217, 0.25);
+    }
+    .atlas-tab:hover {
+      transform: translateY(-2px);
+    }
+    .atlas-content {
+      display: none;
+      border-radius: 16px;
+      border: 1px solid #d7e5f7;
+      background: #fafdff;
+      padding: 1.75rem 1.5rem;
+      gap: 1.35rem;
+    }
+    .atlas-content.active {
+      display: grid;
+    }
+    .atlas-content h3 {
+      margin-top: 0;
+      color: var(--azul-escuro);
+    }
+    .atlas-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 1.15rem;
+      font-size: 0.95rem;
+    }
+    .atlas-table thead {
+      background: rgba(12, 141, 217, 0.12);
+    }
+    .atlas-table th,
+    .atlas-table td {
+      padding: 0.75rem 0.85rem;
+      text-align: left;
+      border-bottom: 1px solid #dfe9f7;
+      vertical-align: top;
+    }
+    .atlas-table th {
+      color: var(--azul-escuro);
+      font-weight: 700;
+      font-size: 0.9rem;
+      text-transform: uppercase;
+      letter-spacing: 0.03em;
+    }
+    .atlas-table code {
+      background: rgba(12, 141, 217, 0.08);
+      color: var(--azul-escuro);
+      padding: 0.15rem 0.35rem;
+      border-radius: 6px;
+      font-size: 0.85rem;
+    }
+    .atlas-grid {
+      display: grid;
+      gap: 1.1rem;
+    }
+    .atlas-highlight {
+      border-left: 5px solid var(--azul);
+      background: rgba(12, 141, 217, 0.08);
+      padding: 1rem 1.15rem;
+      border-radius: 12px;
+    }
+    .atlas-list {
+      display: grid;
+      gap: 0.55rem;
+      margin: 0;
+      padding-left: 1.15rem;
+    }
+    .card {
+      border-radius: 16px;
+      border: 1px solid #d7e5f7;
+      background: #fafdff;
+      padding: 1.4rem 1.3rem 1.15rem;
+      position: relative;
+      transition: transform 0.2s ease, box-shadow 0.2s ease;
+    }
+    .card:hover {
+      transform: translateY(-4px);
+      box-shadow: 0 18px 40px rgba(12, 141, 217, 0.18);
+    }
+    .card h3 {
+      margin-top: 0;
+      font-size: 1.2rem;
+    }
+    .checklist {
+      display: grid;
+      gap: 0.85rem;
+      margin-top: 1.5rem;
+    }
+    .checklist label {
+      display: grid;
+      grid-template-columns: auto 1fr;
+      gap: 0.75rem;
+      align-items: start;
+      padding: 1rem 1rem 1rem 1.25rem;
+      border-radius: 12px;
+      background: #f7fbff;
+      border: 1px solid #dce9f9;
+    }
+    .checklist input[type="checkbox"] {
+      width: 1.15rem;
+      height: 1.15rem;
+      margin-top: 0.35rem;
+    }
+    .interactive-panel {
+      background: var(--azul-escuro);
+      color: #fff;
+      border-radius: 18px;
+      padding: 1.75rem;
+      display: grid;
+      gap: 1rem;
+      position: relative;
+      overflow: hidden;
+    }
+    .interactive-panel::after {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background: radial-gradient(circle at top left, rgba(255, 255, 255, 0.22), transparent 58%);
+      pointer-events: none;
+    }
+    .interactive-panel label {
+      font-weight: 600;
+    }
+    .interactive-panel select,
+    .interactive-panel button {
+      border-radius: 10px;
+      border: none;
+      padding: 0.7rem 0.85rem;
+      font-size: 1rem;
+      font-weight: 600;
+    }
+    .interactive-panel select {
+      background: #fff;
+      color: var(--azul-escuro);
+    }
+    .interactive-panel button {
+      background: linear-gradient(135deg, var(--azul), #0b6ac1);
+      color: #fff;
+      cursor: pointer;
+      transition: transform 0.2s ease, filter 0.2s ease;
+    }
+    .interactive-panel button:hover {
+      transform: translateY(-1px);
+      filter: brightness(1.06);
+    }
+    .interactive-output {
+      background: rgba(255, 255, 255, 0.12);
+      border-radius: 14px;
+      padding: 1.35rem;
+      line-height: 1.55;
+      font-size: 0.98rem;
+    }
+    details {
+      background: #f7fbff;
+      border-radius: 14px;
+      border: 1px solid #d9e7f8;
+      margin-top: 1.25rem;
+      padding: 1rem 1.25rem 1.15rem;
+    }
+    details summary {
+      cursor: pointer;
+      font-weight: 600;
+      color: var(--azul-escuro);
+    }
+    details pre {
+      background: #0b2038;
+      color: #d9e9ff;
+      padding: 1.1rem 1.25rem;
+      border-radius: 12px;
+      overflow-x: auto;
+      margin-top: 1rem;
+      font-size: 0.92rem;
+      line-height: 1.45;
+    }
+    .timeline {
+      display: grid;
+      gap: 1.25rem;
+    }
+    .timeline-step {
+      background: #fafdff;
+      border: 1px solid #d6e6f9;
+      border-radius: 14px;
+      padding: 1.35rem 1.2rem 1.25rem;
+      display: grid;
+      gap: 0.75rem;
+      position: relative;
+    }
+    .timeline-step strong {
+      color: var(--azul-escuro);
+    }
+    .timeline-step .label {
+      position: absolute;
+      top: -12px;
+      right: 16px;
+      background: var(--amarelo);
+      color: #fff;
+      font-weight: 700;
+      border-radius: 999px;
+      padding: 0.25rem 0.75rem;
+      letter-spacing: 0.02em;
+    }
+    .callout {
+      border-left: 5px solid var(--verde);
+      background: #f0f9f4;
+      padding: 1.1rem 1.35rem;
+      border-radius: 12px;
+      margin-top: 1.5rem;
+    }
+    .warning {
+      border-left-color: var(--vermelho);
+      background: #fff1f1;
+    }
+    footer {
+      text-align: center;
+      padding: 2rem 1rem 4rem;
+      color: #60718b;
+      font-size: 0.95rem;
+    }
+    @media (max-width: 720px) {
+      section {
+        padding: 2.1rem 1.6rem;
+      }
+      .interactive-panel {
+        padding: 1.3rem 1.2rem;
+      }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Guia de Recriação Total do Projeto na Unreal Engine 5</h1>
+    <p>
+      Este documento interativo indica a ordem ideal para reconstruir o projeto na UE5 reaproveitando assets originais.
+      Cada etapa traz instruções práticas, checklist de prontidão, exemplos em Blueprint e pontos de verificação antes de avançar.
+    </p>
+  </header>
+  <main>
+    <section id="resumo">
+      <h2>Sequência Recomendada de Implementação</h2>
+      <p>
+        Foque em <strong>importação controlada dos assets</strong>, seguido de uma <strong>base funcional de interface e inventário</strong>,
+        antes de expandir para sistemas de progressão, drops, mapas e efeitos. Esta ordem reduz retrabalho e mantém o jogo jogável rapidamente.
+      </p>
+      <div class="interactive-panel">
+        <div>
+          <label for="perfil">Selecione seu foco atual:</label>
+          <select id="perfil">
+            <option value="default">Quero seguir a ordem ideal sugerida</option>
+            <option value="asset">Tenho muitos assets convertidos e quero validar se posso usá-los</option>
+            <option value="ui">Preciso reconstruir a interface o quanto antes</option>
+            <option value="core">Quero priorizar sistemas centrais (itens, XP, drops)</option>
+            <option value="maps">Preciso entregar mapas jogáveis rápido</option>
+            <option value="vfx">Necessito atualizar efeitos e feedback audiovisual</option>
+          </select>
+        </div>
+        <button type="button" id="verPlano">Ver ordem sugerida</button>
+        <div class="interactive-output" id="saidaPlano">
+          Selecione um foco e clique em <strong>Ver ordem sugerida</strong> para receber um roteiro imediato.
+        </div>
+      </div>
+      <div class="grid-3" style="margin-top: 2rem;">
+        <div class="card">
+          <h3><span class="badge">1º</span> Fase de Validação</h3>
+          <ul>
+            <li>Auditoria de assets originais e conversão para UE5.</li>
+            <li>Configuração de projeto, plugins e convenções.</li>
+            <li>Protótipo básico de HUD + inventário navegável.</li>
+          </ul>
+        </div>
+        <div class="card">
+          <h3><span class="badge">2º</span> Fase Sistêmica</h3>
+          <ul>
+            <li>Recriação de itens, XP e drops com dados reaproveitados.</li>
+            <li>Estruturação de mapas com spawners, colisões e navegação.</li>
+            <li>Validação de rede/multiplayer (se aplicável).</li>
+          </ul>
+        </div>
+        <div class="card">
+          <h3><span class="badge">3º</span> Fase Sensorial</h3>
+          <ul>
+            <li>Atualização de efeitos visuais, sonoros e UI final.</li>
+            <li>Polimento de performance, LODs, iluminação e pós-processo.</li>
+            <li>Testes completos, correções finais e empacotamento.</li>
+          </ul>
+        </div>
+      </div>
+      <div class="checklist">
+        <label>
+          <input type="checkbox" />
+          <span><strong>Inventariou todos os assets reutilizáveis</strong> (modelos, animações, sons, UI, dados) e marcou os que precisam de retrabalho.</span>
+        </label>
+        <label>
+          <input type="checkbox" />
+          <span><strong>Definiu a meta de FPS/plataformas alvo</strong> para orientar decisões de LOD, textura e iluminação.</span>
+        </label>
+        <label>
+          <input type="checkbox" />
+          <span><strong>Configurou controle de versão</strong> (Perforce, Git LFS ou similar) e separou branch para migração.</span>
+        </label>
+      </div>
+    </section>
+
+    <section id="atlas">
+      <h2>Atlas Completo do Projeto Original</h2>
+      <p>
+        Utilize este atlas para rastrear onde cada funcionalidade do cliente e do servidor reside no projeto legado.
+        Ele indica arquivos, diretórios e binários essenciais para orientar a migração 1:1 para a Unreal Engine 5,
+        contemplando tanto o frontend (cliente) quanto o backend (servidores e bancos de dados).
+      </p>
+      <div class="atlas-tabs">
+        <button class="atlas-tab active" data-tab="frontend">Cliente (Front-end)</button>
+        <button class="atlas-tab" data-tab="backend">Servidor (Back-end)</button>
+        <button class="atlas-tab" data-tab="dados">Dados &amp; Scripts Compartilhados</button>
+        <button class="atlas-tab" data-tab="pipeline">Integração UE5 (Front + Back)</button>
+      </div>
+
+      <div class="atlas-content active" data-tab="frontend">
+        <h3>Arquitetura do Cliente Original <small>(pasta <code>Source Main 5.2/source</code>)</small></h3>
+        <table class="atlas-table">
+          <thead>
+            <tr>
+              <th>Área</th>
+              <th>Arquivos/Diretórios Originais</th>
+              <th>Responsabilidade Atual</th>
+              <th>Adaptação Recomendada na UE5</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>Boot &amp; Loop</td>
+              <td><code>Winmain.cpp</code>, <code>Winmain.h</code>, <code>Builder.cpp</code></td>
+              <td>Cria janela OpenGL, inicializa subsistemas, roda loop de mensagens.</td>
+              <td>Recriar fluxo em <code>UGameInstance</code> + <code>AGameModeBase</code>, migrando inicialização para <code>Subsystems</code> e <code>Game Feature Plugins</code>.</td>
+            </tr>
+            <tr>
+              <td>Gestão de UI</td>
+              <td><code>UIManager.cpp</code>, <code>NewUIManager.cpp</code>, <code>NewUIMainFrameWindow.cpp</code></td>
+              <td>Orquestra HUD legado, troca de janelas e renderização 2D.</td>
+              <td>Mapear widgets para <code>UMG</code>/<code>Common UI</code>; criar <code>BP_UIRoot</code> que instancia subwidgets e responde a <code>Gameplay Tags</code>.</td>
+            </tr>
+            <tr>
+              <td>Inventário &amp; Itens</td>
+              <td><code>NewUIMyInventory.cpp</code>, <code>ZzzInventory.cpp</code>, <code>ItemManager.cpp</code></td>
+              <td>Renderiza slots, valida equipáveis, consulta dados de itens.</td>
+              <td>Usar <code>Data Assets</code> e <code>Data Tables</code> em UE5; criar componentes <code>BP_InventoryManager</code> e <code>BP_ItemInstance</code> com replicação opcional.</td>
+            </tr>
+            <tr>
+              <td>Progressão &amp; Personagem</td>
+              <td><code>CharacterManager.cpp</code>, <code>QuestMng.cpp</code>, <code>GM3rdChangeUp.cpp</code></td>
+              <td>Controla atributos, quests, classes avançadas e desbloqueios.</td>
+              <td>Implementar em <code>Actor Components</code> (ex.: <code>BP_ProgressionComponent</code>) e <code>Gameplay Ability System</code> para buffs/skills.</td>
+            </tr>
+            <tr>
+              <td>Mapas &amp; Mundo</td>
+              <td><code>MapManager.cpp</code>, <code>w_MapProcess.cpp</code>, diretório <code>Time/</code></td>
+              <td>Carrega dados de mapas, portais, horários de eventos e colisões.</td>
+              <td>Converter layouts em <code>Level Streaming</code> / <code>World Partition</code>; migrar triggers para <code>Blueprint Actors</code> reutilizando CSVs como <code>Data Tables</code>.</td>
+            </tr>
+            <tr>
+              <td>Efeitos &amp; Renderização</td>
+              <td><code>ZzzEffect.cpp</code>, <code>SkillEffectMgr.cpp</code>, <code>GlobalBitmap.cpp</code>, <code>TextureScript.cpp</code></td>
+              <td>Gera partículas, animações de habilidades e gerencia texturas legacy.</td>
+              <td>Transformar assets em sistemas Niagara/Material Functions; migrar tabelas de efeitos para <code>Curve</code> e <code>Data Assets</code>.</td>
+            </tr>
+            <tr>
+              <td>Rede &amp; Protocolos</td>
+              <td><code>ProtocolSend.cpp</code>, <code>SocketSystem.cpp</code>, <code>WSclient.cpp</code></td>
+              <td>Empacota mensagens, gerencia sockets TCP, interpreta respostas do servidor.</td>
+              <td>Substituir por camadas HTTP/WebSocket/GRPC via <code>FHttpModule</code> ou plugins; definir <code>BP_ServerGateway</code> para traduzir mensagens.</td>
+            </tr>
+            <tr>
+              <td>Localização &amp; Texto</td>
+              <td><code>GlobalText.h</code>, <code>MultiLanguage.cpp</code>, <code>Local.cpp</code></td>
+              <td>Carrega arquivos de texto, alterna idiomas e strings dinâmicas.</td>
+              <td>Importar para <code>Localization Dashboard</code> da UE5; usar <code>FText</code> com <code>String Tables</code> para manter suporte multi-idioma.</td>
+            </tr>
+          </tbody>
+        </table>
+        <div class="atlas-highlight">
+          <strong>Checklist Frontend:</strong>
+          <ul class="atlas-list">
+            <li>Revisar dependências OpenGL/Win32 em <code>Winmain.cpp</code> para substituição por módulos UE5.</li>
+            <li>Gerar inventário de widgets <code>NewUI*</code> e mapear cada um para um <em>Widget Blueprint</em> equivalente.</li>
+            <li>Converter dados lidos via <code>LoadData.cpp</code> em <code>Data Tables</code> para compartilhar com o backend.</li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="atlas-content" data-tab="backend">
+        <h3>Arquitetura dos Servidores <small>(pasta <code>MuServer_Season_5_Update_15</code>)</small></h3>
+        <table class="atlas-table">
+          <thead>
+            <tr>
+              <th>Componente</th>
+              <th>Localização</th>
+              <th>Função</th>
+              <th>Pontos para Migração</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>ConnectServer</td>
+              <td><code>ConnectServer/</code></td>
+              <td>Autenticação inicial, direciona clientes para <em>JoinServer</em>.</td>
+              <td>Planeje endpoint REST/WebSocket para handshake; mantenha lista de shards/configuração.</td>
+            </tr>
+            <tr>
+              <td>JoinServer</td>
+              <td><code>JoinServer/</code></td>
+              <td>Gerencia login de contas, seleção de servidor e fila.</td>
+              <td>Converter lógica para serviço de identidade (OAuth/JWT) integrado a banco atual.</td>
+            </tr>
+            <tr>
+              <td>DataServer</td>
+              <td><code>DataServer/</code></td>
+              <td>Centraliza persistência de personagens, inventário e XP.</td>
+              <td>Modelar APIs de persistência (REST/GraphQL) + camada de acesso a dados moderna (ORM ou microserviço).</td>
+            </tr>
+            <tr>
+              <td>GameServer</td>
+              <td><code>GameServer/</code> + <code>GameServer/DATA</code></td>
+              <td>Executa lógica em tempo real, eventos, drops, skills.</td>
+              <td>Planejar reescrita em engine servidor (C++/C#/Go) consumindo mesmas tabelas que UE5; migrar scripts <code>*.dat</code> e <code>.txt</code> para base comum.</td>
+            </tr>
+            <tr>
+              <td>GameServerCS</td>
+              <td><code>GameServerCS/</code></td>
+              <td>Instância dedicada a Castle Siege e eventos PvP massivos.</td>
+              <td>Separar serviços escaláveis (matchmaking/eventos) e sincronizar com UE5 via filas ou serviços em nuvem.</td>
+            </tr>
+            <tr>
+              <td>MHPServer</td>
+              <td><code>MHPServer/</code></td>
+              <td>Proteção/anticheat legado com monitoramento de pacotes.</td>
+              <td>Substituir por solução anti-cheat compatível com UE5 (EOS, Easy Anti-Cheat, VAC) ou criar validações server-side.</td>
+            </tr>
+            <tr>
+              <td>Banco de Dados</td>
+              <td><code>DB/</code>, <code>ScriptSql/</code></td>
+              <td>Scripts SQL de criação, procedures e seeds.</td>
+              <td>Revisar tabelas para normalização; gerar modelos ER atualizados para migração.</td>
+            </tr>
+            <tr>
+              <td>Ferramentas</td>
+              <td><code>Tools/</code></td>
+              <td>Utilitários de manutenção (ex.: reset, monitoramento de eventos).</td>
+              <td>Identificar ferramentas imprescindíveis e recriar painéis Web/CLI com APIs modernas.</td>
+            </tr>
+          </tbody>
+        </table>
+        <div class="atlas-highlight">
+          <strong>Checklist Backend:</strong>
+          <ul class="atlas-list">
+            <li>Mapear dependências entre executáveis (ordem de inicialização em <code>StartUp/</code>).</li>
+            <li>Catalogar arquivos <code>GameServerInfo - *.dat</code> para definir configurações que devem virar serviços de configuração.</li>
+            <li>Exportar procedures críticas do diretório <code>ScriptSql</code> para documentação e refatoração.</li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="atlas-content" data-tab="dados">
+        <h3>Dados Compartilhados Entre Cliente e Servidor</h3>
+        <div class="atlas-grid">
+          <div>
+            <strong>Diretório <code>MuServer_Season_5_Update_15/Data</code></strong>
+            <ul class="atlas-list">
+              <li><code>Item/</code>: tabelas <code>Item.txt</code>, <code>ItemDrop.txt</code>, <code>ItemOption.txt</code>, <code>ItemValue.txt</code> — base para inventário, drops e economia.</li>
+              <li><code>Event/</code>: arquivos <code>BloodCastle.dat</code>, <code>DevilSquare.dat</code>, <code>ImperialGuardian.dat</code> descrevendo horários, bosses, recompensas.</li>
+              <li><code>Custom/</code>: ajustes proprietários (ex.: <code>CustomCombo.txt</code>, <code>CustomMix.txt</code>, <code>CustomJewel.txt</code>) a serem refletidos em sistemas UE5.</li>
+              <li><code>Character/</code>: limites de atributos, taxas de XP e configurações de classes.</li>
+              <li>Arquivos globais (<code>Command.txt</code>, <code>Effect.txt</code>, <code>ItemMove.txt</code>) mapeiam comandos e efeitos utilizados tanto no cliente quanto no servidor.</li>
+            </ul>
+          </div>
+          <div>
+            <strong>Cliente <code>Source Main 5.2/source</code></strong>
+            <ul class="atlas-list">
+              <li><code>LoadData.cpp</code> &amp; <code>ReadScript.h</code>: rotinas de parsing de arquivos <code>.txt</code>/<code>.dat</code>.</li>
+              <li><code>QuestInfo.cpp</code> e <code>QuestMng.cpp</code>: interpretam scripts de quests armazenados no servidor.</li>
+              <li><code>GlobalText.h</code> + <code>Local.cpp</code>: strings compartilhadas com base nos mesmos IDs dos bancos de dados.</li>
+            </ul>
+          </div>
+        </div>
+        <div class="atlas-highlight">
+          <strong>Práticas Recomendadas:</strong>
+          <ul class="atlas-list">
+            <li>Centralizar arquivos <code>.txt/.dat</code> em um repositório de dados versionado (Git LFS) e convertê-los para <code>JSON</code> ou <code>CSV</code> padronizado.</li>
+            <li>Gerar <em>schemas</em> para cada tabela reutilizada, garantindo compatibilidade entre UE5 e backend moderno.</li>
+            <li>Automatizar importação com scripts Python/C# que populam <code>Data Tables</code> na UE5 e alimentam o banco novo.</li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="atlas-content" data-tab="pipeline">
+        <h3>Pipeline Integrado Front + Back para Recriação na UE5</h3>
+        <ol>
+          <li><strong>Inventário de Assets</strong>: classifique meshes, texturas, ícones e sons oriundos do cliente e relacione com tabelas de itens (<code>Data/Item</code>).</li>
+          <li><strong>Modelagem de APIs</strong>: transforme processos do <code>GameServer</code> em endpoints (login, load player, salvar inventário, rolagem de drop).</li>
+          <li><strong>Sincronização de Dados</strong>: estabeleça formato único (ex.: <code>JSON</code>) e gere conversores a partir dos scripts originais (<code>LoadData.cpp</code>, <code>GameServerInfo - *.dat</code>).</li>
+          <li><strong>Blueprint Gateway</strong>: crie <code>BP_ServerGateway</code> para consumir APIs (Login, CharacterLoad, ItemUpdate) com <code>Async Action</code> + <code>HTTP Request</code>.</li>
+          <li><strong>Testes Integrados</strong>: para cada sprint, valide uma cadeia completa (ex.: login → carregar inventário → spawn mapa → evento → drop → salvar).</li>
+        </ol>
+        <div class="atlas-highlight">
+          <strong>Ferramentas de Apoio:</strong>
+          <ul class="atlas-list">
+            <li>Scripts SQL do diretório <code>ScriptSql</code> como referência para modelar migrations modernas.</li>
+            <li>Executáveis legados para capturar pacotes (útil ao recriar protocolos em UE5 via <code>Packet Capture</code>).</li>
+            <li>Planilhas de estado de assets e dados compartilhados para acompanhar o progresso da migração.</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <section id="etapas">
+      <h2>Etapas Detalhadas e Critérios de Saída</h2>
+      <article>
+        <h3>Etapa 0 – Preparação e Auditoria</h3>
+        <p><strong>Objetivo:</strong> Garantir que o ambiente esteja pronto e todos os assets tenham status definido antes da migração.</p>
+        <ul>
+          <li>Configurar projeto UE5 (Game Feature Plugins conforme necessidade, Subsystems, Common UI).</li>
+          <li>Importar assets de teste para validar pipelines (1 personagem, 1 arma, 1 HUD, 1 mapa pequeno).</li>
+          <li>Criar planilha com origem &gt; destino (texturas, materiais, animações, sons, dados CSV/JSON).</li>
+          <li>Montar pasta <code>/Game/LegacyImports</code> e subpastas por categoria (Characters, UI, FX...).</li>
+          <li>Estabelecer nomeação consistente (prefixos BP_, SK_, UI_, FX_...).</li>
+        </ul>
+        <div class="callout warning">
+          <strong>Atenção:</strong> Se o asset exigir conversão (por exemplo, materiais antigos), documente o esforço estimado antes de prosseguir para evitar gargalos no meio da recriação dos sistemas.
+        </div>
+      </article>
+      <article>
+        <h3>Etapa 1 – Núcleo Jogável (HUD + Inventário)</h3>
+        <p><strong>Objetivo:</strong> Viabilizar uma experiência jogável mínima com interface responsiva.</p>
+        <ol>
+          <li><strong>HUD Modular:</strong> converter elementos UI legados em Widgets UMG separados (barra de vida, mana, XP, minimapa).</li>
+          <li><strong>Inventário Base:</strong> criar <em>Data Assets</em> ou tabelas de dados com itens originais; gerar Blueprint <code>BP_InventoryManager</code>.</li>
+          <li><strong>Input/UI:</strong> utilizar Enhanced Input + Common UI para navegação com teclado/mouse e controle.</li>
+          <li><strong>Persistência:</strong> estruturar salvamento temporário em <code>UGameInstance</code> ou <code>USaveGame</code>.</li>
+          <li><strong>Verificação:</strong> jogador consegue abrir HUD, equipar, consumir item e ver feedback visual.</li>
+        </ol>
+        <div class="callout">
+          <strong>Critério de saída:</strong> Build jogável onde é possível iniciar partida, visualizar HUD completo e manipular inventário sem falhas.
+        </div>
+      </article>
+      <article>
+        <h3>Etapa 2 – Sistemas de Progressão (Itens, XP, Drops)</h3>
+        <p><strong>Objetivo:</strong> Reimplementar lógica central reaproveitando dados e comportamento já existente.</p>
+        <ol>
+          <li><strong>Itens:</strong> Criar <code>BP_ItemBase</code> com metadados (tipo, raridade, efeitos). Importar ícones existentes.</li>
+          <li><strong>XP/Nível:</strong> Montar curva de XP (<code>CurveFloat</code>) ou tabela. Implementar <code>BP_ProgressionComponent</code>.</li>
+          <li><strong>Drops:</strong> Configurar <code>Data Table</code> com tabelas de loot legadas e componente <code>BP_LootSpawner</code>.</li>
+          <li><strong>Balanceamento:</strong> Criar mapa de teste com inimigos representativos e ajustar probabilidades.</li>
+          <li><strong>Economia:</strong> Validar integração com moeda/loja se aplicável.</li>
+        </ol>
+        <div class="callout">
+          <strong>Critério de saída:</strong> Inimigos derrotados dropam itens corretos, XP sobe conforme curva e jogador atinge nível alvo sem inconsistências.
+        </div>
+      </article>
+      <article>
+        <h3>Etapa 3 – Mapas e Conteúdo Jogável</h3>
+        <p><strong>Objetivo:</strong> Migrar mapas mantendo navegação, colisões e atmosferas originais.</p>
+        <ol>
+          <li><strong>Layout:</strong> Usar Level Partitioning/World Composition para mapas extensos. Importar malhas estáticas e colisões personalizadas.</li>
+          <li><strong>Navegação:</strong> Regerar NavMesh, volumes de bloqueio, triggers e volumes de respawn.</li>
+          <li><strong>Streaming:</strong> Configurar <code>World Partition</code> ou subníveis para iluminação e som.</li>
+          <li><strong>Scripts:</strong> Migrar lógica de missões/eventos para <code>Level Blueprint</code> ou <code>Actor Components</code>.</li>
+          <li><strong>Testes:</strong> Percorrer cada mapa verificando colisão, iluminação e performance.</li>
+        </ol>
+        <div class="callout">
+          <strong>Critério de saída:</strong> Todos os mapas carregam em 30s, sem luzes quebradas, sem buracos de colisão e com triggers funcionais.
+        </div>
+      </article>
+      <article>
+        <h3>Etapa 4 – Efeitos, Áudio e Polimento</h3>
+        <p><strong>Objetivo:</strong> Restaurar feedback audiovisual e preparar build final.</p>
+        <ol>
+          <li><strong>VFX:</strong> Atualizar partículas no Niagara reaproveitando texturas/meshes antigos.</li>
+          <li><strong>SFX:</strong> Conectar trilhas e sons via <code>MetaSounds</code> ou Sound Cues.</li>
+          <li><strong>Iluminação:</strong> Ajustar Lumen, pós-processo e exposição. Validar escalas de lightmaps.</li>
+          <li><strong>Performance:</strong> Verificar <em>GPU Visualizer</em>, profiler e ativar LODs/streaming.</li>
+          <li><strong>Entrega:</strong> Empacotar build, rodar smoke tests e criar checklist final.</li>
+        </ol>
+        <div class="callout">
+          <strong>Critério de saída:</strong> Build final com áudio/visual coerentes, rodando estável dentro das metas de performance definidas na preparação.
+        </div>
+      </article>
+    </section>
+
+    <section id="blueprints">
+      <h2>Exemplos Práticos em Blueprint</h2>
+      <p>Use os snippets abaixo como base para recriar a lógica principal em Blueprints reaproveitando assets existentes.</p>
+      <details open>
+        <summary>HUD Dinâmico e Inventário (Widget Blueprint)</summary>
+        <ol>
+          <li>Criar <code>WBP_HUD</code> contendo componentes de barra de vida/mana (Progress Bar) e painel de inventário (Uniform Grid).</li>
+          <li>Associar <code>BP_InventoryManager</code> ao Player Controller e expor eventos <em>OnInventoryChanged</em>.</li>
+          <li>No Event Graph do widget, reagir ao evento para atualizar ícones reaproveitados.</li>
+        </ol>
+        <pre><code>Event Construct
+  → Get Player Controller → Cast to BP_PlayerController
+  → Bind Event to InventoryManager.OnInventoryChanged
+
+Custom Event OnInventoryChanged (Itens)
+  → Clear Children (GridInventario)
+  → ForEach Itens:
+      Create Widget (WBP_ItemSlot)
+      SetData (ItemID, IconeTextura, Quantidade)
+      Add Child to Grid (coluna = Index % 6, linha = Index / 6)</code></pre>
+      </details>
+      <details>
+        <summary>Sistema de Itens com Data Table</summary>
+        <ol>
+          <li>Criar <code>DT_Items</code> (Data Table) baseado em struct <code>FItemStats</code> contendo Nome, Tipo, Raridade, Mesh, Icone, Efeito.</li>
+          <li>No <code>BP_ItemBase</code>, adicionar variável <code>ItemRowName</code> e carregar dados na construção.</li>
+          <li>Expor função <code>ApplyEffect</code> para uso por consumíveis ou equipamentos.</li>
+        </ol>
+        <pre><code>Event OnConstruct (BP_ItemBase)
+  → Get Data Table Row (DT_Items, ItemRowName)
+  → Set DisplayName, Icon, Mesh, Stats
+
+Function ApplyEffect (Alvo)
+  Switch on ItemType
+    Consumivel → Alvo.ApplyHealth(Stats.HealAmount)
+    Equipamento → Alvo.EquiparSlot(Stats.Slot, self)
+    Gema → Alvo.AtribuirBuff(Stats.BuffID, Stats.Duration)</code></pre>
+      </details>
+      <details>
+        <summary>XP e Level Up Automatizado</summary>
+        <ol>
+          <li>Criar componente <code>BP_ProgressionComponent</code> com variáveis <code>CurrentXP</code>, <code>CurrentLevel</code>, <code>XPTable</code>.</li>
+          <li>Adicionar função <code>AddExperience</code> chamada por inimigos ao morrer.</li>
+          <li>Disparar evento <code>OnLevelUp</code> que atualiza HUD e atributos do personagem.</li>
+        </ol>
+        <pre><code>Function AddExperience (Amount)
+  CurrentXP += Amount
+  while CurrentXP ≥ XPTable[CurrentLevel]
+    CurrentXP -= XPTable[CurrentLevel]
+    CurrentLevel += 1
+    OnLevelUp.Broadcast(CurrentLevel)
+
+Event OnLevelUp
+  → PlayerStatsComponent.IncrementarAtributos(CurrentLevel)
+  → HUDWidget.PlayAnimation(LevelUpAnim)
+  → Spawn Niagara (FX_LevelUp) na localização do jogador</code></pre>
+      </details>
+      <details>
+        <summary>Drop de Loot Dinâmico</summary>
+        <ol>
+          <li><code>BP_LootSpawner</code> recebe tabela <code>DT_LootTable</code> herdada do jogo original.</li>
+          <li>Ao destruir inimigo, chamar <code>SpawnLoot</code> informando <em>LootContext</em> (região, dificuldade).</li>
+          <li>Gerar item físico com mesh/partícula reutilizada.</li>
+        </ol>
+        <pre><code>Function SpawnLoot (LootContext)
+  EntradasVálidas ← Filtrar DT_LootTable por Região &amp; Raridade
+  Sorteio ← Random Weighted Selection (DropRate)
+  SpawnActor BP_ItemPickup at GetActorLocation()
+  ItemPickup.SetItemID(Sorteio.ItemID)
+  ItemPickup.PlayNiagara(FX_Drop, Cor = Sorteio.RaridadeCor)
+  ItemPickup.Bind OnCollected → Inventario.AddItem(ItemID)</code></pre>
+      </details>
+      <details>
+        <summary>Carregamento de Mapas com Subníveis</summary>
+        <ol>
+          <li>Converter mapas grandes para <code>World Partition</code> e criar <em>Data Layers</em> para iluminação, efeitos e gameplay.</li>
+          <li>Usar <code>BP_MapManager</code> para carregar subníveis com base na proximidade do jogador.</li>
+          <li>Controlar música ambiente e sons locais via <code>Audio Volumes</code>.</li>
+        </ol>
+        <pre><code>Event BeginPlay (BP_MapManager)
+  → Set Data Layer State (Exploração, Loaded)
+  → Load Stream Level (Dungeon_Entrada)
+
+Event OnPlayerReachedPortal
+  → Load Stream Level (Dungeon_Boss)
+  → Set Data Layer State (Exploração, Unloaded)
+  → Set Data Layer State (BossFight, Loaded)
+  → AudioManager.PlayCue(MusicaBoss)</code></pre>
+      </details>
+      <details>
+        <summary>Efeitos Visuais Atualizados no Niagara</summary>
+        <ol>
+          <li>Importar texturas de partículas legadas para o Niagara e criar <code>NS_SpellImpact</code>.</li>
+          <li>Expor parâmetros de cor e escala para refletir raridade do item/skill.</li>
+          <li>Chamar efeito via <code>GameplayCue</code> ou diretamente nos Blueprints de habilidade.</li>
+        </ol>
+        <pre><code>Function PlayImpactFX (Contexto)
+  NiagaraComponent.SetVariableLinearColor("Color", Contexto.RaridadeCor)
+  NiagaraComponent.SetVariableFloat("Scale", Contexto.Escala)
+  NiagaraComponent.Activate()
+  AudioComponent.Play()
+  CameraShake.Play(Contexto.ShakeClass)</code></pre>
+      </details>
+      <details>
+        <summary>Gateway UE5 &lt;&gt; Servidor Moderno (HTTP/JSON)</summary>
+        <ol>
+          <li>Criar <code>BP_ServerGateway</code> (Object Blueprint) com funções assíncronas para Login, LoadCharacter, SaveInventory.</li>
+          <li>Utilizar <code>FHttpModule</code> via <em>Blueprint Function Library</em> (nós <code>Execute HTTP Request</code> ou plugin VaRest) para chamar APIs REST.</li>
+          <li>Serializar/deserializar <code>JSON</code> refletindo os mesmos campos dos arquivos <code>Data/Item</code> e tabelas SQL.</li>
+          <li>Propagar resultados via <em>Delegates</em> (ex.: <code>OnInventoryReceived</code>) para atualizar HUD/inventário.</li>
+        </ol>
+        <pre><code>Function LoginAsync (Email, Senha)
+  Create Request (POST, /auth/login)
+  Set Header "Content-Type" = "application/json"
+  Set Content (Make JSON → { "email": Email, "password": Senha })
+  Send
+  On Success:
+    Parse JSON → Token, Characters[]
+    Store Token
+    Broadcast OnLoginSuccess(Token, Characters)
+  On Error:
+    Broadcast OnLoginFailed(StatusCode, Message)
+
+Function LoadInventoryAsync (CharacterID)
+  Create Request (GET, /characters/{CharacterID}/inventory)
+  Set Header "Authorization" = Token
+  Send
+  On Success:
+    Parse JSON → Itens[]
+    Broadcast OnInventoryReceived(Itens)
+
+Delegate OnInventoryReceived(Itens)
+  → BP_InventoryManager.UpdateFromServer(Itens)</code></pre>
+      </details>
+    </section>
+
+    <section id="verificacoes">
+      <h2>Painel de Decisão Rápida</h2>
+      <div class="timeline">
+        <div class="timeline-step">
+          <span class="label">Início</span>
+          <strong>Importo todos os assets agora?</strong>
+          <p>Somente após classificar como <em>Pronto</em>, <em>Precisa Ajustes</em> ou <em>Substituir</em>. Caso contrário, importe um lote pequeno para validar materiais e colisões.</p>
+        </div>
+        <div class="timeline-step">
+          <span class="label">Depois do HUD</span>
+          <strong>Recrio a interface antes dos sistemas?</strong>
+          <p>Sim. Com HUD + Inventário prontos, você valida feedback instantâneo e detecta falta de dados herdados.</p>
+        </div>
+        <div class="timeline-step">
+          <span class="label">Progresso</span>
+          <strong>XP ou Itens primeiro?</strong>
+          <p>Inicie pelos itens. XP depende de recompensas, então garanta que o inventário suporte equipar/consumir para depois ajustar a progressão.</p>
+        </div>
+        <div class="timeline-step">
+          <span class="label">Conteúdo</span>
+          <strong>Mapas ou Drops antes?</strong>
+          <p>Mapas. Estruture navegação e colisões; em seguida distribua inimigos e configure drops conforme layout final.</p>
+        </div>
+        <div class="timeline-step">
+          <span class="label">Final</span>
+          <strong>Efeitos visuais no fim?</strong>
+          <p>Sim. Após sistemas estáveis, aplique Niagara, som e pós-processo com base no gameplay consolidado.</p>
+        </div>
+      </div>
+      <div class="callout" style="margin-top: 1.75rem;">
+        <strong>Dica:</strong> Revise o painel após cada etapa. Se houver bloqueio por falta de asset convertido, mova temporariamente para um placeholder marcado com <em>debug material</em> e siga com a lógica.
+      </div>
+    </section>
+
+    <section id="cronograma">
+      <h2>Cronograma Sugerido (12 Semanas)</h2>
+      <div class="timeline">
+        <div class="timeline-step">
+          <span class="label">Semanas 1–2</span>
+          <strong>Auditoria &amp; Setup</strong>
+          <ul>
+            <li>Converter lote piloto de assets e validar materiais.</li>
+            <li>Configurar controle de versão e documentação.</li>
+            <li>Definir curvas de XP, lista de itens e mapas prioritários.</li>
+          </ul>
+        </div>
+        <div class="timeline-step">
+          <span class="label">Semanas 3–5</span>
+          <strong>HUD, Inventário e Dados</strong>
+          <ul>
+            <li>Recriar HUD completo e fluxo de inventário.</li>
+            <li>Integrar dados de itens e efeitos básicos.</li>
+            <li>Testar persistência e replicação (se multiplayer).</li>
+          </ul>
+        </div>
+        <div class="timeline-step">
+          <span class="label">Semanas 6–8</span>
+          <strong>Progressão &amp; Loot</strong>
+          <ul>
+            <li>Implementar XP, níveis, habilidades destraváveis.</li>
+            <li>Configurar drops por região e chefes.</li>
+            <li>Balancear economia e recompensas.</li>
+          </ul>
+        </div>
+        <div class="timeline-step">
+          <span class="label">Semanas 9–10</span>
+          <strong>Mapas e Conteúdo</strong>
+          <ul>
+            <li>Migrar mapas restantes com colisão e navegação.</li>
+            <li>Adicionar eventos, missões e spawners.</li>
+            <li>Testes de performance e correções estruturais.</li>
+          </ul>
+        </div>
+        <div class="timeline-step">
+          <span class="label">Semanas 11–12</span>
+          <strong>Polimento Final</strong>
+          <ul>
+            <li>Atualizar VFX, trilhas e voice overs.</li>
+            <li>QA completo, bug bash e checklist de build.</li>
+            <li>Preparar material de entrega e documentação final.</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+  </main>
+  <footer>
+    Atualize este guia conforme novas descobertas na migração. Marque o progresso no checklist e use os exemplos de Blueprint como base para acelerar as próximas etapas.
+  </footer>
+  <script>
+    const stageContent = {
+      default: {
+        titulo: "Ordem ideal sugerida",
+        passos: [
+          "Finalize auditoria e importação de um lote piloto de assets.",
+          "Protótipo completo de HUD + inventário utilizando dados originais.",
+          "Implemente itens, XP e drops com Data Tables reaproveitadas.",
+          "Migre mapas, spawners e triggers para UE5 com World Partition.",
+          "Ajuste efeitos, áudio e iluminação, encerrando com testes finais."
+        ]
+      },
+      asset: {
+        titulo: "Quando há muitos assets convertidos",
+        passos: [
+          "Priorize planilha de estado dos assets e importe somente os aprovados.",
+          "Crie um mapa de revisão (Asset Playground) para testar materiais/LODs.",
+          "Depois conecte HUD + inventário usando os ícones e meshes já convertidos.",
+          "Mantenha assets incompletos marcados como placeholders até a Etapa 4."
+        ]
+      },
+      ui: {
+        titulo: "Foco em interface",
+        passos: [
+          "Migre fontes, ícones e animações UI para UMG.",
+          "Implemente HUD modular usando Common UI e reutilizando widgets originais.",
+          "Conecte inventário e barras de status aos dados herdados.",
+          "Só avance para XP/drops quando HUD responder a todos eventos principais."
+        ]
+      },
+      core: {
+        titulo: "Foco em sistemas centrais",
+        passos: [
+          "Garanta que Data Tables de itens, XP e drops estejam convertidas.",
+          "Crie componentes Blueprints (Inventory, Progression, LootSpawner).",
+          "Monte mapa de combate de teste para balancear valores reutilizados.",
+          "Integre com HUD existente antes de distribuir para mapas completos."
+        ]
+      },
+      maps: {
+        titulo: "Entrega rápida de mapas",
+        passos: [
+          "Importe blocos estruturais (terreno, malhas principais) primeiro.",
+          "Configure World Partition e volumes de navegação.",
+          "Reaplique iluminação/pós-processo original e valide colisões.",
+          "Após mapas estáveis, posicione inimigos e conecte drops e eventos."
+        ]
+      },
+      vfx: {
+        titulo: "Foco em efeitos e audiovisual",
+        passos: [
+          "Organize texturas de partículas e sons legados em pastas Niagara/Audio.",
+          "Atualize efeitos críticos (habilidades, feedback de dano) usando Niagara.",
+          "Integre MetaSounds para música adaptativa com dados reutilizados.",
+          "Finalize com pós-processo e passes de iluminação após mapas prontos."
+        ]
+      }
+    };
+
+    const select = document.getElementById("perfil");
+    const output = document.getElementById("saidaPlano");
+    document.getElementById("verPlano").addEventListener("click", () => {
+      const escolha = stageContent[select.value] || stageContent.default;
+      output.innerHTML = `<strong>${escolha.titulo}</strong><ol style="margin-top:0.85rem;">${escolha.passos
+        .map((passo) => `<li>${passo}</li>`)
+        .join("")}</ol>`;
+    });
+
+    const atlasTabs = document.querySelectorAll(".atlas-tab");
+    const atlasContents = document.querySelectorAll(".atlas-content");
+    atlasTabs.forEach((tab) => {
+      tab.addEventListener("click", () => {
+        const alvo = tab.dataset.tab;
+        atlasTabs.forEach((t) => t.classList.toggle("active", t === tab));
+        atlasContents.forEach((content) => {
+          content.classList.toggle("active", content.dataset.tab === alvo);
+        });
+      });
+    });
+  </script>
+</body>
+</html>
