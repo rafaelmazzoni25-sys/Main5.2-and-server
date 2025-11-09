@@ -930,9 +930,10 @@
         <h3>Etapa 2 – Sistemas de Progressão (Itens, XP, Drops)</h3>
         <p><strong>Objetivo:</strong> Reimplementar lógica central reaproveitando dados e comportamento já existente.</p>
         <ol>
-          <li><strong>Itens:</strong> Criar <code>BP_ItemBase</code> com metadados (tipo, raridade, efeitos). Importar ícones existentes.</li>
+          <li><strong>Itens:</strong> Criar <code>BP_ItemBase</code> com metadados (tipo, raridade, efeitos) alimentado por <code>Item.txt</code> e <code>ItemOption.txt</code>; gerar <code>WBP_ItemTooltip</code> reproduzindo cores e textos originais.</li>
+          <li><strong>Colisão/Renderização:</strong> Implementar <code>BP_ItemInstance</code> com <code>Box Collision</code> e lógica de <em>line trace</em> para repouso seguro, replicando <code>CheckStandAttr</code> do servidor.</li>
+          <li><strong>Drops:</strong> Configurar <code>Data Table</code> com tabelas de loot legadas e componente <code>BP_LootSpawner</code>, validando restrições (Lucky, Periodic, mapas especiais) antes de spawnar pickups.</li>
           <li><strong>XP/Nível:</strong> Montar curva de XP (<code>CurveFloat</code>) ou tabela. Implementar <code>BP_ProgressionComponent</code>.</li>
-          <li><strong>Drops:</strong> Configurar <code>Data Table</code> com tabelas de loot legadas e componente <code>BP_LootSpawner</code>.</li>
           <li><strong>Balanceamento:</strong> Criar mapa de teste com inimigos representativos e ajustar probabilidades.</li>
           <li><strong>Economia:</strong> Validar integração com moeda/loja se aplicável.</li>
         </ol>
@@ -968,6 +969,69 @@
           <strong>Critério de saída:</strong> Build final com áudio/visual coerentes, rodando estável dentro das metas de performance definidas na preparação.
         </div>
       </article>
+    </section>
+
+    <section id="item-system-encyclopedia">
+      <h2>Enciclopédia do Sistema de Itens</h2>
+      <p>
+        Esta enciclopédia consolida tudo que envolve itens: dados, colisão, drops, exibição na interface,
+        sincronização com backend e efeitos associados. Use-a como checklist central para não esquecer
+        nenhuma dependência ao migrar para a Unreal Engine 5.
+      </p>
+      <div class="grid-3">
+        <div class="card">
+          <h3>Fontes de Dados</h3>
+          <ul>
+            <li><code>Data/Item/Item.txt</code>: definição base (tamanho, tipo, requisitos, dano, durabilidade).</li>
+            <li><code>Data/Item/ItemOption.txt</code>, <code>ItemValue.txt</code>, <code>ItemDrop.txt</code>: opções extras, preços e tabelas de drop.</li>
+            <li><code>Source Main 5.2/source/ReadScript.h</code>: padrões de parsing para converter em <code>Data Tables</code> UE5.</li>
+            <li><code>Source MuServer Update 15/GameServer/Data/</code>: espelha as mesmas informações usadas pelo backend.</li>
+          </ul>
+        </div>
+        <div class="card">
+          <h3>Gameplay &amp; Colisão</h3>
+          <ul>
+            <li><code>Map.cpp</code> (<code>CheckStandAttr</code>, <code>SetAttr</code>): regras para impedir drops em áreas bloqueadas.</li>
+            <li><code>ItemManager.cpp</code>: validação de <em>Lucky</em>, periódicos, pets e sockets antes do drop.</li>
+            <li><code>MoveCommand.txt</code> e <code>ItemMove.txt</code>: restrições de movimentação (por exemplo, se um item pode ir para o cofre).</li>
+            <li>Componentes UE5: <code>BP_LootSpawner</code>, <code>BP_ItemInstance</code>, <code>BP_ItemPickupZone</code> (gatilhos).</li>
+          </ul>
+        </div>
+        <div class="card">
+          <h3>Interface &amp; Feedback</h3>
+          <ul>
+            <li><code>NewUIMyInventory.cpp</code>, <code>NewUIInventoryCtrl.cpp</code>: layout de slots, tooltips, arrasto.</li>
+            <li><code>NewUIShop.cpp</code>, <code>NewUIRepair.cpp</code>: reuso de tooltips em loja e reparo.</li>
+            <li>Widgets UE5: <code>WBP_Inventory</code>, <code>WBP_ItemTooltip</code>, <code>WBP_ItemSlot</code>, <code>WBP_ItemGhost</code>.</li>
+            <li>Áudio/VFX: <code>Item/ItemSound.bmd</code> &rarr; <code>MetaSounds</code>, <code>FX_ItemPickup.uasset</code> adaptado de partículas originais.</li>
+          </ul>
+        </div>
+      </div>
+      <h3>Fluxo Integrado</h3>
+      <ol>
+        <li><strong>Carregar Dados:</strong> Converter arquivos <code>.txt</code> via script Python/C# que gera <code>CSV</code> e importa em <code>DT_ItemDefinitions</code> e <code>DT_ItemDropTables</code>.</li>
+        <li><strong>Sincronizar Backend:</strong> Endpoints <code>/items</code> e <code>/loot-tables</code> retornam hash + conteúdo. UE5 guarda <em>cache</em> e solicita apenas se o hash diferir.</li>
+        <li><strong>Instanciar Mundo:</strong> <code>BP_LootSpawner</code> escolhe entrada de drop, verifica colisão (line trace + <code>Gameplay Tags</code>) e instancia <code>BP_ItemInstance</code>.</li>
+        <li><strong>Atualizar Inventário:</strong> <code>BP_InventoryComponent</code> recebe resposta do servidor, atualiza slots, dispara eventos de UI e registra histórico para <code>WBP_Log</code>.</li>
+        <li><strong>Tooltips &amp; Visual:</strong> Widgets renderizam dados formatados, aplicando máscaras originais, ícones e efeitos de raridade.</li>
+        <li><strong>Persistir:</strong> Backend confirma operações (drop, pickup, uso, venda) e envia snapshots para <code>POST /inventory/sync</code> garantindo consistência.</li>
+      </ol>
+      <div class="callout warning">
+        <strong>Pontos de Atenção:</strong>
+        <ul>
+          <li>Itens temporários (<code>m_PeriodicItemTime</code>) precisam de contagem regressiva em ambos os lados; crie <code>FTimerHandle</code> no cliente para feedback visual.</li>
+          <li>Itens empilháveis devem respeitar <code>MaxStack</code> dos dados originais. Implemente validação tanto no <code>BP_InventoryComponent</code> quanto no endpoint.</li>
+          <li>Itens com sockets/ancient exigem camadas extras de tooltip; prepare <code>Widget Switcher</code> para essas seções.</li>
+          <li>Colisão com o cenário: gere <em>heightmaps</em> ou use <code>Runtime Virtual Textures</code> para alinhar pickups a terrenos complexos.</li>
+        </ul>
+      </div>
+      <h3>Checklist de Testes do Sistema de Itens</h3>
+      <ul>
+        <li>Simular drop massivo em mapas diferentes (cidade, dungeon, evento) e verificar colisão + respawn após timeout.</li>
+        <li>Verificar tooltips em diferentes idiomas (usar <code>GlobalText.h</code> &rarr; <code>LocRes</code> no UE5).</li>
+        <li>Executar testes automatizados de inventário (Blueprint <code>Functional Tests</code>) movendo, dividindo e combinando stacks.</li>
+        <li>Forçar perda de conexão durante pickup para validar recuperação de estado via <code>/inventory/sync</code>.</li>
+      </ul>
     </section>
 
     <section id="blueprints">
@@ -1116,6 +1180,7 @@ Delegate OnInventoryReceived(Itens)
       </p>
       <div class="conversion-tabs" role="tablist">
         <button class="conversion-button active" data-pane="hud">HUD &amp; Barra de Experiência</button>
+        <button class="conversion-button" data-pane="items">Sistema Completo de Itens</button>
         <button class="conversion-button" data-pane="inventory">Inventário e Equipamentos</button>
         <button class="conversion-button" data-pane="progression">Progressão / XP</button>
         <button class="conversion-button" data-pane="drops">Sistema de Drops</button>
@@ -1224,6 +1289,182 @@ Function AtualizarXP (XPAtual, XPNecessaria)
   → XPLabel.SetText(FText::Format("{0}/10", Floor(Progress * 10)))</code></pre>
         <div class="callout">
           <strong>Dica de conversão:</strong> Os botões inferiores usam sprites <code>Interface\partCharge1\newui_menu_Bt*.ozj</code> espaçados de 30&nbsp;px. Monte um <code>UniformGridPanel</code> com colunas fixas e ícones reutilizados para preservar o comportamento original.</div>
+      </article>
+
+      <article class="conversion-pane" data-pane="items">
+        <h3>Sistema Completo de Itens (Dados &rarr; Mundo &rarr; UI)</h3>
+        <p>
+          Este painel conecta tabelas originais de itens, lógica de colisão de drops e renderização
+          no inventário/HUD. Ele serve como referência única para reconstruir metadados, pickups,
+          tooltips e sincronização com o backend moderno utilizando Blueprints da UE5.
+        </p>
+        <div class="grid-2">
+          <div class="source-card">
+            <div class="source-meta">Dados &mdash; <code>MuServer_Season_5_Update_15/Data/Item/Item.txt</code></div>
+            <pre><code>//Index Slot Skill X   Y   Serial Opt Drop  Nome             Lvl  DmgMin DmgMax Speed Dur
+0      0    0     1   2   1      1   1     "Kris"           6    6      11     5    20
+1      0    0     1   3   1      1   1     "Short Sword"   3    3      7      2    22
+2      0    0     1   3   1      1   1     "Rapier"        9    9      15     4    23</code></pre>
+          </div>
+          <div class="source-card">
+            <div class="source-meta">Cliente &mdash; <code>Source Main 5.2/source/NewUIMyInventory.cpp</code></div>
+            <pre><code>void CNewUIMyInventory::RenderItemToolTip(int iSlotIndex)
+{
+    if(m_iPointedSlot != -1)
+    {
+        ITEM* pEquipmentItemSlot = &CharacterMachine->Equipment[iSlotIndex];
+        if(pEquipmentItemSlot->Type != -1)
+        {
+            int iTargetX = m_EquipmentSlots[iSlotIndex].x + m_EquipmentSlots[iSlotIndex].width / 2;
+            int iTargetY = m_EquipmentSlots[iSlotIndex].y + m_EquipmentSlots[iSlotIndex].height / 2;
+            if(m_RepairMode == REPAIR_MODE_OFF)
+                RenderItemInfo(iTargetX, iTargetY, pEquipmentItemSlot, false);
+            else
+                RenderRepairInfo(iTargetX, iTargetY, pEquipmentItemSlot, false);
+        }
+    }
+}</code></pre>
+          </div>
+        </div>
+        <div class="grid-2">
+          <div class="source-card">
+            <div class="source-meta">Cliente &mdash; <code>Source Main 5.2/source/NewUIInventoryCtrl.cpp</code></div>
+            <pre><code>void CNewUIPickedItem::Render3D()
+{
+    if(m_pPickedItem && m_pPickedItem->Type >= 0)
+    {
+        m_Pos.x = MouseX - m_Size.cx/2;
+        m_Pos.y = MouseY - m_Size.cy/2;
+        RenderItem3D(m_Pos.x, m_Pos.y, m_Size.cx, m_Size.cy,
+            m_pPickedItem->Type, m_pPickedItem->Level,
+            m_pPickedItem->Option1, m_pPickedItem->ExtOption, true);
+    }
+}</code></pre>
+          </div>
+          <div class="source-card">
+            <div class="source-meta">Servidor &mdash; <code>Source MuServer Update 15/GameServer/GameServer/Map.cpp</code></div>
+            <pre><code>bool CMap::CheckAttr(int x,int y,BYTE attr)
+{
+    if((this->GetAttr(x,y) & attr) != 0)
+    {
+        return 1;
+    }
+    return 0;
+}
+
+bool CMap::CheckStandAttr(int x,int y)
+{
+    if(this->CheckAttr(x,y,2) != 0) return 0;
+    if(this->CheckAttr(x,y,4) != 0) return 0;
+    if(this->CheckAttr(x,y,8) != 0) return 0;
+    return 1;
+}</code></pre>
+          </div>
+        </div>
+        <h4>1. Estrutura de Dados e Importação</h4>
+        <ol>
+          <li>
+            Converter <code>Item.txt</code>, <code>ItemOption.txt</code>, <code>ItemDrop.txt</code> e
+            <code>ItemValue.txt</code> para <code>.csv</code> ou <code>.json</code>, mantendo índices originais.
+            Gere <code>DT_ItemDefinitions</code> (struct <code>FItemDefinition</code>) e
+            <code>DT_ItemOptions</code> (struct <code>FItemOption</code>) na UE5.
+          </li>
+          <li>
+            Criar <code>PrimaryDataAsset BP_ItemCatalog</code> para mapear famílias de itens, ícones
+            reaproveitados e classes de Blueprint associadas (ex.: <code>BP_Item_Weapon_Kris</code>).
+          </li>
+          <li>
+            Sincronizar dados com backend por endpoint <code>GET /items?hash=</code> reutilizando o checksum
+            original dos arquivos para evitar recarregamentos desnecessários.
+          </li>
+        </ol>
+        <h4>2. Blueprint de Instância de Item</h4>
+        <ol>
+          <li>Criar <code>BP_ItemInstance</code> (Actor) com componentes <code>StaticMesh</code> ou <code>Niagara</code> para pickups.</li>
+          <li>Adicionar <code>UBoxComponent</code> (colisão) com tamanho proporcional a <code>Width</code> e <code>Height</code> originais × 32px.</li>
+          <li>
+            Implementar função <code>InitializeFromRow</code> que recebe <code>FItemDefinition</code> e seta mesh, ícone, raridade,
+            atributos e efeitos sonoros/visuais.
+          </li>
+          <li>
+            Ativar replicação e <code>Net Dormancy</code> configurável para evitar tráfego excessivo quando não houver jogadores por perto.
+          </li>
+        </ol>
+        <pre><code>Event InitializeFromRow(RowName)
+  → Get Data Table Row (DT_ItemDefinitions, RowName)
+  → Set ItemID/Name/Rarity/Dimensions
+  → StaticMesh.SetStaticMesh(Row.Mesh)
+  → CollisionBox.SetBoxExtent(Row.CollisionExtent)
+  → SetCustomDepthStencil(Row.RarityColor)</code></pre>
+        <h4>3. Colisão e Validação de Drop</h4>
+        <ol>
+          <li>
+            No backend, reutilizar <code>CheckStandAttr</code> para negar drops em blocos com atributos 2/4/8. Em UE5, gerar
+            <code>Gameplay Tags</code> (ex.: <code>Map.Blocked.Drop</code>) a partir de <code>Data/World</code>.
+          </li>
+          <li>
+            No <code>BP_LootService</code>, após confirmação do servidor, traçar <code>Line Trace</code> até o solo e ajustar o pickup
+            para evitar interseções. Caso a colisão falhe, solicitar nova posição com fallback conforme lógica original.
+          </li>
+          <li>
+            Configurar <code>OnComponentBeginOverlap</code> do <code>CollisionBox</code> para chamar <code>RequestLoot</code>,
+            validando permissões (party, owner) antes de destruir o Actor.
+          </li>
+        </ol>
+        <h4>4. Tooltips e Renderização no Inventário</h4>
+        <ol>
+          <li>
+            Criar <code>WBP_ItemTooltip</code> que recebe <code>FItemDisplayData</code>. Usar <code>SizeBox</code> + <code>VerticalBox</code>
+            para replicar as seções do tooltip (nome, atributos, opções, requisitos).
+          </li>
+          <li>
+            Em <code>WBP_Inventory</code>, mapear <code>OnHovered</code> do slot para abrir tooltip na posição do cursor,
+            convertendo <code>GridX/GridY</code> em coordenadas absolutas (multiplicar por 32 px + offset <code>(15,200)</code>).
+          </li>
+          <li>
+            Implementar função <code>ComposeTooltip</code> que consulta <code>DT_ItemOptions</code> e adiciona linhas coloridas
+            conforme raridade (seguir paleta original: Excellent = #00FF00, Ancient = #00FFFF, Socket = #FF00FF).
+          </li>
+          <li>
+            Para renderização de arrasto, usar <code>WBP_ItemGhost</code> com <code>Image</code> ligado ao ícone original.
+            Atualizar a posição na tela a cada <code>Tick</code>, replicando <code>RenderItem3D</code> com coordenadas do mouse.
+          </li>
+        </ol>
+        <pre><code>OnHovered (InventorySlot)
+  → Get Item Data (ItemRow, Options, Durability)
+  → TooltipWidget = Create Widget (WBP_ItemTooltip)
+  → TooltipWidget.Initialize(Item Data)
+  → Add to Viewport (ZOrder alto)
+  → Set Position in Viewport(MousePosition + Offset)
+
+OnDragDetected
+  → Create Widget (WBP_ItemGhost)
+  → Set BrushFromTexture(Item.Icon)
+  → DragOp.DefaultDragVisual = ItemGhost
+  → DragOp.Payload = SlotReference</code></pre>
+        <h4>5. Backend &amp; Persistência</h4>
+        <ul>
+          <li>
+            Endpoints mínimos: <code>GET /characters/{id}/inventory</code>, <code>POST /inventory/move</code>,
+            <code>POST /inventory/drop</code>, <code>POST /inventory/pickup</code>, <code>POST /inventory/update-stats</code>.
+          </li>
+          <li>
+            Persistir estado visual (durabilidade, tempo restante de itens periódicos) replicando
+            <code>m_PeriodicItemTime</code>. Retornar <code>serverTime</code> para cálculo cliente.
+          </li>
+          <li>
+            Utilizar filas (ex.: Redis Streams) para confirmar drops massivos e evitar race conditions em mapas lotados.
+          </li>
+        </ul>
+        <div class="callout">
+          <strong>Checklist rápido:</strong>
+          <ul>
+            <li>Todos os itens possuem <em>RowName</em> e ícone importado? (conferir via <code>Data Validation</code>).</li>
+            <li>Colisões dos pickups respeitam <code>CheckStandAttr</code> e impedem drops em áreas proibidas?</li>
+            <li>Tooltips reproduzem cores, fontes e texto dinâmico (durabilidade, opções, sockets) do cliente original?</li>
+            <li>Arrastar/soltar sincroniza com o backend e restaura estado quando a operação é negada?</li>
+          </ul>
+        </div>
       </article>
 
       <article class="conversion-pane" data-pane="inventory">
@@ -1686,6 +1927,54 @@ if (m_bExpEffect && gCurTime - m_dwExpEffectTime < 1500)
           <li>Para a loja, consumir endpoint <code>GET /shop/offers</code> (novo backend) e popular <code>WBP_ShopGrid</code>.
             Enviar compras com <code>POST /shop/purchase</code>, esperando confirmação antes de remover moeda local.</li>
         </ol>
+      </details>
+
+      <details class="guia">
+        <summary>Tooltips de Itens &amp; Renderização 2D</summary>
+        <div class="grid-2">
+          <div>
+            <h4>Referências Legadas</h4>
+            <ul>
+              <li><code>NewUIMyInventory::RenderItemToolTip</code> posiciona o tooltip no centro do slot apontado.</li>
+              <li><code>NewUIInventoryCtrl::RenderItemToolTip</code> alterna entre <code>RenderItemInfo</code> e <code>RenderRepairInfo</code>.</li>
+              <li><code>GlobalText.h</code> fornece as strings localizadas usadas em <code>RenderTipText</code>.</li>
+            </ul>
+          </div>
+          <div class="source-card">
+            <div class="source-meta">Cliente &mdash; <code>NewUIInventoryCtrl.cpp</code></div>
+            <pre><code>void CNewUIInventoryCtrl::RenderItemToolTip()
+{
+    if(m_pToolTipItem != NULL)
+    {
+        ITEM_ATTRIBUTE* pItemAttr = &ItemAttribute[m_pToolTipItem->Type];
+        int iTargetX = m_Pos.x + m_pToolTipItem->x*INVENTORY_SQUARE_WIDTH
+            + pItemAttr->Width*INVENTORY_SQUARE_WIDTH/2;
+        int iTargetY = m_Pos.y + m_pToolTipItem->y*INVENTORY_SQUARE_HEIGHT
+            + pItemAttr->Height*INVENTORY_SQUARE_HEIGHT/2;
+        RenderItemInfo(iTargetX, iTargetY, m_pToolTipItem, false);
+    }
+}</code></pre>
+          </div>
+        </div>
+        <h4>Adaptação UE5</h4>
+        <ol>
+          <li>Criar <code>WBP_ItemTooltip</code> com <code>Canvas Panel</code> raiz e <code>SizeBox</code> ajustável. Utilize <code>TextBlock</code> configurados com fontes convertidas de <code>Tahoma</code> 12 px.</li>
+          <li>Implementar <code>PositionTooltip</code> convertendo <code>GridX/GridY</code> em pixels (usar 32 px por célula, equivalente a <code>INVENTORY_SQUARE_WIDTH/HEIGHT</code>) e adicionando o offset <code>(15,200)</code> do inventário legado.</li>
+          <li>Para reparo, utilize <code>Widget Switcher</code> alternando entre <em>Default</em> e <em>Repair</em> conforme estado do inventário.</li>
+          <li>Reproduzir efeitos de brilho usando <code>Material Instance</code> com máscara original e parâmetro <code>GlowIntensity</code> animado por <code>Timeline</code>.</li>
+        </ol>
+        <h4>Blueprint</h4>
+        <pre><code>Function ShowTooltip(SlotData, bRepairMode)
+  → Tooltip = Create Widget (WBP_ItemTooltip)
+  → Tooltip.SetData(SlotData, bRepairMode)
+  → Tooltip.PositionTooltip(GridOrigin + SlotData.Grid * 32)
+  → Tooltip.AddToViewport(ZOrder 900)
+
+Function HideTooltip()
+  → If Tooltip Is Valid → Remove From Parent</code></pre>
+        <div class="callout">
+          <strong>Dica:</strong> use <code>Data Table Row Handle</code> para buscar descrições adicionais (sockets, excellence) e gerar listas dinâmicas com <code>CreateWidget(WBP_TooltipLine)</code> por categoria.
+        </div>
       </details>
 
       <details class="guia">
