@@ -1270,6 +1270,67 @@ Custom Event OnInventoryChanged (Itens)
       Add Child to Grid (coluna = Index % 6, linha = Index / 6)</code></pre>
       </details>
       <details>
+        <summary>Tela de Login (Widget + Fluxo HTTP)</summary>
+        <ol>
+          <li>Criar <code>WBP_Login</code> com Canvas 640×480, inputs e botões posicionados conforme <code>CLoginWin::SetPosition</code>.</li>
+          <li>Adicionar <em>Widget Switcher</em> para alternar entre estados (Padrão, Carregando, Erro) enquanto a requisição HTTP é processada.</li>
+          <li>Implementar <code>BP_LoginController</code> (GameInstanceSubsystem) que chama <code>BP_ServerGateway.LoginAsync</code> e gerencia cache de usuário.</li>
+          <li>Mapear códigos de erro <code>GlobalText[450..461]</code> para mensagens amigáveis e reproduzir sons <code>SOUND_CLICK01</code>/<code>SOUND_FAIL</code>.</li>
+          <li>Ao sucesso, salvar Token/Refresh em <code>USaveGame</code>, armazenar lista de personagens no <code>GameInstance</code> e abrir a cena de seleção.</li>
+        </ol>
+        <pre><code>Event Construct
+  → LoginController = GetGameInstanceSubsystem(BP_LoginController)
+  → Bind LoginController.OnLoginSuccess → HandleSuccess
+  → Bind LoginController.OnLoginFailed → HandleError
+
+OnClickLogin / OnPressEnter
+  → PlaySound2D(SFX_Click)
+  → WidgetSwitcher.SetActiveIndex(STATE_Loading)
+  → LoginController.RequestLogin(UserText, PassText, RememberCheck.IsChecked)
+
+HandleSuccess(Characters)
+  → WidgetSwitcher.SetActiveIndex(STATE_Default)
+  → SaveGameInstance(Token)
+  → OpenLevel("L_CharacterSelect")
+
+HandleError(Code, Message)
+  → WidgetSwitcher.SetActiveIndex(STATE_Default)
+  → MessageBox.Show(Message)
+  → PlaySound2D(SFX_Error)</code></pre>
+      </details>
+      <details>
+        <summary>Seleção de Personagem (UMG + Preview 3D)</summary>
+        <ol>
+          <li>Criar <code>WBP_CharacterSelect</code> com <code>UniformGridPanel</code> de 5 slots usando sprites <code>CharSel</code> originais.</li>
+          <li>Adicionar <code>BP_CharacterPreviewManager</code> (Actor) responsável por spawnar <code>BP_CharacterPreview</code> e movimentar a câmera.</li>
+          <li>Conectar botões <em>Create</em>, <em>Delete</em>, <em>Connect</em> ao <code>BP_ServerGateway</code> para executar chamadas <code>POST /characters</code>, <code>DELETE /characters/{id}</code>, <code>POST /sessions/enter</code>.</li>
+          <li>Reaproveitar animações de idle/pose importadas do cliente original (índice por classe em <code>CharacterManager</code>).</li>
+          <li>Sincronizar estado <code>SelectedHero</code> no <code>PlayerState</code> para que outros sistemas carreguem inventário, mapa e configurações corretas.</li>
+        </ol>
+        <pre><code>Event Construct
+  → ServerGateway.ListCharactersAsync()
+  → Bind OnCharactersReceived → BuildSlots
+
+BuildSlots(List)
+  → ForEach Index 0..4
+        Slot = CreateWidget(WBP_CharacterSlot)
+        Slot.Setup(List[Index])
+        Slot.OnSelected.Bind → HandleSelected
+        Grid.AddChild(Slot)
+
+HandleSelected(CharData)
+  → PreviewManager.FocusOn(CharData)
+  → SelectedCharacter = CharData
+  → UpdateTopBarButtons()
+
+OnClickConnect
+  → ServerGateway.EnterWorldAsync(SelectedCharacter.Id)
+  → OnSuccess → OpenLevel(SelectedCharacter.StartMap)
+
+OnClickCreate
+  → ShowModal(WBP_CharacterCreation)</code></pre>
+      </details>
+      <details>
         <summary>Sistema de Itens com Data Table</summary>
         <ol>
           <li>Criar <code>DT_Items</code> (Data Table) baseado em struct <code>FItemStats</code> contendo Nome, Tipo, Raridade, Mesh, Icone, Efeito.</li>
@@ -1436,10 +1497,12 @@ Delegate OnInventoryReceived(Itens)
       </p>
       <div class="conversion-tabs" role="tablist">
         <button class="conversion-button active" data-pane="hud">HUD &amp; Barra de Experiência</button>
+        <button class="conversion-button" data-pane="login">Tela de Login</button>
         <button class="conversion-button" data-pane="items">Sistema Completo de Itens</button>
         <button class="conversion-button" data-pane="inventory">Inventário e Equipamentos</button>
         <button class="conversion-button" data-pane="progression">Progressão / XP</button>
         <button class="conversion-button" data-pane="drops">Sistema de Drops</button>
+        <button class="conversion-button" data-pane="character-select">Seleção de Personagens</button>
         <button class="conversion-button" data-pane="mobs">Sistema de Mobs</button>
         <button class="conversion-button" data-pane="skills">Sistema de Skills</button>
         <button class="conversion-button" data-pane="maps">Mapas e Navegação</button>
@@ -1549,6 +1612,149 @@ Function AtualizarXP (XPAtual, XPNecessaria)
   → XPLabel.SetText(FText::Format("{0}/10", Floor(Progress * 10)))</code></pre>
         <div class="callout">
           <strong>Dica de conversão:</strong> Os botões inferiores usam sprites <code>Interface\partCharge1\newui_menu_Bt*.ozj</code> espaçados de 30&nbsp;px. Monte um <code>UniformGridPanel</code> com colunas fixas e ícones reutilizados para preservar o comportamento original.</div>
+      </article>
+
+      <article class="conversion-pane" data-pane="login">
+        <h3>Tela de Login (Layout, Fluxo e Backend)</h3>
+        <p>
+          O cliente original constrói a janela de login em <code>CLoginWin</code> e o cabeçalho em
+          <code>CLoginMainWin</code>, reaproveitando sprites <code>BITMAP_LOG_IN</code> e alinhando os
+          controles em coordenadas absolutas (base 640×480). Esses valores guiam o posicionamento dos
+          widgets UMG e a conversão do fluxo de autenticação para Blueprints na UE5.
+        </p>
+        <div class="source-card">
+          <div class="source-meta">Cliente original – <code>Source Main 5.2/source/LoginWin.cpp</code></div>
+          <pre><code>void CLoginWin::Create()
+{
+        CWin::Create(329, 245, BITMAP_LOG_IN + 7);
+        m_asprInputBox[0].Create(156, 23, BITMAP_LOG_IN + 8);
+        m_aBtn[0].Create(54, 30, BITMAP_BUTTON);
+        m_pIDInputBox = new CUITextInputBox; m_pIDInputBox->Init(g_hWnd, 140, 14, MAX_ID_SIZE);
+        m_pPassInputBox = new CUITextInputBox; m_pPassInputBox->Init(g_hWnd, 140, 14, MAX_PASSWORD_SIZE, TRUE);
+}
+
+void CLoginWin::SetPosition(int nX, int nY)
+{
+        m_asprInputBox[0].SetPosition(nX + 109, nY + 106);
+        m_asprInputBox[1].SetPosition(nX + 109, nY + 131);
+        m_aBtn[0].SetPosition(nX + 150, nY + 178);
+        m_aBtn[1].SetPosition(nX + 211, nY + 178);
+}
+
+void CLoginWin::UpdateWhileActive(double)
+{
+        if (m_aBtn[0].IsClick()) RequestLogin();
+        else if (CInput::Instance().IsKeyDown(VK_RETURN)) RequestLogin();
+}</code></pre>
+        </div>
+        <div class="source-card">
+          <div class="source-meta">Botões superiores – <code>Source Main 5.2/source/LoginMainWin.cpp</code></div>
+          <pre><code>void CLoginMainWin::Create()
+{
+        for (int i = 0; i &lt;= LMW_BTN_CREDIT; ++i)
+                m_aBtn[i].Create(54, 30, BITMAP_LOG_IN + 4 + i, 3, 2, 1);
+        CWin::Create(CInput::Instance().GetScreenWidth() - 60, m_aBtn[0].GetHeight(), -2);
+        m_sprDeco.Create(189, 103, BITMAP_LOG_IN + 6, 0, NULL, 105, 59);
+}</code></pre>
+        </div>
+        <h4>Mapa de posicionamento (base 640×480)</h4>
+        <table>
+          <thead>
+            <tr>
+              <th>Elemento</th>
+              <th>Sprite original</th>
+              <th>Coordenadas (X, Y)</th>
+              <th>Tamanho</th>
+              <th>Observações de conversão</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>Janela</td>
+              <td><code>BITMAP_LOG_IN + 7</code></td>
+              <td>(~155, ~120)</td>
+              <td>329×245</td>
+              <td>Canvas raiz ancorado ao centro; aplicar <em>Scale Box</em> para múltiplas resoluções.</td>
+            </tr>
+            <tr>
+              <td>Input Usuário</td>
+              <td><code>BITMAP_LOG_IN + 8</code></td>
+              <td>(+109, +106)</td>
+              <td>156×23</td>
+              <td>Use <em>Editable Text Box</em> com fonte importada de <code>g_hFixFont</code> (Arial 12px).</td>
+            </tr>
+            <tr>
+              <td>Input Senha</td>
+              <td><code>BITMAP_LOG_IN + 8</code></td>
+              <td>(+109, +131)</td>
+              <td>156×23</td>
+              <td>Ativar <em>Is Password</em>; manter máscara translúcida (alpha 25).</td>
+            </tr>
+            <tr>
+              <td>Botão OK</td>
+              <td><code>BITMAP_BUTTON</code></td>
+              <td>(+150, +178)</td>
+              <td>54×30</td>
+              <td>Reutilize sprites <code>Interface\newui_btn_login_ok.ozj</code>; ligar a <code>RequestLogin</code>.</td>
+            </tr>
+            <tr>
+              <td>Botão Cancelar</td>
+              <td><code>BITMAP_BUTTON + 1</code></td>
+              <td>(+211, +178)</td>
+              <td>54×30</td>
+              <td>Executa <code>CancelLogin</code>; na UE5, navegue para <code>MainMenu</code>.</td>
+            </tr>
+            <tr>
+              <td>Botões superiores</td>
+              <td><code>BITMAP_LOG_IN + 4..6</code></td>
+              <td>(Topo direito)</td>
+              <td>54×30</td>
+              <td>Monte <em>Horizontal Box</em> ancorada ao topo (Menu/Credits).</td>
+            </tr>
+          </tbody>
+        </table>
+        <h4>Passos para replicar no UMG</h4>
+        <ol>
+          <li>Converter os arquivos <code>Interface\LogIn\*.ozj</code> e <code>Interface\LogIn\*.ozt</code> para <code>.png</code>
+            mantendo nomes originais e gerar um atlas 1:1 para <code>WBP_Login</code>.</li>
+          <li>Criar um <em>Widget Blueprint</em> com <code>Canvas Panel</code> centralizado em 640×480; inserir imagens para frame,
+            inputs e botões seguindo a tabela acima.</li>
+          <li>Adicionar <code>EditableTextBox</code> (Usuário) e <code>EditableTextBox</code> (Senha) e replicar a navegação Tab
+            usando <code>SetUserFocus</code> no <code>Event Construct</code>, similar ao <code>SetTabTarget</code>.</li>
+          <li>Configurar animação de foco inicial: no <code>Event Pre Construct</code>, chamar uma função que decide qual campo
+            recebe foco (ID preenchido &rarr; senha) conforme o comportamento de <code>FirstLoad</code>.</li>
+          <li>Integrar o backend criando <code>BP_LoginController</code> (Actor) que injeta <code>BP_ServerGateway</code> e expõe
+            eventos <code>OnLoginSuccess</code>/<code>OnLoginFailed</code>.</li>
+        </ol>
+        <h4>Blueprint – Fluxo de autenticação</h4>
+        <pre><code>WBP_Login::Event Construct
+  → Get GameInstance → GetSubsystem(BP_LoginController)
+  → Bind OnLoginSuccess → HandleSuccess
+  → Bind OnLoginFailed → HandleFailure
+
+OnClick Botão OK ou OnPress Enter
+  → PlaySound2D(SFX_Click)
+  → BP_LoginController.RequestLogin(UsuarioText, SenhaText)
+
+BP_LoginController::RequestLogin(User, Pass)
+  → Branch (IsEmpty?) → Mostrar aviso
+  → ServerGateway.LoginAsync(User, Pass)
+
+ServerGateway::OnLoginSuccess(Token, Characters)
+  → SaveGameInstance(Token)
+  → OnLoginSuccess.Broadcast(Characters)
+
+WBP_Login::HandleSuccess(Characters)
+  → Load Stream Level "CharacterSelect"
+  → Passar lista para <code>WBP_CharacterSlots</code>
+
+HandleFailure(Status, Message)
+  → Mostrar popup reaproveitando estilo <code>MESSAGE_BOX</code></code></pre>
+        <div class="callout">
+          <strong>Backend recomendado:</strong> expor <code>POST /auth/login</code> (retorna Token + lista de personagens),
+          <code>GET /servers</code> e <code>GET /patch-notes</code> para substituir os botões superiores. Utilize <em>Gameplay
+          Tags</em> para mapear códigos de erro legados (GlobalText[450..461]).
+        </div>
       </article>
 
       <article class="conversion-pane" data-pane="items">
@@ -1885,6 +2091,108 @@ while(true)
         Inventory.RefreshSlot(ItemSlot)</code></pre>
         <div class="callout">
           <strong>Triggers especiais:</strong> Kalima Gate, Mercenary, Life Stone e eventos sazonais têm ramos dedicados no código. Crie tabelas <code>DT_SpecialDrop</code> e trate-as antes da lógica genérica para manter o comportamento original.</div>
+      </article>
+
+      <article class="conversion-pane" data-pane="character-select">
+        <h3>Seleção de Personagens &amp; Criação</h3>
+        <p>
+          A tela de seleção no cliente legado combina <code>CCharSelMainWin</code> (botões e faixa superior),
+          <code>CharMakeWin</code> (criação) e rotinas de câmera em <code>ZzzScene.cpp</code>. A UE5 deve
+          reproduzir a mesma disposição dos cinco slots, controle por teclado/mouse e integração com o
+          backend (lista de personagens, criação, deleção e entrada no jogo).
+        </p>
+        <div class="source-card">
+          <div class="source-meta">Cliente – <code>Source Main 5.2/source/CharSelMainWin.cpp</code></div>
+          <pre><code>void CCharSelMainWin::Create()
+{
+        m_asprBack[DECO].Create(189, 103, BITMAP_LOG_IN+2);
+        m_aBtn[CREATE].Create(54, 30, BITMAP_LOG_IN+3, 4, 2, 1, 3);
+        m_aBtn[CONNECT].Create(54, 30, BITMAP_LOG_IN+5, 4, 2, 1, 3);
+        CWin::Create(m_aBtn[0].GetWidth() * CSMW_BTN_MAX + m_asprBack[INFO].GetWidth() + 6,
+                     m_aBtn[0].GetHeight(), -2);
+}
+
+void CCharSelMainWin::SetPosition(int nX, int nY)
+{
+        m_aBtn[CREATE].SetPosition(nX, nY);
+        m_aBtn[MENU].SetPosition(nX + nBtnWidth + 1, nY);
+        m_aBtn[DELETE].SetPosition(nWinRight - nBtnWidth, nY);
+        m_aBtn[CONNECT].SetPosition(nWinRight - (nBtnWidth * 2 + 1), nY);
+}
+
+void CCharSelMainWin::UpdateWhileActive(double)
+{
+        if (m_aBtn[CONNECT].IsClick()) ::StartGame();
+        else if (m_aBtn[CREATE].IsClick()) rUIMng.ShowWin(&rUIMng.m_CharMakeWin);
+        else if (m_aBtn[DELETE].IsClick()) DeleteCharacter();
+}</code></pre>
+        </div>
+        <div class="source-card">
+          <div class="source-meta">Criação de personagem – <code>Source Main 5.2/source/CharMakeWin.cpp</code></div>
+          <pre><code>CWin::Create(ScreenWidth, ScreenHeight);
+m_asprBack[INPUT].Create(346, 38, BITMAP_LOG_IN);
+m_abtnJob[i].Create(108, 26, BITMAP_LOG_IN+1, 4, 2, 1);
+m_aBtn[OK].SetPosition(nBaseX, nBaseY);
+m_aBtn[CANCEL].SetPosition(nX + 400, nBaseY);
+UpdateDisplay(); // ativa/desativa classes, textos e preview
+</code></pre>
+        </div>
+        <h4>Layout e reaproveitamento de assets</h4>
+        <ul>
+          <li><strong>Slots 3D:</strong> a cena <code>CreateCharacterScene()</code> ( <code>ZzzScene.cpp</code> ) posiciona até cinco
+            personagens em torno de um pivot central. No UE5, usar um <code>Level Sequence</code> ou <code>Camera Rail</code>
+            com cinco <code>BP_CharacterPreview</code> em posições equivalentes (distância ~240 unidades, ângulos 20°).</li>
+          <li><strong>Painel superior:</strong> recriar um <code>WBP_CharSelectTopBar</code> com <em>Horizontal Box</em> (Create,
+            Menu, Connect, Delete) usando as mesmas texturas <code>newui_btn_charselect_*.ozj</code>.</li>
+          <li><strong>Painel informativo:</strong> <code>m_asprBack[INFO]</code> tem largura dinâmica. No UMG, usar <em>Size Box</em>
+            ancorada ao topo direito exibindo servidor, avisos e status de bloqueio (texto amarelo quando <code>m_bAccountBlockItem</code>).</li>
+          <li><strong>Janela de criação:</strong> a malha de botões (classes) segue colunas 108×26. Em UE5, usar <code>UniformGridPanel</code>
+            com <code>Slot Padding = 2</code> e fontes idênticas para manter alinhamento.</li>
+        </ul>
+        <h4>Fluxo UE5 recomendado</h4>
+        <ol>
+          <li><em>Game Instance</em> chama <code>ServerGateway.ListCharactersAsync()</code> após login e repassa o resultado para
+            <code>WBP_CharacterSelect</code>.</li>
+          <li>O widget cria cinco <code>WBP_CharacterSlot</code> que exibem nome, classe, nível e ícones reutilizando sprites do
+            inventário (asas, armas). Slots vazios exibem botão “Create”.</li>
+          <li>Ao focar um slot, a câmera interpola para o personagem correspondente e toca animação de idle específica
+            (mapeada por classe em uma <code>Data Table</code> derivada de <code>CharacterManager.cpp</code>).</li>
+          <li>O botão “Connect” chama <code>POST /sessions/enter</code> com <code>CharacterId</code>. Ao sucesso, carrega o mapa
+            e aplica dados iniciais (inventário, posição) retornados pelo backend.</li>
+          <li>O botão “Delete” abre <code>WBP_Confirmation</code>. Se confirmado, chama <code>DELETE /characters/{id}</code> e
+            remove o slot da lista.</li>
+        </ol>
+        <h4>Blueprint – Widgets principais</h4>
+        <pre><code>WBP_CharacterSelect::Event Construct
+  → Bind ListCharactersAsync::OnSuccess → PopulateSlots
+  → ServerGateway.ListCharactersAsync()
+
+PopulateSlots(Characters)
+  → For Index 0..4
+        → SlotWidget = CreateWidget(WBP_CharacterSlot)
+        → SlotWidget.Setup(Characters[Index])
+        → Grid.AddChildToUniformGrid(SlotWidget, Row, Column)
+        → SlotWidget.OnSelected.Bind → HandleSlotSelected
+
+HandleSlotSelected(CharData)
+  → PreviewManager.ShowCharacter(CharData)
+  → SelectedCharacter = CharData
+  → UpdateButtons(SelectedCharacter != null)
+
+OnClickConnect
+  → ServerGateway.EnterWorldAsync(SelectedCharacter.Id)
+  → OnSuccess → OpenLevel(CharData.StartMap)
+
+OnClickCreate
+  → OpenWidget(WBP_CharacterCreation)
+
+WBP_CharacterCreation::OnConfirm(Name, Class)
+  → ServerGateway.CreateCharacterAsync(Name, Class)
+  → OnSuccess → RefreshCharacterList()</code></pre>
+        <div class="callout">
+          <strong>Dicas adicionais:</strong> mantenha o estado <code>SelectedHero</code> no <em>Player State</em> para compartilhar
+          a escolha com outros subsistemas (inventário inicial, cinematics). Registre telemetria para ações de delete/criar,
+          replicando os logs do <em>GameServer</em> original.</div>
       </article>
 
       <article class="conversion-pane" data-pane="mobs">
