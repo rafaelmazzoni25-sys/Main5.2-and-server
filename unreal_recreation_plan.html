@@ -486,6 +486,115 @@
       font-size: 0.85rem;
       color: var(--azul-escuro);
     }
+    details.catalog-group {
+      border: 1px solid rgba(12, 141, 217, 0.22);
+      border-radius: 18px;
+      padding: 1.15rem 1.35rem 1.35rem;
+      margin: 1.5rem 0;
+      background: rgba(12, 141, 217, 0.06);
+      box-shadow: 0 18px 42px rgba(18, 58, 99, 0.12);
+    }
+    details.catalog-group summary {
+      font-weight: 700;
+      color: var(--azul-escuro);
+      font-size: 1.1rem;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 0.55rem;
+      list-style: none;
+    }
+    details.catalog-group summary::-webkit-details-marker {
+      display: none;
+    }
+    details.catalog-group summary::before {
+      content: "\25B6";
+      font-size: 0.85rem;
+      transition: transform 0.2s ease;
+    }
+    details.catalog-group[open] summary::before {
+      transform: rotate(90deg);
+    }
+    details.catalog-group > p {
+      margin-top: 0.85rem;
+      margin-bottom: 0.85rem;
+    }
+    .catalog-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 1.2rem;
+      margin-top: 1.25rem;
+    }
+    .catalog-card {
+      background: #ffffff;
+      border-radius: 16px;
+      border: 1px solid rgba(18, 58, 99, 0.14);
+      padding: 1.25rem 1.3rem 1.35rem;
+      box-shadow: 0 16px 36px rgba(12, 141, 217, 0.15);
+      position: relative;
+      display: grid;
+      gap: 0.55rem;
+    }
+    .catalog-card h4 {
+      margin: 0;
+      font-size: 1.08rem;
+      color: var(--azul-escuro);
+    }
+    .catalog-card .path {
+      font-size: 0.9rem;
+      color: var(--cinza);
+      margin-bottom: 0.2rem;
+    }
+    .catalog-card .path code {
+      background: rgba(12, 141, 217, 0.12);
+      padding: 0.12rem 0.4rem;
+      border-radius: 6px;
+      font-size: 0.82rem;
+    }
+    .catalog-card strong {
+      color: var(--azul-escuro);
+    }
+    .step-list {
+      margin: 0.65rem 0 0.85rem 1.15rem;
+      display: grid;
+      gap: 0.4rem;
+      font-size: 0.95rem;
+    }
+    .step-list li {
+      margin: 0;
+    }
+    .dependency {
+      font-size: 0.9rem;
+      color: var(--cinza);
+    }
+    .directory-map {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 1.75rem;
+      font-size: 0.95rem;
+      background: #fff;
+      border-radius: 16px;
+      overflow: hidden;
+      box-shadow: 0 18px 44px rgba(18, 58, 99, 0.1);
+    }
+    .directory-map th,
+    .directory-map td {
+      padding: 0.9rem 1rem;
+      border-bottom: 1px solid rgba(12, 141, 217, 0.12);
+      text-align: left;
+    }
+    .directory-map th {
+      background: rgba(12, 141, 217, 0.15);
+      text-transform: uppercase;
+      font-size: 0.85rem;
+      letter-spacing: 0.05em;
+    }
+    .directory-map code {
+      background: rgba(12, 141, 217, 0.12);
+      padding: 0.12rem 0.35rem;
+      border-radius: 6px;
+      font-size: 0.85rem;
+    }
     .card {
       border-radius: 16px;
       border: 1px solid #d7e5f7;
@@ -1128,6 +1237,423 @@
           </ul>
         </article>
       </div>
+    </section>
+
+    <section id="catalogo-modulos">
+      <h2>Catálogo Completo de Módulos Legados e Estratégia de Migração UE5</h2>
+      <p>
+        Utilize este catálogo como checklist central. Cada cartão resume onde localizar o código ou dado
+        original, qual responsabilidade o módulo cobre e quais passos seguir para reconstruí-lo no
+        ecossistema UE5 reaproveitando os assets. A ordem recomendada acompanha o fluxo natural de um
+        jogador: autenticar, escolher personagens, entrar no mundo, interagir com sistemas e consumir
+        serviços de backend.
+      </p>
+
+      <details class="catalog-group" open>
+        <summary>Frontend — Interfaces Essenciais (UMG, CommonUI)</summary>
+        <p>
+          Foque primeiro em telas que sustentam a jornada do usuário. As etapas abaixo descrevem como
+          reciclar fundos, tipografia e scripts originais enquanto se integra ao gateway HTTP/JSON já
+          planejado neste guia.
+        </p>
+        <div class="catalog-grid">
+          <div class="catalog-card">
+            <h4>Tela de Login &amp; Launcher</h4>
+            <p class="path"><strong>Legado:</strong> <code>LoginMainWin.cpp</code>, <code>LoginWin.cpp</code>, <code>GCCertification.cpp</code>, <code>LauncherHelper.cpp</code>, assets em <code>Data/Interface/Login</code>.</p>
+            <p><strong>Objetivo:</strong> Autenticar contas reaproveitando o layout clássico e validando versão/patch antes de liberar acesso.</p>
+            <ol class="step-list">
+              <li>Extraia fundos (.jpg/.ozj) e botões originais, convertendo-os para <code>.uasset</code> via <em>Import as Slate Brush</em>.</li>
+              <li>Construa <code>WBP_Login</code> com <code>Canvas Panel</code> usando as coordenadas antigas; fixe campos de conta/senha com <code>Retainer Box</code> para suavizar fontes.</li>
+              <li>Implemente <code>UBlueprintFunctionLibrary::SendLogin</code> chamando o serviço <code>ConnectServer</code> &rarr; <code>JoinServer</code> através do gateway HTTP criado na seção de backend.</li>
+              <li>Valide status de patch comparando o hash em <code>resource.rc</code> com a versão publicada pelo backend antes de habilitar o botão “Jogar”.</li>
+              <li>Encapsule mensagens de erro em <code>CommonUI::UCommonBorder</code> para reaproveitar ícones de aviso originais.</li>
+            </ol>
+            <p class="dependency"><strong>Dependências:</strong> <code>ConnectServer</code> (handshake), tabela <code>Data/Connect.ini</code>, endpoints REST <code>/auth/login</code> e <code>/patch/status</code>.</p>
+          </div>
+          <div class="catalog-card">
+            <h4>Seleção &amp; Criação de Personagem</h4>
+            <p class="path"><strong>Legado:</strong> <code>CharSelMainWin.cpp</code>, <code>CharMakeWin.cpp</code>, <code>ServerSelWin.cpp</code>, <code>CharacterManager.cpp</code>.</p>
+            <p><strong>Objetivo:</strong> Replicar o carrossel 3D, limites por classe e slots adicionais.</p>
+            <ol class="step-list">
+              <li>Converta o cenário estático da seleção (BMD/TGA) para <code>Level Sequence</code> curto com luzes originais.</li>
+              <li>Monte <code>WBP_CharacterSelect</code> com <code>CommonTabList</code> para alternar entre personagens e <code>Viewport</code> exibindo <code>BP_CharacterPreview</code>.</li>
+              <li>Consuma o endpoint <code>/characters/list</code> (JoinServer) preenchendo slots com dados recebidos.</li>
+              <li>Para criação, importe silhuetas (<code>CharMakeWin</code>) e construa formulários validando nome/ocupação com as listas definidas em <code>DataServer/CharacterCreate.sql</code>.</li>
+              <li>Sincronize animações idles originais via <code>Animation Blueprint</code> dedicado, garantindo que cada classe carregue a mesma pose do cliente legado.</li>
+            </ol>
+            <p class="dependency"><strong>Dependências:</strong> <code>JoinServer</code> (lista de personagens), <code>GameServer</code> (slots extras), assets BMD convertidos para <code>SK_</code>.</p>
+          </div>
+          <div class="catalog-card">
+            <h4>HUD Principal &amp; Barra de Status</h4>
+            <p class="path"><strong>Legado:</strong> <code>NewUIMainFrameWindow.cpp</code>, <code>CGFxMainUi.cpp</code>, <code>GaugeBar.cpp</code>, <code>NewUIRenderNumber.cpp</code>.</p>
+            <p><strong>Objetivo:</strong> Recriar a HUD com barras de HP/MP/AG, mini-status e slots rápidos.</p>
+            <ol class="step-list">
+              <li>Importe texturas da HUD (sprites em <code>Data/Interface/MainUI</code>) como <code>Texture Atlas</code> e configure <code>UPaperSprite</code> para indicadores.</li>
+              <li>Crie <code>WBP_HUDRoot</code> com <code>Canvas Panel</code>; posicione elementos usando coordenadas da matriz de HUD anexada anteriormente.</li>
+              <li>Implemente <code>UPlayerAttributeComponent</code> para expor HP/MP/AG/SD e utilize <code>Binding</code> ou <code>Field Notify</code> em widgets.</li>
+              <li>Reaplique efeitos numéricos com <code>UMaterialInstanceDynamic</code> replicando <code>NewUIRenderNumber</code>.</li>
+              <li>Integre barra de experiência mestre com dados do endpoint <code>/progress/master</code> conforme lógica de <code>NewUIMasterLevel.cpp</code>.</li>
+            </ol>
+            <p class="dependency"><strong>Dependências:</strong> Componentes de atributos do player, <code>Gameplay Ability System</code>, fluxos de XP documentados na etapa de progressão.</p>
+          </div>
+          <div class="catalog-card">
+            <h4>Inventário, Equipamentos &amp; Tooltips</h4>
+            <p class="path"><strong>Legado:</strong> <code>NewUIMyInventory.cpp</code>, <code>NewUIInventoryCtrl.cpp</code>, <code>NewUIItemExplanationWindow.cpp</code>, <code>NewUIItemEnduranceInfo.cpp</code>.</p>
+            <p><strong>Objetivo:</strong> Permitir arrastar/soltar itens, visualizar atributos e integrar sockets.</p>
+            <ol class="step-list">
+              <li>Transfira sprites de slots (<code>Interface/Inventory</code>) e defina <code>Size Box</code> correspondentes a 28x28px originais.</li>
+              <li>Monte <code>WBP_Inventory</code> com <code>UniformGridPanel</code>; configure mapeamento de índices baseado nos offsets de <code>NewUIInventoryCtrl</code>.</li>
+              <li>Implemente <code>BP_ItemDrag</code> derivado de <code>CommonActivatableWidget</code> para suportar drag/drop com verificação de colisão via <code>Blueprint Function Library</code>.</li>
+              <li>Renderize tooltips reutilizando a lógica convertida em “Sistema Completo de Itens” (seção anterior) para combinar dados de <code>ItemInfo.cpp</code> e <code>ItemAddOptioninfo.cpp</code>.</li>
+              <li>Sincronize persistência chamando <code>/inventory/sync</code> no backend após cada alteração e armazenando em <code>Gameplay Save Game</code> em caso offline.</li>
+            </ol>
+            <p class="dependency"><strong>Dependências:</strong> <code>ItemManager.cpp</code>, tabelas <code>Data/Item/*.txt</code>, endpoints <code>GameServer</code> para inventário.</p>
+          </div>
+          <div class="catalog-card">
+            <h4>Chat, Social &amp; Notificações</h4>
+            <p class="path"><strong>Legado:</strong> <code>NewUIChatLogWindow.cpp</code>, <code>NewUIChatInputBox.cpp</code>, <code>NewUIFriendWindow.cpp</code>, <code>NewUICommandWindow.cpp</code>.</p>
+            <p><strong>Objetivo:</strong> Restaurar chat global, party, guild e atalhos de comando.</p>
+            <ol class="step-list">
+              <li>Importe ícones de canais e fontes definidas em <code>GlobalText.h</code>, convertendo-as para <code>Composite Font Assets</code>.</li>
+              <li>Crie <code>WBP_ChatDock</code> com abas (<code>CommonTabList</code>) para canalizar mensagens.</li>
+              <li>Implemente serviço WebSocket em <code>UGameInstanceSubsystem</code> ouvindo <code>GameServer</code> &rarr; <code>ChatService</code>.</li>
+              <li>Mapeie comandos (ex: <code>/move</code>, <code>/post</code>) em tabela <code>Data/Commands.csv</code> e execute via <code>Gameplay Message Router</code>.</li>
+              <li>Exiba notificações usando <code>CommonNotificationQueue</code> reaproveitando sons <code>DSplaysound.cpp</code>.</li>
+            </ol>
+            <p class="dependency"><strong>Dependências:</strong> Serviços de chat em <code>GameServer/Protocols</code>, <code>PartyManager.cpp</code>, <code>GuildManager.cpp</code>.</p>
+          </div>
+          <div class="catalog-card">
+            <h4>MiniMapa &amp; Guias de Navegação</h4>
+            <p class="path"><strong>Legado:</strong> <code>NewUIMiniMap.cpp</code>, <code>MapManager.cpp</code>, <code>NewUIMapName.cpp</code>, recursos <code>Data/Map</code>.</p>
+            <p><strong>Objetivo:</strong> Reproduzir minimapa, nomes de regiões e marcadores de eventos.</p>
+            <ol class="step-list">
+              <li>Converta texturas <code>.ozb</code> dos mapas para <code>.png</code> e importe como <code>UMaterialInstance</code> para um <code>RetainerBox</code>.</li>
+              <li>Implemente <code>BP_MinimapController</code> lendo offsets de <code>MapManager</code> e aplicando-os ao <code>Canvas</code>.</li>
+              <li>Crie sistema de marcadores (party, NPC, objetivos) utilizando <code>Slate Vector Image</code> com assets originais.</li>
+              <li>Integre com <code>Level Streaming</code> para mostrar nomes de subzonas usando <code>Data Table</code> derivada de <code>MapManager.h</code>.</li>
+              <li>Sincronize eventos (boss, invasões) através de <code>Gameplay Tags</code> enviados pelo backend de eventos.</li>
+            </ol>
+            <p class="dependency"><strong>Dependências:</strong> <code>CSMapServer.cpp</code>, arquivos <code>Data/EventMap/*.txt</code>, serviço de eventos do <code>GameServer</code>.</p>
+          </div>
+        </div>
+      </details>
+
+      <details class="catalog-group">
+        <summary>Frontend — Sistemas de Jogo (Blueprints &amp; Data Assets)</summary>
+        <p>
+          Depois das interfaces, alinhe sistemas de jogabilidade reutilizando dados de <code>Item</code>,
+          <code>Skill</code> e <code>Event</code>. Cada item abaixo aponta para scripts legados e descreve o
+          passo a passo para erguê-los com <code>Gameplay Ability System</code>, <code>Actor Components</code> e
+          <code>Data Tables</code> em UE5.
+        </p>
+        <div class="catalog-grid">
+          <div class="catalog-card">
+            <h4>Sistema de Itens &amp; Opções</h4>
+            <p class="path"><strong>Legado:</strong> <code>ItemManager.cpp</code>, <code>ItemInfo.cpp</code>, <code>ItemAddOptioninfo.cpp</code>, <code>NewUISetItemExplanation.cpp</code>.</p>
+            <p><strong>Objetivo:</strong> Unificar base de dados e lógicas de combinação/opções excelentes.</p>
+            <ol class="step-list">
+              <li>Converter <code>Item.txt</code>, <code>ItemOption.txt</code> em <code>Data Tables</code> (Struct derivada de <code>FItemDefinition</code>).</li>
+              <li>Construir <code>BP_ItemDefinition</code> (Data Asset) contendo meshes, materiais convertidos de <code>Data/ItemBMD</code>.</li>
+              <li>Recriar lógica de opções excelentes em <code>Gameplay Effects</code> aplicados durante a equipação.</li>
+              <li>Implementar Blueprint <code>BP_ItemFactory</code> que referencia <code>ItemManager</code> convertido, garantindo atributos padrão, durabilidade e socket.</li>
+              <li>Validar combinações com unit tests em <code>Functional Testing</code> usando cenários do legado (<code>MixMgr.cpp</code>).</li>
+            </ol>
+            <p class="dependency"><strong>Dependências:</strong> Banco de dados <code>Data/Item</code>, endpoints <code>/items/search</code>, blueprint de inventário.</p>
+          </div>
+          <div class="catalog-card">
+            <h4>Drop, Colisão &amp; Loot</h4>
+            <p class="path"><strong>Legado:</strong> <code>ZzzCharacter.cpp</code>, <code>ZzzAI.cpp</code>, <code>MapManager.cpp</code>, <code>EventItemBag</code>.</p>
+            <p><strong>Objetivo:</strong> Manter taxas de drop e regras de colisão originais.</p>
+            <ol class="step-list">
+              <li>Converta tabelas <code>ItemBag</code>/<code>MonsterItemDrop</code> em <code>Curve Tables</code> para controlar probabilidades.</li>
+              <li>Configure <code>BP_LootActor</code> com <code>Sphere Collision</code> igual ao raio definido em <code>MapManager</code>.</li>
+              <li>Implemente <code>Gameplay Cue</code> para efeitos de drop reutilizando <code>ZzzEffect.cpp</code>.</li>
+              <li>Sincronize coleta com backend via <code>/drop/pick</code>, respeitando validações do <code>GameServer</code>.</li>
+              <li>Automatize testes de taxa rodando simulações (PIE) com 1.000 kills comparando com valores originais.</li>
+            </ol>
+            <p class="dependency"><strong>Dependências:</strong> <code>GameServer/ItemDrop.cpp</code>, tabelas <code>Data/EventItemBag</code>, blueprint de inventário.</p>
+          </div>
+          <div class="catalog-card">
+            <h4>Progressão, XP &amp; Quests</h4>
+            <p class="path"><strong>Legado:</strong> <code>NewUIMasterLevel.cpp</code>, <code>QuestMng.cpp</code>, <code>Event.cpp</code>, <code>CharacterManager.cpp</code>.</p>
+            <p><strong>Objetivo:</strong> Reproduzir XP base, mestre, quests e recompensas.</p>
+            <ol class="step-list">
+              <li>Importe <code>Data/ExperienceTable.txt</code> e <code>Data/MasterTable.txt</code> para <code>CurveFloat</code> controlando XP.</li>
+              <li>Crie <code>UGameplayAbility_LevelUp</code> aplicando atributos e desbloqueios com base em <code>QuestMng</code>.</li>
+              <li>Implemente <code>QuestSubsystem</code> que consome <code>Data/Quest/*.txt</code> convertidos para <code>Data Assets</code>.</li>
+              <li>Reaproveite animações de level up (sons em <code>DSPlaySound</code>) via <code>Gameplay Cue</code>.</li>
+              <li>Sincronize com backend (<code>/progress/update</code>) enviando XP, Master XP e estado de quests.</li>
+            </ol>
+            <p class="dependency"><strong>Dependências:</strong> <code>GameServer/CharacterSystem</code>, endpoints de progressão, HUD principal.</p>
+          </div>
+          <div class="catalog-card">
+            <h4>IA de Mobs &amp; Spawners</h4>
+            <p class="path"><strong>Legado:</strong> <code>ZzzAI.cpp</code>, <code>ZzzCharacter.cpp</code>, <code>MonsterAIElement.cpp</code>, <code>Data/Monster</code>, scripts <code>GameServer/Monster</code>.</p>
+            <p><strong>Objetivo:</strong> Garantir comportamento, respawn e drops específicos.</p>
+            <ol class="step-list">
+              <li>Converta <code>Monster.txt</code>, <code>MonsterSetBase.txt</code> em <code>Data Tables</code> definindo stats e mapas.</li>
+              <li>Implemente <code>BP_MobSpawner</code> usando <code>Environment Query System</code> replicando áreas <code>MonsterSetBase</code>.</li>
+              <li>Crie <code>Behavior Tree</code> baseado em <code>ZzzAI</code> (Idle &rarr; Chase &rarr; Attack &rarr; Return).</li>
+              <li>Adapte respawn timer conforme <code>GameServer/MonsterRespawn.cpp</code>, sincronizando com backend via <code>/mob/spawn</code>.</li>
+              <li>Integre tabelas de drop configuradas no cartão “Drop, Colisão &amp; Loot”.</li>
+            </ol>
+            <p class="dependency"><strong>Dependências:</strong> <code>GameServer/Monster</code>, <code>Data/MonsterAI</code>, efeitos de skill.</p>
+          </div>
+          <div class="catalog-card">
+            <h4>Skills, Buffs &amp; Efeitos</h4>
+            <p class="path"><strong>Legado:</strong> <code>SkillManager.cpp</code>, <code>SkillInfo.cpp</code>, <code>SkillEffectMgr.cpp</code>, <code>w_BuffStateSystem.cpp</code>, <code>ZzzEffectMagicSkill.cpp</code>.</p>
+            <p><strong>Objetivo:</strong> Portar habilidades ativas/passivas e buffs temporários.</p>
+            <ol class="step-list">
+              <li>Gerar <code>Gameplay Ability</code> por skill usando dados de custo/cooldown convertidos de <code>Skill.dat</code>.</li>
+              <li>Configurar <code>Attribute Sets</code> para stats afetados (força, agilidade, velocidade) replicando <code>w_BuffStateSystem</code>.</li>
+              <li>Portar efeitos Niagara a partir de <code>ZzzEffect</code> e <code>SkillEffectMgr</code> mantendo cores originais.</li>
+              <li>Implementar <code>SkillComboComponent</code> para sequências (ex: combos Blade) usando a lógica de <code>SkillManager</code>.</li>
+              <li>Sincronizar aplicação de buffs com backend via <code>/skills/apply</code> para consistência em PvP.</li>
+            </ol>
+            <p class="dependency"><strong>Dependências:</strong> <code>GameServer/SkillSystem</code>, dados de buff (<code>w_Buff*</code>), HUD para exibir ícones.</p>
+          </div>
+          <div class="catalog-card">
+            <h4>Pets, Montarias &amp; Summons</h4>
+            <p class="path"><strong>Legado:</strong> <code>CSPetSystem.cpp</code>, <code>SummonSystem.cpp</code>, <code>w_PetAction*.cpp</code>, <code>NewUIPetInfoWindow.cpp</code>.</p>
+            <p><strong>Objetivo:</strong> Restaurar mascotes de suporte, evolução e buffs atrelados.</p>
+            <ol class="step-list">
+              <li>Converter modelos BMD para <code>SK_</code> com animações originais, configurando <code>AnimBP</code> específico.</li>
+              <li>Crie <code>BP_PetComponent</code> que lê dados de <code>Pet.txt</code> convertidos para <code>Data Table</code>.</li>
+              <li>Implemente comandos (ataque, coletar, modo automático) com <code>Behavior Tree</code> e <code>Blackboard</code>.</li>
+              <li>Recrie janela de status (<code>WBP_PetStatus</code>) exibindo fidelidade, XP e buffs como no legado.</li>
+              <li>Persistir estado via <code>/pet/update</code>, respeitando validações de evolução do backend.</li>
+            </ol>
+            <p class="dependency"><strong>Dependências:</strong> <code>GameServer/PetSystem</code>, inventário, efeitos de skill.</p>
+          </div>
+          <div class="catalog-card">
+            <h4>Eventos, Dungeons &amp; Sistemas Sazonais</h4>
+            <p class="path"><strong>Legado:</strong> <code>CSChaosCastle.cpp</code>, <code>NewUIBloodCastleEnter.cpp</code>, <code>GMEmpireGuardian*.cpp</code>, diretório <code>Data/Event</code>.</p>
+            <p><strong>Objetivo:</strong> Preservar regras de acesso, timers e recompensas especiais.</p>
+            <ol class="step-list">
+              <li>Carregue regras de entrada a partir de <code>Event*.txt</code> para <code>Primary Data Assets</code>.</li>
+              <li>Crie <code>Game Feature Plugin</code> por evento (Blood Castle, Devil Square, etc.) ativando níveis dedicados.</li>
+              <li>Implemente portais com <code>Level Instance</code> e verificações via <code>Gameplay Ability</code> (ticket, nível mínimo).</li>
+              <li>Registre cronogramas em <code>Subsystem</code> que consulta <code>/events/schedule</code>.</li>
+              <li>Sincronize recompensas utilizando pipeline do inventário para garantir drops corretos.</li>
+            </ol>
+            <p class="dependency"><strong>Dependências:</strong> <code>GameServer/EventManager</code>, tabelas <code>EventItemBag</code>, HUD para status de evento.</p>
+          </div>
+        </div>
+      </details>
+
+      <details class="catalog-group">
+        <summary>Backend — Serviços, Redes &amp; Persistência</summary>
+        <p>
+          A reconstrução do backend deve manter compatibilidade lógica com os executáveis originais. Use os
+          cartões para guiar a criação de microsserviços REST/WebSocket que substituam os servidores
+          legados, preservando scripts SQL e verificações críticas.
+        </p>
+        <div class="catalog-grid">
+          <div class="catalog-card">
+            <h4>ConnectServer</h4>
+            <p class="path"><strong>Legado:</strong> diretório <code>MuServer_Season_5_Update_15/ConnectServer</code>, arquivo <code>ConnectServer.ini</code>.</p>
+            <p><strong>Objetivo:</strong> Validar versão e distribuir jogadores entre JoinServers.</p>
+            <ol class="step-list">
+              <li>Documente endpoints originais (porta 44405) e reimplemente como serviço REST <code>/auth/handshake</code>.</li>
+              <li>Implemente verificação de IP, limiar de conexões e mensagens customizadas de versão.</li>
+              <li>Sincronize lista de JoinServers via <code>ConfigService</code> central (consumindo <code>ConnectServer_List.dat</code>).</li>
+              <li>Expose métricas (latência, capacidade) para o launcher UE5 exibir antes do login.</li>
+              <li>Automatize testes com <code>IntegrationTest</code> simulando múltiplas conexões simultâneas.</li>
+            </ol>
+            <p class="dependency"><strong>Dependências:</strong> <code>StartUp/ConnectServer.bat</code>, banco <code>MuOnline</code> (tabela <code>MEMB_INFO</code>).</p>
+          </div>
+          <div class="catalog-card">
+            <h4>JoinServer &amp; Autenticação</h4>
+            <p class="path"><strong>Legado:</strong> <code>MuServer_Season_5_Update_15/JoinServer</code>, <code>JoinServer.cfg</code>, <code>Protocol</code> no cliente (<code>ProtocolSend.cpp</code>).</p>
+            <p><strong>Objetivo:</strong> Gerenciar sessão, login simultâneo e seleção de servidor.</p>
+            <ol class="step-list">
+              <li>Mapeie rotinas de pacote do legado e converta em endpoints <code>/session/start</code>, <code>/session/select-server</code>.</li>
+              <li>Implemente geração de token JWT curto substituindo o <em>session key</em> original.</li>
+              <li>Armazene sessões em Redis reproduzindo limites definidos em <code>JoinServer.cfg</code>.</li>
+              <li>Integre verificação de bloqueio de conta/IP com dados de <code>MEMB_BLOK</code>.</li>
+              <li>Notifique GameServers via fila (RabbitMQ/Kafka) imitando <code>JoinServer &rarr; GameServer</code> handshake.</li>
+            </ol>
+            <p class="dependency"><strong>Dependências:</strong> <code>ConnectServer</code>, banco <code>MuOnline</code>, tabelas de bloqueio.</p>
+          </div>
+          <div class="catalog-card">
+            <h4>GameServer Core</h4>
+            <p class="path"><strong>Legado:</strong> <code>MuServer_Season_5_Update_15/GameServer</code> (pastas <code>GameServerInfo</code>, <code>Data</code>), módulos <code>GameServer.cpp</code>, <code>ItemDrop.cpp</code>, <code>SkillSystem</code>.</p>
+            <p><strong>Objetivo:</strong> Hospedar lógica de mundo, combate, drops, party e eventos.</p>
+            <ol class="step-list">
+              <li>Separe responsabilidades em serviços (Combat, Drop, Quest, Event) mantendo esquema de dados original.</li>
+              <li>Expose APIs <code>/world/state</code>, <code>/combat/apply</code>, <code>/drops/spawn</code> consumidas por Blueprints.</li>
+              <li>Implemente broadcast em tempo real via WebSocket replicando pacotes <code>ProtocolSend</code>.</li>
+              <li>Automatize scripts de configuração convertendo arquivos <code>GameServerInfo - *.dat</code> para JSON.</li>
+              <li>Incorpore testes de regressão comparando log de dano/drops com arquivos <code>LOG/GameServer</code>.</li>
+            </ol>
+            <p class="dependency"><strong>Dependências:</strong> JoinServer tokens, banco <code>MuOnline</code>, tabelas <code>GameServerInfo</code>.</p>
+          </div>
+          <div class="catalog-card">
+            <h4>GameServerCS (Castle Siege)</h4>
+            <p class="path"><strong>Legado:</strong> diretório <code>GameServerCS</code>, scripts <code>GameServerCS.ini</code>, módulos <code>NewUICastleWindow.cpp</code>.</p>
+            <p><strong>Objetivo:</strong> Manter regras específicas de Castle Siege e mercado de registros.</p>
+            <ol class="step-list">
+              <li>Crie serviço dedicado <code>siege-service</code> sincronizando com banco de guildas.</li>
+              <li>Implemente endpoints <code>/siege/register</code>, <code>/siege/status</code>, <code>/siege/rewards</code>.</li>
+              <li>Integre com Blueprint <code>BP_SiegeController</code> para ativar portas, traps e horários.</li>
+              <li>Mantenha logs de auditoria compatíveis com <code>GameServerCS/LOG</code>.</li>
+              <li>Automatize resets semanais seguindo <code>GameServerCS.ini</code>.</li>
+            </ol>
+            <p class="dependency"><strong>Dependências:</strong> GuildManager, dados de castelo (<code>MuCastle_DATA</code>), eventos.</p>
+          </div>
+          <div class="catalog-card">
+            <h4>DataServer &amp; Banco de Dados</h4>
+            <p class="path"><strong>Legado:</strong> <code>MuServer_Season_5_Update_15/DataServer</code>, scripts em <code>DB</code>, <code>ScriptSql</code>.</p>
+            <p><strong>Objetivo:</strong> Persistir personagens, inventário, rankings e log de transações.</p>
+            <ol class="step-list">
+              <li>Normalizar tabelas SQL legadas para esquemas modernos mantendo nomes originais para rastreabilidade.</li>
+              <li>Expose repositórios (<code>CharacterRepository</code>, <code>ItemRepository</code>) consumidos por serviços.</li>
+              <li>Implemente <code>Change Data Capture</code> para replicar atualizações em tempo real (Kafka/EventBridge).</li>
+              <li>Automatize migração inicial executando scripts em <code>ScriptSql</code> via pipeline CI.</li>
+              <li>Documente índices críticos (ex: <code>warehouse</code>, <code>Character</code>) para manter performance.</li>
+            </ol>
+            <p class="dependency"><strong>Dependências:</strong> Banco SQL Server/compatível, ferramentas <code>tools/</code>, endpoints de inventário e progresso.</p>
+          </div>
+          <div class="catalog-card">
+            <h4>MHPServer &amp; Segurança</h4>
+            <p class="path"><strong>Legado:</strong> pasta <code>MHPServer</code>, arquivos de configuração <code>MHPServer.ini</code>, código cliente <code>ProtectSysKey.cpp</code>.</p>
+            <p><strong>Objetivo:</strong> Substituir anti-hack legado por telemetria moderna.</p>
+            <ol class="step-list">
+              <li>Catalogar checks existentes (integridade de arquivos, assinatura de memória).</li>
+              <li>Implementar serviço <code>security-service</code> expondo <code>/integrity/report</code> consumido por UE5 via <code>HTTP</code>.</li>
+              <li>Registrar eventos suspeitos em pipeline de observabilidade (Elastic, Datadog).</li>
+              <li>Sincronizar banimentos automáticos com JoinServer/DB replicando ações do legado.</li>
+              <li>Disponibilizar dashboards para QA monitorar falsos positivos durante migração.</li>
+            </ol>
+            <p class="dependency"><strong>Dependências:</strong> Client launcher, JoinServer, tabelas de bloqueio.</p>
+          </div>
+        </div>
+      </details>
+
+      <details class="catalog-group">
+        <summary>Dados, Ferramentas &amp; Utilidades de Suporte</summary>
+        <p>
+          Garanta que os recursos de dados e ferramentas legadas estejam catalogados antes de iniciar
+          conversões em massa. Estes cartões orientam a transformação de scripts, assets e utilitários
+          para pipelines automatizados compatíveis com UE5.
+        </p>
+        <div class="catalog-grid">
+          <div class="catalog-card">
+            <h4>Tabelas &amp; Scripts de Configuração</h4>
+            <p class="path"><strong>Legado:</strong> diretório <code>MuServer_Season_5_Update_15/Data</code>, arquivos <code>*.txt</code>, <code>*.xml</code>, <code>*.dat</code>.</p>
+            <p><strong>Objetivo:</strong> Centralizar dados de itens, monstros, eventos e economia.</p>
+            <ol class="step-list">
+              <li>Crie pipeline (Python/Node) que converta cada arquivo em <code>CSV</code>/<code>JSON</code> validando cabeçalhos.</li>
+              <li>Versione arquivos convertidos em repositório <code>/DataMigration</code> com testes automatizados.</li>
+              <li>Gere <code>Data Tables</code> UE5 automaticamente a partir do JSON usando <code>Editor Utility Widgets</code>.</li>
+              <li>Implemente diff automático comparando valores com scripts originais para detectar regressões.</li>
+              <li>Documente o mapeamento final no Confluence/Notion compartilhado com equipes.</li>
+            </ol>
+            <p class="dependency"><strong>Dependências:</strong> Serviços backend (Drop, Skill), Blueprints (Itens, Mobs).</p>
+          </div>
+          <div class="catalog-card">
+            <h4>Scripts SQL &amp; Migração de Banco</h4>
+            <p class="path"><strong>Legado:</strong> diretório <code>MuServer_Season_5_Update_15/ScriptSql</code>, pasta <code>DB</code>.</p>
+            <p><strong>Objetivo:</strong> Replicar estrutura do banco e dados de referência.</p>
+            <ol class="step-list">
+              <li>Classifique scripts por domínio (contas, personagens, ranking, loja) e registre dependências.</li>
+              <li>Traduza-os para migrações (Flyway/Liquibase) preservando comentários.</li>
+              <li>Gere <code>Seed</code> automatizado para dados iniciais (NPC shops, event timers).</li>
+              <li>Implemente testes de consistência cruzando contagens com o legado após importação.</li>
+              <li>Publicar documentação de colunas críticas para desenvolvedores UE5 consumirem.</li>
+            </ol>
+            <p class="dependency"><strong>Dependências:</strong> DataServer, GameServer, ferramentas administrativas.</p>
+          </div>
+          <div class="catalog-card">
+            <h4>Ferramentas Internas &amp; Utilitários</h4>
+            <p class="path"><strong>Legado:</strong> pasta <code>tools/</code>, <code>Tools/MuEditor MuEmu</code>, clientes de administração.</p>
+            <p><strong>Objetivo:</strong> Reaproveitar lógica de edição para suporte UE5.</p>
+            <ol class="step-list">
+              <li>Inventarie ferramentas que geram scripts (ex: edição de mapa, drop editor).</li>
+              <li>Portar as funcionalidades críticas para <code>Editor Utility Widgets</code> ou aplicações web auxiliares.</li>
+              <li>Automatizar exportação de assets (ex: sprites) diretamente para o projeto UE5 via <code>Python Editor Scripting</code>.</li>
+              <li>Centralizar logs de edição em pipeline Git para rastrear alterações de dados.</li>
+              <li>Treinar equipe em novos fluxos assegurando paridade com funcionalidades legadas.</li>
+            </ol>
+            <p class="dependency"><strong>Dependências:</strong> Equipe de conteúdo, Data Tables, repos de automação.</p>
+          </div>
+          <div class="catalog-card">
+            <h4>Assets 2D/3D &amp; Conversão Técnica</h4>
+            <p class="path"><strong>Legado:</strong> <code>Source Main 5.2/source</code> (texturas, BMD), diretório <code>GlobalBitmap</code>, <code>TextureScript.cpp</code>.</p>
+            <p><strong>Objetivo:</strong> Converter modelos, animações e sprites mantendo fidelidade.</p>
+            <ol class="step-list">
+              <li>Mapeie cada asset BMD e associe ao catálogo <code>GlobalBitmap</code> para identificar localização na HUD.</li>
+              <li>Use ferramentas (BMD → FBX) garantindo escala correta; aplique materiais equivalentes no UE5.</li>
+              <li>Automatize a importação usando <code>Editor Utility</code> que preenche <code>Import Data</code> com coordenadas originais.</li>
+              <li>Revise colisões de modelos convertidos comparando com <code>PhysicsManager.cpp</code>.</li>
+              <li>Documente assets problemáticos (sem normal map, alpha premultiplicado) e registre soluções.</li>
+            </ol>
+            <p class="dependency"><strong>Dependências:</strong> HUD, mobs, inventário, eventos visuais.</p>
+          </div>
+        </div>
+      </details>
+
+      <table class="directory-map">
+        <thead>
+          <tr>
+            <th>Diretório / Executável</th>
+            <th>Conteúdo Principal</th>
+            <th>Plano de Conversão UE5</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>Source Main 5.2/source</code></td>
+            <td>UI legacy, controle de inventário, HUD, sistemas de skill, física de cliente.</td>
+            <td>Converter para UMG, Actor Components e Gameplay Ability System conforme cartões de Frontend.</td>
+          </tr>
+          <tr>
+            <td><code>MuServer_Season_5_Update_15/GameServer</code></td>
+            <td>Lógica de mundo, drops, eventos, IA de monstros.</td>
+            <td>Dividir em microsserviços Combat/Drop/Event e expor APIs consumidas pelos Blueprints.</td>
+          </tr>
+          <tr>
+            <td><code>MuServer_Season_5_Update_15/GameServerCS</code></td>
+            <td>Castle Siege, rankings especiais, registro de guildas.</td>
+            <td>Criar serviço Siege dedicado sincronizado com widgets e fluxos de evento.</td>
+          </tr>
+          <tr>
+            <td><code>MuServer_Season_5_Update_15/DataServer</code></td>
+            <td>Persistência SQL, inventário e dados de conta.</td>
+            <td>Substituir por camada ORM/Repository com migrações automatizadas.</td>
+          </tr>
+          <tr>
+            <td><code>MuServer_Season_5_Update_15/ConnectServer</code> &amp; <code>JoinServer</code></td>
+            <td>Handshakes, autenticação, controle de sessões.</td>
+            <td>Migrar para serviços Auth/Session com tokens e escalabilidade horizontal.</td>
+          </tr>
+          <tr>
+            <td><code>MuServer_Season_5_Update_15/MHPServer</code></td>
+            <td>Proteção, anti-hack, verificação de cliente.</td>
+            <td>Implementar telemetria, integridade e alertas em pipeline moderno de segurança.</td>
+          </tr>
+          <tr>
+            <td><code>MuServer_Season_5_Update_15/Data</code></td>
+            <td>Tabelas de monstros, itens, eventos, shops, drop rates.</td>
+            <td>Converter para Data Tables/Curve Tables e sincronizar com backend &amp; Blueprints.</td>
+          </tr>
+          <tr>
+            <td><code>MuServer_Season_5_Update_15/ScriptSql</code></td>
+            <td>Scripts de criação/população de banco.</td>
+            <td>Transformar em migrações versionadas com testes automatizados.</td>
+          </tr>
+          <tr>
+            <td><code>MuServer_Season_5_Update_15/Tools</code></td>
+            <td>Utilitários administrativos, editores de dados.</td>
+            <td>Portar funcionalidades-chave para Editor Utility Widgets e pipelines CI.</td>
+          </tr>
+          <tr>
+            <td><code>StartUp/*.bat</code></td>
+            <td>Ordem de inicialização dos servidores legados.</td>
+            <td>Recriar em scripts de infraestrutura (Docker/Compose) documentando dependências.</td>
+          </tr>
+        </tbody>
+      </table>
     </section>
 
     <section id="etapas">
