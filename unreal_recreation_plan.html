@@ -5,36 +5,49 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Plano de Recriação do Projeto na Unreal Engine 5</title>
   <style>
+    :root {
+      color-scheme: light;
+    }
     body {
       font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
       line-height: 1.6;
       margin: 0;
       padding: 0;
-      background-color: #f5f5f5;
+      background-color: #eef3fb;
       color: #222;
     }
     header {
       background: linear-gradient(135deg, #1d3c6a, #0b9ed8);
       color: #fff;
-      padding: 2rem;
+      padding: 2.5rem 2rem;
       text-align: center;
+      position: relative;
+      overflow: hidden;
+    }
+    header::after {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background: radial-gradient(circle at top right, rgba(255, 255, 255, 0.25), transparent 55%);
+      pointer-events: none;
     }
     main {
-      max-width: 960px;
-      margin: 2rem auto;
+      max-width: 1024px;
+      margin: 2rem auto 4rem;
       background-color: #fff;
-      padding: 2rem;
-      border-radius: 12px;
-      box-shadow: 0 20px 45px rgba(0, 0, 0, 0.08);
+      padding: 2.5rem;
+      border-radius: 18px;
+      box-shadow: 0 25px 60px rgba(17, 53, 99, 0.12);
+      position: relative;
     }
     h1 {
       margin-top: 0;
-      font-size: 2.4rem;
+      font-size: 2.65rem;
     }
     h2 {
       border-left: 4px solid #0b9ed8;
       padding-left: 0.75rem;
-      margin-top: 2.5rem;
+      margin-top: 2.7rem;
       color: #0b3c6a;
     }
     h3 {
@@ -58,12 +71,17 @@
     }
     .card {
       border: 1px solid #d7e3f4;
-      border-radius: 10px;
+      border-radius: 12px;
       padding: 1.5rem;
-      background-color: #fafcff;
+      background-color: #fafdff;
+      transition: transform 0.25s ease, box-shadow 0.25s ease;
     }
     .card h3 {
       margin-top: 0;
+    }
+    .card:hover {
+      transform: translateY(-4px);
+      box-shadow: 0 12px 30px rgba(20, 86, 129, 0.18);
     }
     .callout {
       border-left: 4px solid #f39c12;
@@ -72,30 +90,223 @@
       border-radius: 8px;
       margin: 1.5rem 0;
     }
+    .priority-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 1.25rem;
+      margin-top: 1.5rem;
+    }
+    .priority-card {
+      background: linear-gradient(145deg, #ffffff, #f1f7ff);
+      border: 1px solid #d7e3f4;
+      border-radius: 12px;
+      padding: 1.25rem;
+      position: relative;
+      box-shadow: 0 15px 35px rgba(11, 62, 106, 0.08);
+      transition: transform 0.2s ease;
+    }
+    .priority-card.active {
+      border-color: #0b9ed8;
+      box-shadow: 0 18px 40px rgba(11, 158, 216, 0.24);
+      transform: translateY(-4px);
+    }
+    .priority-card h3 {
+      margin-top: 0;
+      font-size: 1.2rem;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+    .priority-card h3 span {
+      background-color: #0b9ed8;
+      color: #fff;
+      border-radius: 999px;
+      padding: 0.2rem 0.6rem;
+      font-size: 0.85rem;
+    }
+    .interactive-panel {
+      background-color: #0b3c6a;
+      color: #fff;
+      border-radius: 14px;
+      padding: 1.5rem;
+      margin: 1.5rem 0 0;
+      display: grid;
+      gap: 1rem;
+    }
+    .interactive-panel label {
+      font-weight: 600;
+    }
+    .interactive-panel select,
+    .interactive-panel button {
+      border-radius: 8px;
+      border: none;
+      padding: 0.65rem 0.75rem;
+      font-size: 1rem;
+    }
+    .interactive-panel select {
+      background-color: #fff;
+      color: #0b3c6a;
+    }
+    .interactive-panel button {
+      background: linear-gradient(135deg, #12b5f1, #0b89d8);
+      color: #fff;
+      cursor: pointer;
+      transition: transform 0.2s ease, filter 0.2s ease;
+    }
+    .interactive-panel button:hover {
+      transform: translateY(-1px);
+      filter: brightness(1.05);
+    }
+    details {
+      background-color: #f4f8ff;
+      border-radius: 10px;
+      padding: 1rem 1.25rem;
+      margin: 1.25rem 0;
+      border: 1px solid #d7e3f4;
+    }
+    details summary {
+      cursor: pointer;
+      font-weight: 600;
+      color: #0b3c6a;
+    }
+    details pre {
+      background-color: #0b1f36;
+      color: #f5f8ff;
+      padding: 1rem;
+      border-radius: 8px;
+      overflow-x: auto;
+      font-size: 0.9rem;
+      line-height: 1.4;
+    }
+    .system-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 1.5rem;
+    }
+    .system-card {
+      background-color: #ffffff;
+      border-radius: 12px;
+      border: 1px solid #d7e3f4;
+      padding: 1.5rem;
+      box-shadow: 0 12px 30px rgba(15, 63, 109, 0.08);
+      transition: transform 0.2s ease;
+    }
+    .system-card:hover {
+      transform: translateY(-3px);
+    }
+    .tag {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.35rem;
+      background-color: #0b9ed8;
+      color: #fff;
+      border-radius: 999px;
+      padding: 0.2rem 0.75rem;
+      font-size: 0.75rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+    .blueprint-steps {
+      margin-top: 1rem;
+      border-top: 1px dashed #b6cdea;
+      padding-top: 1rem;
+      font-size: 0.95rem;
+    }
+    .flow-diagram {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.75rem;
+      margin-top: 1rem;
+    }
+    .flow-node {
+      background-color: #0b9ed8;
+      color: #fff;
+      padding: 0.6rem 0.85rem;
+      border-radius: 999px;
+      font-size: 0.85rem;
+      box-shadow: 0 8px 22px rgba(11, 158, 216, 0.22);
+    }
     footer {
       margin-top: 3rem;
       padding: 2rem 0;
       text-align: center;
       color: #555;
     }
-    @media (max-width: 600px) {
+    @media (max-width: 768px) {
       header,
       main {
-        padding: 1.5rem;
+        padding: 1.75rem;
       }
       h1 {
-        font-size: 1.9rem;
+        font-size: 2.1rem;
+      }
+    }
+    @media (max-width: 600px) {
+      .interactive-panel {
+        padding: 1.25rem;
+      }
+      .flow-diagram {
+        flex-direction: column;
       }
     }
   </style>
 </head>
 <body>
   <header>
-    <h1>Plano Completo para Recriar o Projeto na Unreal Engine 5</h1>
-    <p>Sequência lógica de atividades, desde a preparação até a entrega final do projeto.</p>
+    <h1>Plano Interativo para Recriar o Projeto na Unreal Engine 5</h1>
+    <p>Descubra a ordem ideal de implementação, reutilize assets com segurança e consulte exemplos práticos em Blueprint.</p>
   </header>
 
   <main>
+    <section id="decision">
+      <h2>0. Navegador de Prioridades Iniciais</h2>
+      <p>
+        Para decidir se você começa importando assets, recriando a interface ou reconstruindo sistemas de jogo, use o guia
+        interativo abaixo. Ele calcula a sequência com base no estado atual da sua equipe e na quantidade de assets prontos.
+      </p>
+      <div class="priority-grid">
+        <article class="priority-card active" data-step="assets">
+          <h3><span>1º</span>Pipeline de Assets Essenciais</h3>
+          <p>Valide formatos, converta lotes críticos e importe apenas o necessário para prototipagem.</p>
+        </article>
+        <article class="priority-card" data-step="interface">
+          <h3><span>2º</span>HUD e UX Nuclear</h3>
+          <p>Monte a interface mínima (HUD + menus) alinhada aos dados que serão exibidos no protótipo.</p>
+        </article>
+        <article class="priority-card" data-step="inventory">
+          <h3><span>3º</span>Sistema de Itens/Inventário</h3>
+          <p>Garanta estruturas e funções para manipular ícones, meshes e atributos reaproveitados.</p>
+        </article>
+        <article class="priority-card" data-step="xp">
+          <h3><span>4º</span>Progressão e XP</h3>
+          <p>Sincronize tabelas de XP com o inventário para validar recompensas e balanceamento inicial.</p>
+        </article>
+        <article class="priority-card" data-step="drop">
+          <h3><span>5º</span>Sistema de Drop/Loot</h3>
+          <p>Conecte drops à progressão e aproveite tabelas herdadas para validar economia.</p>
+        </article>
+        <article class="priority-card" data-step="mapas">
+          <h3><span>6º</span>Mapas e Navegação</h3>
+          <p>Finalize blocagens e substitua proxies por assets aprovados, integrando colisões e iluminação.</p>
+        </article>
+        <article class="priority-card" data-step="efeitos">
+          <h3><span>7º</span>Efeitos Visuais e Sonoros</h3>
+          <p>Refine feedback com Niagara/Sound Cues após confirmar jogabilidade e economia.</p>
+        </article>
+      </div>
+      <div class="interactive-panel">
+        <label for="profileSelector">Como está o estado atual do seu projeto?</label>
+        <select id="profileSelector">
+          <option value="default">Tenho assets convertidos parcialmente e preciso de um plano geral.</option>
+          <option value="assets-prontos">A maioria dos assets já está pronta para uso.</option>
+          <option value="sem-assets">Quase nenhum asset está validado, precisamos decidir o que priorizar.</option>
+          <option value="multiplayer">Tenho dependências fortes de multiplayer/servidor logo no início.</option>
+        </select>
+        <button id="suggestSequence">Gerar sequência recomendada</button>
+        <div id="recommendationOutput"></div>
+      </div>
+    </section>
+
     <section>
       <h2>1. Preparação Inicial</h2>
       <p>Antes de abrir a Unreal Engine, organize os recursos existentes, valide o que pode ser reaproveitado e estabeleça o escopo da recriação.</p>
@@ -129,6 +340,23 @@
         <li><strong>Integração incremental:</strong> importe assets por lotes (cenários, personagens, props) e valide em níveis de teste antes de levá-los aos mapas finais.</li>
         <li><strong>Documentação contínua:</strong> mantenha planilhas ou boards indicando status de cada asset (importado, ajustado, aprovado) e responsáveis.</li>
       </ul>
+      <details>
+        <summary>Blueprint: Validação rápida de assets importados</summary>
+        <pre>
+Event BeginPlay
+→ For Each Loop (Array: AssetsPendentes)
+  → Async Load Asset
+    → Branch (IsValid)
+      → True: Add to Array (AssetsValidados)
+      → False: Add to Array (AssetsErro)
+→ Sequence
+  → Print String ("Assets válidos: " + Length(AssetsValidados))
+  → Open Level ("Map_Test_Lote") se todos os assets críticos estiverem ok
+        </pre>
+        <p class="blueprint-steps">
+          Use um <em>Primary Data Asset</em> ou <em>Data Table</em> para listar assets reaproveitados. Esta rotina permite testar lotes no editor antes de mover para mapas finais.
+        </p>
+      </details>
     </section>
 
     <section>
@@ -157,31 +385,162 @@
             <li>Adicione iluminação, efeitos atmosféricos e post-processing considerando o impacto de materiais antigos em Lumen e Reflexões em Tempo Real.</li>
             <li>Integre assets definitivos, substituindo gradualmente proxies por versões reaproveitadas, e otimize colisões/LODs herdados.</li>
           </ul>
+          <details>
+            <summary>Blueprint: Carregamento dinâmico de módulos herdados</summary>
+            <pre>
+Event BeginPlay (Level Blueprint)
+→ For Each Loop (Array: MódulosAprovados)
+  → Load Stream Level (Level Name, Make Transform baseado em Data Table)
+→ Event On Level Loaded
+  → Reapply Nanite Settings → Atualizar Instâncias Hierárquicas
+            </pre>
+            <p class="blueprint-steps">Organize módulos legados em subníveis e use <strong>World Partition</strong> para ativá-los conforme proximidade do jogador.</p>
+          </details>
         </article>
+      </div>
+      <div class="flow-diagram">
+        <div class="flow-node">GameMode + GameState</div>
+        <div class="flow-node">PlayerController + Input</div>
+        <div class="flow-node">HUD Básico</div>
+        <div class="flow-node">Inventário &amp; Dados</div>
+        <div class="flow-node">Progressão/XP</div>
+        <div class="flow-node">Drops &amp; Loot</div>
+        <div class="flow-node">Efeitos &amp; Polimento</div>
       </div>
     </section>
 
     <section>
       <h2>5. Sistemas de Jogo</h2>
       <p>Reconstrua sistemas principais conforme documentado na análise inicial.</p>
-      <h3>5.1 Inventário e Itens</h3>
-      <ul>
-        <li>Projete a estrutura de dados para itens, raridades e atributos, vinculando-a aos ícones, meshes e efeitos originais que serão reaproveitados.</li>
-        <li>Implemente o inventário (UI, drag-and-drop, equipar/usar itens) usando UMG e blueprints/C++, importando elementos visuais originais (sprites, fontes) e convertendo-os para formatos otimizados (por exemplo, PNG atlas).</li>
-        <li>Integre lógica de persistência de dados, se necessário, garantindo compatibilidade com identificadores de itens existentes.</li>
-      </ul>
-      <h3>5.2 Combate e Progressão</h3>
-      <ul>
-        <li>Configure habilidades, cooldowns e efeitos utilizando Ability System ou blueprints customizados, migrando efeitos visuais/sonoros originais para Niagara/Sound Cues.</li>
-        <li>Implemente IA de inimigos com Behavior Trees e Perception System, reutilizando animações de ataque/locomoção convertidas.</li>
-        <li>Adicione sistemas de progressão (experiência, níveis, atributos) com dados herdados quando possível, planejando migrações de bancos legados.</li>
-      </ul>
-      <h3>5.3 Interface do Usuário</h3>
-      <ul>
-        <li>Recrie HUDs, menus e painéis configuráveis com UMG, aproveitando layouts originais como referência e reutilizando gráficos quando compatíveis.</li>
-        <li>Implemente feedback visual/sonoro (notificações, efeitos de status) reaproveitando sons e animações de interface previamente aprovados.</li>
-        <li>Adapte o fluxo de UX às expectativas modernas (navegação, acessibilidade), documentando quais elementos antigos serão mantidos por legado e quais serão redesenhados.</li>
-      </ul>
+      <div class="system-grid">
+        <article class="system-card" id="sistema-interface">
+          <div class="tag">Interface Primeiro?</div>
+          <h3>5.1 HUD e Interface Base</h3>
+          <ul>
+            <li>Comece importando fontes, ícones e sprites críticos. Ajuste materiais de UI para <em>Retainer Boxes</em> e <em>UMG</em>.</li>
+            <li>Implemente um HUD mínimo: barras de vida, mana e slots rápidos vinculados a <code>Data Assets</code> já convertidos.</li>
+            <li>Crie widgets de depuração (painel de log, inventário temporário) para validar dados antes do design final.</li>
+          </ul>
+          <details>
+            <summary>Blueprint: Widget principal reutilizando assets</summary>
+            <pre>
+Event Construct (Widget HUD)
+→ Get Player State → Get Component (Inventory Component)
+→ Bind OnInventoryUpdated → Atualiza Grid
+→ Set Brush From Texture (Ícones reaproveitados)
+
+Função Atualiza Grid
+→ Clear Children (Uniform Grid Panel)
+→ For Each Item Data (Array de DataTable)
+  → Create Widget (SlotItem_BP)
+  → SetData (ItemID, Ícone, Raridade)
+  → Add Child To Uniform Grid (Row, Column calculados)
+            </pre>
+          </details>
+        </article>
+        <article class="system-card" id="sistema-inventario">
+          <div class="tag">Inventário Central</div>
+          <h3>5.2 Inventário e Itens</h3>
+          <ul>
+            <li>Modele <code>Structs</code> com atributos herdados (ID, Classe, Mesh, Efeitos). Use <em>Primary Data Assets</em> para cada categoria.</li>
+            <li>Implemente drag-and-drop com <em>UMG</em>, reaproveitando cursores e sons antigos.</li>
+            <li>Sincronize com componentes de personagem (equipar, aplicar bônus) garantindo que IDs antigos sejam preservados.</li>
+          </ul>
+          <details>
+            <summary>Blueprint: Função de adicionar item</summary>
+            <pre>
+Função AddItem(ItemID)
+→ Data Table Row → Struct ItemData
+→ Branch (Inventário possui espaço?)
+    True:
+      → Add (Inventário Array, ItemData)
+      → Play Sound 2D (SFX_Inventory_Add)
+      → Dispatch Event (OnInventoryUpdated)
+    False:
+      → Add To Pending Queue (Para drops atrasados)
+            </pre>
+          </details>
+        </article>
+        <article class="system-card" id="sistema-xp">
+          <div class="tag">Progressão</div>
+          <h3>5.3 Sistema de XP e Níveis</h3>
+          <ul>
+            <li>Converta tabelas antigas de XP para <code>Curve Tables</code> ou <code>Data Tables</code>.</li>
+            <li>Conecte recompensas de XP a eventos do inventário (equipar item raro concede bônus).</li>
+            <li>Sincronize com o HUD para feedback imediato reutilizando partículas simples.</li>
+          </ul>
+          <details>
+            <summary>Blueprint: Cálculo de nível</summary>
+            <pre>
+Event GainExperience (DeltaXP)
+→ CurrentXP += DeltaXP
+→ While (CurrentXP ≥ XPParaPróximoNível)
+    → CurrentXP -= XPParaPróximoNível
+    → Level++
+    → XPParaPróximoNível = CurveFloat_XP.GetFloatValue(Level)
+    → Multicast Event (OnLevelUp)
+            </pre>
+          </details>
+        </article>
+        <article class="system-card" id="sistema-drop">
+          <div class="tag">Economia</div>
+          <h3>5.4 Sistema de Drop</h3>
+          <ul>
+            <li>Importe tabelas de loot antigas, convertendo probabilidades para <code>Data Tables</code> com <em>RowHandles</em>.</li>
+            <li>Integre com o sistema de XP para alterar probabilidades conforme nível.</li>
+            <li>Valide efeitos de drop com ícones reaproveitados antes do polimento final.</li>
+          </ul>
+          <details>
+            <summary>Blueprint: Geração de drop</summary>
+            <pre>
+Função SpawnLoot(InimigoID)
+→ DataTableRowHandle (LootTable)
+→ Weighted Random Row
+→ Spawn Actor (Pickup_BP) com Mesh e Partícula herdadas
+→ Set ItemID (para Inventário)
+→ Play Sound at Location (SFX_Drop_Legado)
+            </pre>
+          </details>
+        </article>
+        <article class="system-card" id="sistema-map">
+          <div class="tag">Exploração</div>
+          <h3>5.5 Mapas e Eventos de Mundo</h3>
+          <ul>
+            <li>Reaproveite blocos modulares validando colisões e níveis de detalhe.</li>
+            <li>Use <em>Level Sequences</em> antigos como base para cenas e cutscenes.</li>
+            <li>Automatize checagens de luz/som em cada lote importado.</li>
+          </ul>
+          <details>
+            <summary>Blueprint: Checkpoint reutilizando assets</summary>
+            <pre>
+Event BeginOverlap (Player)
+→ Save Game to Slot (CheckpointData)
+→ Set Static Mesh (Totem reaproveitado)
+→ Play Niagara System (FX_Checkpoint_Legado)
+            </pre>
+          </details>
+        </article>
+        <article class="system-card" id="sistema-efeitos">
+          <div class="tag">Feedback</div>
+          <h3>5.6 Efeitos Visuais e Sonoros</h3>
+          <ul>
+            <li>Converta partículas Cascade antigas para Niagara usando a ferramenta de migração integrada.</li>
+            <li>Adapte materiais de pós-processamento, preservando identidade visual.</li>
+            <li>Crie <em>Sound Cues</em> combinando camadas legadas com novas variações para 3D/espacialização.</li>
+          </ul>
+          <details>
+            <summary>Blueprint: Ativação de efeito contextual</summary>
+            <pre>
+Event OnAbilityActivated
+→ Spawn Niagara System Attached (FX_Ability_Legado)
+→ Set Niagara Variable (Cor = Raridade do item)
+→ Play Sound Cue (SFX_Ability_Legado)
+→ Delay (Duração)
+→ Deactivate System
+            </pre>
+          </details>
+        </article>
+      </div>
     </section>
 
     <section>
@@ -231,11 +590,11 @@
       <div class="timeline">
         <article class="card">
           <h3>Fase 1: 2-3 Semanas</h3>
-          <p>Preparação, configuração do projeto, pipeline de conversão de assets e protótipos básicos de personagem e mapa.</p>
+          <p>Preparação, configuração do projeto, pipeline de conversão de assets e protótipos básicos de personagem, HUD e inventário.</p>
         </article>
         <article class="card">
           <h3>Fase 2: 4-6 Semanas</h3>
-          <p>Implementação dos sistemas de jogo (inventário, combate, UI), integração incremental de assets reaproveitados e testes de jogabilidade.</p>
+          <p>Implementação dos sistemas de jogo (inventário, XP, drops, interface completa), integração incremental de assets reaproveitados e testes de jogabilidade.</p>
         </article>
         <article class="card">
           <h3>Fase 3: 3-4 Semanas</h3>
@@ -258,6 +617,80 @@
       </ul>
     </section>
   </main>
+
+  <script>
+    const sequences = {
+      default: {
+        order: ["assets", "interface", "inventory", "xp", "drop", "mapas", "efeitos"],
+        rationale:
+          "Comece validando assets essenciais, em seguida monte HUD mínimo para testar inventário, depois conecte XP, drops e mapas antes do polimento audiovisual."
+      },
+      "assets-prontos": {
+        order: ["interface", "inventory", "xp", "drop", "mapas", "assets", "efeitos"],
+        rationale:
+          "Com assets convertidos, foque em interface e sistemas que consomem esses dados. Deixe apenas revisões de assets e efeitos para o final."
+      },
+      "sem-assets": {
+        order: ["assets", "mapas", "interface", "inventory", "xp", "drop", "efeitos"],
+        rationale:
+          "Quando poucos assets estão prontos, priorize pipeline e blocagem de mapas com placeholders para descobrir lacunas antes dos sistemas avançados."
+      },
+      multiplayer: {
+        order: ["assets", "inventory", "xp", "drop", "interface", "mapas", "efeitos"],
+        rationale:
+          "Para jogos online, estabilize assets replicados e sistemas de dados compartilhados (inventário, XP, drops) antes da camada visual."
+      }
+    };
+
+    const button = document.getElementById("suggestSequence");
+    const selector = document.getElementById("profileSelector");
+    const cards = document.querySelectorAll(".priority-card");
+    const output = document.getElementById("recommendationOutput");
+
+    const highlightCards = (order) => {
+      cards.forEach((card) => {
+        card.classList.remove("active");
+        const stepLabel = card.querySelector("span");
+        const index = order.indexOf(card.dataset.step);
+        if (index !== -1) {
+          stepLabel.textContent = `${index + 1}º`;
+        }
+      });
+
+      order.forEach((step) => {
+        const card = document.querySelector(`.priority-card[data-step="${step}"]`);
+        if (card) {
+          card.classList.add("active");
+        }
+      });
+    };
+
+    const renderOutput = ({ order, rationale }) => {
+      const listItems = order
+        .map((step) => {
+          const card = document.querySelector(`.priority-card[data-step="${step}"] h3`);
+          return `<li>${card ? card.textContent : step}</li>`;
+        })
+        .join("");
+      output.innerHTML = `
+        <div style="background: rgba(255,255,255,0.15); padding: 1rem 1.25rem; border-radius: 12px;">
+          <h4 style="margin-top: 0;">Sequência sugerida</h4>
+          <ol>${listItems}</ol>
+          <p style="margin-bottom: 0; font-size: 0.95rem;">${rationale}</p>
+        </div>
+      `;
+    };
+
+    button?.addEventListener("click", () => {
+      const profile = sequences[selector.value] ?? sequences.default;
+      highlightCards(profile.order);
+      renderOutput(profile);
+    });
+
+    // Inicializa com sequência padrão
+    highlightCards(sequences.default.order);
+    renderOutput(sequences.default);
+  </script>
 
   <footer>
     <p>&copy; 2024 Plano Estratégico de Recriação UE5</p>
