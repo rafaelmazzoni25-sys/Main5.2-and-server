@@ -113,6 +113,91 @@
       gap: 1.25rem;
       margin-top: 1.5rem;
     }
+    .atlas-tabs {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.75rem;
+      margin: 1.75rem 0 1.5rem;
+    }
+    .atlas-tab {
+      background: rgba(12, 141, 217, 0.14);
+      border: 1px solid rgba(12, 141, 217, 0.35);
+      color: var(--azul-escuro);
+      border-radius: 999px;
+      padding: 0.55rem 1.25rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: transform 0.2s ease, box-shadow 0.2s ease, background 0.2s ease;
+    }
+    .atlas-tab.active {
+      background: linear-gradient(135deg, var(--azul), #0b6ac1);
+      color: #fff;
+      box-shadow: 0 12px 24px rgba(12, 141, 217, 0.25);
+    }
+    .atlas-tab:hover {
+      transform: translateY(-2px);
+    }
+    .atlas-content {
+      display: none;
+      border-radius: 16px;
+      border: 1px solid #d7e5f7;
+      background: #fafdff;
+      padding: 1.75rem 1.5rem;
+      gap: 1.35rem;
+    }
+    .atlas-content.active {
+      display: grid;
+    }
+    .atlas-content h3 {
+      margin-top: 0;
+      color: var(--azul-escuro);
+    }
+    .atlas-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 1.15rem;
+      font-size: 0.95rem;
+    }
+    .atlas-table thead {
+      background: rgba(12, 141, 217, 0.12);
+    }
+    .atlas-table th,
+    .atlas-table td {
+      padding: 0.75rem 0.85rem;
+      text-align: left;
+      border-bottom: 1px solid #dfe9f7;
+      vertical-align: top;
+    }
+    .atlas-table th {
+      color: var(--azul-escuro);
+      font-weight: 700;
+      font-size: 0.9rem;
+      text-transform: uppercase;
+      letter-spacing: 0.03em;
+    }
+    .atlas-table code {
+      background: rgba(12, 141, 217, 0.08);
+      color: var(--azul-escuro);
+      padding: 0.15rem 0.35rem;
+      border-radius: 6px;
+      font-size: 0.85rem;
+    }
+    .atlas-grid {
+      display: grid;
+      gap: 1.1rem;
+    }
+    .atlas-highlight {
+      border-left: 5px solid var(--azul);
+      background: rgba(12, 141, 217, 0.08);
+      padding: 1rem 1.15rem;
+      border-radius: 12px;
+    }
+    .atlas-list {
+      display: grid;
+      gap: 0.55rem;
+      margin: 0;
+      padding-left: 1.15rem;
+    }
     .card {
       border-radius: 16px;
       border: 1px solid #d7e5f7;
@@ -348,6 +433,216 @@
       </div>
     </section>
 
+    <section id="atlas">
+      <h2>Atlas Completo do Projeto Original</h2>
+      <p>
+        Utilize este atlas para rastrear onde cada funcionalidade do cliente e do servidor reside no projeto legado.
+        Ele indica arquivos, diretórios e binários essenciais para orientar a migração 1:1 para a Unreal Engine 5,
+        contemplando tanto o frontend (cliente) quanto o backend (servidores e bancos de dados).
+      </p>
+      <div class="atlas-tabs">
+        <button class="atlas-tab active" data-tab="frontend">Cliente (Front-end)</button>
+        <button class="atlas-tab" data-tab="backend">Servidor (Back-end)</button>
+        <button class="atlas-tab" data-tab="dados">Dados &amp; Scripts Compartilhados</button>
+        <button class="atlas-tab" data-tab="pipeline">Integração UE5 (Front + Back)</button>
+      </div>
+
+      <div class="atlas-content active" data-tab="frontend">
+        <h3>Arquitetura do Cliente Original <small>(pasta <code>Source Main 5.2/source</code>)</small></h3>
+        <table class="atlas-table">
+          <thead>
+            <tr>
+              <th>Área</th>
+              <th>Arquivos/Diretórios Originais</th>
+              <th>Responsabilidade Atual</th>
+              <th>Adaptação Recomendada na UE5</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>Boot &amp; Loop</td>
+              <td><code>Winmain.cpp</code>, <code>Winmain.h</code>, <code>Builder.cpp</code></td>
+              <td>Cria janela OpenGL, inicializa subsistemas, roda loop de mensagens.</td>
+              <td>Recriar fluxo em <code>UGameInstance</code> + <code>AGameModeBase</code>, migrando inicialização para <code>Subsystems</code> e <code>Game Feature Plugins</code>.</td>
+            </tr>
+            <tr>
+              <td>Gestão de UI</td>
+              <td><code>UIManager.cpp</code>, <code>NewUIManager.cpp</code>, <code>NewUIMainFrameWindow.cpp</code></td>
+              <td>Orquestra HUD legado, troca de janelas e renderização 2D.</td>
+              <td>Mapear widgets para <code>UMG</code>/<code>Common UI</code>; criar <code>BP_UIRoot</code> que instancia subwidgets e responde a <code>Gameplay Tags</code>.</td>
+            </tr>
+            <tr>
+              <td>Inventário &amp; Itens</td>
+              <td><code>NewUIMyInventory.cpp</code>, <code>ZzzInventory.cpp</code>, <code>ItemManager.cpp</code></td>
+              <td>Renderiza slots, valida equipáveis, consulta dados de itens.</td>
+              <td>Usar <code>Data Assets</code> e <code>Data Tables</code> em UE5; criar componentes <code>BP_InventoryManager</code> e <code>BP_ItemInstance</code> com replicação opcional.</td>
+            </tr>
+            <tr>
+              <td>Progressão &amp; Personagem</td>
+              <td><code>CharacterManager.cpp</code>, <code>QuestMng.cpp</code>, <code>GM3rdChangeUp.cpp</code></td>
+              <td>Controla atributos, quests, classes avançadas e desbloqueios.</td>
+              <td>Implementar em <code>Actor Components</code> (ex.: <code>BP_ProgressionComponent</code>) e <code>Gameplay Ability System</code> para buffs/skills.</td>
+            </tr>
+            <tr>
+              <td>Mapas &amp; Mundo</td>
+              <td><code>MapManager.cpp</code>, <code>w_MapProcess.cpp</code>, diretório <code>Time/</code></td>
+              <td>Carrega dados de mapas, portais, horários de eventos e colisões.</td>
+              <td>Converter layouts em <code>Level Streaming</code> / <code>World Partition</code>; migrar triggers para <code>Blueprint Actors</code> reutilizando CSVs como <code>Data Tables</code>.</td>
+            </tr>
+            <tr>
+              <td>Efeitos &amp; Renderização</td>
+              <td><code>ZzzEffect.cpp</code>, <code>SkillEffectMgr.cpp</code>, <code>GlobalBitmap.cpp</code>, <code>TextureScript.cpp</code></td>
+              <td>Gera partículas, animações de habilidades e gerencia texturas legacy.</td>
+              <td>Transformar assets em sistemas Niagara/Material Functions; migrar tabelas de efeitos para <code>Curve</code> e <code>Data Assets</code>.</td>
+            </tr>
+            <tr>
+              <td>Rede &amp; Protocolos</td>
+              <td><code>ProtocolSend.cpp</code>, <code>SocketSystem.cpp</code>, <code>WSclient.cpp</code></td>
+              <td>Empacota mensagens, gerencia sockets TCP, interpreta respostas do servidor.</td>
+              <td>Substituir por camadas HTTP/WebSocket/GRPC via <code>FHttpModule</code> ou plugins; definir <code>BP_ServerGateway</code> para traduzir mensagens.</td>
+            </tr>
+            <tr>
+              <td>Localização &amp; Texto</td>
+              <td><code>GlobalText.h</code>, <code>MultiLanguage.cpp</code>, <code>Local.cpp</code></td>
+              <td>Carrega arquivos de texto, alterna idiomas e strings dinâmicas.</td>
+              <td>Importar para <code>Localization Dashboard</code> da UE5; usar <code>FText</code> com <code>String Tables</code> para manter suporte multi-idioma.</td>
+            </tr>
+          </tbody>
+        </table>
+        <div class="atlas-highlight">
+          <strong>Checklist Frontend:</strong>
+          <ul class="atlas-list">
+            <li>Revisar dependências OpenGL/Win32 em <code>Winmain.cpp</code> para substituição por módulos UE5.</li>
+            <li>Gerar inventário de widgets <code>NewUI*</code> e mapear cada um para um <em>Widget Blueprint</em> equivalente.</li>
+            <li>Converter dados lidos via <code>LoadData.cpp</code> em <code>Data Tables</code> para compartilhar com o backend.</li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="atlas-content" data-tab="backend">
+        <h3>Arquitetura dos Servidores <small>(pasta <code>MuServer_Season_5_Update_15</code>)</small></h3>
+        <table class="atlas-table">
+          <thead>
+            <tr>
+              <th>Componente</th>
+              <th>Localização</th>
+              <th>Função</th>
+              <th>Pontos para Migração</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>ConnectServer</td>
+              <td><code>ConnectServer/</code></td>
+              <td>Autenticação inicial, direciona clientes para <em>JoinServer</em>.</td>
+              <td>Planeje endpoint REST/WebSocket para handshake; mantenha lista de shards/configuração.</td>
+            </tr>
+            <tr>
+              <td>JoinServer</td>
+              <td><code>JoinServer/</code></td>
+              <td>Gerencia login de contas, seleção de servidor e fila.</td>
+              <td>Converter lógica para serviço de identidade (OAuth/JWT) integrado a banco atual.</td>
+            </tr>
+            <tr>
+              <td>DataServer</td>
+              <td><code>DataServer/</code></td>
+              <td>Centraliza persistência de personagens, inventário e XP.</td>
+              <td>Modelar APIs de persistência (REST/GraphQL) + camada de acesso a dados moderna (ORM ou microserviço).</td>
+            </tr>
+            <tr>
+              <td>GameServer</td>
+              <td><code>GameServer/</code> + <code>GameServer/DATA</code></td>
+              <td>Executa lógica em tempo real, eventos, drops, skills.</td>
+              <td>Planejar reescrita em engine servidor (C++/C#/Go) consumindo mesmas tabelas que UE5; migrar scripts <code>*.dat</code> e <code>.txt</code> para base comum.</td>
+            </tr>
+            <tr>
+              <td>GameServerCS</td>
+              <td><code>GameServerCS/</code></td>
+              <td>Instância dedicada a Castle Siege e eventos PvP massivos.</td>
+              <td>Separar serviços escaláveis (matchmaking/eventos) e sincronizar com UE5 via filas ou serviços em nuvem.</td>
+            </tr>
+            <tr>
+              <td>MHPServer</td>
+              <td><code>MHPServer/</code></td>
+              <td>Proteção/anticheat legado com monitoramento de pacotes.</td>
+              <td>Substituir por solução anti-cheat compatível com UE5 (EOS, Easy Anti-Cheat, VAC) ou criar validações server-side.</td>
+            </tr>
+            <tr>
+              <td>Banco de Dados</td>
+              <td><code>DB/</code>, <code>ScriptSql/</code></td>
+              <td>Scripts SQL de criação, procedures e seeds.</td>
+              <td>Revisar tabelas para normalização; gerar modelos ER atualizados para migração.</td>
+            </tr>
+            <tr>
+              <td>Ferramentas</td>
+              <td><code>Tools/</code></td>
+              <td>Utilitários de manutenção (ex.: reset, monitoramento de eventos).</td>
+              <td>Identificar ferramentas imprescindíveis e recriar painéis Web/CLI com APIs modernas.</td>
+            </tr>
+          </tbody>
+        </table>
+        <div class="atlas-highlight">
+          <strong>Checklist Backend:</strong>
+          <ul class="atlas-list">
+            <li>Mapear dependências entre executáveis (ordem de inicialização em <code>StartUp/</code>).</li>
+            <li>Catalogar arquivos <code>GameServerInfo - *.dat</code> para definir configurações que devem virar serviços de configuração.</li>
+            <li>Exportar procedures críticas do diretório <code>ScriptSql</code> para documentação e refatoração.</li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="atlas-content" data-tab="dados">
+        <h3>Dados Compartilhados Entre Cliente e Servidor</h3>
+        <div class="atlas-grid">
+          <div>
+            <strong>Diretório <code>MuServer_Season_5_Update_15/Data</code></strong>
+            <ul class="atlas-list">
+              <li><code>Item/</code>: tabelas <code>Item.txt</code>, <code>ItemDrop.txt</code>, <code>ItemOption.txt</code>, <code>ItemValue.txt</code> — base para inventário, drops e economia.</li>
+              <li><code>Event/</code>: arquivos <code>BloodCastle.dat</code>, <code>DevilSquare.dat</code>, <code>ImperialGuardian.dat</code> descrevendo horários, bosses, recompensas.</li>
+              <li><code>Custom/</code>: ajustes proprietários (ex.: <code>CustomCombo.txt</code>, <code>CustomMix.txt</code>, <code>CustomJewel.txt</code>) a serem refletidos em sistemas UE5.</li>
+              <li><code>Character/</code>: limites de atributos, taxas de XP e configurações de classes.</li>
+              <li>Arquivos globais (<code>Command.txt</code>, <code>Effect.txt</code>, <code>ItemMove.txt</code>) mapeiam comandos e efeitos utilizados tanto no cliente quanto no servidor.</li>
+            </ul>
+          </div>
+          <div>
+            <strong>Cliente <code>Source Main 5.2/source</code></strong>
+            <ul class="atlas-list">
+              <li><code>LoadData.cpp</code> &amp; <code>ReadScript.h</code>: rotinas de parsing de arquivos <code>.txt</code>/<code>.dat</code>.</li>
+              <li><code>QuestInfo.cpp</code> e <code>QuestMng.cpp</code>: interpretam scripts de quests armazenados no servidor.</li>
+              <li><code>GlobalText.h</code> + <code>Local.cpp</code>: strings compartilhadas com base nos mesmos IDs dos bancos de dados.</li>
+            </ul>
+          </div>
+        </div>
+        <div class="atlas-highlight">
+          <strong>Práticas Recomendadas:</strong>
+          <ul class="atlas-list">
+            <li>Centralizar arquivos <code>.txt/.dat</code> em um repositório de dados versionado (Git LFS) e convertê-los para <code>JSON</code> ou <code>CSV</code> padronizado.</li>
+            <li>Gerar <em>schemas</em> para cada tabela reutilizada, garantindo compatibilidade entre UE5 e backend moderno.</li>
+            <li>Automatizar importação com scripts Python/C# que populam <code>Data Tables</code> na UE5 e alimentam o banco novo.</li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="atlas-content" data-tab="pipeline">
+        <h3>Pipeline Integrado Front + Back para Recriação na UE5</h3>
+        <ol>
+          <li><strong>Inventário de Assets</strong>: classifique meshes, texturas, ícones e sons oriundos do cliente e relacione com tabelas de itens (<code>Data/Item</code>).</li>
+          <li><strong>Modelagem de APIs</strong>: transforme processos do <code>GameServer</code> em endpoints (login, load player, salvar inventário, rolagem de drop).</li>
+          <li><strong>Sincronização de Dados</strong>: estabeleça formato único (ex.: <code>JSON</code>) e gere conversores a partir dos scripts originais (<code>LoadData.cpp</code>, <code>GameServerInfo - *.dat</code>).</li>
+          <li><strong>Blueprint Gateway</strong>: crie <code>BP_ServerGateway</code> para consumir APIs (Login, CharacterLoad, ItemUpdate) com <code>Async Action</code> + <code>HTTP Request</code>.</li>
+          <li><strong>Testes Integrados</strong>: para cada sprint, valide uma cadeia completa (ex.: login → carregar inventário → spawn mapa → evento → drop → salvar).</li>
+        </ol>
+        <div class="atlas-highlight">
+          <strong>Ferramentas de Apoio:</strong>
+          <ul class="atlas-list">
+            <li>Scripts SQL do diretório <code>ScriptSql</code> como referência para modelar migrations modernas.</li>
+            <li>Executáveis legados para capturar pacotes (útil ao recriar protocolos em UE5 via <code>Packet Capture</code>).</li>
+            <li>Planilhas de estado de assets e dados compartilhados para acompanhar o progresso da migração.</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
     <section id="etapas">
       <h2>Etapas Detalhadas e Critérios de Saída</h2>
       <article>
@@ -525,6 +820,37 @@ Event OnPlayerReachedPortal
   AudioComponent.Play()
   CameraShake.Play(Contexto.ShakeClass)</code></pre>
       </details>
+      <details>
+        <summary>Gateway UE5 &lt;&gt; Servidor Moderno (HTTP/JSON)</summary>
+        <ol>
+          <li>Criar <code>BP_ServerGateway</code> (Object Blueprint) com funções assíncronas para Login, LoadCharacter, SaveInventory.</li>
+          <li>Utilizar <code>FHttpModule</code> via <em>Blueprint Function Library</em> (nós <code>Execute HTTP Request</code> ou plugin VaRest) para chamar APIs REST.</li>
+          <li>Serializar/deserializar <code>JSON</code> refletindo os mesmos campos dos arquivos <code>Data/Item</code> e tabelas SQL.</li>
+          <li>Propagar resultados via <em>Delegates</em> (ex.: <code>OnInventoryReceived</code>) para atualizar HUD/inventário.</li>
+        </ol>
+        <pre><code>Function LoginAsync (Email, Senha)
+  Create Request (POST, /auth/login)
+  Set Header "Content-Type" = "application/json"
+  Set Content (Make JSON → { "email": Email, "password": Senha })
+  Send
+  On Success:
+    Parse JSON → Token, Characters[]
+    Store Token
+    Broadcast OnLoginSuccess(Token, Characters)
+  On Error:
+    Broadcast OnLoginFailed(StatusCode, Message)
+
+Function LoadInventoryAsync (CharacterID)
+  Create Request (GET, /characters/{CharacterID}/inventory)
+  Set Header "Authorization" = Token
+  Send
+  On Success:
+    Parse JSON → Itens[]
+    Broadcast OnInventoryReceived(Itens)
+
+Delegate OnInventoryReceived(Itens)
+  → BP_InventoryManager.UpdateFromServer(Itens)</code></pre>
+      </details>
     </section>
 
     <section id="verificacoes">
@@ -681,6 +1007,18 @@ Event OnPlayerReachedPortal
       output.innerHTML = `<strong>${escolha.titulo}</strong><ol style="margin-top:0.85rem;">${escolha.passos
         .map((passo) => `<li>${passo}</li>`)
         .join("")}</ol>`;
+    });
+
+    const atlasTabs = document.querySelectorAll(".atlas-tab");
+    const atlasContents = document.querySelectorAll(".atlas-content");
+    atlasTabs.forEach((tab) => {
+      tab.addEventListener("click", () => {
+        const alvo = tab.dataset.tab;
+        atlasTabs.forEach((t) => t.classList.toggle("active", t === tab));
+        atlasContents.forEach((content) => {
+          content.classList.toggle("active", content.dataset.tab === alvo);
+        });
+      });
     });
   </script>
 </body>
