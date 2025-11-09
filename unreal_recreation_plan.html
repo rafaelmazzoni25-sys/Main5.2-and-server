@@ -1034,6 +1034,220 @@
       </ul>
     </section>
 
+    <section id="mob-system-atlas">
+      <h2>Atlas Completo do Sistema de Mobs</h2>
+      <p>
+        Este atlas organiza todas as informações necessárias para reconstruir o ecossistema de mobs na Unreal Engine 5,
+        incluindo spawn, movimentação, IA, drops, distribuição de XP e sincronização com o backend. Os dados legados
+        do cliente e do servidor permanecem a fonte de verdade e devem ser convertidos em estruturas UE5 seguindo os
+        passos abaixo.
+      </p>
+      <div class="grid-3">
+        <div class="card">
+          <h3>Fontes de Dados Legadas</h3>
+          <ul>
+            <li><code>Data/Monster/Monster.txt</code> e <code>MonsterSetBase.txt</code>: estatísticas base e pontos de spawn.</li>
+            <li><code>Source MuServer Update 15/GameServer/GameServer/MonsterSetBase.cpp</code>: parsing de respawn, delays e limites.</li>
+            <li><code>Source MuServer Update 15/GameServer/GameServer/MonsterAI.cpp</code>, <code>MonsterAIState.cpp</code>: estados de IA e mudança de comportamento.</li>
+            <li><code>Source Main 5.2/source/ZzzInterface.cpp</code> (<code>CreateMonster</code>): expectativas de apresentação no cliente original.</li>
+          </ul>
+        </div>
+        <div class="card">
+          <h3>Componentes UE5 Recomendados</h3>
+          <ul>
+            <li><code>BP_MobSpawner</code> (Actor) alimentado por <code>DT_MobSpawn</code> com dados convertidos de <code>MonsterSetBase</code>.</li>
+            <li><code>BP_MobCharacter</code> (Child de <code>Character</code>) com <code>CharacterMovement</code> configurado para valores originais de velocidade.</li>
+            <li><code>BP_MobAIController</code> + <code>Behavior Tree</code> replicando tabelas de estado de <code>MonsterAI</code>.</li>
+            <li><code>BP_MobDropComponent</code> e <code>BP_MobXPComponent</code> para acionar loot/XP de forma sincronizada com o servidor.</li>
+          </ul>
+        </div>
+        <div class="card">
+          <h3>Sincronização Cliente &amp; Servidor</h3>
+          <ul>
+            <li><code>GameServer/GameServer/MonsterManager.cpp</code>: lógica oficial de criação e respawn; serve como blueprint do backend moderno.</li>
+            <li>Endpoints REST/WebSocket sugeridos: <code>POST /world/spawn</code>, <code>POST /world/mob/{id}/state</code>, <code>POST /world/mob/{id}/death</code>.</li>
+            <li>Eventos replicados via <code>Gameplay Message Subsystem</code> no cliente para atualizar HUD, log de combate e inventário.</li>
+            <li>Persistência de drops alinhada com <code>ItemDrop.cpp</code> e <code>MapItem.cpp</code>, garantindo regras idênticas às do servidor.</li>
+          </ul>
+        </div>
+      </div>
+      <h3>Pipeline de Spawn e Respawn</h3>
+      <ol>
+        <li><strong>Converter pontos:</strong> exporte <code>MonsterSetBase.txt</code> para <code>DT_MobSpawn</code> com campos <em>MapID</em>, <em>SpawnPoint</em> (X, Y), <em>Direction</em>, <em>RespawnTime</em>, <em>MobClass</em>, <em>Quantity</em>.</li>
+        <li><strong>Instanciar spawner:</strong> posicione <code>BP_MobSpawner</code> no nível e associe a linha correspondente do data table.</li>
+        <li><strong>Solicitar backend:</strong> ao carregar o nível, envie <code>POST /world/spawn</code> com o identificador do spawner. O servidor responde com <em>MobInstanceIDs</em> e atributos finais (HP, tipo de drop extra, buffs).</li>
+        <li><strong>Spawn local:</strong> <code>BP_MobSpawner</code> cria <code>BP_MobCharacter</code> usando meshes/animações originais convertidas. Use <code>SetActorLocation</code> com as coordenadas convertidas (multiplique por <code>TERRAIN_SCALE</code> para manter proporção).</li>
+        <li><strong>Respawn:</strong> ao receber evento <code>MobRespawnScheduled</code> do servidor (calculado por <code>MonsterManager::RespawnMonster</code>), iniciar <code>FTimerHandle</code> no spawner para recriar o mob no tempo indicado.</li>
+      </ol>
+      <pre><code>Event InitializeSpawner (SpawnerRow)
+  → Set DataTableRow = SpawnerRow
+  → For Index 0 .. SpawnerRow.Quantity-1
+        → Send HTTP (POST /world/spawn) com { SpawnerId, Index }
+        → OnSuccess → SpawnMobLocal(Response.Payload)
+
+Function SpawnMobLocal (Payload)
+  → SpawnActor BP_MobCharacter at Payload.WorldLocation/Rotation
+  → Set MobInstanceID = Payload.InstanceId
+  → MobCharacter.ApplyStats(Payload.Stats)
+  → MobCharacter.StartBehaviorTree(Payload.BehaviorProfile)</code></pre>
+      <h3>Movimentação, Ameaça e Habilidades</h3>
+      <p>
+        A movimentação no legado é definida pelos estados em <code>MonsterAIState.cpp</code> e regras de perseguição de <code>MonsterAI.cpp</code>.
+        No UE5, utilize Behavior Trees com <em>Blackboard</em> contendo chaves <code>TargetActor</code>, <code>PatrolRoute</code>, <code>CurrentState</code>.
+      </p>
+      <details open>
+        <summary>Padrões de comportamento</summary>
+        <ol>
+          <li><strong>Idle/Patrulha:</strong> converter rotas de <code>MonsterAIMovePath.cpp</code> para <code>DT_MobPatrol</code> e alimentar <code>Simple Move To</code> no AI Controller.</li>
+          <li><strong>Perseguição:</strong> replicar cálculo de distância (<code>gObjCheckAttackArea</code>) usando <code>EQSTestingPawn</code> ou <code>Environment Query</code>.</li>
+          <li><strong>Ataque:</strong> chamar habilidades mapeadas em <code>MonsterSkillManager.cpp</code>; cada entrada vira uma <code>Gameplay Ability</code> ou <code>Anim Montage</code> no UE5.</li>
+          <li><strong>Fuga/Reset:</strong> observar <code>MonsterAIState::AI_PATH_RETURN</code>. Configure <code>Nav Link Proxy</code> para retornos rápidos e dispare evento de reset para limpar ameaças.</li>
+        </ol>
+        <pre><code>Behavior Tree Resumo
+Root
+ └─ Selector (Combate)
+     ├─ Sequence (Tem Alvo?)
+     │    ├─ Blackboard Check (TargetActor)
+     │    ├─ Task Attack (usa SkillProfile atual)
+     └─ Sequence (Procurar Jogador)
+          ├─ Task Run EQS (Ameaça)
+          └─ Task Move To (Resultado EQS)
+
+Service AtualizarAmeaça (a cada 0.5s)
+  → Para cada jogador em range (Data do backend)
+        Atualiza AggroMap replicando <code>MonsterAIAgro.cpp</code>
+  → Define TargetActor = Maior Threat</code></pre>
+      </details>
+      <h3>Drops, XP e Eventos Pós-Morte</h3>
+      <ul>
+        <li><strong>Drop:</strong> use o mesmo fluxo do painel de itens. <code>BP_MobDropComponent</code> requisita <code>/world/mob/{id}/death</code>, que retorna lista de <em>LootEntries</em> conforme <code>MonsterSetBase</code> + <code>ItemBagManager.cpp</code>.</li>
+        <li><strong>XP:</strong> backend calcula via <code>ExperienceTable.cpp</code>. O cliente apenas reproduz o evento <code>OnExperienceReceived</code> para cada participante, distribuindo por party/guild segundo a resposta.</li>
+        <li><strong>Eventos:</strong> bosses e invasões utilizam scripts dedicados (<code>InvasionManager.cpp</code>, <code>RaklionBattleOfSelupan.cpp</code>). No UE5, mantenha <code>BP_EventDirector</code> responsável por spawnar mobs especiais e emitir <code>Gameplay Tags</code> como <code>Event.Raklion.Active</code>.</li>
+      </ul>
+      <div class="callout">
+        <strong>Checklist de QA:</strong>
+        <ul>
+          <li>Conferir se os tempos de respawn respeitam tolerância de ±1s em relação ao servidor legado.</li>
+          <li>Validar movimentação em terrenos convertidos: usar <code>NavMesh Invokers</code> para mapas extensos.</li>
+          <li>Testar queda de conexão durante combate; mobs devem congelar estado até receber confirmação do backend.</li>
+          <li>Monitorar performance: Behavior Trees complexos devem usar <code>Logic Update Interval</code> adaptativo.</li>
+        </ul>
+      </div>
+    </section>
+
+    <section id="skill-system-guide">
+      <h2>Compêndio do Sistema de Skills</h2>
+      <p>
+        Esta seção explica como mapear o sistema de skills original para Blueprints e, quando necessário, C++ na UE5,
+        mantendo efeitos visuais, custos, cooldowns e interações com o backend. Inclui a adaptação de skills de personagem,
+        master skills e habilidades de mobs.
+      </p>
+      <div class="grid-3">
+        <div class="card">
+          <h3>Arquivos e Código Originais</h3>
+          <ul>
+            <li><code>Data/Skill/Skill.txt</code>, <code>SkillSkill_*.txt</code>, <code>MasterSkillTree.txt</code>: atributos, custos, requisitos.</li>
+            <li><code>Source MuServer Update 15/GameServer/GameServer/SkillManager.cpp</code>: aplicação de dano, mana, cooldown.</li>
+            <li><code>SkillDamage.cpp</code>, <code>SkillHitBox.cpp</code>: fórmulas e alcance.</li>
+            <li><code>Source Main 5.2/source/SkillManager.cpp</code>, <code>SkillEffectMgr.cpp</code>, <code>ZzzEffectMagicSkill.cpp</code>: efeitos visuais e sons no cliente.</li>
+          </ul>
+        </div>
+        <div class="card">
+          <h3>Estrutura UE5 Recomendada</h3>
+          <ul>
+            <li><code>BP_SkillComponent</code> (Actor Component) com arrays <code>KnownSkills</code> e <code>ActiveBuffs</code>.</li>
+            <li><code>DT_SkillCatalog</code> contendo <code>FSKillDefinition</code> (ID, Nome, Classe, Custos, Efeito, Cooldown, AnimMontage, FX).</li>
+            <li><code>Gameplay Ability System</code> opcional: cada skill vira uma <code>UGameplayAbility</code> com <code>GameplayEffect</code> replicando buffs.</li>
+            <li><code>WBP_SkillBar</code>, <code>WBP_SkillTooltip</code> e <code>WBP_SkillTree</code> para interface.</li>
+          </ul>
+        </div>
+        <div class="card">
+          <h3>Integração com Backend</h3>
+          <ul>
+            <li>Endpoints: <code>POST /skills/cast</code>, <code>POST /skills/equip</code>, <code>GET /characters/{id}/skills</code>, <code>POST /skills/master-tree</code>.</li>
+            <li>Converter <code>SkillManager::CGSkillAttackRecv</code> para API moderna que valida requisitos antes de confirmar casting.</li>
+            <li>Persistir builds de master skill conforme estrutura de <code>MasterSkillTree.cpp</code>, retornando nós adquiridos.</li>
+            <li>Enviar logs de combate (dano aplicado, status) para analítica, mantendo compatibilidade com <code>SkillDamage</code>.</li>
+          </ul>
+        </div>
+      </div>
+      <h3>Processo de Conversão</h3>
+      <ol>
+        <li><strong>Normalizar dados:</strong> criar script que lê <code>Skill.txt</code> e gera <code>DT_SkillCatalog</code> com campos extras (classe permitida, target type, min/max range, consumo de mana e stamina).</li>
+        <li><strong>Importar efeitos:</strong> converter texturas/sons citados em <code>ZzzEffect.cpp</code> e <code>SkillEffect.bmd</code> para <code>Niagara</code>/<code>MetaSounds</code>.</li>
+        <li><strong>Configurar componente:</strong> <code>BP_SkillComponent</code> lê <code>DT_SkillCatalog</code> na inicialização e popula slots ativos conforme retorno do backend (<code>GET /characters/{id}/skills</code>).</li>
+        <li><strong>Implementar casting:</strong> cada habilidade chama <code>POST /skills/cast</code>, aguarda confirmação (para validação anti-cheat) e, em seguida, executa o efeito local.</li>
+        <li><strong>Sincronizar cooldown:</strong> backend devolve timestamp e duração. O cliente utiliza <code>FTimerManager</code> para bloquear inputs até o término.</li>
+      </ol>
+      <h3>Blueprint de Casting Genérico</h3>
+      <pre><code>Function TryCastSkill (SkillID)
+  → Data = DT_SkillCatalog[SkillID]
+  → Se ManaAtual &lt; Data.ManaCost → HUD.Log("Mana insuficiente")
+  → Send HTTP (POST /skills/cast)
+        Body = { SkillID, TargetId, Position, Rotation }
+  → OnSuccess:
+        ApplySkillLocally(Data, Response.Payload)
+        StartCooldown(SkillID, Response.Payload.Cooldown)
+
+Function ApplySkillLocally (Data, Payload)
+  → PlayAnimMontage(Data.AnimMontage)
+  → SpawnSystemAtLocation(Data.NiagaraFX, Payload.SpawnLocation)
+  → ApplyGameplayEffectToTarget(Payload.Targets, Data.EffectHandle)
+  → If Data.TriggersProjectile → SpawnActor(BP_SkillProjectile)</code></pre>
+      <h3>Catalogação de Skills</h3>
+      <table class="matrix">
+        <thead>
+          <tr>
+            <th>Grupo</th>
+            <th>Exemplos</th>
+            <th>Conversão UE5</th>
+            <th>Observações</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><strong>Skills Básicas</strong></td>
+            <td><code>Falling Slash</code>, <code>Power Slash</code></td>
+            <td>Montages simples + <code>GameplayEffect</code> instantâneo de dano. Usar <code>Trace</code> em arco para alcance, conforme <code>SkillHitBox.cpp</code>.</td>
+            <td>Respeitar delay <code>Delay</code> de <code>Skill.txt</code>; sincronizar com animação para evitar spam.</td>
+          </tr>
+          <tr>
+            <td><strong>Skills com Projétil</strong></td>
+            <td><code>Ice Arrow</code>, <code>Triple Shot</code></td>
+            <td><code>BP_SkillProjectile</code> com movimento <code>ProjectileMovement</code> e colisão <code>Sphere</code>. Mesh/partículas importadas de <code>SkillEffect.bmd</code>.</td>
+            <td>Servidor calcula trajetória e impacto final (anti-cheat). Cliente mostra trajetória prevista e ajusta ao receber confirmação.</td>
+          </tr>
+          <tr>
+            <td><strong>Buffs &amp; Debuffs</strong></td>
+            <td><code>Greater Fortitude</code>, <code>Soul Barrier</code></td>
+            <td><code>GameplayEffect</code> com atributos modificadores (HP Max, Defense). Replicar durações de <code>SkillManager.cpp</code>.</td>
+            <td>Exibir ícone em <code>WBP_BuffTray</code> reaproveitando sprites originais. Backend envia <code>BuffId</code> e <code>ExpireAt</code>.</td>
+          </tr>
+          <tr>
+            <td><strong>Master Skills</strong></td>
+            <td><code>Flame Strike</code>, <code>Archangel's Will</code></td>
+            <td>Criar árvore em <code>WBP_SkillTree</code> com dados de <code>MasterSkillTree.txt</code>. Cada nó aplica <code>GameplayEffect</code> incremental.</td>
+            <td>Necessário endpoint dedicado para salvar progresso (<code>POST /skills/master-tree</code>).</td>
+          </tr>
+          <tr>
+            <td><strong>Skills de Mobs</strong></td>
+            <td><code>Selupan Ice Storm</code>, <code>Kundun Summon</code></td>
+            <td>Reaproveitar <code>MonsterSkillManager.cpp</code> para gerar <code>DT_MobSkillProfiles</code>. Comportamentos viram tarefas específicas no Behavior Tree.</td>
+            <td>Sincronizar com eventos de IA do atlas de mobs para garantir efeitos corretos no momento do cast.</td>
+          </tr>
+        </tbody>
+      </table>
+      <div class="callout">
+        <strong>Boas práticas:</strong>
+        <ul>
+          <li>Centralize cálculos críticos (dano, resistência, hit chance) no backend para evitar divergências.</li>
+          <li>Utilize <code>AbilitySystemComponent</code> ou uma camada C++ para habilidades com múltiplos efeitos simultâneos.</li>
+          <li>Reaproveite texturas/ícones originais em formato <code>.tga</code>/<code>.ozj</code> convertendo para <code>.png</code> e mantendo nomes para rastreabilidade.</li>
+          <li>Implemente testes automatizados de skill (Blueprint Functional Tests) executando combos, buffs e projeções de dano comparados com valores originais.</li>
+        </ul>
+      </div>
+    </section>
+
     <section id="blueprints">
       <h2>Exemplos Práticos em Blueprint</h2>
       <p>Use os snippets abaixo como base para recriar a lógica principal em Blueprints reaproveitando assets existentes.</p>
@@ -1105,6 +1319,48 @@ Event OnLevelUp
   ItemPickup.SetItemID(Sorteio.ItemID)
   ItemPickup.PlayNiagara(FX_Drop, Cor = Sorteio.RaridadeCor)
   ItemPickup.Bind OnCollected → Inventario.AddItem(ItemID)</code></pre>
+      </details>
+      <details>
+        <summary>Spawn e Respawn de Mobs com Tabelas Originais</summary>
+        <ol>
+          <li>Converter <code>MonsterSetBase.txt</code> para <code>DT_MobSpawn</code> contendo mapa, coordenadas, direção e tempo de respawn.</li>
+          <li>No <code>BP_MobSpawner</code>, carregar a linha do Data Table no <code>BeginPlay</code> e solicitar autorização ao backend (<code>POST /world/spawn</code>).</li>
+          <li>Ao receber a resposta, spawnar <code>BP_MobCharacter</code> com malhas originais e registrar o <em>MobInstanceId</em>.</li>
+          <li>Escutar o evento <code>OnMobDied</code> do personagem para iniciar temporizador de respawn baseado em <code>RespawnTime</code>.</li>
+        </ol>
+        <pre><code>Event BeginPlay (BP_MobSpawner)
+  → Row = Get Data Table Row (DT_MobSpawn, SpawnId)
+  → HTTP POST /world/spawn (SpawnId)
+  → OnSuccess → SpawnMob(Row, Response.Payload)
+
+Function SpawnMob (Row, Payload)
+  → SpawnActor(BP_MobCharacter, Location = Row.WorldPosition)
+  → Mob.SetInstanceId(Payload.InstanceId)
+  → Mob.ApplyStats(Payload.Stats)
+  → Mob.OnMobDied.AddDynamic(self, &BP_MobSpawner::HandleMobDeath)
+
+Function HandleMobDeath (Context)
+  → SpawnLoot(Context)
+  → SetTimer(Row.RespawnTime, Respawn)</code></pre>
+      </details>
+      <details>
+        <summary>Execução de Skills com Gameplay Ability System</summary>
+        <ol>
+          <li>Registrar skills em <code>DT_SkillCatalog</code> com cooldown, mana e referência para <code>GameplayAbility</code>.</li>
+          <li>No <code>AbilitySystemComponent</code>, conceder habilidades conforme retorno do backend (<code>GET /characters/{id}/skills</code>).</li>
+          <li>Ao pressionar um slot, chamar <code>TryActivateAbilityByClass</code> e enviar requisição <code>POST /skills/cast</code> simultaneamente.</li>
+          <li>Receber confirmação e aplicar <code>GameplayEffect</code> nas entidades afetadas usando IDs originais.</li>
+        </ol>
+        <pre><code>Event InputSkill (SkillSlot)
+  → AbilityClass = SkillCatalog[SkillSlot].Ability
+  → if ASC.TryActivateAbilityByClass(AbilityClass)
+        → HTTP POST /skills/cast (SkillID)
+
+Ability::ActivateAbility
+  → CommitAbilityCost()
+  → PlayMontageAndWait(SkillMontage)
+  → SpawnSystemAttached(NiagaraFX)
+  → ApplyGameplayEffectSpecToTarget(TargetEffect, TargetData)</code></pre>
       </details>
       <details>
         <summary>Carregamento de Mapas com Subníveis</summary>
@@ -1184,6 +1440,8 @@ Delegate OnInventoryReceived(Itens)
         <button class="conversion-button" data-pane="inventory">Inventário e Equipamentos</button>
         <button class="conversion-button" data-pane="progression">Progressão / XP</button>
         <button class="conversion-button" data-pane="drops">Sistema de Drops</button>
+        <button class="conversion-button" data-pane="mobs">Sistema de Mobs</button>
+        <button class="conversion-button" data-pane="skills">Sistema de Skills</button>
         <button class="conversion-button" data-pane="maps">Mapas e Navegação</button>
         <button class="conversion-button" data-pane="effects">Efeitos Visuais</button>
       </div>
@@ -1625,6 +1883,162 @@ while(true)
         Inventory.RefreshSlot(ItemSlot)</code></pre>
         <div class="callout">
           <strong>Triggers especiais:</strong> Kalima Gate, Mercenary, Life Stone e eventos sazonais têm ramos dedicados no código. Crie tabelas <code>DT_SpecialDrop</code> e trate-as antes da lógica genérica para manter o comportamento original.</div>
+      </article>
+
+      <article class="conversion-pane" data-pane="mobs">
+        <h3>Sistema de Mobs (Spawn &rarr; IA &rarr; Drop)</h3>
+        <p>
+          O backend antigo controla spawn e comportamento dos mobs através de tabelas e estados pré-definidos. A
+          reconstrução na UE5 deve preservar o fluxo original: carregar pontos de spawn, rodar IA temporizada, emitir
+          mensagens de estado e conceder drop/XP após a morte.
+        </p>
+        <div class="source-card">
+          <div class="source-meta">Servidor &mdash; <code>MonsterSetBase.cpp</code></div>
+          <pre><code>void CMonsterSetBase::Load(char* path)
+{
+        ...
+        info.Type = section;
+        info.MonsterClass = lpMemScript->GetNumber();
+        info.Map = lpMemScript->GetAsNumber();
+        info.Dis = lpMemScript->GetAsNumber();
+        info.X = lpMemScript->GetAsNumber();
+        info.Y = lpMemScript->GetAsNumber();
+        if(section == 1 || section == 3)
+        {
+                info.Dir = lpMemScript->GetAsNumber();
+                info.RespawnTime = lpMemScript->GetAsNumber();
+        }
+        ...
+        this->SetInfo(this->m_count,&info);
+        this->m_count++;
+}</code></pre>
+        </div>
+        <div class="source-card">
+          <div class="source-meta">Servidor &mdash; <code>MonsterAI.cpp</code></div>
+          <pre><code>if((GetTickCount()-lpObj->LastAIRunTime) < ((DWORD)lpMonsterAIUnitInfo->m_DelayTime))
+{
+        return 0;
+}
+
+if(lpMonsterAIUnitInfo->RunAIUnitInfo(aIndex) == 0)
+{
+        return 0;
+}
+
+lpObj->LastAIRunTime = GetTickCount();</code></pre>
+        </div>
+        <h4>Etapas de conversão</h4>
+        <ol>
+          <li><strong>Dados:</strong> converter <code>Monster.txt</code>, <code>MonsterSetBase.txt</code> e tabelas auxiliares em <code>DT_MobStats</code> e <code>DT_MobSpawn</code>.</li>
+          <li><strong>Spawn:</strong> criar <code>BP_MobSpawner</code> que lê <code>DT_MobSpawn</code>, posiciona pontos com base em <code>X</code>/<code>Y</code> convertidos (multiplique por <code>TERRAIN_SCALE</code>) e solicita instâncias ao backend.</li>
+          <li><strong>Instância:</strong> <code>BP_MobCharacter</code> aplica atributos de <code>DT_MobStats</code> (HP, Defesa, Velocidade) e inicia <code>Behavior Tree</code> equivalente ao AI Unit do legado.</li>
+          <li><strong>Mensagens:</strong> use <code>Gameplay Message Subsystem</code> ou <code>Multicast RPC</code> para representar <code>ProcessStateMsg</code> (drop, knockback, reset, efeitos).</li>
+          <li><strong>Respawn:</strong> armazenar <code>RespawnTime</code> e agendar timers locais apenas após confirmação do servidor, replicando <code>MonsterManager::RespawnMonster</code>.</li>
+        </ol>
+        <h4>Blueprint de morte, drop e XP</h4>
+        <pre><code>Event OnMobDied (DamageContext)
+  → Send HTTP (POST /world/mob/{MobInstanceID}/death)
+        Body = { KillerId, MapId, Position }
+  → OnSuccess (Payload)
+        → ForEach Loot in Payload.LootEntries
+              SpawnActor(BP_ItemPickup, Loot.Location)
+        → Broadcast OnExperienceReceived(Payload.XPArray)
+        → ScheduleRespawn(Payload.RespawnInSeconds)
+
+Function ScheduleRespawn(Time)
+  → SetTimer(Time)
+  → OnTimer → Request Spawn novamente (SpawnerId)</code></pre>
+        <div class="callout warning">
+          <strong>Validação crítica:</strong> mantenha o cálculo de agro e ataque no servidor (arquivos <code>MonsterAIAgro.cpp</code>, <code>Attack.cpp</code>). O cliente apenas apresenta o resultado, evitando exploits.</div>
+        <div class="callout">
+          <strong>Checklist:</strong>
+          <ul>
+            <li>Coordenadas e direções importadas respeitam a malha convertida? (teste com gizmo de depuração).</li>
+            <li>Timers de IA replicam <code>m_DelayTime</code> para cada AI Unit.</li>
+            <li>Mensagens de estado (código 1, 2, 3, 55, 56, 57) possuem equivalente em eventos UE5.</li>
+            <li>Perfis especiais (bosses) usam Behavior Trees específicos com tarefas que consultam <code>MonsterSkillManager.cpp</code>.</li>
+          </ul>
+        </div>
+      </article>
+
+      <article class="conversion-pane" data-pane="skills">
+        <h3>Sistema de Skills (Jogador &amp; Mob)</h3>
+        <p>
+          Os scripts legados definem custo, alcance, cooldown e efeitos adicionais para cada skill. Ao portar para a UE5,
+          replique as mesmas estruturas de dados e sincronize casting/cancelamento com o backend antes de aplicar efeitos visuais.
+        </p>
+        <div class="source-card">
+          <div class="source-meta">Servidor &mdash; <code>SkillManager.cpp</code></div>
+          <pre><code>info.Index = lpMemScript->GetNumber();
+strcpy_s(info.Name,lpMemScript->GetAsString());
+info.Damage = lpMemScript->GetAsNumber();
+info.Mana = lpMemScript->GetAsNumber();
+info.Range = lpMemScript->GetAsNumber();
+info.Delay = lpMemScript->GetAsNumber();
+info.Type = lpMemScript->GetAsNumber();
+info.Effect = lpMemScript->GetAsNumber();
+info.RequireLevel = lpMemScript->GetAsNumber();
+...</code></pre>
+        </div>
+        <div class="source-card">
+          <div class="source-meta">Cliente &mdash; <code>SkillEffectMgr.cpp</code></div>
+          <pre><code>void CSkillEffectMgr::DeleteEffect(int efftype)
+{
+        for(int i=0;i<MAX_SKILL_EFFECTS;i++)
+        {
+                OBJECT *o = &m_SkillEffects[i];
+                if(o->Live && o->Type==efftype)
+                {
+                        EffectDestructor(o);
+                }
+        }
+}
+
+bool CSkillEffectMgr::SearchEffect(int iType, OBJECT* pOwner, int iSubType)
+{
+        for(int i=0; i<MAX_SKILL_EFFECTS; ++i)
+        {
+                OBJECT *o = &m_SkillEffects[i];
+                if(o->Live && o->Type == iType && o->Owner == pOwner)
+                {
+                        if(iSubType == -1 || o->SubType == iSubType)
+                        {
+                                return true;
+                        }
+                }
+        }
+        return false;
+}</code></pre>
+        </div>
+        <h4>Passos para a UE5</h4>
+        <ol>
+          <li><strong>Dados:</strong> gerar <code>DT_SkillCatalog</code> com campos de custo, alcance, delay e requisitos por classe exatamente como <code>SkillManager.cpp</code> carrega.</li>
+          <li><strong>Componente:</strong> implementar <code>BP_SkillComponent</code> que associa <code>SkillID</code> a um <code>UGameplayAbility</code> ou função Blueprint responsável por validar recurso (mana/bp) e enviar requisição ao servidor.</li>
+          <li><strong>Cooldown:</strong> armazenar <code>LastCastTime</code> retornado pelo backend e popular <code>WBP_SkillBar</code> com progresso circular (usando os ícones originais).</li>
+          <li><strong>Efeitos:</strong> converter efeitos persistentes em <code>Gameplay Effects</code> e <code>Niagara Systems</code> referenciando o dono (equivalente a <code>Owner</code> em <code>SkillEffectMgr</code>).</li>
+          <li><strong>Sincronização:</strong> sempre aguardar confirmação do backend para habilidades que causam dano. Para buffs/visual, é possível reproduzir imediatamente, mas envie <code>POST /skills/cast</code> para validar.</li>
+        </ol>
+        <h4>Blueprint resumido</h4>
+        <pre><code>Event InputSkill (SkillSlot)
+  → SkillID = Hotbar[SkillSlot]
+  → Dados = DT_SkillCatalog[SkillID]
+  → If Cooldown.Ativo → HUD.FlashCooldown(SkillSlot)
+  → Else → TryCastSkill(SkillID)
+
+Function ApplySkillResponse (Payload)
+  → ForEach Target in Payload.Targets
+        → ApplyGameplayEffectToTarget(Target, Payload.EffectHandle)
+  → HUD.UpdateCooldown(Payload.SkillID, Payload.Cooldown)
+  → If Payload.SpawnFX → SpawnSystemAtLocation(Payload.SpawnFX, Payload.Location)</code></pre>
+        <div class="callout">
+          <strong>Pontos de validação:</strong>
+          <ul>
+            <li>Confirme que o consumo de mana/stamina bate com valores originais (diferença máxima aceitável ±1).</li>
+            <li>Buffs exclusivos (ex.: Soul Barrier) devem impedir múltiplas instâncias simultâneas assim como <code>SearchEffect</code>.</li>
+            <li>Habilidades de mobs reutilizam o mesmo pipeline com perfis automáticos gerados a partir de <code>MonsterSkillManager.cpp</code>.</li>
+            <li>Registre métricas de latência de cast para ajustar tolerâncias de cancelamento.</li>
+          </ul>
+        </div>
       </article>
 
       <article class="conversion-pane" data-pane="maps">
