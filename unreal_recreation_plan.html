@@ -451,6 +451,41 @@
       margin: 0;
       padding-left: 1.15rem;
     }
+    .module-matrix {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+      gap: 1.35rem;
+      margin: 2rem 0 1rem;
+    }
+    .module-category {
+      background: rgba(12, 141, 217, 0.06);
+      border: 1px solid rgba(12, 141, 217, 0.18);
+      border-radius: 16px;
+      padding: 1.4rem 1.35rem 1.5rem;
+      box-shadow: 0 16px 34px rgba(12, 141, 217, 0.12);
+    }
+    .module-category h3 {
+      margin: 0 0 0.75rem;
+      color: var(--azul-escuro);
+      font-size: 1.2rem;
+    }
+    .module-list {
+      margin: 0;
+      padding-left: 1rem;
+      display: grid;
+      gap: 0.65rem;
+      font-size: 0.95rem;
+    }
+    .module-list li {
+      margin: 0;
+    }
+    .module-list code {
+      background: rgba(18, 58, 99, 0.08);
+      border-radius: 6px;
+      padding: 0.12rem 0.35rem;
+      font-size: 0.85rem;
+      color: var(--azul-escuro);
+    }
     .card {
       border-radius: 16px;
       border: 1px solid #d7e5f7;
@@ -760,6 +795,42 @@
               <td>Carrega arquivos de texto, alterna idiomas e strings dinâmicas.</td>
               <td>Importar para <code>Localization Dashboard</code> da UE5; usar <code>FText</code> com <code>String Tables</code> para manter suporte multi-idioma.</td>
             </tr>
+            <tr>
+              <td>Social (Guildas &amp; Party)</td>
+              <td><code>GuildManager.cpp</code>, <code>GuildCache.cpp</code>, <code>PartyManager.cpp</code>, <code>NewUIPartyInfoWindow.cpp</code></td>
+              <td>Administra guildas, alianças, convites e visões de grupo no cliente.</td>
+              <td>Criar <code>Subsystems</code> dedicados (ex.: <code>UGuildSubsystem</code>) e widgets de guild/party em <code>Common UI</code>, usando replicação via <code>Gameplay Message Router</code>.</td>
+            </tr>
+            <tr>
+              <td>Chat &amp; Mensageria</td>
+              <td><code>NewUIChatInputBox.cpp</code>, <code>NewUIChatLogWindow.cpp</code>, <code>MsgWin.cpp</code></td>
+              <td>Renderiza canais de chat, histórico e mensagens do servidor.</td>
+              <td>Reescrever em Widgets UMG com <code>ListView</code> virtualizada + camada de transporte WebSocket (ou EOS Voice/Text) encapsulada em <code>BP_ChatGateway</code>.</td>
+            </tr>
+            <tr>
+              <td>Eventos PvE/PvP</td>
+              <td><code>CSChaosCastle.cpp</code>, <code>NewUIBloodCastleEnter.cpp</code>, <code>GMDoppelGanger1.cpp</code>-<code>4.cpp</code>, <code>NewUISiegeWarBase.cpp</code></td>
+              <td>Coordena regras de entrada, UI e feedback dos eventos especiais.</td>
+              <td>Utilizar <code>Game Feature Plugins</code> modulares com <code>Gameplay Ability System</code> e <code>Data Assets</code> por evento, habilitando/desabilitando features por temporada.</td>
+            </tr>
+            <tr>
+              <td>Pets &amp; Companheiros</td>
+              <td><code>CSPetSystem.cpp</code>, <code>SummonSystem.cpp</code>, diretório <code>w_PetAction*</code></td>
+              <td>Gerencia invocação, IA simplificada e ações de mascotes.</td>
+              <td>Converter para <code>Actor Components</code> (PetController, PetInventory) com <code>Behavior Trees</code>/<code>EQs</code> e animações reutilizadas dos arquivos originais.</td>
+            </tr>
+            <tr>
+              <td>Comércio &amp; Mercado</td>
+              <td><code>NewUITrade.cpp</code>, <code>NewUIUnitedMarketPlaceWindow.cpp</code>, <code>PersonalShopTitleImp.cpp</code>, <code>NewUIMyShopInventory.cpp</code></td>
+              <td>Abre troca direta, loja pessoal e mercado global.</td>
+              <td>Implementar widgets de negociação com <code>UMG</code>/<code>CommonUI</code> e replicação transacional via backend; usar <code>Data Tables</code> de itens + <code>Gameplay Tags</code> para validar restrições.</td>
+            </tr>
+            <tr>
+              <td>Lançador &amp; Segurança</td>
+              <td><code>LauncherHelper.cpp</code>, <code>ProtectSysKey.cpp</code>, <code>GCCertification.cpp</code></td>
+              <td>Executa verificações de integridade e rotinas do launcher.</td>
+              <td>Substituir por patcher moderno (ex.: EOS Patch Tool) e validações anti-tamper integradas à pipeline de distribuição, expondo status no HUD via <code>Subsystem</code>.</td>
+            </tr>
           </tbody>
         </table>
         <div class="atlas-highlight">
@@ -807,6 +878,30 @@
               <td><code>GameServer/</code> + <code>GameServer/DATA</code></td>
               <td>Executa lógica em tempo real, eventos, drops, skills.</td>
               <td>Planejar reescrita em engine servidor (C++/C#/Go) consumindo mesmas tabelas que UE5; migrar scripts <code>*.dat</code> e <code>.txt</code> para base comum.</td>
+            </tr>
+            <tr>
+              <td>Configurações GameServerInfo</td>
+              <td><code>GameServer/DATA/GameServerInfo - *.dat</code></td>
+              <td>Parametriza XP, comandos, eventos e limites do servidor em arquivos separados.</td>
+              <td>Transformar em serviço de configuração central (ex.: <code>Config Server</code>) com versionamento e deploy contínuo; expor endpoints para leitura pelas Blueprints.</td>
+            </tr>
+            <tr>
+              <td>Eventos &amp; Tabelas de Drop</td>
+              <td><code>Data/Event/</code>, <code>Data/EventItemBag/</code>, <code>Data/Custom/Event</code></td>
+              <td>Define horários de eventos, bosses e lotes de recompensas (bags).</td>
+              <td>Converter para <code>Data Tables</code>/<code>JSON</code> versionado e serviços de loot; integrar validação automática com o sistema de mobs e itens na UE5.</td>
+            </tr>
+            <tr>
+              <td>Economia &amp; Cash Shop</td>
+              <td><code>Data/CashShop/</code>, <code>Data/Item/</code>, <code>CashShop/</code></td>
+              <td>Gerencia catálogo da loja, pacotes e valores de moeda premium.</td>
+              <td>Criar microserviço de vitrine/checkout; sincronizar ícones/descrições com Widgets UE5 usando a mesma fonte de dados.</td>
+            </tr>
+            <tr>
+              <td>Orquestração de StartUp</td>
+              <td><code>StartUp/</code></td>
+              <td>Scripts/batch que iniciam todos os executáveis na ordem correta.</td>
+              <td>Documentar dependências e substituir por orquestração automatizada (Docker Compose, Kubernetes, CI/CD) com health-checks expostos ao cliente.</td>
             </tr>
             <tr>
               <td>GameServerCS</td>
@@ -893,6 +988,145 @@
             <li>Planilhas de estado de assets e dados compartilhados para acompanhar o progresso da migração.</li>
           </ul>
         </div>
+      </div>
+    </section>
+
+    <section id="modulos-expandido">
+      <h2>Matriz Expandida de Módulos para Migração UE5</h2>
+      <p>
+        O levantamento a seguir complementa o atlas principal com módulos adicionais identificados no
+        cliente (<code>Source Main 5.2/source</code>) e nos servidores
+        (<code>MuServer_Season_5_Update_15</code>). Use esta matriz para aprofundar o estudo do projeto
+        original e planejar Blueprints, serviços e dados necessários durante a recriação completa na
+        Unreal Engine 5.
+      </p>
+      <div class="module-matrix">
+        <article class="module-category">
+          <h3>Social &amp; Progressão Cooperativa</h3>
+          <ul class="module-list">
+            <li>
+              <strong>Guildas e Diplomacia</strong> — <code>GuildManager.cpp</code>, <code>GuildCache.cpp</code>,
+              <code>NewUIGuildInfoWindow.cpp</code>, <code>UISenatus.cpp</code>.
+              Estruture um <code>UGuildSubsystem</code> com replicação de dados e widgets UMG para gestão
+              de emblemas, ranks e guerra de guildas.
+            </li>
+            <li>
+              <strong>Party &amp; Amigos</strong> — <code>PartyManager.cpp</code>, <code>NewUIPartyListWindow.cpp</code>,
+              <code>NewUIPartyInfoWindow.cpp</code>, <code>NewUIFriendWindow.cpp</code>.
+              Replique convites e quick-actions usando o <code>Gameplay Message Router</code> e crie
+              Blueprints de notificação reutilizando ícones originais.
+            </li>
+            <li>
+              <strong>Rankings &amp; Competitivo</strong> — <code>NewUIGensRanking.cpp</code>,
+              <code>NewUIBattleSoccerScore.cpp</code>, <code>GMBattleCastle.cpp</code>.
+              Modele serviços de leaderboard (REST/GraphQL) e widgets de ranking com atualizações
+              periódicas em <code>Tick</code> ou timers assíncronos.
+            </li>
+          </ul>
+        </article>
+        <article class="module-category">
+          <h3>Eventos &amp; Conteúdo Sazonal</h3>
+          <ul class="module-list">
+            <li>
+              <strong>Castelos &amp; Dungeons</strong> — <code>CSChaosCastle.cpp</code>, <code>NewUIBloodCastleEnter.cpp</code>,
+              <code>NewUICryWolf.cpp</code>, <code>GMEmpireGuardian1.cpp</code>-<code>4.cpp</code>.
+              Separe lógica em <code>Game Feature Plugins</code> com tabelas de regras vindas de
+              <code>Data/Event</code> e <code>GameServerInfo - Event.dat</code>.
+            </li>
+            <li>
+              <strong>Instâncias Temporais</strong> — <code>GMDoppelGanger1.cpp</code>-<code>4.cpp</code>,
+              <code>NewUICursedTempleSystem.cpp</code>, <code>NewUIDoppelGangerWindow.cpp</code>.
+              Crie mapas dedicados com <code>Level Streaming</code> e controladores configurados via <code>Data Tables</code> de horário.
+            </li>
+            <li>
+              <strong>Scripts de Evento</strong> — diretórios <code>Data/Event/</code>, <code>Data/EventItemBag/</code>,
+              <code>Data/Custom/Event</code>.
+              Automatize a conversão destes arquivos para <code>JSON</code>/<code>CSV</code> e gere testes que validem
+              drops antes de publicar patches.
+            </li>
+          </ul>
+        </article>
+        <article class="module-category">
+          <h3>Habilidades, Buffs &amp; Efeitos</h3>
+          <ul class="module-list">
+            <li>
+              <strong>Dados de Habilidades</strong> — <code>SkillManager.cpp</code>, <code>SkillInfo.cpp</code>,
+              <code>SkillEffectMgr.cpp</code>, <code>GameServer/DATA/GameServerInfo - Skill.dat</code>.
+              Migre para o <code>Gameplay Ability System</code> com <code>Data Assets</code> descrevendo custo,
+              cooldown e efeitos visuais Niagara.
+            </li>
+            <li>
+              <strong>Sistema de Buffs</strong> — <code>w_BuffStateSystem.cpp</code>, <code>w_BuffTimeControl.cpp</code>,
+              <code>NewUIBuffWindow.cpp</code>.
+              Converta em <code>Attribute Sets</code> + <code>Gameplay Effects</code> e widgets reativos usando o mesmo
+              layout da HUD original.
+            </li>
+            <li>
+              <strong>Interface de Comandos</strong> — <code>NewUICommandWindow.cpp</code>, <code>NewUIHotKey.cpp</code>,
+              <code>Slider.cpp</code>.
+              Utilize <code>Enhanced Input</code> e <code>Input Mapping Contexts</code> para permitir rebinds de skills
+              preservando a disposição do layout legado.
+            </li>
+          </ul>
+        </article>
+        <article class="module-category">
+          <h3>Pets, Montarias &amp; Summons</h3>
+          <ul class="module-list">
+            <li>
+              <strong>Controle de Mascotes</strong> — <code>CSPetSystem.cpp</code>, <code>SummonSystem.cpp</code>,
+              arquivos <code>w_PetAction*.cpp</code>.
+              Estruture <code>Actor Components</code> para comportamento, HUD dedicada e IA usando
+              <code>Behavior Trees</code> reutilizando animações originais (.bmd).
+            </li>
+            <li>
+              <strong>Interface de Pets</strong> — <code>NewUIPetInfoWindow.cpp</code>, <code>NewUIHeroPositionInfo.cpp</code>.
+              Refaça em UMG com bindings para atributos provenientes do backend e indicadores de buffs.
+            </li>
+            <li>
+              <strong>Itens de Evolução</strong> — <code>MixMgr.cpp</code>, <code>NewUIMixInventory.cpp</code>,
+              <code>Data/Item/</code> (mix, evoluções).
+              Planeje <code>Blueprint Function Libraries</code> para combinações e verificação de materiais.
+            </li>
+          </ul>
+        </article>
+        <article class="module-category">
+          <h3>Economia, Trade &amp; Serviços</h3>
+          <ul class="module-list">
+            <li>
+              <strong>Troca Direta</strong> — <code>NewUITrade.cpp</code>, <code>NewUIWindowMenu.cpp</code>,
+              <code>ProtocolSend.cpp</code> (pacotes de trade).
+              Modelar API transacional com confirmações em duas etapas e validar itens usando <code>Gameplay Tags</code>.
+            </li>
+            <li>
+              <strong>Loja Pessoal &amp; Cash</strong> — <code>NewUIMyShopInventory.cpp</code>,
+              <code>NewUIPurchaseShopInventory.cpp</code>, <code>PersonalShopTitleImp.cpp</code>, diretório <code>Data/CashShop/</code>.
+              Recrie vitrines em UMG e conecte a serviços de pagamento seguros, incluindo pré-visualização 3D.
+            </li>
+            <li>
+              <strong>Ferramentas de Administração</strong> — <code>Tools/MuEditor MuEmu</code>, scripts <code>ScriptSql/</code>,
+              logs em <code>GameServer/LOG</code>.
+              Planeje painéis web ou dashboards no Unreal Insights para monitorar economia e ajustar tabelas sem downtime.
+            </li>
+          </ul>
+        </article>
+        <article class="module-category">
+          <h3>Infraestrutura &amp; Segurança</h3>
+          <ul class="module-list">
+            <li>
+              <strong>Anticheat &amp; Monitoramento</strong> — <code>MHPServer/</code>, <code>Hack/</code>,
+              <code>ProtectSysKey.cpp</code>.
+              Substitua por serviços modernos de monitoramento, registrando telemetria via <code>Gameplay Event Router</code>.
+            </li>
+            <li>
+              <strong>Certificação &amp; Launcher</strong> — <code>GCCertification.cpp</code>, <code>LauncherHelper.cpp</code>.
+              Integre verificação de build com pipeline CI/CD e exponha status no menu inicial UE5.
+            </li>
+            <li>
+              <strong>Scripts de Inicialização</strong> — diretório <code>StartUp/</code>, arquivos <code>*.bat</code>.
+              Converta para automações (Docker/PowerShell) e registre dependências em documentação viva.
+            </li>
+          </ul>
+        </article>
       </div>
     </section>
 
