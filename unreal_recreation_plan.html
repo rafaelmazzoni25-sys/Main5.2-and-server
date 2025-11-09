@@ -158,6 +158,101 @@
       margin-top: 1.15rem;
       font-size: 0.95rem;
     }
+    pre {
+      background: #0f1e2f;
+      color: #d7f5ff;
+      padding: 1rem 1.25rem;
+      border-radius: 14px;
+      overflow-x: auto;
+      font-size: 0.92rem;
+      line-height: 1.5;
+      box-shadow: inset 0 0 0 1px rgba(12, 141, 217, 0.15);
+    }
+    pre code {
+      white-space: pre;
+    }
+    .conversion-tabs {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.75rem;
+      margin: 2rem 0 1.25rem;
+    }
+    .conversion-button {
+      border: 1px solid rgba(12, 141, 217, 0.3);
+      background: rgba(12, 141, 217, 0.08);
+      color: var(--azul-escuro);
+      border-radius: 999px;
+      padding: 0.55rem 1.35rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: transform 0.2s ease, box-shadow 0.2s ease, background 0.2s ease;
+    }
+    .conversion-button.active {
+      background: linear-gradient(135deg, var(--azul), #0b6ac1);
+      color: #fff;
+      box-shadow: 0 14px 32px rgba(12, 141, 217, 0.28);
+      transform: translateY(-1px);
+    }
+    .conversion-pane {
+      display: none;
+      border: 1px solid #d6e4f6;
+      border-radius: 18px;
+      background: #fbfeff;
+      padding: 2rem 1.75rem;
+      margin-bottom: 1.75rem;
+      box-shadow: 0 20px 45px rgba(18, 58, 99, 0.09);
+    }
+    .conversion-pane.active {
+      display: block;
+    }
+    .conversion-pane h3 {
+      margin-top: 0;
+      color: var(--azul-escuro);
+    }
+    .source-card {
+      background: rgba(236, 244, 255, 0.65);
+      border: 1px solid rgba(12, 141, 217, 0.18);
+      border-radius: 16px;
+      padding: 1.25rem 1.35rem 1.5rem;
+      margin: 1.25rem 0 1.75rem;
+      box-shadow: 0 14px 38px rgba(12, 141, 217, 0.12);
+    }
+    .source-card .source-meta {
+      font-size: 0.9rem;
+      font-weight: 600;
+      letter-spacing: 0.01em;
+      color: var(--cinza);
+      margin-bottom: 0.75rem;
+    }
+    .layout-map {
+      width: 100%;
+      max-width: 720px;
+      margin: 1.75rem auto;
+      display: block;
+      border-radius: 12px;
+      box-shadow: 0 10px 28px rgba(12, 141, 217, 0.15);
+    }
+    .layout-map text {
+      font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+      font-size: 14px;
+      fill: #0b2d4a;
+      font-weight: 600;
+    }
+    .layout-map rect {
+      fill: rgba(12, 141, 217, 0.18);
+      stroke: rgba(12, 141, 217, 0.65);
+      stroke-width: 1.5;
+    }
+    .layout-map rect.asset {
+      fill: rgba(53, 160, 126, 0.22);
+      stroke: rgba(53, 160, 126, 0.7);
+    }
+    .conversion-pane ol {
+      margin-left: 1.35rem;
+    }
+    .conversion-pane li {
+      margin-bottom: 0.65rem;
+    }
     .atlas-table thead {
       background: rgba(12, 141, 217, 0.12);
     }
@@ -851,6 +946,376 @@ Function LoadInventoryAsync (CharacterID)
 Delegate OnInventoryReceived(Itens)
   → BP_InventoryManager.UpdateFromServer(Itens)</code></pre>
       </details>
+
+    </section>
+
+    <section id="codigo-detalhado">
+      <h2>Mapeamento de Código &rarr; Blueprints UE5</h2>
+      <p>
+        Use o painel abaixo para navegar entre os módulos principais. Cada aba traz o trecho de código do projeto
+        original, a leitura da lógica e o passo a passo para replicar em Blueprints na Unreal Engine 5 reaproveitando
+        os mesmos assets, coordenadas e fluxos de dados.
+      </p>
+      <div class="conversion-tabs" role="tablist">
+        <button class="conversion-button active" data-pane="hud">HUD &amp; Barra de Experiência</button>
+        <button class="conversion-button" data-pane="inventory">Inventário e Equipamentos</button>
+        <button class="conversion-button" data-pane="progression">Progressão / XP</button>
+        <button class="conversion-button" data-pane="drops">Sistema de Drops</button>
+        <button class="conversion-button" data-pane="maps">Mapas e Navegação</button>
+        <button class="conversion-button" data-pane="effects">Efeitos Visuais</button>
+      </div>
+
+      <article class="conversion-pane active" data-pane="hud">
+        <h3>HUD Principal com Layout Original</h3>
+        <p>
+          O cliente define a HUD no <code>CNewUIMainFrameWindow</code>, renderizando faixas, gauges e botões com offsets
+          absolutos para 640&times;480 e ajustes proporcionais. Esses valores são a referência direta para posicionar os
+          widgets UMG reaproveitando as texturas convertidas de <code>Interface\*.ozj/.ozt</code>.
+        </p>
+        <div class="source-card">
+          <div class="source-meta">Cliente original – <code>Source Main 5.2/source/NewUIMainFrameWindow.cpp</code></div>
+          <pre><code>bool SEASON3B::CNewUIMainFrameWindow::Render()
+{
+        EnableAlphaTest();
+        RenderFrame();
+        RenderLifeMana();
+        RenderGuageSD();
+        RenderGuageAG();
+        RenderButtons();
+        RenderExperience();
+        DisableAlphaBlend();
+        return true;
+}
+
+void SEASON3B::CNewUIMainFrameWindow::RenderFrame()
+{
+        float width, height;
+        float x, y;
+
+        width = 256.f; height = 51.f;
+        x = 0.f; y = 480.f - height;
+        SEASON3B::RenderImage(IMAGE_MENU_1, x, y, width, height);
+        width = 128.f;
+        x = 256.f;
+        SEASON3B::RenderImage(IMAGE_MENU_2, x, y, width, height);
+        width = 256.f;
+        x = 256.f + 128.f;
+        SEASON3B::RenderImage(IMAGE_MENU_3, x, y, width, height);
+}
+
+void SEASON3B::CNewUIMainFrameWindow::RenderGuageSD()
+{
+        width = 16.f; height = 39.f;
+        x = 204; y = 480.f - 49.f;
+        RenderBitmap(IMAGE_GAUGE_SD, x, y + (fShield * height), width, height - (fShield * height), 0.f, fShield*height/64.f, width/16.f, (1.0f - fShield)*height/64.f);
+}</code></pre>
+        </div>
+        <div class="source-card">
+          <div class="source-meta">Experiência – <code>RenderExperience()</code> no mesmo arquivo</div>
+          <pre><code>x = 2.f; y = 473.f; width = fProgress * 629.f; height = 4.f;
+RenderBitmap(IMAGE_GAUGE_EXBAR, x, y, width, height, 0.f, 0.f, 6.f/8.f, 4.f/4.f);
+SEASON3B::RenderNumber(635.f, 469.f, (int)fExpBarNum);
+if(SEASON3B::CheckMouseIn(x, y, 629.f, 4.f) == true)
+{
+        sprintf(strTipText, GlobalText[1748], dwExperience, dwNexExperience);
+        RenderTipText(280, 418, strTipText);
+}</code></pre>
+        </div>
+        <svg class="layout-map" viewBox="0 0 640 480" aria-labelledby="hud-layout-title">
+          <title id="hud-layout-title">Mapa visual da HUD original (640×480)</title>
+          <rect x="0" y="429" width="256" height="51" />
+          <text x="12" y="446">Menu 1</text>
+          <rect x="256" y="429" width="128" height="51" />
+          <text x="268" y="446">Menu 2</text>
+          <rect x="384" y="429" width="256" height="51" />
+          <text x="396" y="446">Menu 3</text>
+          <rect class="asset" x="158" y="432" width="45" height="39" />
+          <text x="163" y="452">HP</text>
+          <rect class="asset" x="437" y="432" width="45" height="39" />
+          <text x="442" y="452">MP</text>
+          <rect class="asset" x="204" y="431" width="16" height="39" />
+          <text x="205" y="425">SD</text>
+          <rect class="asset" x="420" y="431" width="16" height="39" />
+          <text x="421" y="425">AG</text>
+          <rect class="asset" x="2" y="473" width="629" height="4" />
+          <text x="6" y="468">XP</text>
+        </svg>
+        <h4>Passo a passo no UMG</h4>
+        <ol>
+          <li>Converter as texturas <code>Interface\newui_menu0*.ozj</code>, <code>Interface\newui_menu_red.ozj</code>, <code>Interface\newui_menu_blue.ozj</code>, <code>Interface\newui_menu_sd.ozj</code> e <code>Interface\newui_menu_ag.ozj</code> para <code>.png</code> preservando as dimensões (use a rotina descrita em <code>GlobalBitmap.cpp</code> para remover o cabeçalho de 24 bytes).</li>
+          <li>Criar <code>WBP_HUD</code> com um <em>Canvas Panel</em> raiz travado em 640×480 e habilitar <em>Screen Alignment = Fill</em>. Ajustar as âncoras das imagens seguindo o mapa acima (faixas ancoradas em Bottom Stretch, gauges em pontos absolutos).</li>
+          <li>Adicionar <em>Progress Bars</em> para HP/MP/SD/AG usando <em>Fill from Bottom</em> e máscaras do mesmo tamanho dos sprites. Os valores de preenchimento replicam <code>height - (valor/max * height)</code>.</li>
+          <li>Adicionar um <em>Border</em> invisível sobre a barra de XP e ligar ao evento <code>OnMouseMove</code> para mostrar um tooltip idêntico a <code>RenderTipText</code> (usar <code>Format Text</code> para exibir <em>XP atual</em> / <em>próximo nível</em>).</li>
+          <li>Para múltiplas resoluções, encapsular o Canvas em um <em>Scale Box</em> com <em>Stretch = ScaleToFit</em> e expor um multiplicador de DPI para manter legibilidade em monitores maiores.</li>
+        </ol>
+        <h4>Blueprint (Widget Graph)</h4>
+        <pre><code>Event Construct
+  → Bind OnStatChanged (BP_PlayerState)
+  → AtualizarHUD(Stats)
+
+Event AtualizarHUD (Stats)
+  → SetPercent(HPBar, Stats.HP / Stats.MaxHP)
+  → SetPercent(MPBar, Stats.MP / Stats.MaxMP)
+  → SetPercent(SDBar, Stats.SD / Stats.MaxSD)
+  → SetPercent(AGBar, Stats.AG / Stats.MaxAG)
+  → AtualizarXP(Stats.CurrentXP, Stats.NextXP)
+
+Function AtualizarXP (XPAtual, XPNecessaria)
+  → Progress = Clamp(XPAtual / XPNecessaria, 0, 1)
+  → XPBar.SetFillAmount(Progress)
+  → XPLabel.SetText(FText::Format("{0}/10", Floor(Progress * 10)))</code></pre>
+        <div class="callout">
+          <strong>Dica de conversão:</strong> Os botões inferiores usam sprites <code>Interface\partCharge1\newui_menu_Bt*.ozj</code> espaçados de 30&nbsp;px. Monte um <code>UniformGridPanel</code> com colunas fixas e ícones reutilizados para preservar o comportamento original.</div>
+      </article>
+
+      <article class="conversion-pane" data-pane="inventory">
+        <h3>Inventário, Slots e Equipamentos</h3>
+        <p>O inventário é criado por <code>CNewUIMyInventory</code>, instanciando um <code>CNewUIInventoryCtrl</code> e carregando os frames de fundo, botões e slots.</p>
+        <div class="source-card">
+          <div class="source-meta">Cliente – <code>Source Main 5.2/source/NewUIMyInventory.cpp</code></div>
+          <pre><code>bool SEASON3B::CNewUIMyInventory::Create(CNewUIManager* pNewUIMng,
+        CNewUI3DRenderMng* pNewUI3DRenderMng, int x, int y)
+{
+        m_pNewInventoryCtrl = new CNewUIInventoryCtrl;
+        if(false == m_pNewInventoryCtrl->Create(m_pNewUI3DRenderMng, g_pNewItemMng,
+                this, x+15, y+200, 8, 8))
+        {
+                SAFE_DELETE(m_pNewInventoryCtrl);
+                return false;
+        }
+
+        SetPos(x, y);
+        LoadImages();
+        SetEquipmentSlotInfo();
+        SetButtonInfo();
+        Show(false);
+        return true;
+}</code></pre>
+        </div>
+        <h4>Como migrar para Widget Blueprint</h4>
+        <ol>
+          <li>Converter os sprites <code>Interface\newui_item_back*.ozt</code>, <code>Interface\newui_item_table*.ozt</code>, <code>Interface\newui_exit_00.ozt</code> e ícones de slots para <code>.png</code>. Use as dimensões originais (ex.: 190×320 para o fundo) e mantenha o padding.</li>
+          <li>Criar <code>WBP_Inventory</code> com Canvas 640×480. Posicionar o background em <code>(15, 200)</code> para replicar <code>x+15, y+200</code>.</li>
+          <li>Adicionar <code>UniformGridPanel</code> 8×8 com células 32×32. Cada item deve armazenar <code>GridX</code>, <code>GridY</code>, <code>Width</code> e <code>Height</code> para suportar itens 2×n.</li>
+          <li>Implementar <code>BP_InventoryComponent</code> no personagem com array de <code>FInventorySlot</code> (ItemID, Quantidade, Rotação, Estados). Expor eventos <code>OnItemAdded</code>, <code>OnItemRemoved</code>, <code>OnSlotUpdated</code>.</li>
+          <li>No widget, ligar os eventos para replicar <code>AddItem</code>, <code>DeleteItem</code> e <code>FindItemAtPt</code>, atualizando ícones e highlights.</li>
+          <li>Para equipamentos, criar painel lateral com slots nomeados. Mapeie <code>MAX_EQUIPMENT_INDEX</code> e <code>EQUIPMENT_WEAPON_LEFT</code> para <em>Enums</em> blueprint e chame o gateway REST equivalente a <code>SendRequestEquippingInventoryItem</code>.</li>
+        </ol>
+        <h4>Blueprint sugerido (arrastar &amp; soltar)</h4>
+        <pre><code>OnMouseButtonDown (ItemSlot)
+  → DetectDragIfPressed
+
+OnDragDetected
+  → Create DragDropOperation
+  → Operation.Payload = SlotData
+  → Operation.DefaultDragVisual = WBP_ItemGhost (usa sprite original)
+
+OnDrop
+  → TargetSlot = Grid.Coordenada
+  → InventoryComponent.TryMoveItem(Payload.Index, TargetSlot)
+  → Se sucesso → AtualizarSlotVisual(TargetSlot)
+  → Se falha → Reverter visual</code></pre>
+        <div class="callout warning">
+          <strong>Sincronização com o servidor:</strong> Cada movimento deve chamar <code>POST /inventory/move</code> replicando as mesmas validações de <code>CGItemDropRecv</code> (itens bloqueados, periódicos, lucky items). O backend precisa retornar o inventário atualizado para evitar divergências.</div>
+      </article>
+
+      <article class="conversion-pane" data-pane="progression">
+        <h3>Progressão de Experiência (Cliente + Servidor)</h3>
+        <p>O cliente calcula a fração da barra enquanto o servidor controla o ganho de XP e a distribuição de pontos.</p>
+        <div class="source-card">
+          <div class="source-meta">Cliente – <code>RenderExperience()</code> em <code>NewUIMainFrameWindow.cpp</code></div>
+          <pre><code>float fNeedExp = dwNexExperience - dwPriorExperience;
+float fExp = dwExperience - dwPriorExperience;
+float fExpBarNum = (fExp / fNeedExp) * 10.f;
+float fProgress = fExpBarNum - (int)fExpBarNum;
+RenderBitmap(IMAGE_GAUGE_EXBAR, 2.f, 473.f, fProgress * 629.f, 4.f, 0.f, 0.f, 6.f/8.f, 4.f/4.f);
+SEASON3B::RenderNumber(635.f, 469.f, (int)fExpBarNum);</code></pre>
+        </div>
+        <div class="source-card">
+          <div class="source-meta">Servidor – <code>CObjectManager::CharacterLevelUp</code></div>
+          <pre><code>if((lpObj->Experience+AddExperience) < lpObj->NextExperience)
+{
+        lpObj->Experience += AddExperience;
+        return 0;
+}
+
+while(true)
+{
+        lpObj->Level++;
+        lpObj->LevelUpPoint += gServerInfo.m_LevelUpPoint[lpObj->Class];
+        AddExperience -= (((--MaxLevelUp)==0)?AddExperience:(lpObj->NextExperience-lpObj->Experience));
+        lpObj->Experience = lpObj->NextExperience;
+        gObjCalcExperience(lpObj);
+        if((lpObj->Experience+AddExperience) < lpObj->NextExperience)
+        {
+                lpObj->Experience += AddExperience;
+                break;
+        }
+}</code></pre>
+        </div>
+        <h4>Blueprint + Backend</h4>
+        <ol>
+          <li>Criar <code>BP_ProgressionComponent</code> com tabela de XP importada do servidor. Variáveis: <code>CurrentXP</code>, <code>NextXP</code>, <code>Level</code>, <code>PendingLevelUps</code>, <code>PointsToSpend</code>.</li>
+          <li>Ao receber XP do servidor (resposta ao equivalente de <code>CharacterLevelUp</code>), aplicar a lógica <code>while</code> em Blueprint para consumir múltiplos level ups.</li>
+          <li>Disparar <code>OnLevelUp</code> para atualizar atributos, HUD e tocar efeitos. Reaproveitar animações <code>FX_LevelUp</code> e sons originais.</li>
+          <li>Persistir pontos gastando via endpoint <code>POST /characters/{id}/stats</code>, enviando <code>PointsToSpend</code> e atributos finais.</li>
+        </ol>
+        <h4>Blueprint de processamento</h4>
+        <pre><code>OnReceiveXPUpdate (Payload)
+  → CurrentXP = Payload.CurrentXP
+  → NextXP = Payload.NextXP
+  → Level = Payload.Level
+  → PointsToSpend = Payload.Points
+  → PendingLevelUps = Payload.LevelUps
+  → HUDWidget.AtualizarXP(CurrentXP, NextXP)
+  → For Loop (Index = 0 .. PendingLevelUps-1)
+        → HUDWidget.PlayAnimation(LevelUpAnim)
+        → SpawnEmitterAtLocation(FX_LevelUp)
+        → PlaySound(LevelUpSound)</code></pre>
+        <div class="callout">
+          <strong>Validação:</strong> mantenha o cálculo oficial no backend para evitar exploits. O Blueprint apenas replica o resultado para feedback imediato.</div>
+      </article>
+
+      <article class="conversion-pane" data-pane="drops">
+        <h3>Sistema de Drop e Restrições</h3>
+        <p>Os drops verificam múltiplas condições antes de delegar ao mapa. O mesmo fluxo deve existir no backend moderno.</p>
+        <div class="source-card">
+          <div class="source-meta">Servidor – <code>Source MuServer Update 15/GameServer/GameServer/ItemManager.cpp</code></div>
+          <pre><code>void CItemManager::CGItemDropRecv(PMSG_ITEM_DROP_RECV* lpMsg,int aIndex)
+{
+        CItem* lpItem = &lpObj->Inventory[lpMsg->slot];
+        if(lpItem->IsLuckyItem() != 0 || lpItem->m_IsPeriodicItem != 0)
+        {
+                DataSend(aIndex,(BYTE*)&pMsg,pMsg.header.size);
+                return;
+        }
+        if(gItemMove.CheckItemMoveAllowDrop(lpItem->m_Index) == 0)
+        {
+                DataSend(aIndex,(BYTE*)&pMsg,pMsg.header.size);
+                return;
+        }
+        ...
+        if(gMap[lpObj->Map].ItemDrop(lpItem->m_Index,lpItem->m_Level,lpItem->m_Durability,
+                lpMsg->x,lpMsg->y,lpItem->m_Option1,lpItem->m_Option2,lpItem->m_Option3,
+                lpItem->m_NewOption,lpItem->m_SetOption,lpItem->m_Serial,aIndex,
+                lpItem->m_PetItemLevel,lpItem->m_PetItemExp,lpItem->m_JewelOfHarmonyOption,
+                lpItem->m_ItemOptionEx,lpItem->m_SocketOption,lpItem->m_SocketOptionBonus,
+                lpItem->m_PeriodicItemTime) == 0)
+        {
+                DataSend(aIndex,(BYTE*)&pMsg,pMsg.header.size);
+                return;
+        }
+        this->InventoryDelItem(aIndex,lpMsg->slot);
+}</code></pre>
+        </div>
+        <h4>Plano de conversão</h4>
+        <ol>
+          <li>Expor endpoint <code>POST /drops</code> que recebe ItemID, opções e posição. Aplicar as mesmas validações (Lucky, Periodic, Lock, Bag Manager) antes de autorizar.</li>
+          <li>No UE5, criar <code>BP_LootService</code> para enviar a requisição e spawnar <code>BP_ItemPickup</code> apenas após sucesso.</li>
+          <li>Reutilizar meshes e partículas originais. Para gemas, reaplicar <code>FX_Drop</code> e as cores herdadas de <code>newui_item_table</code>.</li>
+          <li>Manter sincronia: se o servidor negar, tocar som de erro e cancelar o arraste (equivalente ao <code>DataSend</code> com <code>result = 0</code>).</li>
+        </ol>
+        <pre><code>Function RequestDrop(ItemSlot, GridPos)
+  → Build Payload (Slot, GridPos, ItemOptions)
+  → HTTP POST /drops
+  → OnSuccess:
+        Inventory.RemoveSlot(ItemSlot)
+        SpawnActor(BP_ItemPickup, GridPos)
+  → OnError:
+        HUD.ShowMessage("Drop negado: motivo")
+        Inventory.RefreshSlot(ItemSlot)</code></pre>
+        <div class="callout">
+          <strong>Triggers especiais:</strong> Kalima Gate, Mercenary, Life Stone e eventos sazonais têm ramos dedicados no código. Crie tabelas <code>DT_SpecialDrop</code> e trate-as antes da lógica genérica para manter o comportamento original.</div>
+      </article>
+
+      <article class="conversion-pane" data-pane="maps">
+        <h3>Mapas, Atributos e Respawns</h3>
+        <p>O servidor lê os arquivos binários de mapa, armazena atributos e respawns fixos. Esses dados orientam a reconstrução no UE5.</p>
+        <div class="source-card">
+          <div class="source-meta">Servidor – <code>Source MuServer Update 15/GameServer/GameServer/Map.cpp</code></div>
+          <pre><code>void CMap::Load(char* path,int map)
+{
+        BYTE width, height;
+        ReadFile(file,&width,sizeof(width),&BytesRead,0);
+        ReadFile(file,&height,sizeof(height),&BytesRead,0);
+        this->m_width = width+1;
+        this->m_height = height+1;
+        int size = this->m_width * this->m_height;
+        this->m_MapAttr = (BYTE*)GlobalAlloc(GPTR,size);
+        ReadFile(file,this->m_MapAttr,size,&BytesRead,0);
+        this->m_path->SetMapDimensions(this->m_width,this->m_height,this->m_MapAttr);
+        this->m_MapNumber = map;
+}
+
+CMap::CMap()
+{
+        SetRect(&this->m_MapRespawn[0],130,116,151,137);
+        SetRect(&this->m_MapRespawn[1],106,236,112,243);
+        SetRect(&this->m_MapRespawn[2],197,35,218,50);
+        SetRect(&this->m_MapRespawn[3],174,101,187,125);
+}</code></pre>
+        </div>
+        <h4>Como portar para a UE5</h4>
+        <ol>
+          <li>Extrair os arquivos de atributos (<code>Map*.att</code>) e meshes (<code>Map*.bmd</code>) do cliente usando a mesma lógica de leitura. Cada byte representa um tile de 4×4 unidades.</li>
+          <li>Converter a grade em <code>.csv</code> (X, Y, Attribute) e importar como <code>Data Table</code>. Use Blueprint ou C++ para gerar <code>Landscape</code> e <code>NavModifierVolume</code> conforme o atributo (walkable, noground, safezone).</li>
+          <li>Criar <code>BP_MapAttributeVolume</code> que percorre as linhas no <code>BeginPlay</code>, aplicando materiais diferentes e registrando colisões.</li>
+          <li>Respawns: transformar os retângulos <code>SetRect</code> em <code>BoxComponent</code> e registrar em <code>BP_GameMode</code> para spawn seguro de jogadores.</li>
+          <li>Configurar World Partition subdividindo nos mesmos blocos do cliente (ex.: 256×256 tiles). Reutilizar texturas <code>Data/World</code> e ajustar colisões com base na escala 1 tile = 100 unidades da UE5.</li>
+        </ol>
+        <pre><code>Event BeginPlay (BP_MapAttributeVolume)
+  → ForEach Row (DT_MapAtt)
+        → SpawnVolume = AddInstance(Attr == TW_NOGROUND ? NoWalkMaterial : WalkableMaterial)
+        → If Attr == TW_SAFEZONE → RegisterRespawnArea(Location, Extent)
+        → If Attr == TW_WATER → ApplyWaterPostProcess(Location)</code></pre>
+        <div class="callout">
+          <strong>Coordenadas originais:</strong> mantenha a escala 1 tile = 100 unidades da UE5 para garantir alinhamento de colisão, alcance de habilidades e posições de NPC.</div>
+      </article>
+
+      <article class="conversion-pane" data-pane="effects">
+        <h3>Efeitos e Partículas</h3>
+        <p>O módulo de efeitos mantém arrays globais e verifica alcance contra personagens antes de aplicar o impacto.</p>
+        <div class="source-card">
+          <div class="source-meta">Cliente – <code>Source Main 5.2/source/ZzzEffect.cpp</code></div>
+          <pre><code>PARTICLE  Particles[MAX_PARTICLES];
+OBJECT Effects[MAX_EFFECTS];
+
+bool AddRangeAttack(vec3_t Position, float Range, short PKKey, int DamageKey[], int* piCount, int iMaxKey)
+{
+        for(int i=0;i<MAX_CHARACTERS_CLIENT;i++)
+        {
+                CHARACTER *c = &CharactersClient[i];
+                OBJECT *o = &c->Object;
+                float dx = Position[0]-o->Position[0];
+                float dy = Position[1]-o->Position[1];
+                float Distance = sqrtf(dx*dx+dy*dy);
+                if(o->Live && o->Visible && c!=Hero && !c->Dead && Distance<=Range)
+                {
+                        DamageKey[(*piCount)++] = c->Key;
+                        if(*piCount >= iMaxKey) break;
+                }
+        }
+        return true;
+}</code></pre>
+        </div>
+        <h4>Estratégia Niagara</h4>
+        <ol>
+          <li>Converter texturas de partículas em <code>Data/Effect</code> para <code>.png</code> ou <code>.tga</code> padrão. Importar como Sprite ou Flipbook no Niagara.</li>
+          <li>Criar <code>NS_RangeAttack</code> com inputs <code>Range</code>, <code>Color</code> e <code>DamageKeys</code>. Usar uma <em>Blueprint Function Library</em> para aplicar a mesma checagem de distância e disparar <code>GameplayCue</code>.</li>
+          <li>Reaproveitar meshes <code>MODEL_*</code> exportadas para <code>.fbx</code> e usá-las em <code>Niagara Mesh Renderer</code> para raios, lasers e efeitos 3D.</li>
+          <li>Centralizar o controle em <code>BP_EffectManager</code>, mantendo <code>Object Pool</code> para partículas similares ao array <code>Particles</code>.</li>
+        </ol>
+        <pre><code>Function SpawnRangeEffect (Origin, Range, Cue)
+  → ActorsInRange = SphereOverlapActors(Range)
+  → ForEach Alvo válido
+        → ApplyGameplayEffectToTarget(Cue)
+  → NiagaraComponent.SetVariableFloat("Range", Range)
+  → NiagaraComponent.SetVariableLinearColor("Tint", Cue.Color)
+  → NiagaraComponent.Activate()
+  → AudioComponent.Play()</code></pre>
+        <div class="callout">
+          <strong>Feedback sonoro:</strong> mantenha o mapeamento das trilhas listadas em <code>Source Main 5.2/source/DSPlaySound.h</code>. No UE5, utilize <code>MetaSounds</code> com a mesma enumeração para sincronizar áudio e partículas.</div>
+      </article>
     </section>
 
     <section id="verificacoes">
@@ -1017,6 +1482,18 @@ Delegate OnInventoryReceived(Itens)
         atlasTabs.forEach((t) => t.classList.toggle("active", t === tab));
         atlasContents.forEach((content) => {
           content.classList.toggle("active", content.dataset.tab === alvo);
+        });
+      });
+    });
+
+    const conversionButtons = document.querySelectorAll(".conversion-button");
+    const conversionPanes = document.querySelectorAll(".conversion-pane");
+    conversionButtons.forEach((button) => {
+      button.addEventListener("click", () => {
+        const target = button.dataset.pane;
+        conversionButtons.forEach((b) => b.classList.toggle("active", b === button));
+        conversionPanes.forEach((pane) => {
+          pane.classList.toggle("active", pane.dataset.pane === target);
         });
       });
     });
