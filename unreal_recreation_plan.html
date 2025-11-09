@@ -113,6 +113,164 @@
       gap: 1.25rem;
       margin-top: 1.5rem;
     }
+    .grid-2 {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 1.5rem;
+      margin-top: 1.5rem;
+    }
+    .matrix {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 1.5rem 0;
+      background: rgba(12, 141, 217, 0.04);
+      border-radius: 16px;
+      overflow: hidden;
+    }
+    .matrix thead {
+      background: rgba(12, 141, 217, 0.18);
+    }
+    .matrix th,
+    .matrix td {
+      padding: 0.95rem 1rem;
+      text-align: left;
+      border-bottom: 1px solid rgba(18, 58, 99, 0.12);
+      vertical-align: top;
+    }
+    .matrix tbody tr:last-child td {
+      border-bottom: none;
+    }
+    .matrix strong {
+      color: var(--azul-escuro);
+    }
+    .badge-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.3rem;
+      padding: 0.28rem 0.65rem;
+      font-size: 0.75rem;
+      background: rgba(53, 160, 126, 0.16);
+      border-radius: 999px;
+      color: var(--verde);
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+    .callout {
+      background: rgba(246, 183, 60, 0.16);
+      border-left: 4px solid var(--amarelo);
+      padding: 1rem 1.25rem;
+      border-radius: 12px;
+      margin: 1.35rem 0;
+    }
+    .callout strong {
+      color: var(--azul-escuro);
+    }
+    details.guia {
+      background: rgba(12, 141, 217, 0.06);
+      border-radius: 14px;
+      padding: 1.1rem 1.25rem;
+      margin: 1rem 0;
+      border: 1px solid rgba(12, 141, 217, 0.12);
+      transition: box-shadow 0.3s ease;
+    }
+    details.guia[open] {
+      box-shadow: 0 18px 40px rgba(18, 58, 99, 0.14);
+    }
+    details.guia summary {
+      cursor: pointer;
+      font-weight: 600;
+      color: var(--azul-escuro);
+      list-style: none;
+      display: flex;
+      align-items: center;
+      gap: 0.6rem;
+    }
+    details.guia summary::before {
+      content: "⮟";
+      font-size: 1rem;
+      transition: transform 0.3s ease;
+    }
+    details.guia[open] summary::before {
+      transform: rotate(-180deg);
+    }
+    .blueprint-flow {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+      gap: 1rem;
+      margin-top: 1.1rem;
+    }
+    .blueprint-step {
+      background: #fff;
+      border-radius: 14px;
+      border: 1px solid rgba(18, 58, 99, 0.12);
+      padding: 1rem 1.15rem;
+      box-shadow: 0 12px 32px rgba(18, 58, 99, 0.08);
+    }
+    .blueprint-step h4 {
+      margin: 0 0 0.6rem;
+      color: var(--azul-escuro);
+      font-size: 1.05rem;
+    }
+    .code-card {
+      background: #0b1f33;
+      color: #e8f1ff;
+      border-radius: 12px;
+      padding: 1rem 1.1rem;
+      margin: 1rem 0;
+      font-family: "Fira Code", "Consolas", "Courier New", monospace;
+      font-size: 0.87rem;
+      line-height: 1.5;
+      overflow-x: auto;
+    }
+    .swimlane {
+      display: grid;
+      grid-template-columns: 160px 1fr;
+      gap: 1rem;
+      margin: 1.5rem 0;
+    }
+    .swimlane strong {
+      display: block;
+      color: var(--azul-escuro);
+      margin-bottom: 0.5rem;
+    }
+    .swimlane ul {
+      margin: 0;
+      padding-left: 1.1rem;
+    }
+    .checklist {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 0.85rem;
+      margin-top: 1.35rem;
+    }
+    .checklist li {
+      list-style: none;
+      padding: 0.75rem 0.85rem;
+      border-radius: 10px;
+      background: rgba(18, 58, 99, 0.06);
+      border: 1px solid rgba(18, 58, 99, 0.12);
+      display: flex;
+      align-items: flex-start;
+      gap: 0.55rem;
+    }
+    .checklist li::before {
+      content: "✔";
+      color: var(--verde);
+      font-weight: 700;
+    }
+    .legend {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.6rem;
+      font-size: 0.85rem;
+      margin: 1rem 0 0.3rem;
+    }
+    .legend span {
+      background: rgba(12, 141, 217, 0.12);
+      color: var(--azul-escuro);
+      padding: 0.35rem 0.7rem;
+      border-radius: 999px;
+    }
     .atlas-tabs {
       display: flex;
       flex-wrap: wrap;
@@ -1350,6 +1508,314 @@ bool AddRangeAttack(vec3_t Position, float Range, short PKKey, int DamageKey[], 
       <div class="callout" style="margin-top: 1.75rem;">
         <strong>Dica:</strong> Revise o painel após cada etapa. Se houver bloqueio por falta de asset convertido, mova temporariamente para um placeholder marcado com <em>debug material</em> e siga com a lógica.
       </div>
+    </section>
+
+
+    <section id="frontend-backend">
+      <h2>Mapa Profundo do Código Original &rarr; Conversão UE5</h2>
+      <p>
+        Utilize a matriz abaixo para navegar pelo código fonte do cliente (<code>Source Main 5.2</code>) e dos serviços do
+        servidor (<code>MuServer_Season_5_Update_15</code>), relacionando cada responsabilidade com a solução equivalente em
+        Unreal Engine 5.
+      </p>
+      <table class="matrix">
+        <thead>
+          <tr>
+            <th>Responsabilidade</th>
+            <th>Origem Legada</th>
+            <th>Pontos de Atenção</th>
+            <th>Conversão Unreal Engine 5</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><strong>HUD Principal</strong></td>
+            <td>
+              <code>Source Main 5.2/source/NewUIMainFrameWindow.cpp</code><br />
+              <code>Source Main 5.2/source/UIControls.cpp</code>
+            </td>
+            <td>
+              Coordenadas absolutas baseadas em <code>g_fScreenRate_x/y</code>, dependências diretas de assets BMP/TGA no
+              diretório <code>GlobalBitmap</code>.
+            </td>
+            <td>
+              Criar widgets UMG separados: <code>WBP_StatusBar</code>, <code>WBP_Minimap</code>, <code>WBP_BuffTray</code>.
+              Usar <code>Widget Switcher</code> + bindings de escala para preservar proporções. Importar texturas em
+              <code>/Game/UI/Legacy</code> e converter para <code>Slate Brush</code>.
+            </td>
+          </tr>
+          <tr>
+            <td><strong>Inventário &amp; Misturas</strong></td>
+            <td>
+              <code>NewUIMyInventory.cpp</code>, <code>NewUIMixInventory.cpp</code>, <code>MixMgr.cpp</code>
+            </td>
+            <td>
+              Slots codificados manualmente, regras de arrastar/soltar via <code>MouseLButton</code>.
+            </td>
+            <td>
+              <code>BP_InventoryGrid</code> + <code>Drag &amp; Drop Operation</code>. Implementar <code>Data Assets</code> para
+              fórmulas de mistura e <code>Actor Component</code> para lógica de craft sincronizada com o backend.
+            </td>
+          </tr>
+          <tr>
+            <td><strong>Eventos &amp; Bosses</strong></td>
+            <td>
+              <code>NewUIBloodCastleEnter.cpp</code>, <code>GMDoppelGanger*.cpp</code>, <code>Event.cpp</code>
+            </td>
+            <td>
+              Agendamento hardcoded, dependência de scripts <code>Data/Event/*.dat</code>.
+            </td>
+            <td>
+              Converter para <code>Gameplay Ability System</code> + <code>Gameplay Tags</code>. Usar
+              <code>Primary Data Assets</code> para eventos e <code>Timer Manager</code> para agendamentos dinâmicos com dados
+              carregados via HTTP.
+            </td>
+          </tr>
+          <tr>
+            <td><strong>Networking &amp; Sessões</strong></td>
+            <td>
+              <code>WSclient.cpp</code>, <code>ProtocolSend.cpp</code>, <code>ServerGroup.cpp</code>
+            </td>
+            <td>
+              Protocolo proprietário baseado em TCP; autenticação manual com <code>SimpleModulus</code>.
+            </td>
+            <td>
+              Migrar para <code>EOS</code> ou <code>OSS</code>. Implementar autenticação JWT/HTTPS e replicação com
+              <code>Gameplay Message Subsystem</code>. Reaproveitar chaves existentes para gerar tokens iniciais.
+            </td>
+          </tr>
+          <tr>
+            <td><strong>Banco de Dados</strong></td>
+            <td>
+              Scripts em <code>MuServer_Season_5_Update_15/ScriptSql</code>, rotinas C++ em <code>GameServer/DataServer</code>
+            </td>
+            <td>
+              Stored procedures com lógica de negócios (reset diário, ranking, guilds).
+            </td>
+            <td>
+              Criar microserviços .NET/Node nestas rotinas; expor endpoints REST/GraphQL para UE5. Usar
+              <code>Data Access Layer</code> com migrations automatizadas.
+            </td>
+          </tr>
+        </tbody>
+      </table>
+      <div class="callout">
+        <strong>Dica:</strong> mantenha uma planilha de rastreabilidade onde cada arquivo legado tem um destino UE5 documentado
+        (Blueprint, C++ ou serviço). Isso acelera revisões e facilita auditorias futuras.
+      </div>
+    </section>
+
+    <section id="guias-frontend">
+      <h2>Guias Específicos de Interface (Frontend)</h2>
+      <div class="legend">
+        <span>🔁 Reaproveitar Asset</span>
+        <span>🎯 Ajustar Coordenadas</span>
+        <span>🧩 Lógica Blueprint</span>
+        <span>🌐 Integração Backend</span>
+      </div>
+      <details class="guia" open>
+        <summary>HUD Principal &mdash; Coordenadas e Layout</summary>
+        <div class="grid-2">
+          <div>
+            <h4>1. Preparar Assets</h4>
+            <ul>
+              <li>Exportar elementos <code>GlobalBitmap\Interface\*.bmp</code> para <code>.png</code> (transparência).</li>
+              <li>Organizar texturas no UE5 em <code>/Game/UI/HUD/Textures</code> seguindo nomes originais para facilitar busca.</li>
+              <li>Criar <code>Material Instance</code> por grupo (barra, moldura, minimapa).</li>
+            </ul>
+          </div>
+          <div>
+            <h4>2. Reconstruir Layout</h4>
+            <p><strong>Passo a passo:</strong></p>
+            <ol>
+              <li>Criar <code>WBP_HUD_Master</code> baseado em <code>Canvas Panel</code>.</li>
+              <li>Adicionar <code>Overlay</code> com âncoras fixas conforme percentual legado (ex.: barra de HP em 3% x 94%).</li>
+              <li>Usar <code>SizeBox</code> para garantir dimensões originais (consultar <code>NewUIMainFrameWindow.cpp</code>).</li>
+              <li>Configurar animações em <code>Timeline</code> para efeitos de ganho de XP (<code>m_bExpEffect</code>).</li>
+            </ol>
+          </div>
+        </div>
+        <div class="code-card">
+<pre>// Trecho original (NewUIMainFrameWindow.cpp)
+if (m_bExpEffect && gCurTime - m_dwExpEffectTime < 1500)
+{
+    float fScale = (float)(gCurTime - m_dwExpEffectTime) / 1500.0f;
+    RenderBitmap(IMAGE_EXP_EFFECT, 230.0f, 430.0f, 256.0f*fScale, 64.0f, 0.0f, 0.0f);
+}
+</pre>
+        </div>
+        <p><strong>Conversão Blueprint:</strong></p>
+        <div class="blueprint-flow">
+          <div class="blueprint-step">
+            <h4>Evento XP Gained</h4>
+            <p>
+              No <code>BP_PlayerState</code>, disparar <code>Event XP Gained</code> passando quantidade de XP. Atualizar variável
+              <code>ExpEffectStart</code>.
+            </p>
+          </div>
+          <div class="blueprint-step">
+            <h4>Widget Animation</h4>
+            <p>
+              No <code>WBP_HUD_Master</code>, criar animação <em>ExpPulse</em>. Bindar <code>Tick</code> para calcular escala via
+              <code>GetWorldDeltaSeconds</code> replicando o fator <code>fScale</code>.
+            </p>
+          </div>
+          <div class="blueprint-step">
+            <h4>Material Parameter</h4>
+            <p>
+              Utilizar <code>Dynamic Material Instance</code> com parâmetro <code>Scale</code> aplicado ao brush. Controlar via
+              <code>Set Scalar Parameter Value</code> durante a animação.
+            </p>
+          </div>
+        </div>
+      </details>
+
+      <details class="guia">
+        <summary>Inventário &amp; Loja Integrada</summary>
+        <p>
+          Combine os sistemas de inventário (<code>NewUIMyInventory</code>) e loja (<code>NewUIShop</code>) em um fluxo modular
+          reutilizando ícones e slots originais.
+        </p>
+        <ol>
+          <li>Gerar <code>Data Table</code> a partir de <code>Data/Item/Item.txt</code> usando script Python (incluir colunas de
+            tamanho <em>width/height</em> e categoria).</li>
+          <li>Criar <code>WBP_ItemSlot</code> com <code>Border</code> para destacar raridade. Importar <code>Item*.tga</code> como
+            <code>Texture2D</code>.</li>
+          <li>Implementar arrastar/soltar com <code>OnDragDetected</code> e <code>OnDrop</code>. Use <code>ItemGUID</code> para
+            sincronizar com o backend.</li>
+          <li>Para a loja, consumir endpoint <code>GET /shop/offers</code> (novo backend) e popular <code>WBP_ShopGrid</code>.
+            Enviar compras com <code>POST /shop/purchase</code>, esperando confirmação antes de remover moeda local.</li>
+        </ol>
+      </details>
+
+      <details class="guia">
+        <summary>Minimapa + Mapas de Mundo</summary>
+        <p>
+          Reutilize as texturas <code>MapManager</code> e dados <code>Data/World/World*.txt</code> para gerar minimapas dinâmicos
+          e mapas de navegação.
+        </p>
+        <ul>
+          <li>Importar sprites originais do minimapa para <code>/Game/UI/Maps</code>.</li>
+          <li>Converter posições absolutas em percentuais (dividir por resolução original 640x480) para aplicar em
+            <code>Canvas Panel Slot</code>.</li>
+          <li>Gerar <code>Render Targets</code> com ícones 3D (Player, Party, Boss) usando <code>SceneCapture2D</code>.</li>
+          <li>Sincronizar com backend via endpoint <code>GET /world/events</code> para mostrar objetivos em tempo real.</li>
+        </ul>
+      </details>
+    </section>
+
+    <section id="backend">
+      <h2>Trilha de Modernização Backend</h2>
+      <p>
+        Abaixo está um roteiro para reconstruir cada serviço do servidor legado em uma arquitetura moderna escalável,
+        mantendo compatibilidade com o cliente UE5.
+      </p>
+      <div class="swimlane">
+        <div>
+          <strong>Serviço</strong>
+          <ul>
+            <li>AuthServer</li>
+            <li>JoinServer</li>
+            <li>DataServer</li>
+            <li>GameServer</li>
+            <li>Ranking/Tools</li>
+          </ul>
+        </div>
+        <div>
+          <strong>Plano de Ação</strong>
+          <ul>
+            <li>
+              Substituir autenticação SimpleModulus por <code>OAuth2/JWT</code>. Criar endpoint <code>POST /auth/login</code>
+              que valida credenciais no banco modernizado.
+            </li>
+            <li>
+              Implementar <code>Session Service</code> (Redis/SQL) para registrar servidores disponíveis e distribuir jogadores.
+            </li>
+            <li>
+              Migrar procedures de <code>DataServer</code> para microserviço com <code>Entity Framework</code> ou <code>Prisma</code>
+              aplicando migrations automáticas.
+            </li>
+            <li>
+              Criar API WebSocket/HTTP para eventos de gameplay (drop, xp, quests). UE5 se conecta via <code>Subsystem</code>
+              personalizado.
+            </li>
+            <li>
+              Reescrever ferramentas (<code>Tools/</code>) como painel web React/Vue para administração em tempo real.
+            </li>
+          </ul>
+        </div>
+      </div>
+      <h3>Blueprint Gateway &rarr; Backend</h3>
+      <p>
+        Exemplo de implementação em Blueprint para consumo de API REST hospedada pelo novo backend. Utilize o plugin HTTP
+        padrão da UE5 ou o sistema <code>VaRest</code>.
+      </p>
+      <pre class="code-card"><code>// BP_ServerGateway (Actor Component)
+Event RequestLogin(Email, Senha)
+  CreateRequest ← Construct HTTP Request
+  SetURL "https://api.seuprojeto.com/auth/login"
+  SetVerb POST
+  SetHeader "Content-Type", "application/json"
+  SetContent (Json Serialize {Email, Senha})
+  ProcessRequest
+
+Event OnResponseReceived(Request, Response, bWasSuccessful)
+  If !bWasSuccessful → Broadcast OnLoginFailed
+  Else
+    ParseJSON(Response.Content)
+    Cache Token, PlayerId
+    Broadcast OnLoginSuccess(Token, PlayerId)
+    → BP_InventoryManager.LoadRemoteInventory(Token)
+</code></pre>
+      <p>
+        No backend, espelhe as regras de negócio originais (por exemplo, cálculos de XP em <code>GameServer/GameMain.cpp</code>)
+        em serviços especializados. Garanta testes unitários antes de integrar com o cliente UE5.
+      </p>
+      <h3>Checklist de Confiabilidade</h3>
+      <ul class="checklist">
+        <li>Automatizar testes de carga para <code>/auth/login</code>, <code>/character/load</code> e <code>/drop/register</code>.</li>
+        <li>Monitorar logs com ELK/Grafana, correlacionando IDs de sessão ao <code>PlayerID</code>.</li>
+        <li>Implementar fila (RabbitMQ/Kafka) para eventos assíncronos como drops e notificações de ranking.</li>
+        <li>Configurar pipelines CI/CD para servidor e cliente, garantindo builds reproduzíveis.</li>
+      </ul>
+    </section>
+
+    <section id="roadmap-integrado">
+      <h2>Roadmap Integrado Frontend + Backend (16 Semanas)</h2>
+      <p>
+        Expanda o cronograma existente com foco em sincronizar as entregas de interface e serviços. Cada marco possui metas
+        tangíveis para ambos os lados.
+      </p>
+      <ol>
+        <li>
+          <strong>Semanas 1-2:</strong> Auditoria de assets &amp; dados, criação de protótipos UMG, scaffold do backend (Auth,
+          Character Service).
+        </li>
+        <li>
+          <strong>Semanas 3-4:</strong> Inventário funcional com persistência via API. Importação inicial de itens e ícones.
+        </li>
+        <li>
+          <strong>Semanas 5-6:</strong> Progressão XP/nível completa, endpoints de missão. Integração de eventos básicos (Blood
+          Castle, Devil Square).
+        </li>
+        <li>
+          <strong>Semanas 7-8:</strong> Migração dos mapas principais com streaming e triggers. Backend fornece dados de spawn e
+          horário de eventos.
+        </li>
+        <li>
+          <strong>Semanas 9-10:</strong> Sistema de drop refinado com sincronização de loot. Integração de notificações e log de
+          itens.
+        </li>
+        <li>
+          <strong>Semanas 11-12:</strong> Loja, economia e guildas conectadas. Ferramentas de administração web minimalistas.
+        </li>
+        <li>
+          <strong>Semanas 13-14:</strong> Polimento audiovisual, efeitos Niagara, metasounds, sistemas de ranking.</li>
+        <li>
+          <strong>Semanas 15-16:</strong> Testes finais (performance, regressão, cross-play), preparação da release e pipelines
+          automatizados.
+        </li>
+      </ol>
     </section>
 
     <section id="cronograma">
