@@ -1,0 +1,251 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Plano de Recriação do Projeto na Unreal Engine 5</title>
+  <style>
+    body {
+      font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+      line-height: 1.6;
+      margin: 0;
+      padding: 0;
+      background-color: #f5f5f5;
+      color: #222;
+    }
+    header {
+      background: linear-gradient(135deg, #1d3c6a, #0b9ed8);
+      color: #fff;
+      padding: 2rem;
+      text-align: center;
+    }
+    main {
+      max-width: 960px;
+      margin: 2rem auto;
+      background-color: #fff;
+      padding: 2rem;
+      border-radius: 12px;
+      box-shadow: 0 20px 45px rgba(0, 0, 0, 0.08);
+    }
+    h1 {
+      margin-top: 0;
+      font-size: 2.4rem;
+    }
+    h2 {
+      border-left: 4px solid #0b9ed8;
+      padding-left: 0.75rem;
+      margin-top: 2.5rem;
+      color: #0b3c6a;
+    }
+    h3 {
+      margin-top: 1.5rem;
+      color: #145581;
+    }
+    p {
+      margin-bottom: 1rem;
+    }
+    ul {
+      padding-left: 1.5rem;
+      margin-bottom: 1.5rem;
+    }
+    li {
+      margin-bottom: 0.5rem;
+    }
+    .timeline {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 1.5rem;
+    }
+    .card {
+      border: 1px solid #d7e3f4;
+      border-radius: 10px;
+      padding: 1.5rem;
+      background-color: #fafcff;
+    }
+    .card h3 {
+      margin-top: 0;
+    }
+    .callout {
+      border-left: 4px solid #f39c12;
+      background-color: #fff7e6;
+      padding: 1rem 1.25rem;
+      border-radius: 8px;
+      margin: 1.5rem 0;
+    }
+    footer {
+      margin-top: 3rem;
+      padding: 2rem 0;
+      text-align: center;
+      color: #555;
+    }
+    @media (max-width: 600px) {
+      header,
+      main {
+        padding: 1.5rem;
+      }
+      h1 {
+        font-size: 1.9rem;
+      }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Plano Completo para Recriar o Projeto na Unreal Engine 5</h1>
+    <p>Sequência lógica de atividades, desde a preparação até a entrega final do projeto.</p>
+  </header>
+
+  <main>
+    <section>
+      <h2>1. Preparação Inicial</h2>
+      <p>Antes de abrir a Unreal Engine, organize os recursos existentes e estabeleça o escopo da recriação.</p>
+      <ul>
+        <li><strong>Análise do projeto original:</strong> documente funcionalidades, sistemas principais, assets utilizados e dependências externas.</li>
+        <li><strong>Inventário de recursos:</strong> identifique modelos 3D, texturas, sons, animações, documentos de design e códigos de referência.</li>
+        <li><strong>Definição de metas:</strong> estabeleça objetivos claros para a primeira versão jogável (MVP) e funcionalidades avançadas.</li>
+        <li><strong>Configuração de ferramentas:</strong> instale Unreal Engine 5, Visual Studio/VS Code, sistemas de controle de versão e ferramentas de arte.</li>
+      </ul>
+    </section>
+
+    <section>
+      <h2>2. Configuração do Projeto UE5</h2>
+      <p>Crie a base do projeto em Unreal alinhada às metas estabelecidas.</p>
+      <ul>
+        <li>Inicie um novo projeto adequado ao gênero (por exemplo, Third Person ou First Person) e configure a estrutura de diretórios.</li>
+        <li>Implemente convenções de nomenclatura, organização de arquivos e padrões de blueprint/C++.</li>
+        <li>Crie sistemas de build e automação de testes se necessário.</li>
+        <li>Configure plugins essenciais (por exemplo, Enhanced Input, GAS, Niagara) e verifique compatibilidades.</li>
+      </ul>
+    </section>
+
+    <section>
+      <h2>3. Estrutura Fundamental do Jogo</h2>
+      <div class="timeline">
+        <article class="card">
+          <h3>3.1 Arquitetura do Código</h3>
+          <ul>
+            <li>Implemente GameMode, GameState, PlayerController e HUD básicos.</li>
+            <li>Crie um módulo central para gerenciar dependências e subsistemas.</li>
+            <li>Defina interfaces e eventos para comunicação entre sistemas.</li>
+          </ul>
+        </article>
+        <article class="card">
+          <h3>3.2 Personagens e Controles</h3>
+          <ul>
+            <li>Configure o personagem jogável com movimentação, câmera e input mapeados.</li>
+            <li>Implemente sistemas de animação (State Machines, Blend Spaces).</li>
+            <li>Adapte habilidades principais do projeto original.</li>
+          </ul>
+        </article>
+        <article class="card">
+          <h3>3.3 Ambientes e Níveis</h3>
+          <ul>
+            <li>Recrie o layout dos mapas usando blocagem (whiteboxing) para validar escala e fluxo.</li>
+            <li>Adicione iluminação, efeitos atmosféricos e post-processing.</li>
+            <li>Integre assets definitivos e otimize colisões.</li>
+          </ul>
+        </article>
+      </div>
+    </section>
+
+    <section>
+      <h2>4. Sistemas de Jogo</h2>
+      <p>Reconstrua sistemas principais conforme documentado na análise inicial.</p>
+      <h3>4.1 Inventário e Itens</h3>
+      <ul>
+        <li>Projete a estrutura de dados para itens, raridades e atributos.</li>
+        <li>Implemente o inventário (UI, drag-and-drop, equipar/usar itens) usando UMG e blueprints/C++.</li>
+        <li>Integre lógica de persistência de dados, se necessário.</li>
+      </ul>
+      <h3>4.2 Combate e Progressão</h3>
+      <ul>
+        <li>Configure habilidades, cooldowns e efeitos utilizando Ability System ou blueprints customizados.</li>
+        <li>Implemente IA de inimigos com Behavior Trees e Perception System.</li>
+        <li>Adicione sistemas de progressão (experiência, níveis, atributos).</li>
+      </ul>
+      <h3>4.3 Interface do Usuário</h3>
+      <ul>
+        <li>Recrie HUDs, menus e painéis configuráveis com UMG.</li>
+        <li>Implemente feedback visual/sonoro (notificações, efeitos de status).</li>
+        <li>Adapte o fluxo de UX às expectativas modernas (navegação, acessibilidade).</li>
+      </ul>
+    </section>
+
+    <section>
+      <h2>5. Suporte a Multijogador (se aplicável)</h2>
+      <ul>
+        <li>Configure replicação básica para personagens, inventários e habilidades.</li>
+        <li>Implemente sincronização de estado (GameState, PlayerState) e testes de latência.</li>
+        <li>Crie fluxos de matchmaking, lobby, login e persistência de contas se o projeto original possuir.</li>
+        <li>Otimize chamadas de RPC e bandwidth com prioridades e relevância.</li>
+      </ul>
+    </section>
+
+    <section>
+      <h2>6. Conteúdo Artístico e Áudio</h2>
+      <ul>
+        <li>Integre modelos 3D, texturas PBR e materiais com instâncias otimizadas.</li>
+        <li>Configure sistemas de partículas e efeitos visuais (Niagara).</li>
+        <li>Implemente trilha sonora, efeitos de ambiente e mixagem com Sound Cues.</li>
+        <li>Realize ajustes de performance (LOD, Nanite, Virtual Shadow Maps).</li>
+      </ul>
+    </section>
+
+    <section>
+      <h2>7. Testes e Otimização</h2>
+      <p>Garanta estabilidade, desempenho e consistência do jogo.</p>
+      <ul>
+        <li>Defina uma bateria de testes funcionais, de regressão e de performance.</li>
+        <li>Use perfis (Unreal Insights, GPU/CPU profiler) para encontrar gargalos.</li>
+        <li>Otimize blueprints críticos convertendo-os em C++ quando necessário.</li>
+        <li>Prepare builds automatizadas (CI/CD) para QA e distribuição.</li>
+      </ul>
+    </section>
+
+    <section>
+      <h2>8. Polimento e Publicação</h2>
+      <ul>
+        <li>Refine UX, efeitos visuais e feedback com base em testes de usuários.</li>
+        <li>Elabore documentação final (manual técnico, guia de jogador, changelog).</li>
+        <li>Prepare marketing assets (trailers, screenshots, descrições).</li>
+        <li>Empacote e distribua a build final para as plataformas-alvo.</li>
+      </ul>
+    </section>
+
+    <section>
+      <h2>9. Cronograma Sugerido</h2>
+      <div class="timeline">
+        <article class="card">
+          <h3>Fase 1: 2-3 Semanas</h3>
+          <p>Preparação, configuração do projeto e protótipos básicos de personagem e mapa.</p>
+        </article>
+        <article class="card">
+          <h3>Fase 2: 4-6 Semanas</h3>
+          <p>Implementação dos sistemas de jogo (inventário, combate, UI) e testes de jogabilidade.</p>
+        </article>
+        <article class="card">
+          <h3>Fase 3: 3-4 Semanas</h3>
+          <p>Conteúdo artístico, áudio, integração multiplayer (se necessário) e otimizações.</p>
+        </article>
+        <article class="card">
+          <h3>Fase 4: 2 Semanas</h3>
+          <p>Polimento final, QA completo, documentação e empacotamento.</p>
+        </article>
+      </div>
+    </section>
+
+    <section class="callout">
+      <h2>Pontos-Chave para o Sucesso</h2>
+      <ul>
+        <li>Mantenha comunicação clara entre designers, programadores e artistas.</li>
+        <li>Registre decisões técnicas e de design para facilitar manutenção.</li>
+        <li>Valide funcionalidades iterativamente para evitar retrabalho nas fases finais.</li>
+      </ul>
+    </section>
+  </main>
+
+  <footer>
+    <p>&copy; 2024 Plano Estratégico de Recriação UE5</p>
+  </footer>
+</body>
+</html>
