@@ -837,6 +837,15 @@
         Ele indica arquivos, diretórios e binários essenciais para orientar a migração 1:1 para a Unreal Engine 5,
         contemplando tanto o frontend (cliente) quanto o backend (servidores e bancos de dados).
       </p>
+      <div class="callout">
+        <strong>Mapeamento de diretórios reais:</strong>
+        <ul>
+          <li>Assets do cliente (texturas, sprites, BMD): <code>Source Main 5.2/bin/Data/&lt;Subpasta&gt;</code>.</li>
+          <li>Código do cliente: <code>Source Main 5.2/source</code>; código do servidor: <code>Source MuServer Update 15/GameServer/GameServer</code>.</li>
+          <li>Tabelas e scripts de configuração do backend: <code>MuServer_Season_5_Update_15/Data/&lt;Categoria&gt;</code> e <code>MuServer_Season_5_Update_15/ScriptSql</code>.</li>
+        </ul>
+        <p>Qualquer referência simplificada a <code>Data/...</code> neste guia usa estes caminhos como base para localizar rapidamente os arquivos originais.</p>
+      </div>
       <div class="atlas-tabs">
         <button class="atlas-tab active" data-tab="frontend">Cliente (Front-end)</button>
         <button class="atlas-tab" data-tab="backend">Servidor (Back-end)</button>
@@ -1100,6 +1109,140 @@
       </div>
     </section>
 
+    <section id="paridade">
+      <h2>Paridade Validada com o Código Legado</h2>
+      <p>
+        Esta seção confirma que as instruções de recriação fazem referência direta ao código existente
+        no repositório. Para cada subsistema crítico, o quadro abaixo destaca os arquivos originais,
+        valores relevantes e como replicá-los fielmente na Unreal Engine 5.
+      </p>
+      <table class="matrix">
+        <thead>
+          <tr>
+            <th>Subsistema</th>
+            <th>Referência Legada</th>
+            <th>Comportamento/Valores Originais</th>
+            <th>Adaptação na UE5</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Login &amp; Launcher</td>
+            <td><code>LoginWin.cpp</code> (<code>CLoginWin::Create</code>, <code>SetPosition</code>)</td>
+            <td>Janela 329×245; campos deslocados +109/+106 e +109/+131; botões OK/Cancel em +150/+178 e +211/+178.</td>
+            <td>Crie <code>WBP_Login</code> com Canvas 640×480 e widgets posicionados com <code>Anchors</code> absolutos. Reproduza sons <code>SOUND_CLICK01</code> e <code>SOUND_FAIL</code> via <code>PlaySound2D</code>.</td>
+          </tr>
+          <tr>
+            <td>Seleção de Personagem</td>
+            <td><code>CharSelMainWin.cpp</code> (<code>Create</code>, <code>SetPosition</code>)</td>
+            <td>Botões 54×30; <code>m_asprBack[CSMW_SPR_INFO]</code> alinhado à direita; botões Connect/Delete deslocados para o final do painel.</td>
+            <td>Use <code>Overlay</code> + <code>Horizontal Box</code> para replicar a régua de botões em <code>WBP_CharacterSelect</code>, preservando espaçamentos definidos em <code>SetPosition</code>.</td>
+          </tr>
+          <tr>
+            <td>HUD Principal</td>
+            <td><code>NewUIMainFrameWindow.cpp</code> (<code>RenderFrame</code>, <code>RenderLifeMana</code>)</td>
+            <td>HUD renderizada em 480px de altura; barras de HP/MP ocupam 45×39px a partir do eixo Y=480−48; imagens <code>IMAGE_MENU_1..3</code> compõem a base.</td>
+            <td>Configure <code>WBP_HUDRoot</code> com Canvas 960×540 (scale box) e barras dimensionadas 45×39px, usando <code>MaterialInstanceDynamic</code> para animar preenchimento conforme cálculo de <code>fLife</code>/<code>fMana</code>.</td>
+          </tr>
+          <tr>
+            <td>Inventário &amp; Drag/Drop</td>
+            <td><code>NewUIInventoryCtrl.cpp</code> (<code>CNewUIPickedItem</code>, <code>GetTargetPos</code>)</td>
+            <td>Slots usam múltiplos de <code>INVENTORY_SQUARE_WIDTH</code>; posição do item segue o cursor com correção pelo tamanho do item e validação em <code>GetSquarePosAtPt</code>.</td>
+            <td>Implemente <code>UniformGrid</code> com células 20×20 (valor de <code>INVENTORY_SQUARE_WIDTH</code>) e calcule célula-alvo aplicando mesma correção de largura/altura antes de efetivar <em>drop</em> no Blueprint.</td>
+          </tr>
+          <tr>
+            <td>Drop de Itens</td>
+            <td><code>ItemManager.cpp</code> (<code>CGItemDropRecv</code>)</td>
+            <td>Validação inclui estado de morte, interfaces ativas, transações e <code>INVENTORY_FULL_RANGE</code>. Mensagem <code>0x23</code> confirma êxito ou falha.</td>
+            <td>O endpoint <code>/inventory/drop</code> deve reproduzir todas as verificações antes de autorizar o spawn. Retorne o estado atualizado para sincronizar o widget na UE5.</td>
+          </tr>
+          <tr>
+            <td>Spawn de Mobs</td>
+            <td><code>MonsterSetBase.cpp</code> (<code>CMonsterSetBase::Load</code>)</td>
+            <td>Parser lê seções, classe do monstro, mapa, distância, coordenadas X/Y e flags adicionais. Estrutura <code>MONSTER_SET_BASE_INFO</code> limita quantidade de registros.</td>
+            <td>Converta cada linha em <code>DT_MobSpawn</code> (MapID, SpotRadius, SpawnCount, Direction). <code>BP_MobSpawner</code> deve respeitar os mesmos limites e tempos de respawn.</td>
+          </tr>
+          <tr>
+            <td>Habilidades</td>
+            <td><code>SkillManager.cpp</code> (<code>Load</code>) &amp; <code>SkillInfo.cpp</code></td>
+            <td>Arquivos lidos via <code>CMemScript</code> definem consumo de mana, alcance, requisito de combo e efeitos aplicados.</td>
+            <td>Armazene dados em <code>Data Tables</code> e use <code>Gameplay Ability System</code> para aplicar custos/efeitos idênticos aos do parsing legado.</td>
+          </tr>
+        </tbody>
+      </table>
+      <details class="guia" open>
+        <summary>LoginWin.cpp ➝ WBP_Login</summary>
+        <div class="code-card"><pre><code>CWin::Create(329, 245, BITMAP_LOG_IN + 7);
+m_asprInputBox[LIW_ACCOUNT].SetPosition(nXCoord + 109, nYCoord + 106);
+m_asprInputBox[LIW_PASSWORD].SetPosition(nXCoord + 109, nYCoord + 131);
+m_aBtn[LIW_OK].SetPosition(nXCoord + 150, nYCoord + 178);
+m_aBtn[LIW_CANCEL].SetPosition(nXCoord + 211, nYCoord + 178);</code></pre></div>
+        <ul>
+          <li>Defina um <code>Canvas Panel</code> 640×480 na UE5 e posicione campos usando os mesmos offsets absolutos.</li>
+          <li>Mapeie os sons <code>SOUND_CLICK01</code>/<code>SOUND_FAIL</code> para <code>USoundCue</code> reaproveitando os arquivos originais.</li>
+        </ul>
+      </details>
+      <details class="guia" open>
+        <summary>CharSelMainWin.cpp ➝ WBP_CharacterSelect</summary>
+        <div class="code-card"><pre><code>m_aBtn[CSMW_BTN_CREATE].Create(54, 30, BITMAP_LOG_IN+3, 4, 2, 1, 3);
+m_aBtn[CSMW_BTN_MENU].SetPosition(nXCoord + nBtnWidth + 1, nYCoord);
+m_asprBack[CSMW_SPR_INFO].SetPosition(m_aBtn[CSMW_BTN_MENU].GetXPos() + nBtnWidth + 2, nYCoord + 5);
+m_aBtn[CSMW_BTN_CONNECT].SetPosition(nWinRPosX - (nBtnWidth * 2 + 1), nYCoord);
+m_aBtn[CSMW_BTN_DELETE].SetPosition(nWinRPosX - nBtnWidth, nYCoord);</code></pre></div>
+        <ul>
+          <li>Crie uma <code>Horizontal Box</code> para botões e ajuste espaçamentos (1px/2px) através de <code>Padding</code> customizado.</li>
+          <li>Reposicione o painel de informações à direita replicando o deslocamento calculado em relação ao botão “Menu”.</li>
+        </ul>
+      </details>
+      <details class="guia" open>
+        <summary>NewUIMainFrameWindow.cpp ➝ WBP_HUDRoot</summary>
+        <div class="code-card"><pre><code>width = 256.f; height = 51.f;
+x = 0.f; y = 480.f - height;
+RenderImage(IMAGE_MENU_1, x, y, width, height);
+...
+width = 45.f; x = 158.f; height = 39.f; y = 480.f - 48.f;
+RenderBitmap(IMAGE_GAUGE_RED, x, fY, width, fH, ...);</code></pre></div>
+        <ul>
+          <li>Monte a base da HUD com três imagens alinhadas na parte inferior, mantendo largura total de 640px.</li>
+          <li>Aplique materiais com coordenadas UV recortadas para simular o preenchimento vertical das barras de HP/MP.</li>
+        </ul>
+      </details>
+      <details class="guia" open>
+        <summary>NewUIInventoryCtrl.cpp ➝ WBP_Inventory</summary>
+        <div class="code-card"><pre><code>m_Size.cx = pItemAttr->Width * INVENTORY_SQUARE_WIDTH;
+m_Size.cy = pItemAttr->Height * INVENTORY_SQUARE_HEIGHT;
+int iPickedItemX = MouseX - ((pItemAttr->Width - 1) * INVENTORY_SQUARE_WIDTH / 2);
+return pDest->GetSquarePosAtPt(iPickedItemX, iPickedItemY, iTargetColumnX, iTargetRowY);</code></pre></div>
+        <ul>
+          <li>Antes de completar o <em>drop</em>, converta coordenadas do mouse em colunas/linhas exatamente como no método legado.</li>
+          <li>Guarde largura/altura de cada item na <code>Data Table</code> derivada de <code>Item.txt</code> para validar sobreposição.</li>
+        </ul>
+      </details>
+      <details class="guia" open>
+        <summary>ItemManager.cpp ➝ Serviço /inventory/drop</summary>
+        <div class="code-card"><pre><code>pMsg.header.set(0x23, sizeof(pMsg));
+if(lpObj->Interface.use != 0 && lpObj->Interface.type != INTERFACE_SHOP) return;
+if(lpObj->Transaction == 1) return;
+if(INVENTORY_FULL_RANGE(lpMsg->slot) == 0) return;</code></pre></div>
+        <ul>
+          <li>Replique cada condição antes de gerar o loot. Falhas devem retornar códigos equivalentes ao <code>pMsg.result</code>.</li>
+          <li>Logue requisições inválidas para auditoria, assim como o servidor original utiliza <code>LogAddTD</code>.</li>
+        </ul>
+      </details>
+      <details class="guia" open>
+        <summary>MonsterSetBase.cpp ➝ BP_MobSpawner</summary>
+        <div class="code-card"><pre><code>info.MonsterClass = lpMemScript->GetNumber();
+info.Map = lpMemScript->GetAsNumber();
+info.Dis = lpMemScript->GetAsNumber();
+info.X = lpMemScript->GetAsNumber();
+info.Y = lpMemScript->GetAsNumber();</code></pre></div>
+        <ul>
+          <li>Crie estruturas UE5 com os mesmos campos (Classe, Mapa, Raio, Coordenadas) para instanciar spawners.</li>
+          <li>Implemente timers de respawn que respeitam <code>info.Dis</code> e quantidade máxima calculada no loader legado.</li>
+        </ul>
+      </details>
+    </section>
+
     <section id="modulos-expandido">
       <h2>Matriz Expandida de Módulos para Migração UE5</h2>
       <p>
@@ -1259,7 +1402,7 @@
         <div class="catalog-grid">
           <div class="catalog-card">
             <h4>Tela de Login &amp; Launcher</h4>
-            <p class="path"><strong>Legado:</strong> <code>LoginMainWin.cpp</code>, <code>LoginWin.cpp</code>, <code>GCCertification.cpp</code>, <code>LauncherHelper.cpp</code>, assets em <code>Data/Interface/Login</code>.</p>
+            <p class="path"><strong>Legado:</strong> <code>LoginMainWin.cpp</code>, <code>LoginWin.cpp</code>, <code>GCCertification.cpp</code>, <code>LauncherHelper.cpp</code>, assets em <code>Source Main 5.2/bin/Data/Interface/Login</code>.</p>
             <p><strong>Objetivo:</strong> Autenticar contas reaproveitando o layout clássico e validando versão/patch antes de liberar acesso.</p>
             <ol class="step-list">
               <li>Extraia fundos (.jpg/.ozj) e botões originais, convertendo-os para <code>.uasset</code> via <em>Import as Slate Brush</em>.</li>
@@ -1288,7 +1431,7 @@
             <p class="path"><strong>Legado:</strong> <code>NewUIMainFrameWindow.cpp</code>, <code>CGFxMainUi.cpp</code>, <code>GaugeBar.cpp</code>, <code>NewUIRenderNumber.cpp</code>.</p>
             <p><strong>Objetivo:</strong> Recriar a HUD com barras de HP/MP/AG, mini-status e slots rápidos.</p>
             <ol class="step-list">
-              <li>Importe texturas da HUD (sprites em <code>Data/Interface/MainUI</code>) como <code>Texture Atlas</code> e configure <code>UPaperSprite</code> para indicadores.</li>
+              <li>Importe texturas da HUD (sprites em <code>Source Main 5.2/bin/Data/Interface/MainUI</code>) como <code>Texture Atlas</code> e configure <code>UPaperSprite</code> para indicadores.</li>
               <li>Crie <code>WBP_HUDRoot</code> com <code>Canvas Panel</code>; posicione elementos usando coordenadas da matriz de HUD anexada anteriormente.</li>
               <li>Implemente <code>UPlayerAttributeComponent</code> para expor HP/MP/AG/SD e utilize <code>Binding</code> ou <code>Field Notify</code> em widgets.</li>
               <li>Reaplique efeitos numéricos com <code>UMaterialInstanceDynamic</code> replicando <code>NewUIRenderNumber</code>.</li>
@@ -1301,7 +1444,7 @@
             <p class="path"><strong>Legado:</strong> <code>NewUIMyInventory.cpp</code>, <code>NewUIInventoryCtrl.cpp</code>, <code>NewUIItemExplanationWindow.cpp</code>, <code>NewUIItemEnduranceInfo.cpp</code>.</p>
             <p><strong>Objetivo:</strong> Permitir arrastar/soltar itens, visualizar atributos e integrar sockets.</p>
             <ol class="step-list">
-              <li>Transfira sprites de slots (<code>Interface/Inventory</code>) e defina <code>Size Box</code> correspondentes a 28x28px originais.</li>
+              <li>Transfira sprites de slots (<code>Source Main 5.2/bin/Data/Interface/Inventory</code>) e defina <code>Size Box</code> correspondentes a 20x20px conforme <code>INVENTORY_SQUARE_WIDTH</code>/<code>HEIGHT</code>.</li>
               <li>Monte <code>WBP_Inventory</code> com <code>UniformGridPanel</code>; configure mapeamento de índices baseado nos offsets de <code>NewUIInventoryCtrl</code>.</li>
               <li>Implemente <code>BP_ItemDrag</code> derivado de <code>CommonActivatableWidget</code> para suportar drag/drop com verificação de colisão via <code>Blueprint Function Library</code>.</li>
               <li>Renderize tooltips reutilizando a lógica convertida em “Sistema Completo de Itens” (seção anterior) para combinar dados de <code>ItemInfo.cpp</code> e <code>ItemAddOptioninfo.cpp</code>.</li>
