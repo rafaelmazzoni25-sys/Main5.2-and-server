@@ -2006,6 +2006,24 @@ info.Y = lpMemScript->GetAsNumber();</code></pre></div>
               <td>Lê scripts <code>Event/*.txt</code>, sincroniza times e entradas por party, aplicando recompensas específicas.</td>
               <td>Use <code>Data Assets</code> para configurar objetivos e crie <code>UMG</code> de placar compartilhado sincronizado via backend.</td>
             </tr>
+            <tr>
+              <td>Crywolf</td>
+              <td><code>Crywolf.cpp</code>, <code>CrywolfAltar.cpp</code>, <code>CrywolfStatue.cpp</code></td>
+              <td>Estados <code>CRYWOLF_STATE_*</code> controlam altar, estátuas e buffs defensivos. O cliente habilita o HUD dedicado (<code>NewUICryWolf.cpp</code>).</td>
+              <td>Implemente <code>BP_CrywolfController</code> com <em>state machine</em> equivalente, Data Table para altares/estátuas e widget UMG replicando o layout original.</td>
+            </tr>
+            <tr>
+              <td>Castle Siege &amp; Land of Trials</td>
+              <td><code>CastleSiege.cpp</code>, <code>CastleSiegeSync.cpp</code>, <code>CastleSiegeCrown.cpp</code></td>
+              <td>Máquina de estados controla registro, batalha, <em>switch</em> da coroa e ocupação; Land of Trials habilita drops especiais via <code>gCastleSiegeSync</code>.</td>
+              <td>Construa <code>BP_CastleSiegeDirector</code> que atualiza fases, controla <em>capture points</em> e replica buffs/tributos. Use níveis dedicados para sala do trono e Land of Trials.</td>
+            </tr>
+            <tr>
+              <td>Arca Battle &amp; Double Goer</td>
+              <td><code>ArcaBattle.cpp</code>, <code>DoubleGoer.cpp</code>, <code>EventInventory.cpp</code></td>
+              <td>Carregam rotinas de pré-inscrição, combinam times automáticos, consomem itens-chave e gerenciam ranking via <code>EventInventory</code>.</td>
+              <td>Crie <code>BP_ArcaBattleService</code>/<code>BP_DoubleGoerService</code> que validam inscrições via backend, aplicam matchmaking equivalente e atualizam placares UMG sincronizados.</td>
+            </tr>
           </tbody>
         </table>
 
@@ -4643,6 +4661,58 @@ CMap::CMap()
         → If Attr == TW_WATER → ApplyWaterPostProcess(Location)</code></pre>
         <div class="callout">
           <strong>Coordenadas originais:</strong> mantenha a escala 1 tile = 100 unidades da UE5 para garantir alinhamento de colisão, alcance de habilidades e posições de NPC.</div>
+        <details class="guia">
+          <summary>Portais, Warp e Move Command</summary>
+          <div class="grid-2">
+            <div class="source-card">
+              <div class="source-meta">Cliente &mdash; <code>Source Main 5.2/source/MoveCommandData.cpp</code></div>
+              <pre><code>bool CMoveCommandData::Create(const std::string&amp; filename)
+{
+    FILE* fp = fopen(filename.c_str(), "rb");
+    fread(&amp;count, sizeof(int), 1, fp);
+    fread(&amp;(pMoveInfoData-&gt;_ReqInfo), sizeof(MOVEREQINFO), 1, fp);
+    BuxConvert((BYTE*)&amp;(pMoveInfoData-&gt;_ReqInfo), sizeof(MOVEREQINFO));
+    m_listMoveInfoData.push_back(pMoveInfoData);
+}</code></pre>
+            </div>
+            <div class="source-card">
+              <div class="source-meta">Servidor &mdash; <code>Source MuServer Update 15/GameServer/GameServer/Move.cpp</code></div>
+              <pre><code>void CMove::Load(char* path)
+{
+    MOVE_INFO info;
+    info.Index    = lpMemScript-&gt;GetNumber();
+    info.Name     = lpMemScript-&gt;GetAsString();
+    info.Gate     = lpMemScript-&gt;GetAsNumber();
+    this-&gt;m_MoveInfo.insert(std::pair&lt;int,MOVE_INFO&gt;(info.Index,info));
+}
+
+void CMove::Move(LPOBJ lpObj,int index)
+{
+    if(MoveInfo.MinLevel != -1 &amp;&amp; lpObj-&gt;Level &lt; gGate.GetMoveLevel(...))
+    {
+        gNotice.GCNoticeSend(lpObj-&gt;Index,1,0,0,0,0,0,gMessage.GetMessage(224),...);
+        return;
+    }
+}</code></pre>
+            </div>
+          </div>
+          <ol>
+            <li>Extraia <code>Data/Local/&lt;ML&gt;/movereq_*.bmd</code> (cliente) e <code>Data/Move/Move.txt</code>, <code>Data/Move/Gate.txt</code> (servidor). Converta todos para <code>Data Tables</code> (<code>DT_WarpRequirements</code>, <code>DT_Gates</code>).</li>
+            <li>Implemente um <code>BP_WarpService</code> que carrega as tabelas no <code>GameInstance</code>, expondo filtros por nível, reset, contribuição de Gens e custo em Zen idênticos a <code>MOVEREQINFO</code>.</li>
+            <li>Recrie o widget UMG usando as coordenadas definidas em <code>CNewUIMoveCommandWindow::SetPos</code> (larguras dinâmicas por resolução) e listas com rolagem equivalente.</li>
+            <li>No backend, replique as validações de <code>CMove::Move</code> e <code>Gate.cpp</code> antes de teleportar. Retorne códigos <code>result</code> compatíveis para atualizar o HUD de erro no cliente.</li>
+            <li>Configure <code>BP_PortalActor</code> que consulta <code>DT_Gates</code>, posiciona <code>BoxComponent</code> com base nos retângulos e envia requisições <code>POST /warp</code> ao serviço.</li>
+          </ol>
+          <pre><code>// Blueprint (BP_WarpService)
+Function RequestWarp(WarpIndex)
+  → Requirements = DT_WarpRequirements[WarpIndex]
+  → If !ValidateCharacter(Requirements) → ShowError(Requirements.FailCode)
+  → Else CallHTTP("POST", "/warp", { Index: WarpIndex })
+        → OnSuccess: Teleport Player to DT_Gates[Requirements.Gate].TargetTransform
+        → OnFail: Surface server message via HUD Toast</code></pre>
+          <div class="callout">
+            <strong>Sincronização:</strong> utilize <code>MapServerManager.cpp</code> como referência para distribuir jogadores entre instâncias e mantenha os mesmos índices de gate para que spawns coincidam com <code>SetRect</code> configurado no carregamento do mapa.</div>
+        </details>
       </article>
 
       <article class="conversion-pane" data-pane="effects">
@@ -4738,6 +4808,33 @@ case 0x17: // Item drop
   → OnFailure → MostrarErro("Falha ao dropar item")</code></pre>
         <div class="callout warning">
           <strong>Segurança:</strong> valide tudo no backend. As Blueprints apenas pedem autorização; as regras de PK, safe zone e logs continuam rodando no servidor reescrito.</div>
+        <details class="guia">
+          <summary>Customizações, Bots e Serviços Extras</summary>
+          <div class="grid-2">
+            <div>
+              <h5>Referências no MuServer</h5>
+              <ul>
+                <li><code>GameServer/GameServer/BotHelper.cpp</code>, <code>BotStore.cpp</code>, <code>BotWarper.cpp</code> &mdash; automatizam buff, loja e teleporte.</li>
+                <li><code>GameServer/GameServer/CustomNpcQuest.cpp</code>, <code>CustomNpcCollector.cpp</code> &mdash; scripts de NPC personalizados ligados ao <code>EventInventory</code>.</li>
+                <li><code>GameServer/GameServer/CustomEventDrop.cpp</code>, <code>CustomEventTime.cpp</code> &mdash; definem drops programados e calendário rotativo.</li>
+                <li><code>GameServer/GameServer/CustomMix.cpp</code>, <code>CustomWing.cpp</code>, <code>JewelMix.cpp</code> &mdash; tabelas extras de combinação de itens.</li>
+                <li><code>GameServer/GameServer/CustomRanking.cpp</code>, <code>CustomTop.cpp</code> &mdash; agregam dados de ranking em memória.</li>
+              </ul>
+            </div>
+            <div>
+              <h5>Tradução para serviços modernos</h5>
+              <ul>
+                <li>Implemente microserviço <strong>BotService</strong> expondo <code>POST /bot/{id}/schedule</code> e WebSocket <code>/ws/bot</code> para transmitir comandos automáticos às Blueprints (<code>BP_BotProxy</code>).</li>
+                <li>Converta scripts de NPC para <code>Data Assets</code> (<code>DA_CustomNPC</code>) que carregam diálogos originais (<code>NewUINPCDialogue.cpp</code>) e disparam chamadas REST <code>/npc/{id}/interact</code>.</li>
+                <li>Crie serviço <strong>EventOrchestrator</strong> que lê cronogramas equivalentes a <code>CustomEventTime.txt</code>, dispara mensagens <code>Event.Start</code>/<code>Event.End</code> e sincroniza com o <code>BP_EventDirector</code>.</li>
+                <li>Exponha APIs de <strong>Mixing</strong> (<code>POST /mix</code>) com lógica replicada de <code>CustomMix.cpp</code> / <code>JewelMix.cpp</code>; o widget UE5 de craft reutiliza layout de <code>NewUIMixInventory.cpp</code>.</li>
+                <li>Persista rankings customizados em banco (Redis + SQL) e publique <code>/ranking/custom/{tipo}</code>; HUD UE5 consome via <code>WBP_RankingBoard</code>.</li>
+              </ul>
+            </div>
+          </div>
+          <div class="callout">
+            <strong>Checklist:</strong> valide que cada módulo <code>Custom*</code> ou <code>Bot*</code> possui endpoint/documentação correspondente e que os assets/diálogos originais foram importados para os Widgets UMG associados.</div>
+        </details>
         <h4>Streaming de dados em tempo real</h4>
         <ul>
           <li><strong>Posições e mobs:</strong> exponha <code>/ws/world</code> para replicar <code>GSGObjViewportListSend</code>. UE5 consome via <code>WebSocket</code> usando <code>UGameInstanceSubsystem</code>.</li>
