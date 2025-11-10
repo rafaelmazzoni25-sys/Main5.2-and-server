@@ -983,6 +983,9 @@
           <ul>
             <li><a href="#etapas">Etapas de reconstrução</a></li>
             <li><a href="#guias-frontend">Interfaces &amp; HUD</a></li>
+            <li><a href="#ui-overlays">UI avançada &amp; suporte</a></li>
+            <li><a href="#cinematics-direcao">Cinematics &amp; direção</a></li>
+            <li><a href="#portal-movimento">Portais &amp; movimentação</a></li>
             <li><a href="#item-system-encyclopedia">Sistema de itens</a></li>
             <li><a href="#mob-system-atlas">Sistemas de mobs</a></li>
             <li><a href="#skill-system-guide">Sistemas de skills</a></li>
@@ -997,6 +1000,7 @@
             <li><a href="#frontend-backend">Gateway UE5 ⇄ Serviços</a></li>
             <li><a href="#backend">Serviços modernos</a></li>
             <li><a href="#codigo-detalhado">Código legado detalhado</a></li>
+            <li><a href="#matchmaking-instancias">Instâncias &amp; matchmaking</a></li>
             <li><a href="#modulos-expandido">Matriz de módulos</a></li>
           </ul>
         </div>
@@ -6075,6 +6079,353 @@ Function HideTooltip()
       </details>
     </section>
 
+    <section id="ui-overlays">
+      <h2>UI Avançada &amp; Suporte ao Jogador</h2>
+      <p>
+        A HUD original fornece diversas camadas de apoio ao jogador que
+        precisam ser mantidas na UE5 para preservar a experiência. Os
+        componentes a seguir fazem referência direta aos arquivos em
+        <code>Source Main 5.2/source</code> e mostram como convertê-los
+        para Blueprints reutilizando texturas e coordenadas originais.
+      </p>
+
+      <details class="guia" open>
+        <summary>Hero Position Info &mdash; Coordenadas Dinâmicas</summary>
+        <div class="grid-2">
+          <div>
+            <h4>Referências Legadas</h4>
+            <ul>
+              <li>
+                <code>NewUIHeroPositionInfo.cpp</code>
+                (<code>Create</code>, <code>Render</code>) define largura
+                variável conforme a resolução (<code>WidenX</code>) e
+                renderiza três sprites <code>Minimap_position[A-C].tga</code>.
+              </li>
+              <li>
+                <code>MapManager.cpp</code> expõe
+                <code>gMapManager.GetMapName</code>, usado para montar o
+                texto exibido ao lado das coordenadas.
+              </li>
+            </ul>
+          </div>
+          <div class="source-card">
+            <div class="source-meta">
+              Cliente &mdash; <code>NewUIHeroPositionInfo::Render</code>
+            </div>
+            <pre><code>RenderImage(IMAGE_HERO_POSITION_INFO_BASE_WINDOW, m_Pos.x, m_Pos.y, ...);
+unicode::_sprintf(szText, "%s (%d , %d)", gMapManager.GetMapName(...), m_CurHeroPosition.x, m_CurHeroPosition.y);
+g_pRenderText-&gt;RenderText(m_Pos.x+10, m_Pos.y+5, szText, WidenX + 20, 9, RT3_SORT_CENTER);</code></pre>
+          </div>
+        </div>
+        <h4>Adaptação UE5</h4>
+        <ol>
+          <li>
+            Converter <code>Interface/Minimap_position*.tga</code> para
+            <code>Texture2D</code> e aplicá-las a um <code>Border</code>
+            dentro de <code>WBP_HeroPosition</code>.
+          </li>
+          <li>
+            Utilizar um <code>SizeBox</code> com binding para a largura;
+            calcular <code>WidenX</code> em Blueprint replicando a regra do
+            código legado (0%, 20% ou 40% a mais dependendo da resolução).
+          </li>
+          <li>
+            Buscar o nome do mapa via <code>BP_WorldState</code> (Data Table
+            derivada de <code>World*.txt</code>) e formatar texto com
+            <code>FText::Format</code>, exibindo valores X/Y de
+            <code>BP_PlayerState</code> convertidos para inteiros.
+          </li>
+          <li>
+            Ancorar o widget ao canto superior direito do minimapa e
+            atualizar a posição através de <code>OnPlayerLocationChanged</code>
+            emitido pelo componente de tracking.
+          </li>
+        </ol>
+      </details>
+
+      <details class="guia">
+        <summary>Comandos Rápidos, Hotkeys e Ajuda Contextual</summary>
+        <p>
+          As janelas <code>NewUIQuickCommandWindow</code>,
+          <code>NewUICommandWindow</code>, <code>NewUIHotKey</code> e
+          <code>NewUIHelpWindow</code> garantem acessos rápidos a comércio,
+          party, duel e dicas. Garanta que a UE5 mantenha as mesmas ações e
+          bloqueios antes de chamar o backend.
+        </p>
+        <div class="grid-2">
+          <div>
+            <h4>Fluxo Original</h4>
+            <ul>
+              <li>
+                <code>NewUIQuickCommandWindow::UpdateMouseEvent</code>
+                verifica cinco opções alinhadas verticalmente (112×19 px) e
+                chama <code>g_pCommandWindow-&gt;Command*</code> conforme a
+                seleção.
+              </li>
+              <li>
+                <code>NewUICommandWindow.cpp</code> monta a lista de ações
+                aplicando verificações de interface ativa e estado do alvo.
+              </li>
+              <li>
+                <code>CBTMessageBox.cpp</code> e
+                <code>NewUIHelpWindow.cpp</code> renderizam dicas usando
+                <code>GlobalText</code> para localizar strings.
+              </li>
+            </ul>
+          </div>
+          <div class="source-card">
+            <div class="source-meta">
+              Cliente &mdash; <code>NewUIQuickCommandWindow</code>
+            </div>
+            <pre><code>if(CheckMouseIn(m_Pos.x, m_Pos.y+30, 112, 110) == false) {
+    m_iSelectedIndex = -1;
+    if(IsRelease(VK_LBUTTON)) CloseQuickCommand();
+}
+if(m_iSelectedIndex &gt; -1 && IsRelease(VK_LBUTTON)) {
+    g_pCommandWindow-&gt;CommandTrade(pCha);
+}</code></pre>
+          </div>
+        </div>
+        <h4>Blueprint Steps</h4>
+        <ol>
+          <li>
+            Criar <code>WBP_QuickCommand</code> com <code>Vertical Box</code>
+            e cinco <code>Button</code> de 112×19 px. Usar estilos
+            reaproveitando <code>Interface/Command_Window*.tga</code>.
+          </li>
+          <li>
+            Implementar <code>OnHovered</code> para destacar linhas e
+            <code>OnClicked</code> chamando um <code>BP_CommandRouter</code>
+            que replica as verificações de <code>CommandWindow</code> antes
+            de emitir requisições HTTP (<code>/trade/request</code>,
+            <code>/party/invite</code>, <code>/duel/request</code>).
+          </li>
+          <li>
+            Mapear atalhos no sistema de <code>Enhanced Input</code> usando
+            as mesmas teclas definidas em <code>NewUIHotKey.cpp</code>
+            (<code>VK_F1..F4</code>, <code>VK_BACK</code>). Em cada ação,
+            abrir o widget se o jogador não estiver em outra interface,
+            replicando <code>g_pNewUISystem-&gt;IsVisible</code>.
+          </li>
+          <li>
+            Criar <code>Data Table</code> para textos de ajuda usando o
+            conteúdo de <code>GlobalText.h</code>/<code>MultiLanguage.cpp</code>.
+            O widget <code>WBP_HelpOverlay</code> deve consumir a mesma
+            estrutura para apresentar dicas contextuais por mapa ou evento.
+          </li>
+        </ol>
+      </details>
+
+      <details class="guia">
+        <summary>Mensagens Modais e Fluxo de Confirmação</summary>
+        <p>
+          Caixas de confirmação em <code>NewUICommonMessageBox</code> e
+          <code>NewUICustomMessageBox</code> garantem bloqueio da interface
+          quando há operações críticas (troca, reset, teleporte). Preserve a
+          hierarquia e os sons de feedback descritos em
+          <code>CBTMessageBox.cpp</code> e <code>DSPlaySound.cpp</code>.
+        </p>
+        <ul>
+          <li>
+            Converta os sons <code>SOUND_CLICK01</code> e
+            <code>SOUND_FAIL</code> para <code>USoundWave</code> e atribua a
+            um <code>Widget Blueprint</code> <code>WBP_MessageModal</code>.
+          </li>
+          <li>
+            Utilize <code>Widget Interaction</code> para bloquear cliques,
+            imitando <code>g_pNewUISystem-&gt;BlockUI</code> quando uma
+            mensagem estiver aberta.
+          </li>
+          <li>
+            Para personalização, carregue o título/conteúdo via Data Table
+            mapeada de <code>GlobalText</code> e aplique as mesmas larguras
+            definidas em <code>NewUICustomMessageBox::Create</code> (280 px
+            padrão).
+          </li>
+        </ul>
+      </details>
+    </section>
+
+    <section id="cinematics-direcao">
+      <h2>Cinematics, Direção de Câmera e Sequências Guiadas</h2>
+      <p>
+        O cliente original combina <code>MovieScene</code>,
+        <code>CDirection</code> e arquivos dedicados (ex. <code>CKANTURUDirection.cpp</code>)
+        para introduções de mapas e eventos especiais. A UE5 deve usar
+        <code>Level Sequence</code> e <code>Cinematic Camera</code>, mas
+        mantendo tempos, velocidades e bloqueios herdados.
+      </p>
+      <div class="grid-2">
+        <div class="source-card">
+          <div class="source-meta">Cliente &mdash; <code>CDirection</code></div>
+          <pre><code>VectorCopy(Hero-&gt;Object.Position, m_v1stPosition);
+VectorNormalize(m_vResult);
+VectorScale(m_vResult, m_fCount, vTemp);
+m_fCount += m_fCameraSpeed;
+if(m_fLength &lt;= VectorLength(vTemp)) {
+    VectorCopy(m_v2ndPosition, m_vCameraPosition);
+    m_bAction = true;
+}</code></pre>
+        </div>
+        <div class="source-card">
+          <div class="source-meta">Cliente &mdash; <code>MovieScene</code></div>
+          <pre><code>if(FAILED(CoCreateInstance(CLSID_FilterGraph,...))) {
+    m_bFailDirectShow = TRUE;
+    return;
+}
+OpenMovieTxt(MOVIE_FILE_TXT);
+Initialize_DirectShow(hWnd, szFileName);</code></pre>
+        </div>
+      </div>
+      <h3>Procedimento na UE5</h3>
+      <ol>
+        <li>
+          Catalogar sequências existentes (<code>CMVP1stDirection</code>,
+          <code>CKANTURUDirection</code>, <code>NewUIKanturuEvent</code>) e
+          registrar duração/câmera no <em>Sequencer Backlog</em> do projeto.
+        </li>
+        <li>
+          Criar <code>Level Sequence</code> por evento e importar as
+          keyframes para um <code>Cine Camera Actor</code>. Configure a
+          velocidade do plano deslocando o eixo conforme o vetor calculado no
+          código (distância entre <code>m_v1stPosition</code> e
+          <code>m_v2ndPosition</code> dividido por <code>m_fCameraSpeed</code>).
+        </li>
+        <li>
+          Montar um <code>BP_CinematicDirector</code> que fecha widgets via
+          <code>g_pNewUISystem-&gt;HideAll</code> equivalente (chamar
+          <code>WBP_HUD_Master-&gt;SetVisibility(Hidden)</code>) antes da
+          reprodução e restaura após <code>OnFinished</code> da sequência.
+        </li>
+        <li>
+          Substituir vídeos <code>*.wmv</code> gerenciados por
+          <code>MovieScene</code> por <code>Media Source</code> no UE5.
+          Utilize <code>MediaPlayer</code> + <code>MediaTexture</code> com
+          blueprint <code>BP_MediaOverlay</code> para replicar telas de
+          abertura, mantendo controle de repetição (<code>m_iPlayNum</code>).
+        </li>
+        <li>
+          Adicionar gatilhos de backend para sincronizar eventos (ex. envio
+          de <code>GCEventState</code>) após a conclusão da cinematic usando
+          a mesma ordem observada em <code>CKANTURUDirection::KanturuAllDirection</code>.
+        </li>
+      </ol>
+      <div class="callout">
+        <strong>Checklist:</strong> verifique se as câmeras mantêm FOV e
+        limites de clipping equivalentes (<code>m_fCameraViewFar = 1000</code>)
+        e se os efeitos chamados em <code>ZzzEffect</code> são disparados via
+        <code>Gameplay Cue</code> durante as sequências.
+      </div>
+    </section>
+
+    <section id="portal-movimento">
+      <h2>Portais, Warp e Fluxo de Movimentação</h2>
+      <p>
+        O sistema de teleporte envolve UI, dados binários e regras de
+        servidor. Converta <code>MoveCommandData</code>,
+        <code>NewUIMoveCommandWindow</code> e <code>Move.cpp</code> para uma
+        abordagem baseada em <code>Data Tables</code> e serviços HTTP sem
+        perder restrições de nível, custo e gating.
+      </p>
+      <div class="matrix-wrapper">
+        <table class="matrix">
+          <thead>
+            <tr>
+              <th>Elemento</th>
+              <th>Fonte Legada</th>
+              <th>Comportamento</th>
+              <th>Conversão UE5</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>Lista de warp</td>
+              <td><code>MoveCommandData.cpp</code></td>
+              <td>
+                Lê arquivo binário criptografado com <code>BuxConvert</code>,
+                armazenando <code>MOVEREQINFO</code> (índice, custo,
+                requisitos).
+              </td>
+              <td>
+                Decodificar arquivo usando script C++/Python reproduzindo o
+                XOR <code>{0xFC,0xCF,0xAB}</code> e importar para
+                <code>DT_MoveCommand</code> (Index, Name, Money, LevelMin,
+                LevelMax, Reset, Gate).
+              </td>
+            </tr>
+            <tr>
+              <td>Interface</td>
+              <td><code>NewUIMoveCommandWindow.cpp</code></td>
+              <td>
+                Renderiza lista com barras horizontais; bloqueia interação
+                quando jogador está em transação.
+              </td>
+              <td>
+                Criar <code>WBP_MoveCommand</code> com <code>ListView</code>
+                populado a partir de <code>DT_MoveCommand</code>. Desabilitar
+                itens quando <code>BP_PlayerState.bIsTrading</code> estiver
+                ativo, replicando <code>Interface.use</code>.
+              </td>
+            </tr>
+            <tr>
+              <td>Validação servidor</td>
+              <td><code>Move.cpp</code> &amp; <code>Gate.cpp</code></td>
+              <td>
+                Verifica nível/reset/money e mensagens via
+                <code>gNotice.GCNoticeSend</code> antes de mover o jogador.
+              </td>
+              <td>
+                Implementar endpoint <code>POST /warp</code> que carrega as
+                mesmas regras. Retornar códigos equivalentes (224, 230, 231)
+                para traduzir no cliente com Data Table de mensagens.
+              </td>
+            </tr>
+            <tr>
+              <td>Portais especiais</td>
+              <td><code>GlobalPortalSystem.cpp</code></td>
+              <td>
+                Integra com launcher via registro/IPC para autorizar warps
+                globais.
+              </td>
+              <td>
+                Substituir por serviço de autenticação WebSocket que valida
+                tokens antes de liberar destinos globais. <code>BP_ServerGateway</code>
+                deve solicitar token e anexar ao <code>POST /warp</code>.
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <h3>Passo a Passo</h3>
+      <ol>
+        <li>
+          Extrair <code>MoveReq.bmd</code>/<code>.bin</code> da pasta de
+          dados e executar utilitário para gerar CSV com colunas legadas.
+        </li>
+        <li>
+          Popular <code>Data Table</code> UE5 e criar Blueprint
+          <code>BP_WarpManager</code> responsável por filtrar entradas por
+          mapa atual e requisitos atendidos.
+        </li>
+        <li>
+          No backend moderno, converter <code>gGate.GetMoveLevel</code> e
+          demais auxiliares em serviços que consultam a mesma tabela de
+          gates, preservando custos e destinos.
+        </li>
+        <li>
+          Reproduzir mensagens do servidor configurando
+          <code>DT_Notices</code> com IDs usados em <code>gMessage.GetMessage</code>
+          para exibir o texto correto no widget.
+        </li>
+        <li>
+          Registrar teleporte bem-sucedido em telemetria (equivalente ao
+          log <code>LogAddTD</code>) e atualizar mapa atual no
+          <code>BP_PlayerState</code> antes de carregar streaming level.
+        </li>
+      </ol>
+    </section>
+
+
     <section id="backend">
       <h2>Trilha de Modernização Backend</h2>
       <p>
@@ -6150,6 +6501,170 @@ Event OnResponseReceived(Request, Response, bWasSuccessful)
         <li>Configurar pipelines CI/CD para servidor e cliente, garantindo builds reproduzíveis.</li>
       </ul>
     </section>
+
+    <section id="matchmaking-instancias">
+      <h2>Instâncias, Matchmaking e Observadores</h2>
+      <p>
+        Esta trilha cobre desde o <strong>Party Matching</strong> até duelos,
+        arenas e filas automatizadas. Todas as instruções foram cruzadas com
+        os arquivos em <code>Source Main 5.2/source</code> e
+        <code>Source MuServer Update 15/GameServer/GameServer</code> para
+        garantir paridade funcional na UE5.
+      </p>
+
+      <details class="guia" open>
+        <summary>Party Matching &mdash; Lobby Cooperativo</summary>
+        <div class="grid-2">
+          <div>
+            <h4>Legado</h4>
+            <ul>
+              <li>
+                <code>PartyMatching.cpp</code> processa inserção/listagem via
+                mensagens <code>0xEF</code> (<code>CGPartyMatchingInsertRecv</code>,
+                <code>CGPartyMatchingListRecv</code>), com validações de
+                interface (<code>INTERFACE_PARTY</code>) e estado
+                <code>UsePartyMatching</code>.
+              </li>
+              <li>
+                <code>NewUIPartyListWindow.cpp</code> exibe entradas com
+                colunas de nível, classe e senha (
+                <code>PTL_LINE_HEIGHT = 13</code>), além do botão de convite.
+              </li>
+              <li>
+                <code>Queue.cpp</code> e <code>QueueTimer.cpp</code> mantêm a
+                lista de solicitações pendentes para aprovação do líder.
+              </li>
+            </ul>
+          </div>
+          <div class="source-card">
+            <div class="source-meta">Servidor &mdash; <code>PartyMatching.cpp</code></div>
+            <pre><code>if(lpObj-&gt;Interface.use != 0 && lpObj-&gt;Interface.type == INTERFACE_PARTY) {
+    pMsg.result = 0xFFFFFFFE;
+    DataSend(aIndex,(BYTE*)&pMsg,pMsg.header.size);
+    return;
+}
+this-&gt;GDPartyMatchingInsertSend(aIndex, lpMsg-&gt;text, ...);</code></pre>
+          </div>
+        </div>
+        <h4>Conversão UE5</h4>
+        <ol>
+          <li>
+            Criar <code>DT_PartyMatching</code> importando campos do pacote
+            (Nome, MinLevel, MaxLevel, Classe desejada) e usar em
+            <code>WBP_PartyMatching</code> com <code>ListView</code> e filtros
+            equivalentes aos botões de <code>NewUIPartyListWindow</code>.
+          </li>
+          <li>
+            Substituir pacotes <code>0xEF</code> por endpoints REST:
+            <code>POST /party-matching</code>, <code>GET /party-matching</code>,
+            <code>POST /party-matching/{id}/apply</code>. Inclua flags de
+            senha e aprovação como no <code>GDPartyMatchingJoinInsertSend</code>.
+          </li>
+          <li>
+            Replicar travas de interface: antes de abrir o modal na UE5,
+            verificar <code>BP_InterfaceState</code> para impedir uso durante
+            comércio, warp ou duel, refletindo as condições
+            <code>Interface.use</code>.
+          </li>
+          <li>
+            Implementar <code>BP_PartyMatchingGateway</code> que mantém fila
+            local para notificações e consulta periódica (a cada 5 s) como o
+            <code>QueueTimer</code> original.
+          </li>
+        </ol>
+      </details>
+
+      <details class="guia">
+        <summary>Duelos, Arenas e Observadores</summary>
+        <div class="grid-2">
+          <div>
+            <h4>Fontes Principais</h4>
+            <ul>
+              <li><code>Duel.cpp</code> e <code>DuelMgr.cpp</code> (regras de vitórias, estado da sala).</li>
+              <li><code>BattleGround.cpp</code> (sincronização de arenas e uso de <code>BattleGround::CheckBattleGround</code>).</li>
+              <li>
+                <code>NewUIDuelWindow.cpp</code> e a família
+                <code>NewUIDuelWatch*.cpp</code> definindo layout dos painéis,
+                inclusive lista de espectadores em 120×20 px.
+              </li>
+            </ul>
+          </div>
+          <div class="source-card">
+            <div class="source-meta">Servidor &mdash; <code>Duel.cpp</code></div>
+            <pre><code>if((lpTarget-&gt;Interface.use != 0 && lpTarget-&gt;Interface.type != INTERFACE_DUEL) || lpTarget-&gt;DuelUser != -1)
+{
+    this-&gt;DGCAnsDuelRequestSend(aIndex,0);
+    return;
+}</code></pre>
+          </div>
+        </div>
+        <h4>Passos para a UE5</h4>
+        <ol>
+          <li>
+            Criar <code>BP_DuelController</code> que envia
+            <code>POST /duel/request</code> e aguarda resposta via WebSocket
+            (<code>DuelStateUpdated</code>). Bloquear outras interfaces
+            atualizando o <code>Subsystem</code> de estado global.
+          </li>
+          <li>
+            Montar <code>WBP_DuelHUD</code> com barras de vida e cronômetro de
+            3 minutos, consumindo Data Table derivada de
+            <code>NewUIDuelWindow</code> para posicionamento de elementos.
+          </li>
+          <li>
+            Implementar <code>WBP_DuelWatch</code> com <code>ListView</code>
+            replicando <code>NewUIDuelWatchUserListWindow</code>. Atualizar via
+            eventos do backend quando novos espectadores entrarem.
+          </li>
+          <li>
+            Manter logs de duelo com o mesmo conteúdo de
+            <code>LogAddTD</code>, enviando para o serviço de telemetria
+            (<code>POST /logs/duel</code>) após cada encerramento.
+          </li>
+        </ol>
+      </details>
+
+      <details class="guia">
+        <summary>Eventos Competitivos &amp; Filas Automatizadas</summary>
+        <p>
+          Os eventos como <em>EventPvP</em>, <em>EventGvG</em>,
+          <em>EventPartyVsParty</em> e <em>Double Goer</em> usam o mesmo
+          agendamento de <code>ScheduleManager.cpp</code> e a fila global
+          (<code>Queue.cpp</code>). Mantenha os gatilhos e recompensas.
+        </p>
+        <ul>
+          <li>
+            Converter scripts de agendamento para jobs em um serviço
+            (<code>SchedulerService</code>) que emite mensagens para o
+            <code>GameServerService</code> moderno. Referencie os horários de
+            <code>EventStart.cpp</code> e <code>EventQuickly.cpp</code>.
+          </li>
+          <li>
+            Reutilizar as tabelas de recompensa (<code>QuestReward.cpp</code>,
+            <code>LuckyCoin.cpp</code>) em <code>Data Assets</code> UE5 para
+            mostrar prévias de prêmio no UI do evento.
+          </li>
+          <li>
+            Implementar <code>BP_InstanceQueue</code> para gerenciar a ordem
+            de entrada, chamando <code>POST /events/{id}/queue</code> e
+            aguardando <code>EventQueueUpdated</code> via WebSocket, similar
+            ao broadcast feito em <code>QueueTimer::CheckQueueTime</code>.
+          </li>
+          <li>
+            Para instâncias com fases (ex.: Illusion Temple), use Level
+            Streaming em conjunto com dados de <code>IllusionTemple.cpp</code>
+            para posicionar objetivos e timers idênticos.
+          </li>
+        </ul>
+        <div class="callout">
+          <strong>Dica:</strong> centralize métricas de filas e matchups no
+          painel de operações. O servidor legado grava esses dados via
+          <code>LogAddTD</code>; replique o envio para monitorar tempos de
+          espera e taxa de abandono.
+        </div>
+      </details>
+    </section>
+
 
     <section id="social-guildas">
       <h2>Guia de Recriação — Sistemas Sociais e Guildas</h2>
