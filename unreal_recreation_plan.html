@@ -1792,6 +1792,14 @@ info.Y = lpMemScript->GetAsNumber();</code></pre></div>
               Blueprints de notificação reutilizando ícones originais.
             </li>
             <li>
+              <strong>Gens &amp; Rivalidade</strong> — <code>GensSystem.cpp</code>, <code>Viewport.cpp</code>
+              (<code>GCViewportGensSystemSend</code>), <code>Guild.cpp</code>, <code>NpcTalk.cpp</code>
+              (stewards Duprian/Varnert) e widgets <code>NewUIGensRanking.cpp</code>.
+              Garanta Data Tables com contribuições, ranks e bloqueios de guild/party conforme
+              <code>ServerInfo.h</code> (<code>m_GensSystem*</code>) para que o backend UE5 aplique
+              recompensas equivalentes.
+            </li>
+            <li>
               <strong>Rankings &amp; Competitivo</strong> — <code>NewUIGensRanking.cpp</code>,
               <code>NewUIBattleSoccerScore.cpp</code>, <code>GMBattleCastle.cpp</code>.
               Modele serviços de leaderboard (REST/GraphQL) e widgets de ranking com atualizações
@@ -1878,6 +1886,11 @@ info.Y = lpMemScript->GetAsNumber();</code></pre></div>
               Recrie vitrines em UMG e conecte a serviços de pagamento seguros, incluindo pré-visualização 3D.
             </li>
             <li>
+              <strong>Serviços de NPC</strong> — <code>NpcTalk.cpp</code>, <code>Shop.cpp</code>,
+              <code>QuestWorld.cpp</code>, planilhas em <code>Data/Shop/</code>, <code>Data/Quest/</code> e <code>Data/QuestWorld/</code>.
+              Reconstrua diálogos, listas de itens e requisitos convertendo estas tabelas para <code>Data Tables</code>
+              e conectando widgets UMG a microserviço de NPC.</li>
+            <li>
               <strong>Ferramentas de Administração</strong> — <code>Tools/MuEditor MuEmu</code>, scripts <code>ScriptSql/</code>,
               logs em <code>GameServer/LOG</code>.
               Planeje painéis web ou dashboards no Unreal Insights para monitorar economia e ajustar tabelas sem downtime.
@@ -1892,6 +1905,16 @@ info.Y = lpMemScript->GetAsNumber();</code></pre></div>
               <code>ProtectSysKey.cpp</code>.
               Substitua por serviços modernos de monitoramento, registrando telemetria via <code>Gameplay Event Router</code>.
             </li>
+            <li>
+              <strong>Painel de Opções</strong> — <code>NewUIOptionWindow.cpp</code>, <code>NewUIHotKey.cpp</code>,
+              <code>NewUIMoveCommandWindow.cpp</code>.
+              Migre sliders, toggles e atalhos para Common UI + <code>Enhanced Input</code>, persistindo valores
+              com <code>USaveGame</code> e replicando limites de câmera/som.</li>
+            <li>
+              <strong>Comandos Slash</strong> — <code>CommandManager.cpp</code>, <code>Command.cpp</code>,
+              <code>Data/Command.txt</code>.
+              Recrie <code>ChatCommandService</code> validando níveis de permissão (GM, master, party leader)
+              e exponha eventos blueprint para macros e automações.</li>
             <li>
               <strong>Certificação &amp; Launcher</strong> — <code>GCCertification.cpp</code>, <code>LauncherHelper.cpp</code>.
               Integre verificação de build com pipeline CI/CD e exponha status no menu inicial UE5.
@@ -2931,6 +2954,7 @@ Delegate OnInventoryReceived(Itens)
         <button class="conversion-button" data-pane="character-select">Seleção de Personagens</button>
         <button class="conversion-button" data-pane="mobs">Sistema de Mobs</button>
         <button class="conversion-button" data-pane="skills">Sistema de Skills</button>
+        <button class="conversion-button" data-pane="social">Party, Guild &amp; Gens</button>
         <button class="conversion-button" data-pane="maps">Mapas e Navegação</button>
         <button class="conversion-button" data-pane="effects">Efeitos Visuais</button>
         <button class="conversion-button" data-pane="backend">Backend &amp; Serviços</button>
@@ -3773,6 +3797,139 @@ Function ApplySkillResponse (Payload)
             <li>Buffs exclusivos (ex.: Soul Barrier) devem impedir múltiplas instâncias simultâneas assim como <code>SearchEffect</code>.</li>
             <li>Habilidades de mobs reutilizam o mesmo pipeline com perfis automáticos gerados a partir de <code>MonsterSkillManager.cpp</code>.</li>
             <li>Registre métricas de latência de cast para ajustar tolerâncias de cancelamento.</li>
+          </ul>
+        </div>
+      </article>
+
+      <article class="conversion-pane" data-pane="social">
+        <h3>Party, Guild e Sistema Gens</h3>
+        <p>
+          A camada social original combina UI em <code>NewUIPartyListWindow.cpp</code>/<code>NewUIPartyInfoWindow.cpp</code>,
+          gerenciamento de guildas no cliente e protocolos do servidor em <code>Party.cpp</code>,
+          <code>Guild.cpp</code>, <code>GuildMatching.cpp</code> e <code>GensSystem.cpp</code>.
+          Esta aba mostra como espelhar convites, gerenciamento e rivalidades Gens na UE5 reaproveitando
+          assets e regras herdadas.
+        </p>
+        <div class="source-card">
+          <div class="source-meta">Cliente &mdash; <code>Source Main 5.2/source/NewUIPartyListWindow.cpp</code></div>
+          <pre><code>if( CheckMouseIn( m_Pos.x, m_Pos.y+iVal, PARTY_LIST_WINDOW_WIDTH, PARTY_LIST_WINDOW_HEIGHT) )
+{
+        m_iSelectedCharacter = i;
+
+        if( SelectedCharacter==-1) {
+                CHARACTER *c = &CharactersClient[Party[i].index];
+                if( c && c != Hero ) {
+                        CreateChat ( c->ID, "", c );
+                }
+        }
+
+        if( SelectCharacterInPartyList( &Party[i] ) )
+        {
+                return true;
+        }
+}</code></pre>
+        </div>
+        <div class="source-card">
+          <div class="source-meta">Servidor &mdash; <code>Source MuServer Update 15/GameServer/GameServer/Party.cpp</code></div>
+          <pre><code>if(this->m_PartyInfo[count].Count == 0)
+{
+        gObj[aIndex].PartyNumber = count;
+        this->m_PartyInfo[count].Count = 1;
+        this->m_PartyInfo[count].Index[0] = aIndex;
+
+        for(int i=1;i < MAX_PARTY_USER;i++)
+        {
+                this->m_PartyInfo[count].Index[i] = -1;
+        }
+        this->GCPartyListSend(count);
+        this->m_PartyCount = (((++this->m_PartyCount)>=MAX_OBJECT)?0:this->m_PartyCount);
+        return 1;
+}</code></pre>
+        </div>
+        <div class="source-card">
+          <div class="source-meta">Servidor &mdash; <code>Source MuServer Update 15/GameServer/GameServer/Guild.cpp</code></div>
+          <pre><code>if(lpTarget->GuildNumber == 0)
+{
+        this->GCGuildResultSend(aIndex,4);
+        return;
+}
+
+if(strcmp(lpTarget->Guild->Names[0],lpTarget->Name) != 0)
+{
+        this->GCGuildResultSend(aIndex,4);
+        return;
+}
+
+if(lpObj->Interface.use != 0 || lpTarget->Interface.use != 0)
+{
+        this->GCGuildResultSend(aIndex,6);
+        return;
+}</code></pre>
+        </div>
+        <div class="source-card">
+          <div class="source-meta">Servidor &mdash; <code>Source MuServer Update 15/GameServer/GameServer/GensSystem.cpp</code></div>
+          <pre><code>pMsg.header.set(0xF8,0x07,sizeof(pMsg));
+pMsg.GensFamily = lpObj->GensFamily;
+pMsg.GensRank = ((lpObj->GensContribution>=10000)?lpObj->GensRank:0);
+pMsg.GensSymbol = lpObj->GensSymbol;
+pMsg.GensContribution = lpObj->GensContribution;
+pMsg.GensNextContribution = lpObj->GensNextContribution;
+DataSend(lpObj->Index,(BYTE*)&pMsg,pMsg.header.size);</code></pre>
+        </div>
+        <h4>Passos para a UE5</h4>
+        <ol>
+          <li><strong>Assets:</strong> converta <code>Source Main 5.2/bin/Data/Interface/newui_Party_Back.ozt</code>,
+            <code>newui_Party_X.ozt</code>, <code>newui_Party_Lifebar*.ozj</code> e ícones de guilda para <code>.png</code>.
+            Posicione-os em <code>WBP_PartyPanel</code> com o espaçamento <code>m_iVal = 24</code> preservado.</li>
+          <li><strong>Subsystem:</strong> crie <code>UPartySubsystem</code> em C++ ou Blueprint contendo arrays
+            <code>FPartyMember</code> e eventos multicast (<code>OnPartyUpdated</code>) seguindo as estruturas
+            de <code>m_PartyInfo</code>.</li>
+          <li><strong>Protocolos:</strong> mapeie chamadas <code>/party/create</code>, <code>/party/invite</code>,
+            <code>/party/kick</code> para microserviço que reproduz <code>Party.cpp</code> (máx. membros em
+            <code>gServerInfo.m_PartyMaxMembers</code>). Use <code>Gameplay Message Router</code> para notificar HUD.</li>
+          <li><strong>Party Matching:</strong> importe regras de <code>PartyMatching.cpp</code> e
+            <code>Data/Custom/CustomMove.txt</code> para criar um widget de busca com filtros (nível, mapa, Gens).</li>
+          <li><strong>Guild:</strong> construa <code>UGuildSubsystem</code> que mantém <code>GuildRank</code>,
+            <code>Members</code> e <code>Alliance</code>. Implementar validações de convite conforme
+            <code>CGGuildRequestRecv</code> e atualize banners convertendo emblemas (<code>GuildMark.bmp</code>) para
+            <code>Runtime Virtual Texture</code>.</li>
+          <li><strong>Gens:</strong> crie <code>UGensService</code> que consulta endpoints <code>/gens/member</code>,
+            <code>/gens/rank</code> e aplica bloqueios de guild/party baseando-se em <code>ServerInfo.h</code>
+            (<code>m_GensSystemGuildLock</code>, <code>m_GensSystemPartyLock</code>). Renderize contribuições
+            na HUD usando dados da resposta e os ícones originais <code>newui_gens_*.ozj</code>.</li>
+          <li><strong>Viewport:</strong> sincronize badges de rivalidade utilizando <code>BP_GensIndicatorComponent</code>
+            que recebe <code>GensFamily</code>, <code>GensRank</code>, <code>GensSymbol</code> tal como
+            <code>GCViewportGensSystemSend</code> envia.</li>
+        </ol>
+        <h4>Blueprint resumido</h4>
+        <pre><code>// BP_SocialSubsystem
+Event InitializeSubsystem()
+  PartyService.Bind("/party/update", HandlePartyUpdate)
+  GuildService.Bind("/guild/update", HandleGuildUpdate)
+  GensService.Bind("/gens/member", HandleGensUpdate)
+
+Function InviteToParty(TargetId)
+  HTTP POST /party/invite { target = TargetId }
+
+Function HandlePartyUpdate(Payload)
+  PartyMembers = Payload.Members
+  OnPartyUpdated.Broadcast(PartyMembers)
+  HUD.PartyPanel.Refresh(PartyMembers)
+
+Function HandleGensUpdate(Payload)
+  CurrentGens = Payload.Family
+  CurrentContribution = Payload.Contribution
+  HUD.UpdateGensBadge(CurrentGens, CurrentContribution)</code></pre>
+        <div class="callout">
+          <strong>Checklist:</strong>
+          <ul>
+            <li>Valide limites de slots conforme <code>MAX_PARTYS</code> e <code>MAX_GUILD_USER</code>.</li>
+            <li>Reaplique filtros de convite (estado da interface, mapas bloqueados) iguais aos retornos
+              do servidor legado (<code>result = 4/5/6</code>).</li>
+            <li>Incorpore comandos <code>/party</code>, <code>/guild</code>, <code>/gens</code> lendo
+              <code>Data/Command.txt</code> e expondo atalhos no chat.</li>
+            <li>Capture telemetria por evento (convites aceitos, expulsões, troca de família) e envie para o painel
+              descrito em “Operações, Telemetria”.</li>
           </ul>
         </div>
       </article>
@@ -4625,6 +4782,141 @@ ExecuteTask()
           <li>Persistência de evolução validada com testes de reconexão.</li>
         </ul>
       </details>
+    </section>
+
+    <section id="comandos-seguranca">
+      <h2>Guia de Recriação — Comandos, Opções e Segurança</h2>
+      <p>
+        O cliente legado mistura atalhos personalizados, comandos <em>slash</em> e filtros anti-cheat
+        para proteger a experiência. Esta seção descreve como migrar o fluxo completo para UE5,
+        mantendo a compatibilidade com os arquivos de configuração e tabelas originais.
+      </p>
+      <div class="grid-3">
+        <div class="card">
+          <h3>Comandos Slash</h3>
+          <p><strong>Referência:</strong> <code>CommandManager.cpp</code>, <code>Command.cpp</code>,
+            <code>Data/Command.txt</code>.</p>
+          <ul>
+            <li>Converter <code>Data/Command.txt</code> para <code>DT_CommandCatalog</code> com campos
+              <code>Label</code>, <code>Permission</code>, <code>Arguments</code>.</li>
+            <li>Implementar <code>BP_CommandParser</code> replicando <code>GetNumber/GetString</code>
+              para extrair argumentos.</li>
+            <li>Criar microserviço <code>CommandService</code> que executa as ações (
+              <code>/move</code>, <code>/reset</code>, <code>/post</code>) com validações de permissão
+              iguais a <code>CommandManager::CheckAuthority</code>.</li>
+            <li>Emitir feedback no chat usando os mesmos códigos de mensagem (<code>gMessage.GetMessage</code>).</li>
+          </ul>
+        </div>
+        <div class="card">
+          <h3>Painel de Opções</h3>
+          <p><strong>Referência:</strong> <code>NewUIOptionWindow.cpp</code>,
+            <code>NewUIHotKey.cpp</code>, <code>NewUIMoveCommandWindow.cpp</code>.</p>
+          <ul>
+            <li>Mapear controles originais (sensibilidade, som, filtros de chat) para <code>CommonUI</code>
+              usando <code>WBP_OptionsMenu</code>.</li>
+            <li>Persistir valores em <code>USaveGame</code> com a mesma granularidade (slots para macro A–Z,
+              câmera mínima/máxima, filtros de drop).</li>
+            <li>Expor API <code>/profile/options</code> para sincronizar preferências entre dispositivos.</li>
+            <li>Reutilizar ícones e sliders convertendo <code>Interface/newui_option_*.ozj</code>.</li>
+          </ul>
+        </div>
+        <div class="card">
+          <h3>Filtros &amp; Anti-cheat</h3>
+          <p><strong>Referência:</strong> <code>Filter.cpp</code>, <code>HackPacketCheck.cpp</code>,
+            <code>HackCheck.cpp</code>, arquivos <code>Data/Hack/*.txt</code>.</p>
+          <ul>
+            <li>Transformar <code>HackPacketCheck.txt</code> e <code>HackSkillCheck.txt</code> em regras JSON
+              consumidas por um serviço <code>SecurityService</code>.</li>
+            <li>Aplicar sanitação de chat replicando <code>CFilter::CheckSyntax</code> antes de exibir mensagens.</li>
+            <li>Registrar eventos suspeitos (packet flood, skill inválido) e bloquear temporariamente a conta,
+              enviando métricas para o painel de telemetria.</li>
+            <li>Integração opcional com soluções modernas (EOS, GameShield) mantendo o fallback legado.</li>
+          </ul>
+        </div>
+      </div>
+      <div class="source-card">
+        <div class="source-meta">Servidor &mdash; <code>Source MuServer Update 15/GameServer/GameServer/CommandManager.cpp</code></div>
+        <pre><code>void CCommandManager::MainProc()
+{
+        for(int n=OBJECT_START_USER;n < MAX_OBJECT;n++)
+        {
+                if(gObjIsConnectedGP(n) == 0)
+                {
+                        continue;
+                }
+
+                if(gObj[n].AutoAddPointCount > 0)
+                {
+                        this->CommandAddPointAutoProc(&gObj[n]);
+                }
+
+                if(gObj[n].AutoResetEnable != 0)
+                {
+                        this->CommandResetAutoProc(&gObj[n]);
+                }
+        }
+}</code></pre>
+      </div>
+      <div class="source-card">
+        <div class="source-meta">Servidor &mdash; <code>Source MuServer Update 15/GameServer/GameServer/Filter.cpp</code></div>
+        <pre><code>void CFilter::CheckSyntax(char* text)
+{
+        for(int n=0;n < this->m_count;n++)
+        {
+                char* temp = text;
+
+                while(true)
+                {
+                        temp = strstr(temp,this->m_FilterInfo[n].label);
+
+                        if(temp == 0)
+                        {
+                                break;
+                        }
+
+                        int len = strlen(this->m_FilterInfo[n].label);
+
+                        memset(temp,0x2A,len);
+
+                        temp += len;
+                }
+        }
+}</code></pre>
+      </div>
+      <div class="source-card">
+        <div class="source-meta">Servidor &mdash; <code>Source MuServer Update 15/GameServer/GameServer/HackPacketCheck.cpp</code></div>
+        <pre><code>info.Index = lpMemScript->GetNumber();
+info.Value = lpMemScript->GetAsNumber();
+info.Encrypt = lpMemScript->GetAsNumber();
+info.MaxDelay = lpMemScript->GetAsNumber();
+info.MinCount = lpMemScript->GetAsNumber();
+info.MaxCount = lpMemScript->GetAsNumber();
+this->SetInfo(info);</code></pre>
+      </div>
+      <h4>Blueprint &amp; Fluxo de Segurança</h4>
+      <pre class="code-card"><code>// BP_CommandParser
+Event OnChatSubmitted(Text)
+  If Text.StartsWith("/")
+    Parsed ← ParseCommand(Text)
+    HTTP_Post("/command/execute", Parsed, OnCommandResult)
+  Else
+    ChatGateway.SendMessage(Text)
+
+Function OnSecurityAlert(AlertPayload)
+  HUD.ShowWarning(AlertPayload.Message)
+  If AlertPayload.Action == "kick"
+    ClientTravel(LoginMap)
+
+SecurityService.Bind("/security/alert", OnSecurityAlert)</code></pre>
+      <div class="checklist">
+        <p><strong>Checklist de Segurança</strong></p>
+        <ul>
+          <li>Todos os comandos disponíveis respeitam permissões de <code>Data/Command.txt</code>.</li>
+          <li>Logs auditáveis para uso de comandos, mudanças de opções e bloqueios temporários.</li>
+          <li>Alertas de hack acionam respostas automáticas e registram pacotes para investigação.</li>
+          <li>Opções persistidas sincronizam com o backend e carregam ao entrar no jogo.</li>
+        </ul>
+      </div>
     </section>
 
     <section id="pvp-arenas">
