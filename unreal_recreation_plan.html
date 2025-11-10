@@ -138,6 +138,124 @@
       font-size: 1.2rem;
       color: var(--azul-escuro);
     }
+    .layout {
+      display: grid;
+      grid-template-columns: 280px minmax(0, 1fr);
+      gap: 2.25rem;
+      align-items: flex-start;
+    }
+    .navigator {
+      background: #ffffff;
+      border-radius: 18px;
+      box-shadow: 0 18px 48px rgba(18, 58, 99, 0.12);
+      padding: 1.75rem 1.4rem;
+      position: sticky;
+      top: 1.75rem;
+      display: grid;
+      gap: 1.35rem;
+      border: 1px solid rgba(12, 141, 217, 0.12);
+    }
+    .navigator h2 {
+      margin: 0;
+      font-size: 1.25rem;
+      color: var(--azul-escuro);
+    }
+    .nav-description {
+      font-size: 0.95rem;
+      color: #425168;
+      margin: 0;
+    }
+    .nav-group {
+      border-top: 1px solid rgba(18, 58, 99, 0.08);
+      padding-top: 1rem;
+      display: grid;
+      gap: 0.65rem;
+    }
+    .nav-group:first-of-type {
+      border-top: none;
+      padding-top: 0;
+    }
+    .nav-phase {
+      font-size: 0.78rem;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--cinza);
+      font-weight: 700;
+    }
+    .navigator ul {
+      list-style: none;
+      margin: 0;
+      padding: 0;
+      display: grid;
+      gap: 0.45rem;
+    }
+    .navigator li {
+      margin: 0;
+    }
+    .navigator a {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.45rem;
+      font-size: 0.96rem;
+      color: #1f2a3a;
+      text-decoration: none;
+      padding: 0.35rem 0.45rem;
+      border-radius: 10px;
+      transition: background 0.2s ease, color 0.2s ease;
+    }
+    .navigator a::before {
+      content: "";
+      width: 6px;
+      height: 6px;
+      border-radius: 999px;
+      background: rgba(12, 141, 217, 0.35);
+      display: inline-block;
+    }
+    .navigator a:hover,
+    .navigator a:focus {
+      background: rgba(12, 141, 217, 0.12);
+      color: var(--azul-escuro);
+    }
+    .content-flow {
+      display: grid;
+      gap: 2rem;
+    }
+    .journey-map {
+      margin: 2.5rem 0 1rem;
+      display: grid;
+      gap: 1.2rem;
+    }
+    .journey-row {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 1rem;
+    }
+    .journey-card {
+      background: rgba(12, 141, 217, 0.06);
+      border-radius: 14px;
+      padding: 1.1rem 1rem 1.2rem;
+      border: 1px solid rgba(12, 141, 217, 0.16);
+      display: grid;
+      gap: 0.55rem;
+    }
+    .journey-card strong {
+      color: var(--azul-escuro);
+      font-size: 0.95rem;
+    }
+    .journey-card ul {
+      margin: 0;
+      padding-left: 1rem;
+      font-size: 0.9rem;
+    }
+    .journey-card a {
+      color: var(--azul);
+      text-decoration: none;
+      font-weight: 600;
+    }
+    .journey-card a:hover,
+    .journey-card a:focus {
+      text-decoration: underline;
+    }
     .status-flag {
       display: inline-flex;
       align-items: center;
@@ -777,12 +895,27 @@
       color: #60718b;
       font-size: 0.95rem;
     }
+    @media (max-width: 1180px) {
+      .layout {
+        grid-template-columns: 1fr;
+      }
+      .navigator {
+        position: static;
+        order: -1;
+      }
+    }
     @media (max-width: 720px) {
       section {
         padding: 2.1rem 1.6rem;
       }
       .interactive-panel {
         padding: 1.3rem 1.2rem;
+      }
+      .navigator {
+        padding: 1.25rem 1rem;
+      }
+      .journey-row {
+        grid-template-columns: 1fr;
       }
     }
   </style>
@@ -796,7 +929,77 @@
     </p>
   </header>
   <main>
-    <section id="resumo">
+    <div class="layout">
+      <aside class="navigator" id="navigator">
+        <div>
+          <h2>Mapa de Navegação</h2>
+          <p class="nav-description">
+            Avance pelas fases na ordem sugerida e abra as seções principais com um clique. Use este painel como guia rápido
+            para alternar entre frontend, backend e conteúdo avançado.
+          </p>
+        </div>
+        <div class="nav-group">
+          <span class="nav-phase">Fase 0 · Kick-off</span>
+          <ul>
+            <li><a href="#resumo">Sequência recomendada</a></li>
+            <li><a href="#roadmap-integrado">Linha do tempo integrada</a></li>
+            <li><a href="#cronograma">Cronograma de 16 semanas</a></li>
+          </ul>
+        </div>
+        <div class="nav-group">
+          <span class="nav-phase">Fase 1 · Mapeamento legado</span>
+          <ul>
+            <li><a href="#atlas">Atlas completo</a></li>
+            <li><a href="#paridade">Verificação de paridade</a></li>
+            <li><a href="#codigo-main-muserver">Estudo das fontes</a></li>
+            <li><a href="#catalogo-modulos">Catálogo de módulos</a></li>
+          </ul>
+        </div>
+        <div class="nav-group">
+          <span class="nav-phase">Fase 2 · Fundamentos jogáveis</span>
+          <ul>
+            <li><a href="#etapas">Etapas de reconstrução</a></li>
+            <li><a href="#guias-frontend">Interfaces &amp; HUD</a></li>
+            <li><a href="#item-system-encyclopedia">Sistema de itens</a></li>
+            <li><a href="#mob-system-atlas">Sistemas de mobs</a></li>
+            <li><a href="#skill-system-guide">Sistemas de skills</a></li>
+            <li><a href="#blueprints">Blueprints essenciais</a></li>
+          </ul>
+        </div>
+        <div class="nav-group">
+          <span class="nav-phase">Fase 3 · Integração técnica</span>
+          <ul>
+            <li><a href="#frontend-backend">Gateway UE5 ⇄ Serviços</a></li>
+            <li><a href="#backend">Serviços modernos</a></li>
+            <li><a href="#codigo-detalhado">Código legado detalhado</a></li>
+            <li><a href="#modulos-expandido">Matriz de módulos</a></li>
+          </ul>
+        </div>
+        <div class="nav-group">
+          <span class="nav-phase">Fase 4 · Conteúdo avançado</span>
+          <ul>
+            <li><a href="#social-guildas">Social, guildas &amp; gens</a></li>
+            <li><a href="#economia-lojas">Economia e lojas</a></li>
+            <li><a href="#eventos-liveops">Eventos &amp; live ops</a></li>
+            <li><a href="#crafting-refino">Crafting e reforço</a></li>
+            <li><a href="#montarias-pets">Montarias e pets</a></li>
+            <li><a href="#missoes_eventos">Missões &amp; rankings</a></li>
+            <li><a href="#pvp-arenas">PvP, arenas e guerras</a></li>
+            <li><a href="#operacoes_avancadas">Operações avançadas</a></li>
+            <li><a href="#comandos-seguranca">Comandos e segurança</a></li>
+          </ul>
+        </div>
+        <div class="nav-group">
+          <span class="nav-phase">Fase 5 · Garantia &amp; operação</span>
+          <ul>
+            <li><a href="#garantia-funcionamento">Garantia UE5</a></li>
+            <li><a href="#verificacoes">Checklist de validação</a></li>
+            <li><a href="#qa-operacoes">QA &amp; operações</a></li>
+          </ul>
+        </div>
+      </aside>
+      <div class="content-flow">
+        <section id="resumo">
       <h2>Sequência Recomendada de Implementação</h2>
       <p>
         Foque em <strong>importação controlada dos assets</strong>, seguido de uma <strong>base funcional de interface e inventário</strong>,
@@ -817,6 +1020,60 @@
         <button type="button" id="verPlano">Ver ordem sugerida</button>
         <div class="interactive-output" id="saidaPlano">
           Selecione um foco e clique em <strong>Ver ordem sugerida</strong> para receber um roteiro imediato.
+        </div>
+      </div>
+      <div class="journey-map">
+        <div class="journey-row">
+          <div class="journey-card">
+            <strong>Fase 0 · Kick-off</strong>
+            <ul>
+              <li><a href="#resumo">Checklist inicial</a></li>
+              <li><a href="#roadmap-integrado">Roadmap integrado</a></li>
+              <li><a href="#cronograma">Cronograma detalhado</a></li>
+            </ul>
+          </div>
+          <div class="journey-card">
+            <strong>Fase 1 · Mapeamento</strong>
+            <ul>
+              <li><a href="#atlas">Atlas do cliente e servidor</a></li>
+              <li><a href="#paridade">Tabela de paridade</a></li>
+              <li><a href="#codigo-main-muserver">Referências de código</a></li>
+            </ul>
+          </div>
+          <div class="journey-card">
+            <strong>Fase 2 · Fundamentos jogáveis</strong>
+            <ul>
+              <li><a href="#etapas">Ordem das etapas</a></li>
+              <li><a href="#item-system-encyclopedia">Itens &amp; inventário</a></li>
+              <li><a href="#mob-system-atlas">Mobs e progressão</a></li>
+            </ul>
+          </div>
+        </div>
+        <div class="journey-row">
+          <div class="journey-card">
+            <strong>Fase 3 · Integração técnica</strong>
+            <ul>
+              <li><a href="#frontend-backend">Gateway cliente ⇄ servidor</a></li>
+              <li><a href="#backend">Serviços modernos</a></li>
+              <li><a href="#codigo-detalhado">Protocolos e pacotes</a></li>
+            </ul>
+          </div>
+          <div class="journey-card">
+            <strong>Fase 4 · Conteúdo avançado</strong>
+            <ul>
+              <li><a href="#social-guildas">Social e guildas</a></li>
+              <li><a href="#economia-lojas">Economia &amp; lojas</a></li>
+              <li><a href="#pvp-arenas">PvP e eventos especiais</a></li>
+            </ul>
+          </div>
+          <div class="journey-card">
+            <strong>Fase 5 · Garantia &amp; operações</strong>
+            <ul>
+              <li><a href="#garantia-funcionamento">Matriz de testes</a></li>
+              <li><a href="#verificacoes">Checklists finais</a></li>
+              <li><a href="#qa-operacoes">Telemetria e suporte</a></li>
+            </ul>
+          </div>
         </div>
       </div>
       <div class="grid-3" style="margin-top: 2rem;">
@@ -2080,145 +2337,6 @@ this->InsertItemNew(ItemIndex, ItemLevel, ItemDurability, ..., Socket5, ItemValu
           </ol>
         </details>
       </article>
-    </section>
-
-    <section id="garantia-funcionamento">
-      <h2>Garantia de Funcionamento UE5 (Frontend + Backend)</h2>
-      <p>
-        As instruções abaixo consolidam o estudo do cliente <code>Source Main 5.2</code> e do servidor
-        <code>MuServer_Season_5_Update_15</code> em um roteiro de verificação prática. Utilize este
-        painel para confirmar, a cada entrega, que as Blueprints UE5 reproduzem o comportamento dos
-        executáveis originais e que os novos microserviços respeitam o protocolo legado.
-      </p>
-
-      <div class="assurance-grid">
-        <div class="assurance-card">
-          <span class="status-flag">Frontend UE5</span>
-          <h3>Checklist de Blueprint</h3>
-          <ul>
-            <li>Reimportou HUD, inventário e minimapa usando offsets definidos em <code>NewUI*</code> dentro de <code>Source Main 5.2/source</code>.</li>
-            <li>Construiu <code>WBP_Login</code>, <code>WBP_CharacterSelect</code>, <code>WBP_HUD_Root</code> e <code>WBP_Inventory</code> respeitando sprites originais em <code>Source Main 5.2/bin/Data</code>.</li>
-            <li>Verificou animações de feedback (HP/MP, XP, drop) replicando <code>RenderBitmap</code> e <code>g_pRenderText</code> com materiais UE5.</li>
-            <li>Validou drag &amp; drop e tooltips convertendo lógica de <code>CNewUIInventoryCtrl</code> e <code>CNewUIItemExplanationWindow</code>.</li>
-            <li>Confirmou que Blueprints de mobs e skills usam dados de <code>Data/Monster/MonsterSetBase.txt</code> e <code>Data/Skill/Skill.txt</code> via <code>Data Tables</code>.</li>
-          </ul>
-        </div>
-        <div class="assurance-card">
-          <span class="status-flag">Backend Moderno</span>
-          <h3>Checklist de Serviços</h3>
-          <ul>
-            <li>Implementou gateways que traduzem <code>Protocol.cpp</code> para REST/WebSocket (<code>/auth/login</code>, <code>/character/list</code>, <code>/inventory/move</code>).</li>
-            <li>Replicou validações de <code>ItemManager.cpp</code>, <code>Trade.cpp</code> e <code>ShopManager.cpp</code> antes de persistir.</li>
-            <li>Reutilizou tabelas SQL em <code>MuServer_Season_5_Update_15/ScriptSql</code> garantindo campos compatíveis com <code>GameServer</code>.</li>
-            <li>Automatizou carga de arquivos <code>Data/</code> (itens, monstros, eventos) com scripts do diretório <code>tools/</code> (ex.: <code>tools/item_converter</code>).</li>
-            <li>Configurou auditoria e logs inspirados em <code>LogAddTD</code> para cada endpoint crítico.</li>
-          </ul>
-        </div>
-        <div class="assurance-card">
-          <span class="status-flag">Integração</span>
-          <h3>Checklist de Sincronização</h3>
-          <ul>
-            <li>Back-end envia mensagens WebSocket equivalentes a <code>GCInventoryItemOneSend</code>, <code>GCLevelUpSend</code> e <code>GCDropItemSend</code>.</li>
-            <li>UE5 consome respostas reproduzindo estados de interface (<code>NewUIMessageBox</code>, <code>NewUIChatWindow</code>) sem divergência visual.</li>
-            <li>Testes de carga de mobs garantem respawn conforme <code>MonsterAIElement.cpp</code> e timers <code>gQueueTimer</code>.</li>
-            <li>XP e recompensas validam contra <code>ExperienceTable.txt</code> e <code>BonusManager.cpp</code>.</li>
-            <li>Economia e cash shop respeitam limites de <code>CCashShop::LoadCashItemList</code> e <code>CNewUINPCShop::Load</code>.</li>
-          </ul>
-        </div>
-      </div>
-
-      <h3>Validação Cruzada por Sistema</h3>
-      <table class="matrix">
-        <thead>
-          <tr>
-            <th>Sistema</th>
-            <th>Fonte Legada</th>
-            <th>Verificação UE5</th>
-            <th>Respaldo Backend</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr>
-            <td>Login &amp; Seleção</td>
-            <td><code>CLoginWin.cpp</code>, <code>NewUICharSel.cpp</code>, <code>JoinServer/JoinServer.cpp</code></td>
-            <td>Executar <em>PIE</em> com <code>WBP_Login</code> ➝ <code>WBP_CharacterSelect</code> e validar animações de foco e bloqueios por classe.</td>
-            <td>Microserviço <code>/auth/login</code> replica <code>MD5Encryption</code> e lista personagens a partir de <code>Character</code> (SQL).</td>
-          </tr>
-          <tr>
-            <td>Inventário &amp; Drops</td>
-            <td><code>CNewUIInventoryCtrl.cpp</code>, <code>ItemManager.cpp</code>, <code>CItemDrop.cpp</code></td>
-            <td>Blueprint <code>WBP_Inventory</code> confirma slots 8×8 em (15,200) e tooltips conforme categoria.</td>
-            <td>Serviço <code>/inventory/move</code> aplica verificações <code>INVENTORY_FULL_RANGE</code> e notifica via WebSocket.</td>
-          </tr>
-          <tr>
-            <td>Mobs, Respawn &amp; XP</td>
-            <td><code>MonsterSetBase.txt</code>, <code>MonsterAIElement.cpp</code>, <code>ExperienceTable.txt</code></td>
-            <td><code>BP_MobSpawner</code> lê <code>Data Table</code> convertida e atualiza HUD (barra de XP, drop preview).</td>
-            <td>Serviço <code>/mob/spawn</code> controla timers e envia <code>GCMonsterDieSend</code> com XP calculado.</td>
-          </tr>
-          <tr>
-            <td>Skills &amp; Combos</td>
-            <td><code>SkillManager.cpp</code>, <code>ComboSkill.cpp</code>, <code>SkillEffectMgr.cpp</code></td>
-            <td>Blueprints de habilidade usam <code>Gameplay Ability System</code> com custos, delays e efeitos Niagara idênticos.</td>
-            <td>Endpoint <code>/skill/cast</code> valida pré-requisitos e envia <code>GCMagicAttackSend</code>/<code>GCComboSkillSend</code>.</td>
-          </tr>
-          <tr>
-            <td>Economia &amp; Lojas</td>
-            <td><code>CNewUINPCShop.cpp</code>, <code>ShopManager.cpp</code>, <code>CCashShop.cpp</code></td>
-            <td>Widgets UE5 replicam abas, filtros e animações de compra (sons/FX reutilizados de <code>Data/Sound</code>).</td>
-            <td>Microserviço <code>/shop/purchase</code> aplica limites de estoque, logs e saldo de Zen/Cash como no legado.</td>
-          </tr>
-        </tbody>
-      </table>
-
-      <details class="guia" open>
-        <summary>Ordem de Smoke Test (Front + Back)</summary>
-        <ol>
-          <li><strong>Inicialização:</strong> Execute o servidor gateway e serviços (Auth, Character, Inventory, Drop) verificando conexões com o banco legado convertido.</li>
-          <li><strong>Cliente PIE:</strong> Abra o mapa <code>L_Login.umap</code>, autentique-se e avance até o mapa de lobby validando mensagens recebidas.</li>
-          <li><strong>Inventário:</strong> Spawne um item via comando <code>/item</code> no backend e confirme atualização em tela e persistência.</li>
-          <li><strong>Combate:</strong> Derrote mobs configurados no <code>MonsterSetBase</code> convertido e confirme XP, drops e atualizações de ranking.</li>
-          <li><strong>Economia:</strong> Realize compra/venda em NPC e cash shop garantindo sincronização de saldo e logs.</li>
-        </ol>
-      </details>
-
-      <details class="guia">
-        <summary>Checklist de Falhas Comuns e Correções</summary>
-        <ul>
-          <li><strong>HUD desalinhada:</strong> Revise âncoras e escalas aplicando valores de <code>RenderImage</code> do legado.</li>
-          <li><strong>Itens sumindo:</strong> Certifique-se de que o backend aplica <code>IsDropBan</code> e bloqueios de transação antes de remover do inventário.</li>
-          <li><strong>XP divergente:</strong> Compare curva carregada na UE5 com <code>g_MonsterExperienceRate</code> e <code>ExperienceTable.txt</code>.</li>
-          <li><strong>Skills sem efeito:</strong> Verifique se a <code>Ability</code> UE5 dispara <code>GameplayCue</code> equivalente a <code>SkillEffectMgr</code>.</li>
-          <li><strong>Compras duplicadas:</strong> Habilite locks transacionais seguindo <code>ShopManager::CGShopItemSellRecv</code>.</li>
-        </ul>
-      </details>
-
-      <div class="checklist">
-        <label>
-          <input type="checkbox" />
-          <span><strong>Logs comparados:</strong> Exportou <code>LogAddTD</code> original e comparou com registros estruturados do backend novo.</span>
-        </label>
-        <label>
-          <input type="checkbox" />
-          <span><strong>Paridade visual:</strong> Capturou screenshots UE5 e cliente legado confirmando correspondência de coordenadas UI.</span>
-        </label>
-        <label>
-          <input type="checkbox" />
-          <span><strong>Eventos críticos:</strong> Validou login, criação de personagem, queda de servidor e rollback com scripts automatizados.</span>
-        </label>
-      </div>
-
-      <h3>Procedimento de Certificação Final</h3>
-      <ol>
-        <li>Executar bateria de testes GAuntlet/Functional Tests e Postman collections refletindo o protocolo <code>Protocol.cpp</code>.</li>
-        <li>Comparar métricas de performance (tick, CPU, memória) com dados coletados do GameServer original.</li>
-        <li>Revisar manualmente os principais fluxos (login ➝ seleção ➝ mapa ➝ combate ➝ loja) com equipe multidisciplinar.</li>
-        <li>Congelar dados de configuração (<code>Data/*.txt</code>, SQL) e gerar relatórios assinados de paridade antes do lançamento.</li>
-      </ol>
-
-      <div class="callout">
-        <strong>Dica:</strong> mantenha um build de referência do cliente original para comparar comportamentos lado a lado em cada entrega da UE5. Utilize captures de pacotes (Wireshark) para validar que tokens, códigos de erro e sequências seguem os mesmos padrões observados no MuServer.
-      </div>
     </section>
 
     <section id="modulos-expandido">
@@ -4653,6 +4771,145 @@ with Client(base_url="https://api.seu-jogo.com") as http:
       </article>
     </section>
 
+    <section id="garantia-funcionamento">
+      <h2>Garantia de Funcionamento UE5 (Frontend + Backend)</h2>
+      <p>
+        As instruções abaixo consolidam o estudo do cliente <code>Source Main 5.2</code> e do servidor
+        <code>MuServer_Season_5_Update_15</code> em um roteiro de verificação prática. Utilize este
+        painel para confirmar, a cada entrega, que as Blueprints UE5 reproduzem o comportamento dos
+        executáveis originais e que os novos microserviços respeitam o protocolo legado.
+      </p>
+
+      <div class="assurance-grid">
+        <div class="assurance-card">
+          <span class="status-flag">Frontend UE5</span>
+          <h3>Checklist de Blueprint</h3>
+          <ul>
+            <li>Reimportou HUD, inventário e minimapa usando offsets definidos em <code>NewUI*</code> dentro de <code>Source Main 5.2/source</code>.</li>
+            <li>Construiu <code>WBP_Login</code>, <code>WBP_CharacterSelect</code>, <code>WBP_HUD_Root</code> e <code>WBP_Inventory</code> respeitando sprites originais em <code>Source Main 5.2/bin/Data</code>.</li>
+            <li>Verificou animações de feedback (HP/MP, XP, drop) replicando <code>RenderBitmap</code> e <code>g_pRenderText</code> com materiais UE5.</li>
+            <li>Validou drag &amp; drop e tooltips convertendo lógica de <code>CNewUIInventoryCtrl</code> e <code>CNewUIItemExplanationWindow</code>.</li>
+            <li>Confirmou que Blueprints de mobs e skills usam dados de <code>Data/Monster/MonsterSetBase.txt</code> e <code>Data/Skill/Skill.txt</code> via <code>Data Tables</code>.</li>
+          </ul>
+        </div>
+        <div class="assurance-card">
+          <span class="status-flag">Backend Moderno</span>
+          <h3>Checklist de Serviços</h3>
+          <ul>
+            <li>Implementou gateways que traduzem <code>Protocol.cpp</code> para REST/WebSocket (<code>/auth/login</code>, <code>/character/list</code>, <code>/inventory/move</code>).</li>
+            <li>Replicou validações de <code>ItemManager.cpp</code>, <code>Trade.cpp</code> e <code>ShopManager.cpp</code> antes de persistir.</li>
+            <li>Reutilizou tabelas SQL em <code>MuServer_Season_5_Update_15/ScriptSql</code> garantindo campos compatíveis com <code>GameServer</code>.</li>
+            <li>Automatizou carga de arquivos <code>Data/</code> (itens, monstros, eventos) com scripts do diretório <code>tools/</code> (ex.: <code>tools/item_converter</code>).</li>
+            <li>Configurou auditoria e logs inspirados em <code>LogAddTD</code> para cada endpoint crítico.</li>
+          </ul>
+        </div>
+        <div class="assurance-card">
+          <span class="status-flag">Integração</span>
+          <h3>Checklist de Sincronização</h3>
+          <ul>
+            <li>Back-end envia mensagens WebSocket equivalentes a <code>GCInventoryItemOneSend</code>, <code>GCLevelUpSend</code> e <code>GCDropItemSend</code>.</li>
+            <li>UE5 consome respostas reproduzindo estados de interface (<code>NewUIMessageBox</code>, <code>NewUIChatWindow</code>) sem divergência visual.</li>
+            <li>Testes de carga de mobs garantem respawn conforme <code>MonsterAIElement.cpp</code> e timers <code>gQueueTimer</code>.</li>
+            <li>XP e recompensas validam contra <code>ExperienceTable.txt</code> e <code>BonusManager.cpp</code>.</li>
+            <li>Economia e cash shop respeitam limites de <code>CCashShop::LoadCashItemList</code> e <code>CNewUINPCShop::Load</code>.</li>
+          </ul>
+        </div>
+      </div>
+
+      <h3>Validação Cruzada por Sistema</h3>
+      <table class="matrix">
+        <thead>
+          <tr>
+            <th>Sistema</th>
+            <th>Fonte Legada</th>
+            <th>Verificação UE5</th>
+            <th>Respaldo Backend</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Login &amp; Seleção</td>
+            <td><code>CLoginWin.cpp</code>, <code>NewUICharSel.cpp</code>, <code>JoinServer/JoinServer.cpp</code></td>
+            <td>Executar <em>PIE</em> com <code>WBP_Login</code> ➝ <code>WBP_CharacterSelect</code> e validar animações de foco e bloqueios por classe.</td>
+            <td>Microserviço <code>/auth/login</code> replica <code>MD5Encryption</code> e lista personagens a partir de <code>Character</code> (SQL).</td>
+          </tr>
+          <tr>
+            <td>Inventário &amp; Drops</td>
+            <td><code>CNewUIInventoryCtrl.cpp</code>, <code>ItemManager.cpp</code>, <code>CItemDrop.cpp</code></td>
+            <td>Blueprint <code>WBP_Inventory</code> confirma slots 8×8 em (15,200) e tooltips conforme categoria.</td>
+            <td>Serviço <code>/inventory/move</code> aplica verificações <code>INVENTORY_FULL_RANGE</code> e notifica via WebSocket.</td>
+          </tr>
+          <tr>
+            <td>Mobs, Respawn &amp; XP</td>
+            <td><code>MonsterSetBase.txt</code>, <code>MonsterAIElement.cpp</code>, <code>ExperienceTable.txt</code></td>
+            <td><code>BP_MobSpawner</code> lê <code>Data Table</code> convertida e atualiza HUD (barra de XP, drop preview).</td>
+            <td>Serviço <code>/mob/spawn</code> controla timers e envia <code>GCMonsterDieSend</code> com XP calculado.</td>
+          </tr>
+          <tr>
+            <td>Skills &amp; Combos</td>
+            <td><code>SkillManager.cpp</code>, <code>ComboSkill.cpp</code>, <code>SkillEffectMgr.cpp</code></td>
+            <td>Blueprints de habilidade usam <code>Gameplay Ability System</code> com custos, delays e efeitos Niagara idênticos.</td>
+            <td>Endpoint <code>/skill/cast</code> valida pré-requisitos e envia <code>GCMagicAttackSend</code>/<code>GCComboSkillSend</code>.</td>
+          </tr>
+          <tr>
+            <td>Economia &amp; Lojas</td>
+            <td><code>CNewUINPCShop.cpp</code>, <code>ShopManager.cpp</code>, <code>CCashShop.cpp</code></td>
+            <td>Widgets UE5 replicam abas, filtros e animações de compra (sons/FX reutilizados de <code>Data/Sound</code>).</td>
+            <td>Microserviço <code>/shop/purchase</code> aplica limites de estoque, logs e saldo de Zen/Cash como no legado.</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <details class="guia" open>
+        <summary>Ordem de Smoke Test (Front + Back)</summary>
+        <ol>
+          <li><strong>Inicialização:</strong> Execute o servidor gateway e serviços (Auth, Character, Inventory, Drop) verificando conexões com o banco legado convertido.</li>
+          <li><strong>Cliente PIE:</strong> Abra o mapa <code>L_Login.umap</code>, autentique-se e avance até o mapa de lobby validando mensagens recebidas.</li>
+          <li><strong>Inventário:</strong> Spawne um item via comando <code>/item</code> no backend e confirme atualização em tela e persistência.</li>
+          <li><strong>Combate:</strong> Derrote mobs configurados no <code>MonsterSetBase</code> convertido e confirme XP, drops e atualizações de ranking.</li>
+          <li><strong>Economia:</strong> Realize compra/venda em NPC e cash shop garantindo sincronização de saldo e logs.</li>
+        </ol>
+      </details>
+
+      <details class="guia">
+        <summary>Checklist de Falhas Comuns e Correções</summary>
+        <ul>
+          <li><strong>HUD desalinhada:</strong> Revise âncoras e escalas aplicando valores de <code>RenderImage</code> do legado.</li>
+          <li><strong>Itens sumindo:</strong> Certifique-se de que o backend aplica <code>IsDropBan</code> e bloqueios de transação antes de remover do inventário.</li>
+          <li><strong>XP divergente:</strong> Compare curva carregada na UE5 com <code>g_MonsterExperienceRate</code> e <code>ExperienceTable.txt</code>.</li>
+          <li><strong>Skills sem efeito:</strong> Verifique se a <code>Ability</code> UE5 dispara <code>GameplayCue</code> equivalente a <code>SkillEffectMgr</code>.</li>
+          <li><strong>Compras duplicadas:</strong> Habilite locks transacionais seguindo <code>ShopManager::CGShopItemSellRecv</code>.</li>
+        </ul>
+      </details>
+
+      <div class="checklist">
+        <label>
+          <input type="checkbox" />
+          <span><strong>Logs comparados:</strong> Exportou <code>LogAddTD</code> original e comparou com registros estruturados do backend novo.</span>
+        </label>
+        <label>
+          <input type="checkbox" />
+          <span><strong>Paridade visual:</strong> Capturou screenshots UE5 e cliente legado confirmando correspondência de coordenadas UI.</span>
+        </label>
+        <label>
+          <input type="checkbox" />
+          <span><strong>Eventos críticos:</strong> Validou login, criação de personagem, queda de servidor e rollback com scripts automatizados.</span>
+        </label>
+      </div>
+
+      <h3>Procedimento de Certificação Final</h3>
+      <ol>
+        <li>Executar bateria de testes GAuntlet/Functional Tests e Postman collections refletindo o protocolo <code>Protocol.cpp</code>.</li>
+        <li>Comparar métricas de performance (tick, CPU, memória) com dados coletados do GameServer original.</li>
+        <li>Revisar manualmente os principais fluxos (login ➝ seleção ➝ mapa ➝ combate ➝ loja) com equipe multidisciplinar.</li>
+        <li>Congelar dados de configuração (<code>Data/*.txt</code>, SQL) e gerar relatórios assinados de paridade antes do lançamento.</li>
+      </ol>
+
+      <div class="callout">
+        <strong>Dica:</strong> mantenha um build de referência do cliente original para comparar comportamentos lado a lado em cada entrega da UE5. Utilize captures de pacotes (Wireshark) para validar que tokens, códigos de erro e sequências seguem os mesmos padrões observados no MuServer.
+      </div>
+    </section>
+
     <section id="verificacoes">
       <h2>Painel de Decisão Rápida</h2>
       <div class="timeline">
@@ -5808,6 +6065,8 @@ Event HandleMatchReady(MatchInfo)
         </div>
       </div>
     </section>
+      </div>
+    </div>
   </main>
   <footer>
     Atualize este guia conforme novas descobertas na migração. Marque o progresso no checklist e use os exemplos de Blueprint como base para acelerar as próximas etapas.
