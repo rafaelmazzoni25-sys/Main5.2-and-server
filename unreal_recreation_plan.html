@@ -2560,6 +2560,39 @@ this->InsertItemNew(ItemIndex, ItemLevel, ItemDurability, ..., Socket5, ItemValu
             </li>
           </ul>
         </article>
+        <article class="module-category">
+          <h3>Comunicação Global, Sessão &amp; Recuperação</h3>
+          <ul class="module-list">
+            <li>
+              <strong>Avisos &amp; News Board</strong> — <code>Notice.cpp</code>, <code>NewsProtocol.cpp</code>,
+              <code>ZzzInterface.cpp</code>, <code>NewUINoticeWindow.cpp</code>.
+              Modele um serviço de broadcast que recebe mensagens formatadas do backend (REST/WebSocket) e
+              popula widgets UMG com múltiplas linhas conforme <code>NOTICE Notice[MAX_NOTICE]</code>.
+            </li>
+            <li>
+              <strong>Lista de Servidores &amp; Fila</strong> — <code>ServerDisplayer.cpp</code>, <code>Queue.cpp</code>,
+              <code>QueueTimer.cpp</code>, <code>ConnectServer/ServerListManager.cpp</code>.
+              Reproduza a vitrine de shards usando <code>CommonUI ListView</code>, aplicando timers para atualização de
+              população e integrando um microserviço de fila compatível com o estado original.
+            </li>
+            <li>
+              <strong>Reconexão Segura</strong> — <code>Reconnect.cpp</code>, <code>SocketConnection.cpp</code>,
+              <code>ProtocolCore.cpp</code> (cliente) e <code>GameServer/Connection.cpp</code>.
+              Implemente sessão resumível em UE5 com <code>Gameplay Session Subsystem</code>, persistindo <code>LastGameServerCode</code>
+              e restaurando inventário/posição após queda.</li>
+            <li>
+              <strong>Mensageria &amp; Logs</strong> — <code>Message.cpp</code>, <code>Log.cpp</code>, <code>ConsoleDebug.cpp</code>,
+              <code>MiniDump.cpp</code>.
+              Conecte Blueprints a um serviço de logging estruturado, replicando filtros <code>LogAddTD</code> e
+              criando equivalentes UE5 para dump automático e console overlay de debug.
+            </li>
+            <li>
+              <strong>Extensões Scriptadas</strong> — diretório <code>lua/</code>, <code>Custom*.cpp</code> que expõem hooks,
+              <code>Event*.txt</code>.
+              Avalie portar scripts críticos para <code>UnrealPython</code> ou <code>Verse</code> e criar módulos plugináveis
+              que espelham o pipeline de customização do servidor.</li>
+          </ul>
+        </article>
       </div>
     </section>
 
@@ -2645,6 +2678,19 @@ this->InsertItemNew(ItemIndex, ItemLevel, ItemDurability, ..., Socket5, ItemValu
               <li>Exiba notificações usando <code>CommonNotificationQueue</code> reaproveitando sons <code>DSplaysound.cpp</code>.</li>
             </ol>
             <p class="dependency"><strong>Dependências:</strong> Serviços de chat em <code>GameServer/Protocols</code>, <code>PartyManager.cpp</code>, <code>GuildManager.cpp</code>.</p>
+          </div>
+          <div class="catalog-card">
+            <h4>Avisos Globais &amp; Painel de News</h4>
+            <p class="path"><strong>Legado:</strong> <code>Notice.cpp</code>, <code>NewsProtocol.cpp</code>, <code>ZzzInterface.cpp</code>, <code>NewUINoticeWindow.cpp</code>, <code>GlobalText.h</code>.</p>
+            <p><strong>Objetivo:</strong> Replicar banners, mensagens rotativas e alertas em tempo real.</p>
+            <ol class="step-list">
+              <li>Converta sprites de molduras e ícones do diretório <code>Data/Interface/Notice</code> para <code>Slate Brush</code> reutilizável.</li>
+              <li>Implemente <code>WBP_NoticeTicker</code> com <code>ScrollBox</code> reproduzindo o ciclo de <code>NOTICE Notice[MAX_NOTICE]</code> carregado em <code>ZzzInterface.cpp</code>.</li>
+              <li>Crie <code>UNoticeSubsystem</code> que conecta ao endpoint WebSocket <code>/broadcast</code> emitindo eventos equivalentes a <code>GCNoticeSend</code>.</li>
+              <li>Mapeie níveis de severidade (info, warning, alert) replicando flags de <code>NoticeType</code> e aplicando cores condicionais em UMG.</li>
+              <li>Permita que GMs publiquem avisos via painel administrativo chamando o serviço backend inspirado em <code>NewsProtocol::GDReqNewsSend</code>.</li>
+            </ol>
+            <p class="dependency"><strong>Dependências:</strong> Gateway broadcast REST/WebSocket, assets de áudio <code>DSPlaySound</code>, controles CommonUI.</p>
           </div>
           <div class="catalog-card">
             <h4>MiniMapa &amp; Guias de Navegação</h4>
@@ -2798,6 +2844,19 @@ this->InsertItemNew(ItemIndex, ItemLevel, ItemDurability, ..., Socket5, ItemValu
               <li>Notifique GameServers via fila (RabbitMQ/Kafka) imitando <code>JoinServer &rarr; GameServer</code> handshake.</li>
             </ol>
             <p class="dependency"><strong>Dependências:</strong> <code>ConnectServer</code>, banco <code>MuOnline</code>, tabelas de bloqueio.</p>
+          </div>
+          <div class="catalog-card">
+            <h4>Broadcast, Fila &amp; Reconexão</h4>
+            <p class="path"><strong>Legado:</strong> <code>Notice.cpp</code>, <code>NewsProtocol.cpp</code>, <code>Queue.cpp</code>, <code>QueueTimer.cpp</code>, <code>Reconnect.cpp</code>, <code>ServerDisplayer.cpp</code>.</p>
+            <p><strong>Objetivo:</strong> Sustentar avisos globais, filas concorridas e retomada de sessão.</p>
+            <ol class="step-list">
+              <li>Crie microserviço <code>broadcast-service</code> que recebe requisições <code>POST /notice</code> e retransmite via WebSocket seguindo formato <code>PMSG_NOTICE_SEND</code>.</li>
+              <li>Implemente <code>queue-service</code> em memória/Redis persistindo posição e prioridade inspiradas em <code>gQueue</code> e <code>QueueTimer</code>.</li>
+              <li>Disponibilize endpoint <code>/session/recover</code> que reaplica <code>ReconnectUser</code> restaurando personagem, inventário e mapa.</li>
+              <li>Integre métricas de carga (players online, vagas) replicando <code>ServerDisplayer::MakeServerList</code> para alimentar o launcher/HUD.</li>
+              <li>Automatize testes simulando quedas de rede para garantir que a reconexão siga os limites de <code>Reconnect.cpp</code> (<code>RECONNECT_TICK</code>, <code>MAX_RECONNECT</code>).</li>
+            </ol>
+            <p class="dependency"><strong>Dependências:</strong> Serviços Auth/Session, banco <code>MuOnline</code> (tabela <code>MEMB_STAT</code>), WebSocket Gateway.</p>
           </div>
           <div class="catalog-card">
             <h4>GameServer Core</h4>
@@ -4991,6 +5050,72 @@ case 0x17: // Item drop
           <li><strong>Ranking e eventos:</strong> atualize endpoints <code>/events/active</code> e <code>/ranking/{categoria}</code>. Use <code>Async Task Blueprint Proxy</code> para popular painéis sem travar o game thread.</li>
           <li><strong>Persistência de skills:</strong> sempre sincronize cooldowns e buffs no backend para evitar divergências entre clientes.</li>
         </ul>
+        <h4>Broadcast de Avisos &amp; Painel de News</h4>
+        <div class="grid-2">
+          <div class="source-card">
+            <div class="source-meta">Servidor &mdash; <code>GameServer/GameServer/Notice.cpp</code></div>
+            <pre><code>void NoticeSendToAll(PMSG_NOTICE_SEND* lpNotice)
+{
+    for(int n=OBJ_STARTUSERINDEX;n&lt;MAX_OBJECT;n++)
+    {
+        if(gObj[n].Connected == PLAYER_PLAYING)
+        {
+            DataSend(n, (BYTE*)lpNotice, lpNotice->header.size);
+        }
+    }
+}</code></pre>
+          </div>
+          <div class="source-card">
+            <div class="source-meta">Cliente &mdash; <code>Source Main 5.2/source/ZzzInterface.cpp</code></div>
+            <pre><code>NOTICE Notice[MAX_NOTICE];
+void AddNotice(char* Text, BYTE type, BYTE Count)
+{
+    memcpy(Notice[NoticeCount].Text, Text, sizeof(Notice[0].Text));
+    Notice[NoticeCount].Type = type;
+    Notice[NoticeCount].Count = Count;
+    NoticeCount++;
+}</code></pre>
+          </div>
+        </div>
+        <ol>
+          <li>Implemente <code>broadcast-service</code> com rotas <code>POST /notice</code>, <code>GET /notice</code> e canal WebSocket <code>/ws/notice</code> que empacota mensagens no formato <code>PMSG_NOTICE_SEND</code>.</li>
+          <li>No UE5, crie <code>UNoticeSubsystem</code> que abre o WebSocket, desserializa <code>NoticeType</code> e preenche um <code>Queue</code> limitado a seis entradas como no cliente original.</li>
+          <li>Reaproveite sprites/sons importados para exibir avisos dentro de <code>WBP_NoticeTicker</code>, aplicando timers equivalentes a <code>Notice[i].Count</code> para esconder entradas.</li>
+          <li>Ofereça endpoint administrativo seguro que dispara o broadcast (uso de GMs) reproduzindo permissões verificadas em <code>CommandManager.cpp</code> (flag <code>gObjIsGameMaster</code>).</li>
+          <li>Persistir histórico de avisos críticos em banco/document store para auditoria seguindo o padrão de <code>LogAddTD</code>.</li>
+        </ol>
+        <h4>Fila de Login &amp; Reconexão</h4>
+        <div class="grid-2">
+          <div class="source-card">
+            <div class="source-meta">Servidor &mdash; <code>GameServer/GameServer/Queue.cpp</code></div>
+            <pre><code>void CQueue::Add(int index)
+{
+    if( this->IsFull() == 0 )
+    {
+        this->m_index[this->m_count++] = index;
+    }
+}</code></pre>
+          </div>
+          <div class="source-card">
+            <div class="source-meta">Servidor &mdash; <code>GameServer/GameServer/Reconnect.cpp</code></div>
+            <pre><code>bool gReconnect.UpdateUser(int aIndex)
+{
+    if( (GetTickCount()-this->ReconnectTime[aIndex]) &lt; RECONNECT_TICK )
+    {
+        this->ReconnectTime[aIndex] = GetTickCount();
+        return true;
+    }
+    return false;
+}</code></pre>
+          </div>
+        </div>
+        <ol>
+          <li>Desenvolva <code>queue-service</code> mantendo arrays circulares e limites (<code>QUEUE_SIZE</code>) equivalentes; exponha <code>GET /queue/status</code> para o launcher.</li>
+          <li>Implemente <code>POST /queue/enqueue</code> e <code>/queue/dequeue</code> processados por <em>workers</em> que respeitam prioridades (VIP, GM) usando regras de <code>Queue.cpp</code> e <code>BonusManager.cpp</code>.</li>
+          <li>Para reconexão, mantenha cache distribuído (Redis) com chaves <code>session:{AccountId}</code> que armazenam mapa, coordenada e inventário; expirar conforme <code>MAX_RECONNECT_TIME</code>.</li>
+          <li>No cliente UE5, <code>UGameInstance</code> tenta <code>/session/recover</code> ao detectar <code>OnConnectionLost</code>, reaplicando o snapshot recebido e atualizando a HUD.</li>
+          <li>Automatize testes derrubando a conexão (simule <code>SocketConnection</code> falha) e assegure que o serviço devolva o jogador à mesma posição antes do <em>timeout</em>.</li>
+        </ol>
       </article>
 
       <article class="conversion-pane" data-pane="qa">
@@ -5079,6 +5204,11 @@ with Client(base_url="https://api.seu-jogo.com") as http:
               (<code>NewUINPCShop.cpp</code>, <code>NewUITrade.cpp</code>) com os cards de
               <a href="#social-guildas">Social</a> e <a href="#economia-lojas">Economia</a>.
             </li>
+            <li>
+              Confirme que <code>WBP_NoticeTicker</code>, <code>WBP_ServerQueue</code> e <code>UNoticeSubsystem</code> refletem
+              o comportamento de <code>Notice.cpp</code>, <code>ZzzInterface.cpp</code>, <code>Queue.cpp</code> e
+              <code>Reconnect.cpp</code>, inclusive limites de slots e timers herdados.
+            </li>
           </ul>
         </article>
 
@@ -5108,6 +5238,11 @@ with Client(base_url="https://api.seu-jogo.com") as http:
               <code>GameServer/GameServer/Trade.cpp</code>) no serviço de economia detalhado em
               <a href="#economia-lojas">Economia e lojas</a>.
             </li>
+            <li>
+              Publique microserviços de broadcast/fila/reconexão seguindo <code>Notice.cpp</code>,
+              <code>NewsProtocol.cpp</code>, <code>Queue.cpp</code> e <code>Reconnect.cpp</code>, garantindo APIs documentadas
+              em <a href="#backend">Backend &amp; Serviços Modernizados</a>.
+            </li>
           </ul>
         </article>
 
@@ -5132,6 +5267,10 @@ with Client(base_url="https://api.seu-jogo.com") as http:
             <li>
               Mantenha logs e telemetria dos serviços <code>Log/</code> originais (como <code>GameServer/log/ItemLog</code>) através
               dos procedimentos de <a href="#qa-operacoes">QA &amp; operações</a>.
+            </li>
+            <li>
+              Audite o pipeline de mensagens globais comparando o histórico do <code>broadcast-service</code> com
+              <code>NoticeSendToAll</code> e os registros <code>LogAddTD</code> para evitar divergências de comunicação.
             </li>
           </ul>
         </article>
