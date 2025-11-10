@@ -3656,6 +3656,214 @@ Event OnResponseReceived(Request, Response, bWasSuccessful)
       </ul>
     </section>
 
+    <section id="social-guildas">
+      <h2>Guia de Recriação — Sistemas Sociais e Guildas</h2>
+      <p>
+        Utilize esta trilha para reconstruir chat, lista de amigos e funcionalidades de guilda mantendo paridade com o
+        cliente original. Todas as etapas contemplam integrações com o backend modernizado e o reaproveitamento dos
+        assets de interface, ícones de ranks e avatares.
+      </p>
+      <div class="grid-3">
+        <div class="card">
+          <h3>1. Chat e Amigos</h3>
+          <ul>
+            <li>Importe fontes bitmap e ícones de canal (<code>UI/Chat/Icons</code>) para uma pasta <code>/UI/Chat</code> no UE5.</li>
+            <li>Replique os painéis de conversa com widgets UMG. Utilize <code>ScrollBox</code> e <code>RichTextBlock</code> para manter cores e tags.</li>
+            <li>Crie um <code>BP_ChatGateway</code> (Actor Component) com eventos <code>SendMessage</code>, <code>JoinChannel</code> e <code>ReceiveMessage</code>.</li>
+            <li>No backend, exponha rotas WebSocket (<code>/chat/ws</code>) e REST (<code>/chat/history</code>). Sincronize com Redis para múltiplas instâncias.</li>
+          </ul>
+        </div>
+        <div class="card">
+          <h3>2. Estrutura de Guildas</h3>
+          <ul>
+            <li>Migração dos dados: converta tabelas <code>Guild</code>, <code>GuildMember</code> e <code>GuildStorage</code> para Data Tables/ORM atualizados.</li>
+            <li>Monte um widget UMG com abas: Visão Geral, Membros, Diplomacia e Armazém usando os ícones originais.</li>
+            <li>Implemente componentes Blueprints <code>BP_GuildService</code> com chamadas <code>LoadGuild</code>, <code>InviteMember</code>, <code>PromoteMember</code>.</li>
+            <li>Backend: crie microserviço <code>GuildService</code> com endpoints REST. Use filas para logs de contribuições (RabbitMQ/Kafka).</li>
+          </ul>
+        </div>
+        <div class="card">
+          <h3>3. Diplomacia e Guerra</h3>
+          <ul>
+            <li>Reutilize banners originais (texturas 256x128) como <code>MaterialInstance</code> para o widget de bandeiras.</li>
+            <li>Adapte scripts legados de guerra de castelo para Blueprint via <code>BP_WarController</code> que consome eventos do backend.</li>
+            <li>Expose eventos <code>OnGuildDeclaredWar</code>, <code>OnGuildAlliance</code> para atualizar HUDs e notificações.</li>
+            <li>No servidor, mantenha regras de agendamento com cron jobs. Envie broadcast via WebSocket para a UE5.</li>
+          </ul>
+        </div>
+      </div>
+      <details class="accordion open">
+        <summary>Blueprint Focus: Widget de Chat Multifila</summary>
+        <pre class="code-card"><code>// Widget_BP_ChatWindow (UMG)
+Event Construct
+  BindEvent BP_ChatGateway.OnMessageReceived → AddChatLine
+
+Function SendCurrentMessage
+  CurrentText ← GetText ChatInput
+  BP_ChatGateway.SendMessage(CurrentChannel, CurrentText)
+  ClearText ChatInput
+
+Function AddChatLine(Channel, Sender, Message)
+  Row ← CreateWidget(Widget_BP_ChatRow)
+  Row.Setup(ChannelColor(Channel), Sender, Message)
+  ChatScroll.AddChild(Row)
+  ChatScroll.ScrollToEnd()</code></pre>
+      </details>
+      <div class="checklist">
+        <p><strong>Checklist Social &amp; Guildas</strong></p>
+        <ul>
+          <li>Histórico de chat carrega mensagens anteriores via <code>/chat/history?channel=global</code>.</li>
+          <li>Convite de guilda dispara notificação com os ícones originais e aplica permissões corretas.</li>
+          <li>Armazém de guilda usa o mesmo blueprint de inventário com slots protegidos (replicação confiável).</li>
+          <li>Logs de contribuição e guerra são persistidos e exibidos em tempo real no painel UMG.</li>
+        </ul>
+      </div>
+    </section>
+
+    <section id="economia-lojas">
+      <h2>Guia de Recriação — Economia, Lojas e NPCs</h2>
+      <p>
+        Converta o sistema econômico original, mantendo listas de preços, moedas múltiplas e lógica de NPCs. Aproveite as
+        sprites de botões e molduras existentes para acelerar a montagem dos menus.
+      </p>
+      <ol>
+        <li>
+          <strong>Normalização de Dados:</strong> gere Data Tables para <code>Items</code>, <code>ShopCatalog</code>, <code>BundlePromo</code>. Inclua campos de moeda e requisitos de classe.
+        </li>
+        <li>
+          <strong>Blueprints de UI:</strong> crie widgets <code>Widget_BP_Shop</code> e <code>Widget_BP_CurrencyDisplay</code> reutilizando molduras originais. Monte grid dinâmico com <code>TileView</code>.
+        </li>
+        <li>
+          <strong>Interação com NPC:</strong> derive de <code>BP_NPCBase</code> adicionando componente <code>BP_ShopInteractor</code> que abre o widget e solicita catálogo ao backend.
+        </li>
+        <li>
+          <strong>Transações:</strong> implemente fluxo seguro: <code>RequestPurchase</code> → verificação de estoque → resposta com itens/atualização de moeda → animação de confirmação.
+        </li>
+      </ol>
+      <div class="grid-2">
+        <div>
+          <h3>Exemplo Blueprint — Compra de Item</h3>
+          <pre class="code-card"><code>// BP_ShopInteractor (Component)
+Event RequestPurchase(ShopItemId)
+  Payload ← MakeStruct(FPurchaseRequest)
+  Payload.ItemId = ShopItemId
+  Payload.PlayerId = CachedPlayerId
+  HTTP_Post("/shop/purchase", Payload, OnPurchaseResponse)
+
+Event OnPurchaseResponse(Response)
+  If Response.Success
+    InventoryManager.AddItem(Response.ItemData)
+    CurrencyManager.UpdateBalances(Response.NewBalances)
+    Widget_BP_Shop.PlayAnimation(SuccessAnim)
+  Else
+    Widget_BP_Shop.ShowError(Response.ErrorCode)</code></pre>
+        </div>
+        <div>
+          <h3>Backend Modernizado</h3>
+          <ul>
+            <li>Crie microserviço <code>EconomyService</code> com endpoints <code>/shop/catalog</code>, <code>/shop/purchase</code>, <code>/shop/gift</code>.</li>
+            <li>Implemente verificação de estoque e limites diários reutilizando regras de <code>DataServer</code>.</li>
+            <li>Use transações SQL para debitar moedas e adicionar itens simultaneamente.</li>
+            <li>Integre com sistema de logs para auditoria financeira e alertas.</li>
+          </ul>
+        </div>
+      </div>
+      <div class="checklist">
+        <p><strong>Checklist de Economia</strong></p>
+        <ul>
+          <li>Todas as moedas (Zen, WCoin, Pontos de Evento) exibidas com ícones originais e atualização em tempo real.</li>
+          <li>NPCs respeitam horários/condições configurados em Data Table reaproveitada.</li>
+          <li>Compras bloqueadas corretamente quando inventário não possui espaço.</li>
+          <li>Logs de compra acessíveis no painel administrativo recriado.</li>
+        </ul>
+      </div>
+    </section>
+
+    <section id="eventos-liveops">
+      <h2>Guia de Recriação — Eventos Dinâmicos e Live Ops</h2>
+      <p>
+        Reaproveite scripts de eventos como Blood Castle, Devil Square e Chaos Castle adaptando-os para o ecossistema UE5.
+        As instruções abaixo detalham como orquestrar servidores de evento, cronogramas e recompensas.
+      </p>
+      <div class="grid-2">
+        <div>
+          <h3>Fluxo Geral</h3>
+          <ol>
+            <li>Crie <code>BP_EventScheduler</code> (Subsystem) responsável por ler cronogramas do backend via <code>/events/schedule</code>.</li>
+            <li>Para cada evento, spawnar <code>BP_EventController</code> que instancia mapas dedicados (Level Streaming) e configura spawners.</li>
+            <li>Sincronize recompensas com <code>LootService</code> e notificações globais de chat.</li>
+            <li>Ao finalizar, envie relatório de participação para o backend e atualize rankings.</li>
+          </ol>
+        </div>
+        <div>
+          <h3>Blueprint — Entrada em Evento</h3>
+          <pre class="code-card"><code>// BP_EventPortal (Actor)
+Event OnPlayerInteract(Player)
+  EventInfo ← EventScheduler.GetNext("BloodCastle")
+  If EventInfo.IsOpen
+    PlayerController.OpenConfirmation(EventInfo.Description)
+    PlayerController.OnConfirm → JoinEvent
+
+Function JoinEvent(Player)
+  HTTP_Post("/events/join", {EventId, PlayerId})
+  OnSuccess → PlayerTravelToLevel(EventInfo.LevelPath)
+  OnFailure → UI.ShowError(EventInfo.ErrorMessage)</code></pre>
+        </div>
+      </div>
+      <details class="accordion open">
+        <summary>Checklist de Live Ops</summary>
+        <ul>
+          <li>Cronogramas convertidos do legado para JSON (armazenados no backend).</li>
+          <li>Rankings atualizados após cada evento e exibidos no widget original adaptado.</li>
+          <li>Recompensas respeitam tabelas de drop herdadas, com logs persistidos.</li>
+          <li>GM Tools permitem iniciar, pausar ou cancelar eventos manualmente.</li>
+        </ul>
+      </details>
+    </section>
+
+    <section id="qa-operacoes">
+      <h2>Operações, Telemetria e Preparação de Lançamento</h2>
+      <p>
+        Consolide o processo de QA com foco em build contínuo, monitoramento e suporte pós-lançamento. Esta seção amplia o
+        guia anterior com passos práticos para times de operações e suporte.
+      </p>
+      <div class="grid-3">
+        <div class="card">
+          <h3>Pipelines Automatizados</h3>
+          <ul>
+            <li>Configure build de cliente UE5 via <code>UnrealBuildTool</code> e empacotamento automático em agentes dedicados.</li>
+            <li>Execute testes automatizados (Functional Tests) após cada commit crítico.</li>
+            <li>Gere relatórios HTML anexados ao repositório de documentação.</li>
+          </ul>
+        </div>
+        <div class="card">
+          <h3>Telemetria</h3>
+          <ul>
+            <li>Instrumente Blueprints principais com <code>BP_TelemetryEmitter</code> enviando dados para um serviço <code>/metrics</code>.</li>
+            <li>Mapeie eventos: login, seleção de personagem, entrada em mapa, loot raro, evolução de habilidade.</li>
+            <li>Armazene métricas em banco time-series (InfluxDB/Timescale) e visualize em Grafana.</li>
+          </ul>
+        </div>
+        <div class="card">
+          <h3>Suporte e GM Tools</h3>
+          <ul>
+            <li>Modernize ferramentas <code>Tools/</code> como painel web com autenticação.</li>
+            <li>Crie endpoints seguros para banimentos, restauração de itens e gerenciamento de filas.</li>
+            <li>Integre logs de chat e eventos para auditoria em tempo real.</li>
+          </ul>
+        </div>
+      </div>
+      <details class="accordion open">
+        <summary>Procedimento de Release</summary>
+        <ol>
+          <li>Gerar build candidata do cliente UE5 e publicar em canal interno.</li>
+          <li>Executar testes de carga no backend com simulação de 2x jogadores simultâneos do pico previsto.</li>
+          <li>Rodar checklist de regressão (login → seleção → HUD → combate → logout) em três mapas distintos.</li>
+          <li>Validar telemetria e alertas de monitoramento antes de liberar para produção.</li>
+        </ol>
+      </details>
+    </section>
+
     <section id="roadmap-integrado">
       <h2>Roadmap Integrado Frontend + Backend (16 Semanas)</h2>
       <p>
