@@ -3821,6 +3821,215 @@ Function JoinEvent(Player)
       </details>
     </section>
 
+    <section id="crafting-refino">
+      <h2>Guia de Recriação — Crafting, Aprimoramento e Refinamento</h2>
+      <p>
+        Esta seção guia a reconstrução dos sistemas de crafting, reforço de armas/armaduras, combinação de jóias e
+        manufatura de consumíveis. Reaproveite interfaces bitmap (<code>UI/Crafting</code>) e tabelas de sucesso que estão em
+        <code>DataServer/Scripts/Craft</code>, traduzindo-as para Data Tables da UE5 e serviços backend.
+      </p>
+      <div class="grid-3">
+        <div class="card">
+          <h3>1. Preparação de Dados</h3>
+          <ul>
+            <li>Converter tabelas <code>ChaosMachine</code>, <code>JewelMix</code> e <code>ItemUpgrade</code> em <code>CSV</code> → Data Tables.</li>
+            <li>Mapear requisitos de nível, taxa de sucesso e custos para structs <code>FCraftingRecipe</code>.</li>
+            <li>Normalizar ícones para <code>Texture2D</code> preservando offsets originais (consultar atlas fornecido).</li>
+          </ul>
+        </div>
+        <div class="card">
+          <h3>2. Interface UMG</h3>
+          <ul>
+            <li>Criar <code>Widget_BP_Crafting</code> com <code>CanvasPanel</code> usando coordenadas originais listadas no atlas.</li>
+            <li>Adicionar slots de item (<code>BP_ItemSlot</code>) com suporte a arrastar/soltar e highlights de sucesso.</li>
+            <li>Reutilizar animações de brilho importando <code>UI/Crafting/GlowFlipbook</code> para <code>Niagara</code>.</li>
+          </ul>
+        </div>
+        <div class="card">
+          <h3>3. Backend e Regras</h3>
+          <ul>
+            <li>Implementar microserviço <code>CraftingService</code> com endpoints <code>/craft/preview</code> e <code>/craft/execute</code>.</li>
+            <li>Portar lógica de sucesso da <code>ChaosMachine.cpp</code> para função <code>CalculateCraftResult</code> com seed determinística.</li>
+            <li>Logar eventos em <code>CraftingAudit</code> para rastrear consumo de recursos.</li>
+          </ul>
+        </div>
+      </div>
+      <div class="grid-2">
+        <div>
+          <h3>Blueprint — Execução da Máquina do Caos</h3>
+          <pre class="code-card"><code>// Widget_BP_Crafting
+Event OnCraftButtonClicked()
+  Request.Payload ← BuildPayloadFromSlots()
+  HTTP_Post("/craft/preview", Payload, OnPreviewResponse)
+
+Event OnPreviewResponse(Response)
+  If Response.SuccessRate &lt; Threshold
+    ShowWarning("Chance baixa. Confirmar?")
+  Else
+    ExecuteCraft(Response)</code></pre>
+        </div>
+        <div>
+          <h3>Blueprint — Confirmação e Resultado</h3>
+          <pre class="code-card"><code>Function ExecuteCraft(PreviewData)
+  HTTP_Post("/craft/execute", PreviewData.Request, OnCraftResolved)
+
+Event OnCraftResolved(Result)
+  If Result.Success
+    InventoryManager.ReplaceItems(Result.ItemsAwarded)
+    PlayAnimation(SuccessBurst)
+  Else
+    InventoryManager.RemoveItems(Result.ItemsConsumed)
+    PlayAnimation(FailureSpark)
+  Telemetry.Emit("craft", Result)</code></pre>
+        </div>
+      </div>
+      <details class="accordion open">
+        <summary>Checklist de Crafting</summary>
+        <ul>
+          <li>Slots respeitam posicionamento legado (veja tabela de coordenadas na aba Atlas).</li>
+          <li>Taxas de sucesso batem com percentuais originais (comparar 100 execuções automatizadas).</li>
+          <li>Consumíveis retornam tooltips atualizados após cada craft.</li>
+          <li>Logs de crafting integrados ao painel de operações.</li>
+        </ul>
+      </details>
+    </section>
+
+    <section id="montarias-pets">
+      <h2>Guia de Recriação — Montarias, Pets e Companheiros</h2>
+      <p>
+        Reconstrua as funcionalidades de pets de combate, montarias e mascotes cosméticos mantendo animações e estatísticas
+        herdadas. Use os modelos originais (pasta <code>Client/Data/Pets</code>) convertendo-os para <code>SkeletalMesh</code> com
+        retargeting para os rigs da UE5.
+      </p>
+      <div class="grid-3">
+        <div class="card">
+          <h3>Importação e Retarget</h3>
+          <ul>
+            <li>Converter arquivos <code>.bmd/.ozj</code> para <code>.fbx</code> usando o pipeline existente.</li>
+            <li>Aplicar retarget no <code>IK Retargeter</code> para animações de idle, walk, run, attack.</li>
+            <li>Configurar <code>DataAssets</code> <code>DA_PetDefinition</code> com atributos, bônus e efeitos visuais.</li>
+          </ul>
+        </div>
+        <div class="card">
+          <h3>Comportamento em Blueprint</h3>
+          <ul>
+            <li>Criar <code>BP_PetCompanion</code> (Character) com <code>AIController</code> baseado em Behaviour Tree.</li>
+            <li>Implementar estados: seguir jogador, atacar alvo prioritário, coletar drops (respeitando filtros do inventário).</li>
+            <li>Adicionar componente <code>BP_PetStats</code> sincronizado com backend via <code>/pet/status</code>.</li>
+          </ul>
+        </div>
+        <div class="card">
+          <h3>Backend Integrado</h3>
+          <ul>
+            <li>Criar serviço <code>PetService</code> responsável por evolução, armazenamento e buffs temporários.</li>
+            <li>Portar scripts de evolução (<code>PetEvolution.lua</code>) para funções versionadas.</li>
+            <li>Expôr sockets para atualizações em tempo real (WebSocket <code>/pet/live</code>).</li>
+          </ul>
+        </div>
+      </div>
+      <div class="grid-2">
+        <div>
+          <h3>Blueprint — Montaria</h3>
+          <pre class="code-card"><code>// BP_MountComponent
+Event EquipMount(MountId)
+  MountData ← PetRepository.GetMount(MountId)
+  SpawnActor(BP_MountPawn, MountData.Mesh)
+  AttachToComponent(Player, Socket="Pelvis")
+  Player.Movement.SetMovementMode(Flying ? Fly : MoveWalking)
+  Backend.Notify("/mount/activate", MountId)</code></pre>
+        </div>
+        <div>
+          <h3>Blueprint — Pet de Coleta</h3>
+          <pre class="code-card"><code>// BTTask_CollectDrop
+ExecuteTask()
+  TargetItem ← SenseComponent.GetNearestDrop()
+  If Inventory.HasFreeSlot(TargetItem)
+    MoveTo(TargetItem.Location)
+    Interact → LootService.RegisterPickup(TargetItem.Id)
+    Inventory.AddItem(TargetItem)
+  FinishExecute(true)</code></pre>
+        </div>
+      </div>
+      <details class="accordion open">
+        <summary>Checklist de Montarias e Pets</summary>
+        <ul>
+          <li>Padrões de velocidade e bônus replicados conforme planilhas originais.</li>
+          <li>UI de gerenciamento reutiliza ícones e molduras convertidos.</li>
+          <li>Pet respeita colisões do mapa e evita pegar itens negados pelo filtro do jogador.</li>
+          <li>Persistência de evolução validada com testes de reconexão.</li>
+        </ul>
+      </details>
+    </section>
+
+    <section id="pvp-arenas">
+      <h2>Guia de Recriação — PvP, Arenas e Guerras</h2>
+      <p>
+        Replique arenas PvP, duelos, Castle Siege e campos de batalha com base nas rotinas originais. Este guia apresenta
+        instruções claras para configurar mapas, rotas de matchmaking e integração de rankings competitivos.
+      </p>
+      <div class="grid-3">
+        <div class="card">
+          <h3>Matchmaking e Filas</h3>
+          <ul>
+            <li>Implementar <code>BP_PvPQueueManager</code> (Subsystem) responsável por registrar jogadores e consultar <code>/pvp/queue</code>.</li>
+            <li>Utilizar <code>Data Tables</code> <code>DT_PvPRules</code> para restrições de nível/classe.</li>
+            <li>Sincronizar estado com HUD via eventos multicast (<code>OnQueueStatusChanged</code>).</li>
+          </ul>
+        </div>
+        <div class="card">
+          <h3>Configuração de Mapas</h3>
+          <ul>
+            <li>Converter mapas originais usando <code>Datasmith</code> ou exportadores dedicados, mantendo posições de spawn.</li>
+            <li>Configurar <code>BP_PvPSpawnPoint</code> com coordenadas importadas do arquivo <code>MapSettings/pvp_spawn.csv</code>.</li>
+            <li>Adicionar <code>LevelSequence</code> para cutscenes de abertura e fechamento reaproveitando câmeras legadas.</li>
+          </ul>
+        </div>
+        <div class="card">
+          <h3>Regras e Pontuação</h3>
+          <ul>
+            <li>Portar scripts de <code>GameServer/PvPManager.cpp</code> para microserviço <code>PvPService</code>.</li>
+            <li>Emitir eventos de dano/morte através de <code>BP_PvPCombatComponent</code> para atualizar placares.</li>
+            <li>Atualizar rankings e recompensas com <code>RankingService</code>, garantindo transmissão em tempo real.</li>
+          </ul>
+        </div>
+      </div>
+      <div class="grid-2">
+        <div>
+          <h3>Blueprint — Entrada em Arena</h3>
+          <pre class="code-card"><code>// BP_PvPQueueWidget
+Event OnJoinQueue()
+  Request.MatchType = SelectedMode
+  HTTP_Post("/pvp/queue/join", Request, OnQueueJoined)
+
+Event OnQueueJoined(Response)
+  If Response.Status == "Waiting"
+    PlayAnimation(QueuePulse)
+    BindDelegates(PvPQueueManager.OnMatchReady, HandleMatchReady)
+  Else
+    ShowError(Response.Message)</code></pre>
+        </div>
+        <div>
+          <h3>Blueprint — Preparação de Siege</h3>
+          <pre class="code-card"><code>// BP_SiegeController
+Event HandleMatchReady(MatchInfo)
+  LoadStreamedLevel(MatchInfo.LevelPath)
+  AssignTeams(MatchInfo.TeamAssignments)
+  SpawnActors(BP_SiegeGate, MatchInfo.GateLocations)
+  CountdownWidget.Start(MatchInfo.StartTime)
+  Backend.Notify("/siege/ready", MatchInfo.MatchId)</code></pre>
+        </div>
+      </div>
+      <details class="accordion open">
+        <summary>Checklist PvP</summary>
+        <ul>
+          <li>Tempos de respawn equivalentes ao legado (validar com scripts automatizados).</li>
+          <li>Rankings refletem resultados imediatamente após cada partida.</li>
+          <li>HUD mostra status de objetivos (gates, relíquias) usando ícones originais.</li>
+          <li>Logs de combate sincronizados com sistema anti-cheat.</li>
+        </ul>
+      </details>
+    </section>
+
     <section id="qa-operacoes">
       <h2>Operações, Telemetria e Preparação de Lançamento</h2>
       <p>
