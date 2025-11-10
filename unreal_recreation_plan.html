@@ -3902,6 +3902,169 @@ Function JoinEvent(Player)
       </ol>
     </section>
 
+    <section id="missoes_eventos">
+      <h2>Blueprint de Recriação: Missões, Eventos e Rankings</h2>
+      <p>
+        Esta etapa complementa os sistemas já mapeados adicionando instruções específicas para missões, eventos recorrentes e
+        rankings competitivos. O objetivo é transformar os scripts legados (MissionServer, EventMgr, RankingService) em uma
+        solução híbrida UE5 + backend com rotas HTTP/WebSocket e nós Blueprint claros.
+      </p>
+      <div class="grid-3">
+        <div class="card">
+          <h3>1. Auditoria de Dados de Missões</h3>
+          <ul>
+            <li>Localize tabelas legadas <strong>QuestData</strong> e <strong>QuestProgress</strong> (SQL/DataServer).</li>
+            <li>Exporte para CSV com colunas <em>QuestID, Nome, Tipo, Condição, Recompensa, Exp, ItemID</em>.</li>
+            <li>Converta para <strong>Data Table UE5</strong> baseada em <code>UStruct FQuestDefinition</code>.</li>
+            <li>Reaproveite ícones originais (UI\QuestIcons\*.dds) convertendo para PNG/UE texture.</li>
+          </ul>
+        </div>
+        <div class="card">
+          <h3>2. Blueprint Flow de Missões</h3>
+          <ul>
+            <li>Crie <strong>BP_QuestManager</strong> (Actor Singleton) com <em>GameInstanceSubsystem</em>.</li>
+            <li>Adicione função <code>StartQuest(QuestID)</code> que consulta Data Table e inicializa objetivos.</li>
+            <li>Implemente <code>TrackObjective</code> para escutar eventos de kill/collect usando <strong>Gameplay Tags</strong>.</li>
+            <li>Use <strong>SaveGame</strong> para persistir progresso offline e chamadas REST para sincronizar online.</li>
+          </ul>
+        </div>
+        <div class="card">
+          <h3>3. Eventos &amp; Rankings</h3>
+          <ul>
+            <li>Mapeie agendamentos do <strong>EventScheduler.cfg</strong> para <code>UDataAsset</code> com horários.</li>
+            <li>Crie <strong>BP_EventPortal</strong> que valida pré-requisitos antes de transportar jogadores.</li>
+            <li>Consuma endpoint <code>/events/current</code> para preencher painel dinâmico.</li>
+            <li>Construa <strong>BP_RankingBoard</strong> lendo cache Redis/SQL via microserviço Ranking.</li>
+          </ul>
+        </div>
+      </div>
+
+      <details class="guia">
+        <summary>Passo a passo: replicar painel de missões usando os widgets originais</summary>
+        <ol>
+          <li>Importe layout legado (<code>UI/Quests/quest_window.psd</code>) como <strong>Widget Blueprint</strong> e recrie posições
+            com base nas coordenadas originais (anote X/Y/W/H do XML antigo em <em>UIConfig</em>).</li>
+          <li>Crie <strong>WBP_QuestJournal</strong> com <code>Overlay</code> + <code>ScrollBox</code> e instancie <strong>WBP_QuestEntry</strong>
+            para cada linha.</li>
+          <li>Ligação Blueprint: <code>Event Construct → Get Game Instance → GetQuestManager → Bind OnQuestUpdated → RefreshList</code>.</li>
+          <li>Nos botões de aceitar/entregar, chame <code>QuestManager::SendQuestRequest</code> que por sua vez faz <code>HTTP POST /quests/accept</code>
+            com <strong>playerSessionId</strong> + <strong>questId</strong>.</li>
+          <li>Atualize animações utilizando os assets de barras e highlight originais (UI\Animations\quest_highlight.uasset) convertidos.</li>
+        </ol>
+      </details>
+
+      <div class="swimlane">
+        <div>
+          <strong>Frontend UE5</strong>
+          <ul>
+            <li>BP_QuestManager como subsystem e replicação opcional via <code>Multicast</code>.</li>
+            <li>Widgets UMG para diário, notificações e tracker rápido.</li>
+            <li>Eventos de <em>Gameplay Ability System</em> para habilidades que interagem com missões.</li>
+          </ul>
+        </div>
+        <div>
+          <strong>Backend Modernizado</strong>
+          <ul>
+            <li>Microserviço <code>QuestService</code> com rotas <code>GET /quests</code>, <code>POST /progress</code>, <code>POST /complete</code>.</li>
+            <li>Sincronização com <strong>MissionServer</strong> original via jobs de migração até corte definitivo.</li>
+            <li>Publica eventos em <strong>Kafka/RabbitMQ</strong> para atualizar rankings e log global.</li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="blueprint-flow">
+        <div class="blueprint-step">
+          <h4>Spawner de Evento (World Partition)</h4>
+          <p>
+            No mapa convertido, coloque <strong>BP_EventAnchor</strong> contendo <code>Box Trigger</code>. No <em>Begin Play</em>, carregue dados do evento
+            corrente e habilite o portal apenas se <code>ServerTime</code> estiver na janela configurada.
+          </p>
+        </div>
+        <div class="blueprint-step">
+          <h4>Atualização de Ranking em Tempo Real</h4>
+          <p>
+            Utilize <code>WebSocket Connect</code> → <code>OnMessage</code> para receber payload <em>{eventId, playerId, score}</em> e atualizar lista
+            ordenada com <code>Sort Array</code>. Mostre feedback visual usando os mesmos badges da interface clássica.
+          </p>
+        </div>
+        <div class="blueprint-step">
+          <h4>Recompensa Sincronizada</h4>
+          <p>
+            Após <code>Quest Complete</code>, dispare <code>Async Task - Open Level Sequence</code> para cutscene opcional e chame endpoint
+            <code>/rewards/grant</code>. Persistência local usa SaveGame <strong>SG_QuestProgress</strong> espelhando colunas originais.
+          </p>
+        </div>
+      </div>
+
+      <div class="callout">
+        <strong>Dica:</strong> Reaproveite <em>sounds/ui/quest_accept.wav</em> e <em>sounds/ui/quest_complete.wav</em> convertendo para WAV 16-bit.
+        Aplique via <code>Audio Component</code> para manter fidelidade com a build original.
+      </div>
+    </section>
+
+    <section id="operacoes_avancadas">
+      <h2>Centro de Otimização, Segurança e Operações Contínuas</h2>
+      <p>
+        Para sustentar o projeto após a migração, consolide as práticas de performance, segurança, deployment e observabilidade.
+        Esta seção apresenta um roteiro incremental reutilizando ferramentas legadas (LogServer, Monitor.exe) e adotando novas
+        rotinas no ecossistema UE5.
+      </p>
+      <div class="grid-3">
+        <div class="card">
+          <h3>Performance &amp; Memória</h3>
+          <ul>
+            <li>Habilite <strong>Stat GPU/CPU</strong> e <strong>Insights Trace</strong> durante testes de mapas.</li>
+            <li>Crie perfis de <em>Niagara</em> reaproveitando curvas originais para limitar partículas.</li>
+            <li>Utilize <strong>LOD Sync</strong> para armaduras convertidas (SkeletalMesh) com base em distâncias da versão clássica.</li>
+            <li>Automatize <em>Cooked Builds</em> via <code>RunUAT BuildCookRun</code> integrado ao pipeline de CI.</li>
+          </ul>
+        </div>
+        <div class="card">
+          <h3>Segurança &amp; Anti-Cheat</h3>
+          <ul>
+            <li>Migre validações de <strong>GameGuard.dll</strong> para microserviço <code>SecurityGateway</code> (token + checksums).</li>
+            <li>Implemente <code>Server RPC</code> autoritativas para XP, drops e trades.</li>
+            <li>Assine pacotes críticos com <strong>HTTPS + JWT</strong>; renove chaves a cada 30 dias.</li>
+            <li>Monitoramento de integridade: compare <em>hash</em> de assets principais com tabela original.</li>
+          </ul>
+        </div>
+        <div class="card">
+          <h3>Deploy &amp; Observabilidade</h3>
+          <ul>
+            <li>Containerize backend (Docker) e orquestre com scripts herdados (deploy.sh) convertidos para pipelines CI/CD.</li>
+            <li>Capture métricas de UE5 via <strong>UnrealInsights Server</strong> + exporter Prometheus.</li>
+            <li>Encaminhe logs de Blueprint para o <strong>LogServer</strong> modernizado (ELK ou Loki).</li>
+            <li>Acione alertas automáticos quando <code>tickTime &gt; 33ms</code> ou fila de matchmaking exceder limite legado.</li>
+          </ul>
+        </div>
+      </div>
+
+      <details class="guia">
+        <summary>Checklist de Release (Frontend + Backend)</summary>
+        <ul class="checklist">
+          <li>Build UE5 cozido para Windows + testes de smoke em Steam/Epic.</li>
+          <li>Microserviços Quest, Item, Skill e Ranking em cluster com health-check.</li>
+          <li>Logs estruturados (JSON) armazenados por 30 dias com correlação de <em>sessionId</em>.</li>
+          <li>Plano de rollback documentado reutilizando backups do DataServer original.</li>
+          <li>Testes automatizados de API (Postman/Newman) cobrindo login, personagem, quest, drop.</li>
+          <li>Validação de assets críticos com <strong>Unreal Asset Audit</strong> + tabela comparativa.</li>
+        </ul>
+      </details>
+
+      <h3>Fluxo de Trabalho Sugerido</h3>
+      <ol>
+        <li><strong>Semana -2:</strong> Preparar infraestrutura CI (GitHub Actions/GitLab) espelhando scripts da build antiga.</li>
+        <li><strong>Semana -1:</strong> Configurar pipelines de teste automatizado (unitário backend + funcional frontend com GAuntlet).</li>
+        <li><strong>Lançamento:</strong> Executar checklist de release, publicar pacotes, monitorar dashboards.</li>
+        <li><strong>Pós-Lançamento:</strong> Rodar retroalimentação diária com telemetria e aplicar hotfix usando branch <em>release/x.y</em>.</li>
+      </ol>
+
+      <div class="callout">
+        <strong>Ferramentas sugeridas:</strong> Unreal Insights, GAuntlet, Playtest Automation, Sentry/Elastic, Prometheus + Grafana,
+        OWASP Dependency Check para serviços backend.
+      </div>
+    </section>
+
     <section id="cronograma">
       <h2>Cronograma Sugerido (12 Semanas)</h2>
       <div class="timeline">
