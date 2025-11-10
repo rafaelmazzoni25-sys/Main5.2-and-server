@@ -1741,6 +1741,291 @@ info.Y = lpMemScript->GetAsNumber();</code></pre></div>
       </article>
 
       <article class="module-category">
+        <h3>Sistemas Avançados: Muun, Pentagrama, Helper e PcPoint</h3>
+        <table class="matrix">
+          <thead>
+            <tr>
+              <th>Foco</th>
+              <th>Referência Legada</th>
+              <th>Comportamento Observado</th>
+              <th>Adaptação UE5</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>Companheiros Muun</td>
+              <td>
+                <code>MuunSystem.cpp</code>, <code>User.cpp</code>, <code>Attack.cpp</code>,<br />
+                <code>ServerInfo.cpp</code> (carga de <code>Item\\MuunOption.txt</code>)
+              </td>
+              <td>
+                <code>CMuunSystem::Load</code> popula <code>m_MuunSystemInfo</code> e opções adicionais,
+                <code>gMuunSystem.MainProc()</code> é chamado no <code>User.cpp</code> para atualizar buffs,
+                e <code>Attack.cpp</code> aplica sprites via <code>MuunSprite</code> quando um pet está ativo.
+              </td>
+              <td>
+                Converter <code>Item/MuunOption.txt</code> em <code>Data Tables</code>, criar
+                <code>BP_MuunComponent</code> que lê evoluções/ranqueamento e atualizar HUD com os ícones
+                originais (<code>NewUIPetInfoWindow.cpp</code> ➝ <code>Interface\\newui_pet_*.tga</code>).
+              </td>
+            </tr>
+            <tr>
+              <td>Pentagrama &amp; Joias Elementais</td>
+              <td>
+                <code>PentagramSystem.cpp</code>, <code>Item.cpp</code>, <code>ServerInfo.cpp</code>
+                (cargas de <code>Item\\Pentagram*.txt</code>)
+              </td>
+              <td>
+                <code>CPentagramSystem::Load</code> carrega tipos, opções e ranks; <code>CItem::IsPentagramItem</code>
+                e <code>::IsPentagramJewel</code> consultam o sistema para validar equipáveis e joias elementais.
+              </td>
+              <td>
+                Criar <code>DT_PentagramTypes</code>/<code>DT_PentagramJewels</code>, um <code>BP_PentagramComponent</code>
+                que processa slots elementais e UI dedicada reutilizando o layout de <code>NewUIItemMng</code>.
+              </td>
+            </tr>
+            <tr>
+              <td>Mu Helper / Auto-caça</td>
+              <td>
+                <code>Helper.cpp</code>, <code>ServerInfo.cpp</code> (<code>HelperSwitch</code>, <code>HelperActiveMoney*</code>),
+                <code>NewUIMoveCommandWindow.cpp</code>
+              </td>
+              <td>
+                <code>CHelper::MainProc</code> debita Zen periodicamente, valida mapas permitidos e envia
+                <code>GCHelperStartSend</code>; o cliente habilita toggles no menu de comandos (Move Command Window).
+              </td>
+              <td>
+                Expor <code>BP_HelperSubsystem</code> com estados e custos sincronizados via REST/WebSocket,
+                reconstruir o painel com os botões originais (texturas <code>Interface\\newui_command.jpg</code>) e automatizar
+                comportamentos usando <code>Behavior Trees</code> equivalentes.
+              </td>
+            </tr>
+            <tr>
+              <td>Pontos PcPoint &amp; Loja de Fidelidade</td>
+              <td>
+                <code>PcPoint.cpp</code>, <code>CashShop.cpp</code>, <code>ServerInfo.cpp</code>
+                (carga de <code>PcPoint.txt</code>), <code>NewUIPurchaseShopInventory.cpp</code>
+              </td>
+              <td>
+                <code>CPcPoint::Load</code> converte itens em recompensas com sockets/opções; compra via
+                <code>CGPcPointItemBuyRecv</code> valida saldo e chama <code>GDPcPointAddPointSaveSend</code> para persistir.
+              </td>
+              <td>
+                Recriar catálogos em <code>DT_PcPointShop</code>, implementar <code>PcPointService</code> que replica as mesmas
+                validações antes de consumir saldo e montar um widget UMG inspirado em <code>NewUIPurchaseShopInventory</code>.
+              </td>
+            </tr>
+          </tbody>
+        </table>
+
+        <details class="guia" open>
+          <summary>Passo a passo — Muun e Pentagrama</summary>
+          <div class="source-card">
+            <div class="source-meta">Servidor &mdash; <code>Source MuServer Update 15/GameServer/GameServer/MuunSystem.cpp</code></div>
+            <pre><code>info.Index = lpMemScript->GetNumber();
+info.Type = lpMemScript->GetAsNumber();
+info.Rank = lpMemScript->GetAsNumber();
+info.OptionIndex = lpMemScript->GetAsNumber();
+info.EvolutionItemIndex = lpMemScript->GetAsNumber();
+this->m_MuunSystemInfo.insert(std::make_pair(info.Index, info));</code></pre>
+          </div>
+          <ol>
+            <li>Extrair <code>Item/MuunOption.txt</code> e <code>Item/MuunEvolution.txt</code> (se disponível) com o script do diretório <code>tools/</code> gerando CSVs preservando <em>Index</em>, <em>Rank</em>, <em>OptionIndex</em>.</li>
+            <li>Importar para a UE5 como <code>Primary Data Assets</code> (<code>FMuunDefinition</code>) e criar <code>BP_MuunComponent</code> anexado ao personagem; ler os dados no <code>BeginPlay</code> para spawnar companions usando <code>Niagara</code> equivalente a <code>MuunSprite</code>.</li>
+            <li>Converter texturas de <code>NewUIPetInfoWindow::LoadImages()</code> (<code>Interface\\newui_pet_lifebar01.jpg</code>, <code>newui_item_table*.tga</code>) para <code>.png</code> e posicionar num <code>WBP_MuunPanel</code> com o mesmo offset <code>(x+12, y+48)</code>.</li>
+            <li>No backend, mapear endpoints <code>/companion/equip</code>, <code>/companion/feed</code> replicando as validações de <code>MuunSystem.cpp</code> (mapas permitidos, evolução por <code>EvolutionItemIndex</code>).</li>
+          </ol>
+          <div class="source-card">
+            <div class="source-meta">Servidor &mdash; <code>Source MuServer Update 15/GameServer/GameServer/PentagramSystem.cpp</code></div>
+            <pre><code>gPentagramSystem.Load(gPath.GetFullPath("Item\\PentagramOption.txt"));
+gPentagramSystem.LoadJewel(gPath.GetFullPath("Item\\PentagramJewelOption.txt"));
+gPentagramSystem.LoadMixRate(gPath.GetFullPath("Item\\PentagramJewelMixRate.txt"));</code></pre>
+          </div>
+          <ol>
+            <li>Gerar <code>DT_PentagramOption</code> e <code>DT_PentagramJewel</code> com colunas idênticas às seções 0/1 do script original (Type, Rank, Level, OptionValue).</li>
+            <li>Na UE5, criar um <code>BP_PentagramInventory</code> com <code>Array</code> de <code>FPentagramSlot</code> (Elemento, Nível, Rank) e UI que permite inserir joias com <em>Drag &amp; Drop</em> baseado em <code>CNewUIInventoryCtrl</code>.</li>
+            <li>O backend deve validar combinações utilizando as mesmas tabelas carregadas por <code>CPentagramSystem</code>, calculando taxas de sucesso conforme <code>PentagramJewelMixRate.txt</code>.</li>
+            <li>Reproduzir o dano elemental chamando <code>ApplyGameplayEffect</code> usando os multiplicadores retornados pelo serviço, assim como o servidor legado consulta <code>GetPentagramDamage()</code>.</li>
+          </ol>
+        </details>
+
+        <details class="guia">
+          <summary>Passo a passo — Helper e PcPoint</summary>
+          <div class="source-card">
+            <div class="source-meta">Servidor &mdash; <code>Source MuServer Update 15/GameServer/GameServer/Helper.cpp</code></div>
+            <pre><code>if((GetTickCount()-lpObj->HelperDelayTime) >= gServerInfo.m_HelperActiveDelay*60000)
+{
+        lpObj->Money -= (lpObj->Level+lpObj->MasterLevel)*gServerInfo.m_HelperActiveMoney[HelperStage];
+        GCMoneySend(lpObj->Index,lpObj->Money);
+        this->GCHelperStartSend(lpObj->Index,((GetTickCount()-lpObj->HelperTotalTime)/60000), ...);
+}</code></pre>
+          </div>
+          <ol>
+            <li>Mapear para <code>Config/ServerInfo.ini</code> os mesmos parâmetros <code>HelperSwitch</code>, <code>HelperActiveLevel</code> e <code>HelperActiveMoney*</code>. O microserviço UE5 deve aplicar os débitos e limites de mapa antes de habilitar o modo automático.</li>
+            <li>Construir <code>WBP_HelperPanel</code> inspirado em <code>NewUIMoveCommandWindow.cpp</code> reutilizando <code>Interface\\newui_command.jpg</code>; os toggles disparam eventos em <code>BP_HelperSubsystem</code> para iniciar/parar rotinas de IA (<code>Behavior Tree</code> customizado).</li>
+            <li>Reaproveitar <code>gServerInfo.m_HelperActiveMoney</code> para exibir o custo em Zen por estágio, atualizando via WebSocket quando o servidor enviar <code>HelperStart</code>/<code>HelperStop</code>.</li>
+            <li>Para PcPoint, carregar <code>PcPoint.txt</code> e reconstruir a vitrine com <code>WBP_PcPointShop</code> refletindo a grade de <code>NewUIPurchaseShopInventory</code> (slots 8x4 em <code>(x+16, y+90)</code>).</li>
+          </ol>
+          <div class="source-card">
+            <div class="source-meta">Servidor &mdash; <code>Source MuServer Update 15/GameServer/GameServer/PcPoint.cpp</code></div>
+            <pre><code>int ItemIndex = SafeGetItem(GET_ITEM(lpMemScript->GetNumber(),lpMemScript->GetAsNumber()));
+int Socket1 = lpMemScript->GetAsNumber();
+...
+this->InsertItemNew(ItemIndex, ItemLevel, ItemDurability, ..., Socket5, ItemValue);</code></pre>
+          </div>
+          <ol>
+            <li>Criar um conversor que transforme cada linha de <code>PcPoint.txt</code> em <code>FPcPointItemRow</code> (ItemIndex, Level, Options, Value) preservando sockets e opções excelentes.</li>
+            <li>No backend, implementar <code>POST /pcpoint/buy</code> validando estoque, custo e chamando <code>GDPcPointAddPointSaveSend</code> equivalente antes de inserir o item na fila de entregas.</li>
+            <li>Atualizar o HUD exibindo saldo PcPoint ao lado do Zen (use <code>g_pRenderText</code> como referência de posicionamento).</li>
+            <li>Registrar logs espelhando <code>LogAddTD</code> para auditoria de compras e recompensas online.</li>
+          </ol>
+        </details>
+
+      </article>
+
+      <article class="module-category">
+        <h3>Sistemas Avançados: Muun, Pentagrama, Helper e PcPoint</h3>
+        <table class="matrix">
+          <thead>
+            <tr>
+              <th>Foco</th>
+              <th>Referência Legada</th>
+              <th>Comportamento Observado</th>
+              <th>Adaptação UE5</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>Companheiros Muun</td>
+              <td>
+                <code>MuunSystem.cpp</code>, <code>User.cpp</code>, <code>Attack.cpp</code>,<br />
+                <code>ServerInfo.cpp</code> (carga de <code>Item\MuunOption.txt</code>)
+              </td>
+              <td>
+                <code>CMuunSystem::Load</code> popula <code>m_MuunSystemInfo</code> e opções adicionais,
+                <code>gMuunSystem.MainProc()</code> é chamado no <code>User.cpp</code> para atualizar buffs,
+                e <code>Attack.cpp</code> aplica sprites via <code>MuunSprite</code> quando um pet está ativo.
+              </td>
+              <td>
+                Converter <code>Item/MuunOption.txt</code> em <code>Data Tables</code>, criar
+                <code>BP_MuunComponent</code> que lê evoluções/ranqueamento e atualizar HUD com os ícones
+                originais (<code>NewUIPetInfoWindow.cpp</code> ➝ <code>Interface\newui_pet_*.tga</code>).
+              </td>
+            </tr>
+            <tr>
+              <td>Pentagrama &amp; Joias Elementais</td>
+              <td>
+                <code>PentagramSystem.cpp</code>, <code>Item.cpp</code>, <code>ServerInfo.cpp</code>
+                (cargas de <code>Item\Pentagram*.txt</code>)
+              </td>
+              <td>
+                <code>CPentagramSystem::Load</code> carrega tipos, opções e ranks; <code>CItem::IsPentagramItem</code>
+                e <code>::IsPentagramJewel</code> consultam o sistema para validar equipáveis e joias elementais.
+              </td>
+              <td>
+                Criar <code>DT_PentagramTypes</code>/<code>DT_PentagramJewels</code>, um <code>BP_PentagramComponent</code>
+                que processa slots elementais e UI dedicada reutilizando o layout de <code>NewUIItemMng</code>.
+              </td>
+            </tr>
+            <tr>
+              <td>Mu Helper / Auto-caça</td>
+              <td>
+                <code>Helper.cpp</code>, <code>ServerInfo.cpp</code> (<code>HelperSwitch</code>, <code>HelperActiveMoney*</code>),
+                <code>NewUIMoveCommandWindow.cpp</code>
+              </td>
+              <td>
+                <code>CHelper::MainProc</code> debita Zen periodicamente, valida mapas permitidos e envia
+                <code>GCHelperStartSend</code>; o cliente habilita toggles no menu de comandos (Move Command Window).
+              </td>
+              <td>
+                Expor <code>BP_HelperSubsystem</code> com estados e custos sincronizados via REST/WebSocket,
+                reconstruir o painel com os botões originais (texturas <code>Interface\newui_command.jpg</code>) e automatizar
+                comportamentos usando <code>Behavior Trees</code> equivalentes.
+              </td>
+            </tr>
+            <tr>
+              <td>Pontos PcPoint &amp; Loja de Fidelidade</td>
+              <td>
+                <code>PcPoint.cpp</code>, <code>CashShop.cpp</code>, <code>ServerInfo.cpp</code>
+                (carga de <code>PcPoint.txt</code>), <code>NewUIPurchaseShopInventory.cpp</code>
+              </td>
+              <td>
+                <code>CPcPoint::Load</code> converte itens em recompensas com sockets/opções; compra via
+                <code>CGPcPointItemBuyRecv</code> valida saldo e chama <code>GDPcPointAddPointSaveSend</code> para persistir.
+              </td>
+              <td>
+                Recriar catálogos em <code>DT_PcPointShop</code>, implementar <code>PcPointService</code> que replica as mesmas
+                validações antes de consumir saldo e montar um widget UMG inspirado em <code>NewUIPurchaseShopInventory</code>.
+              </td>
+            </tr>
+          </tbody>
+        </table>
+
+        <details class="guia" open>
+          <summary>Passo a passo — Muun e Pentagrama</summary>
+          <div class="source-card">
+            <div class="source-meta">Servidor &mdash; <code>Source MuServer Update 15/GameServer/GameServer/MuunSystem.cpp</code></div>
+            <pre><code>info.Index = lpMemScript->GetNumber();
+info.Type = lpMemScript->GetAsNumber();
+info.Rank = lpMemScript->GetAsNumber();
+info.OptionIndex = lpMemScript->GetAsNumber();
+info.EvolutionItemIndex = lpMemScript->GetAsNumber();
+this->m_MuunSystemInfo.insert(std::make_pair(info.Index, info));</code></pre>
+          </div>
+          <ol>
+            <li>Extrair <code>Item/MuunOption.txt</code> e <code>Item/MuunEvolution.txt</code> (se disponível) com o script do diretório <code>tools/</code> gerando CSVs preservando <em>Index</em>, <em>Rank</em>, <em>OptionIndex</em>.</li>
+            <li>Importar para a UE5 como <code>Primary Data Assets</code> (<code>FMuunDefinition</code>) e criar <code>BP_MuunComponent</code> anexado ao personagem; ler os dados no <code>BeginPlay</code> para spawnar companions usando <code>Niagara</code> equivalente a <code>MuunSprite</code>.</li>
+            <li>Converter texturas de <code>NewUIPetInfoWindow::LoadImages()</code> (<code>Interface\newui_pet_lifebar01.jpg</code>, <code>newui_item_table*.tga</code>) para <code>.png</code> e posicionar num <code>WBP_MuunPanel</code> com o mesmo offset <code>(x+12, y+48)</code>.</li>
+            <li>No backend, mapear endpoints <code>/companion/equip</code>, <code>/companion/feed</code> replicando as validações de <code>MuunSystem.cpp</code> (mapas permitidos, evolução por <code>EvolutionItemIndex</code>).</li>
+          </ol>
+          <div class="source-card">
+            <div class="source-meta">Servidor &mdash; <code>Source MuServer Update 15/GameServer/GameServer/PentagramSystem.cpp</code></div>
+            <pre><code>gPentagramSystem.Load(gPath.GetFullPath("Item\PentagramOption.txt"));
+gPentagramSystem.LoadJewel(gPath.GetFullPath("Item\PentagramJewelOption.txt"));
+gPentagramSystem.LoadMixRate(gPath.GetFullPath("Item\PentagramJewelMixRate.txt"));</code></pre>
+          </div>
+          <ol>
+            <li>Gerar <code>DT_PentagramOption</code> e <code>DT_PentagramJewel</code> com colunas idênticas às seções 0/1 do script original (Type, Rank, Level, OptionValue).</li>
+            <li>Na UE5, criar um <code>BP_PentagramInventory</code> com <code>Array</code> de <code>FPentagramSlot</code> (Elemento, Nível, Rank) e UI que permite inserir joias com <em>Drag &amp; Drop</em> baseado em <code>CNewUIInventoryCtrl</code>.</li>
+            <li>O backend deve validar combinações utilizando as mesmas tabelas carregadas por <code>CPentagramSystem</code>, calculando taxas de sucesso conforme <code>PentagramJewelMixRate.txt</code>.</li>
+            <li>Reproduzir o dano elemental chamando <code>ApplyGameplayEffect</code> usando os multiplicadores retornados pelo serviço, assim como o servidor legado consulta <code>GetPentagramDamage()</code>.</li>
+          </ol>
+        </details>
+
+        <details class="guia">
+          <summary>Passo a passo — Helper e PcPoint</summary>
+          <div class="source-card">
+            <div class="source-meta">Servidor &mdash; <code>Source MuServer Update 15/GameServer/GameServer/Helper.cpp</code></div>
+            <pre><code>if((GetTickCount()-lpObj->HelperDelayTime) >= gServerInfo.m_HelperActiveDelay*60000)
+{
+        lpObj->Money -= (lpObj->Level+lpObj->MasterLevel)*gServerInfo.m_HelperActiveMoney[HelperStage];
+        GCMoneySend(lpObj->Index,lpObj->Money);
+        this->GCHelperStartSend(lpObj->Index,((GetTickCount()-lpObj->HelperTotalTime)/60000), ...);
+}</code></pre>
+          </div>
+          <ol>
+            <li>Mapear para <code>Config/ServerInfo.ini</code> os mesmos parâmetros <code>HelperSwitch</code>, <code>HelperActiveLevel</code> e <code>HelperActiveMoney*</code>. O microserviço UE5 deve aplicar os débitos e limites de mapa antes de habilitar o modo automático.</li>
+            <li>Construir <code>WBP_HelperPanel</code> inspirado em <code>NewUIMoveCommandWindow.cpp</code> reutilizando <code>Interface\newui_command.jpg</code>; os toggles disparam eventos em <code>BP_HelperSubsystem</code> para iniciar/parar rotinas de IA (<code>Behavior Tree</code> customizado).</li>
+            <li>Reaproveitar <code>gServerInfo.m_HelperActiveMoney</code> para exibir o custo em Zen por estágio, atualizando via WebSocket quando o servidor enviar <code>HelperStart</code>/<code>HelperStop</code>.</li>
+            <li>Para PcPoint, carregar <code>PcPoint.txt</code> e reconstruir a vitrine com <code>WBP_PcPointShop</code> refletindo a grade de <code>NewUIPurchaseShopInventory</code> (slots 8x4 em <code>(x+16, y+90)</code>).</li>
+          </ol>
+          <div class="source-card">
+            <div class="source-meta">Servidor &mdash; <code>Source MuServer Update 15/GameServer/GameServer/PcPoint.cpp</code></div>
+            <pre><code>int ItemIndex = SafeGetItem(GET_ITEM(lpMemScript->GetNumber(),lpMemScript->GetAsNumber()));
+int Socket1 = lpMemScript->GetAsNumber();
+...
+this->InsertItemNew(ItemIndex, ItemLevel, ItemDurability, ..., Socket5, ItemValue);</code></pre>
+          </div>
+          <ol>
+            <li>Criar um conversor que transforme cada linha de <code>PcPoint.txt</code> em <code>FPcPointItemRow</code> (ItemIndex, Level, Options, Value) preservando sockets e opções excelentes.</li>
+            <li>No backend, implementar <code>POST /pcpoint/buy</code> validando estoque, custo e chamando <code>GDPcPointAddPointSaveSend</code> equivalente antes de inserir o item na fila de entregas.</li>
+            <li>Atualizar o HUD exibindo saldo PcPoint ao lado do Zen (use <code>g_pRenderText</code> como referência de posicionamento).</li>
+            <li>Registrar logs espelhando <code>LogAddTD</code> para auditoria de compras e recompensas online.</li>
+          </ol>
+        </details>
+      </article>
+
+      <article class="module-category">
         <h3>Infraestrutura de Servidores MuServer</h3>
         <table class="matrix">
           <thead>
@@ -3124,6 +3409,7 @@ Delegate OnInventoryReceived(Itens)
         <button class="conversion-button" data-pane="character-select">Seleção de Personagens</button>
         <button class="conversion-button" data-pane="mobs">Sistema de Mobs</button>
         <button class="conversion-button" data-pane="skills">Sistema de Skills</button>
+        <button class="conversion-button" data-pane="companions">Companheiros &amp; Recursos Avançados</button>
         <button class="conversion-button" data-pane="social">Party, Guild &amp; Gens</button>
         <button class="conversion-button" data-pane="maps">Mapas e Navegação</button>
         <button class="conversion-button" data-pane="effects">Efeitos Visuais</button>
@@ -3971,7 +4257,77 @@ Function ApplySkillResponse (Payload)
         </div>
       </article>
 
+      <article class="conversion-pane" data-pane="companions">
+        <h3>Companheiros Muun, Pentagrama e Helper</h3>
+        <p>
+          Os executáveis originais combinam UI dedicada para pets em <code>NewUIPetInfoWindow.cpp</code>
+          com lógicas de servidor em <code>MuunSystem.cpp</code>, <code>PentagramSystem.cpp</code> e
+          <code>Helper.cpp</code>. Esta aba mostra como portar companions, joias elementais e o sistema
+          automático preservando os mesmos dados e limites.
+        </p>
+        <div class="source-card">
+          <div class="source-meta">Cliente &mdash; <code>Source Main 5.2/source/NewUIPetInfoWindow.cpp</code></div>
+          <pre><code>LoadBitmap("Interface\\newui_msgbox_back.jpg", IMAGE_PETINFO_BACK, GL_LINEAR);
+LoadBitmap("Interface\\newui_pet_lifebar01.jpg", IMAGE_PETINFO_LIFEBAR, GL_LINEAR);
+LoadBitmap("Interface\\newui_pet_lifebar02.jpg", IMAGE_PETINFO_LIFE, GL_LINEAR);</code></pre>
+        </div>
+        <div class="source-card">
+          <div class="source-meta">Servidor &mdash; <code>MuunSystem.cpp</code>, <code>PentagramSystem.cpp</code>, <code>Helper.cpp</code></div>
+          <pre><code>gMuunSystem.MainProc();            // User.cpp: atualiza buffs Muun
+gPentagramSystem.Load("Item\\PentagramOption.txt");
+if(lpObj->HelperDelayTime != 0) {  // Helper.cpp
+        lpObj->Money -= (lpObj->Level+lpObj->MasterLevel)*gServerInfo.m_HelperActiveMoney[HelperStage];
+}</code></pre>
+        </div>
+        <div class="source-card">
+          <div class="source-meta">Configuração &mdash; <code>ServerInfo.cpp</code></div>
+          <pre><code>gMuunSystem.Load(gPath.GetFullPath("Item\\MuunOption.txt"));
+gPentagramSystem.LoadJewel(gPath.GetFullPath("Item\\PentagramJewelOption.txt"));
+gPcPoint.Load(gPath.GetFullPath("PcPoint.txt"));</code></pre>
+        </div>
+        <h4>Fluxo de Blueprint</h4>
+        <ol>
+          <li><strong>Componentes:</strong> criar <code>BP_MuunComponent</code>, <code>BP_PentagramComponent</code> e <code>BP_HelperSubsystem</code> anexados ao personagem. Eles carregam <code>Data Tables</code> derivados de <code>MuunOption</code>, <code>PentagramOption</code> e <code>PcPoint.txt</code>.</li>
+          <li><strong>UI:</strong> construir <code>WBP_MuunPanel</code> usando as texturas convertidas (<code>newui_pet_lifebar*</code>) e adicionar abas para slots elementais e configurações do Helper.</li>
+          <li><strong>Interação:</strong> expor bindings para <code>Equipar</code>/<code>Remover</code> companion, inserir joias em sockets e alternar o Helper. Cada ação dispara <code>POST</code>/<code>DELETE</code> no gateway replicando <code>CGMuunUseRecv</code>, <code>CGPentagramJewelInsertRecv</code> e <code>CGHelperStartRecv</code>.</li>
+          <li><strong>Feedback:</strong> renderizar efeitos (Niagara/Skeletal Mesh) conforme dados de <code>MuunSprite</code> e aplicar materiais elementais com multiplicadores provenientes do backend.</li>
+        </ol>
+        <h4>Integração Backend</h4>
+        <ol>
+          <li>Fornecer <code>/companions</code> (GET/POST/DELETE) carregando <code>Item/MuunOption.txt</code> e respeitando <code>EvolutionItemIndex</code>.</li>
+          <li>Implementar <code>/pentagram/socket</code> com validações de rank/nível segundo <code>PentagramJewelOption.txt</code> e taxas de <code>PentagramJewelMixRate.txt</code>.</li>
+          <li>Sincronizar o Helper via WebSocket enviando mensagens <code>HelperStart</code>/<code>HelperStop</code> quando o servidor deduz Zen ou encerra por mapa inválido (seguindo <code>CHelper::DisableHelper</code>).</li>
+          <li>Compartilhar o saldo PcPoint no mesmo canal das notificações de loja para atualizar o HUD (reutilize o payload que substitui <code>GDPcPointPointSend</code>).</li>
+        </ol>
+        <h4>Blueprint Exemplo</h4>
+        <pre><code>// BP_MuunComponent
+Event BeginPlay
+  Load Data Table Row (MuunID)
+  Spawn Companion Actor (SkeletalMesh from Data)
+  AttachToComponent(CharacterMesh, SocketName)
+
+Event ToggleHelper(bEnable)
+  If bEnable
+    -> HTTP POST /helper/start { Map = CurrentMap }
+  Else
+    -> HTTP POST /helper/stop
+
+Event OnHelperUpdate(Payload)
+  HelperState = Payload.State
+  Owner.HUD.UpdateHelperStatus(HelperState.CostPerMinute, HelperState.ElapsedMinutes)</code></pre>
+        <div class="callout">
+          <strong>Checklist:</strong>
+          <ul>
+            <li>Texturas convertidas mantém offsets <code>(15,200)</code> e <code>(x+12, y+48)</code> herdados do cliente.</li>
+            <li>Endpoints validam Zen/custos conforme <code>m_HelperActiveMoney</code> e bloqueiam mapas proibidos (<code>GetMapHelperEnable</code>).</li>
+            <li>Companions atualizam atributos conforme <code>MuunSystemInfo.OptionValue</code> e exibem rank/evolução corretos.</li>
+            <li>O dano elemental reproduz multiplicadores retornados pelo backend antes de aplicar <code>Gameplay Effects</code>.</li>
+          </ul>
+        </div>
+      </article>
+
       <article class="conversion-pane" data-pane="social">
+
         <h3>Party, Guild e Sistema Gens</h3>
         <p>
           A camada social original combina UI em <code>NewUIPartyListWindow.cpp</code>/<code>NewUIPartyInfoWindow.cpp</code>,
