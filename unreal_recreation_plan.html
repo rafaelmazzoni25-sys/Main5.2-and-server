@@ -2444,6 +2444,27 @@ this->InsertItemNew(ItemIndex, ItemLevel, ItemDurability, ..., Socket5, ItemValu
           </ul>
         </article>
         <article class="module-category">
+          <h3>Minigames, Economia Especial &amp; Sistemas Secundários</h3>
+          <ul class="module-list">
+            <li>
+              <strong>Lucky Coin &amp; Lucky Item</strong> — <code>NewUIExchangeLuckyCoin.cpp</code>, <code>NewUILuckyItemWnd.cpp</code>,
+              <code>LuckyCoin.cpp</code>, <code>LuckyItem.cpp</code>, arquivos <code>Data/EventItemBag/070-072 - Lucky Coin*.txt</code>.
+              Planeje widgets de troca/refino e serviços que respeitam as transações protegidas do servidor.</li>
+            <li>
+              <strong>MuRummy &amp; Eventos de Baralho</strong> — <code>MuRummy.cpp</code>, <code>EventInventory.cpp</code>,
+              <code>NewsProtocol.cpp</code>. Estruture Data Tables para cartas e fluxos de pontuação, integrando animações UMG.</li>
+            <li>
+              <strong>Mineração</strong> — <code>MiningSystem.cpp</code>, <code>ServerInfo.cpp</code> (carga de <code>Mining.txt</code>).
+              Importe estágios, probabilidades e recompensas para <code>BP_MiningNode</code> replicado.</li>
+            <li>
+              <strong>Moss Merchant &amp; Gamble</strong> — <code>MossMerchant.cpp</code>, <code>GambleSystem.cpp</code>,
+              <code>Event/MossMerchant.dat</code>. Recrie sorteios temporizados e vitrines RNG com endpoints seguros.</li>
+            <li>
+              <strong>Casamento &amp; Alianças</strong> — <code>MarrySystem.cpp</code>, <code>Union.cpp</code>, <code>NewsProtocol.cpp</code>.
+              Modele microserviços sociais adicionais para casamento, teleporte de casal e relações de aliança/rivalidade.</li>
+          </ul>
+        </article>
+        <article class="module-category">
           <h3>Habilidades, Buffs &amp; Efeitos</h3>
           <ul class="module-list">
             <li>
@@ -3569,6 +3590,7 @@ Delegate OnInventoryReceived(Itens)
         <button class="conversion-button" data-pane="mobs">Sistema de Mobs</button>
         <button class="conversion-button" data-pane="skills">Sistema de Skills</button>
         <button class="conversion-button" data-pane="companions">Companheiros &amp; Recursos Avançados</button>
+        <button class="conversion-button" data-pane="minigames">Minigames &amp; Conteúdos Especiais</button>
         <button class="conversion-button" data-pane="social">Party, Guild &amp; Gens</button>
         <button class="conversion-button" data-pane="maps">Mapas e Navegação</button>
         <button class="conversion-button" data-pane="effects">Efeitos Visuais</button>
@@ -4483,6 +4505,134 @@ Event OnHelperUpdate(Payload)
             <li>O dano elemental reproduz multiplicadores retornados pelo backend antes de aplicar <code>Gameplay Effects</code>.</li>
           </ul>
         </div>
+      </article>
+
+      <article class="conversion-pane" data-pane="minigames">
+        <h3>Minigames, Eventos Paralelos e Sistemas Especiais</h3>
+        <p>
+          Além dos sistemas centrais, o cliente <code>Main 5.2</code> e o MuServer incluem minigames e
+          recursos extras como Lucky Coin, Lucky Item, MuRummy, Mineração, Moss Merchant, casamento e
+          alianças. Esta aba sintetiza as referências originais e o passo a passo para replicar cada
+          fluxo em Blueprints e serviços UE5 reutilizando tabelas e assets existentes.
+        </p>
+        <div class="grid-2">
+          <div class="source-card">
+            <div class="source-meta">Cliente &mdash; <code>Source Main 5.2/source/NewUIExchangeLuckyCoin.cpp</code></div>
+            <pre><code>m_BtnExchange[0].ChangeButtonInfo(m_FirstBtnPos.x, m_FirstBtnPos.y, MSGBOX_BTN_EMPTY_WIDTH, MSGBOX_BTN_EMPTY_HEIGHT);
+m_BtnExchange[1].ChangeButtonInfo(m_FirstBtnPos.x, m_FirstBtnPos.y+27, MSGBOX_BTN_EMPTY_WIDTH, MSGBOX_BTN_EMPTY_HEIGHT);
+m_BtnExchange[2].ChangeButtonInfo(m_FirstBtnPos.x, m_FirstBtnPos.y+54, MSGBOX_BTN_EMPTY_WIDTH, MSGBOX_BTN_EMPTY_HEIGHT);
+RenderImage(IMAGE_EXCHANGE_LUCKYCOIN_WINDOW_BACK, m_Pos.x, m_Pos.y, float(EXCHANGE_LUCKYCOIN_WINDOW_WIDTH), float(EXCHANGE_LUCKYCOIN_WINDOW_HEIGHT));</code></pre>
+          </div>
+          <div class="source-card">
+            <div class="source-meta">Servidor &mdash; <code>Source MuServer Update 15/GameServer/GameServer/LuckyCoin.cpp</code></div>
+            <pre><code>pMsg.header.set(0x1A,0x01,sizeof(pMsg));
+pMsg.slot = gItemManager.GetInventoryItemSlot(lpObj,GET_ITEM(14,100),-1);
+if(((lpObj->LuckyCoinTransaction[1]==0)?(lpObj->LuckyCoinTransaction[1]++):lpObj->LuckyCoinTransaction[1]) != 0)
+{
+        return;
+}</code></pre>
+          </div>
+        </div>
+        <div class="grid-2">
+          <div class="source-card">
+            <div class="source-meta">Cliente &mdash; <code>Source Main 5.2/source/NewUILuckyItemWnd.cpp</code></div>
+            <pre><code>RenderImage(m_sFrame[i].s_Img.s_nImgIndex, m_sFrame[i].s_ptPos.x, m_sFrame[i].s_ptPos.y, m_sFrame[i].s_Img.s_fWid, m_sFrame[i].s_Img.s_fHgt);
+g_pRenderText->RenderText(m_ptPos.x +10, fTextY + 11.0f*i, GlobalText[m_sText[i].s_nTextIndex], m_fSizeX-20, 0, m_sText[i].s_nLine);
+if (m_nMixEffectTimer > 0) { g_pNewUI3DRenderMng->RenderUI2DEffect(INVENTORY_CAMERA_Z_ORDER, UI2DEffectCallback, this, 0, 0); }</code></pre>
+          </div>
+          <div class="source-card">
+            <div class="source-meta">Servidor &mdash; <code>Source MuServer Update 15/GameServer/GameServer/LuckyItem.cpp</code></div>
+            <pre><code>info.Index = lpMemScript->GetNumber();
+info.Group = lpMemScript->GetAsNumber();
+info.Decay = lpMemScript->GetAsNumber();
+info.Option0 = lpMemScript->GetAsNumber();
+this->m_LuckyItemInfo.insert(std::pair<int,LUCKY_ITEM_INFO>(info.Index,info));</code></pre>
+          </div>
+        </div>
+        <div class="grid-2">
+          <div class="source-card">
+            <div class="source-meta">Servidor &mdash; <code>Source MuServer Update 15/GameServer/GameServer/MuRummy.cpp</code></div>
+            <pre><code>for (int nCardColor = 0; nCardColor < MURUMMY_MAX_CARD_COLOR; nCardColor++)
+{
+        for (int nCardNum = 0; nCardNum < MURUMMY_MAX_SLOT; nCardNum++)
+        {
+                pCCardInfo[nCardArr].SetColor(nCardColor + 1);
+                pCCardInfo[nCardArr].SetNumber(nCardNum + 1);
+                pCCardInfo[nCardArr].SetState(0);
+        }
+}
+pMuRummyInfo->SetCardDeckCnt(MURUMMY_MAX_CARD);</code></pre>
+          </div>
+          <div class="source-card">
+            <div class="source-meta">Servidor &mdash; <code>Source MuServer Update 15/GameServer/GameServer/MiningSystem.cpp</code></div>
+            <pre><code>if(lpMemScript->SetBuffer(path) == 0) { ErrorMessageBox(lpMemScript->GetLastError()); }
+MINING_INFO info;
+info.Index = lpMemScript->GetNumber();
+info.Stage = lpMemScript->GetAsNumber();
+info.Value = lpMemScript->GetAsNumber();
+info.ItemRate = lpMemScript->GetAsNumber();
+this->m_MiningInfo.push_back(info);</code></pre>
+          </div>
+        </div>
+        <div class="source-card">
+          <div class="source-meta">Servidor &mdash; <code>Source MuServer Update 15/GameServer/GameServer/ServerInfo.cpp</code></div>
+          <pre><code>gMiningSystem.Load(gPath.GetFullPath("Mining.txt"));
+gMossMerchant.Load(gPath.GetFullPath("Event\\MossMerchant.dat"));</code></pre>
+        </div>
+        <div class="grid-2">
+          <div class="source-card">
+            <div class="source-meta">Servidor &mdash; <code>Source MuServer Update 15/GameServer/GameServer/MossMerchant.cpp</code></div>
+            <pre><code>this->m_MossMerchantStartTime.clear();
+info.Year = lpMemScript->GetNumber();
+info.Month = lpMemScript->GetAsNumber();
+info.DayOfWeek = lpMemScript->GetAsNumber();
+info.Hour = lpMemScript->GetAsNumber();
+info.Minute = lpMemScript->GetAsNumber();</code></pre>
+          </div>
+          <div class="source-card">
+            <div class="source-meta">Servidor &mdash; <code>Source MuServer Update 15/GameServer/GameServer/MarrySystem.cpp</code></div>
+            <pre><code>this->Enabled = lpMemScript->GetNumber();
+this->MarryMap  = lpMemScript->GetAsNumber();
+this->ProposeX  = lpMemScript->GetAsNumber();
+this->AcceptX  = lpMemScript->GetAsNumber();
+this->CostDivorce  = lpMemScript->GetNumber();
+pMsg.ProposeX = this->ProposeX;
+pMsg.AcceptY = this->AcceptY;</code></pre>
+          </div>
+        </div>
+        <div class="source-card">
+          <div class="source-meta">Cliente &mdash; <code>Source Main 5.2/source/GambleSystem.h</code></div>
+          <pre><code>class GambleSystem
+{
+public:
+        static GambleSystem& Instance();
+        void SetGambleShop(bool isGambleshop = true);
+        void SetBuyItemInfo(int index, DWORD cost);
+};</code></pre>
+        </div>
+        <div class="source-card">
+          <div class="source-meta">Servidor &mdash; <code>Source MuServer Update 15/GameServer/GameServer/Union.cpp</code></div>
+          <pre><code>if ( pUnionInfo->IsUnionMember(iTargetGuildNumber) != FALSE ) { return 1; }
+if ( pUnionInfo->IsRivalMember(iTargetGuildNumber) != FALSE ) { return 2; }
+this->m_mpUnion[iMasterGuildNumber] = pUnionInfo;
+this->m_Sync.Unlock();</code></pre>
+        </div>
+        <h4>Passos de Conversão UE5</h4>
+        <ol>
+          <li><strong>Lucky Coin:</strong> converter sprites <code>Interface\ExchangeLuckyCoin\*.ozj</code> e montar <code>WBP_LuckyCoin</code> com espaçamento de 27&nbsp;px entre botões como <code>SetBtnPos</code> define. Criar <code>ULuckyCoinSubsystem</code> que chama <code>POST /lucky-coin/register</code> e <code>/lucky-coin/exchange</code>, aplicando as travas de <code>LuckyCoin.cpp</code> e lendo recompensas de <code>Data/EventItemBag/070-072 - Lucky Coin*.txt</code>.</li>
+          <li><strong>Lucky Item:</strong> reproduzir frame e textos em <code>WBP_LuckyItem</code>, ativando efeitos Niagara quando <code>m_nMixEffectTimer &gt; 0</code>. Persistir opções com <code>/lucky-item/activate</code> usando os campos <code>Option0..Option6</code> do servidor.</li>
+          <li><strong>MuRummy:</strong> gerar <code>DT_MuRummyDeck</code> (cores, números, estado) seguindo <code>SetCardDeck</code>. Criar widget de cartas arrastáveis e rotas <code>/murummy/draw</code>/<code>/murummy/finish</code> que respeitam a contagem <code>MURUMMY_MAX_CARD</code>.</li>
+          <li><strong>Mineração:</strong> importar <code>Mining.txt</code> (carregado via <code>ServerInfo::ReadCommonInfo</code>) para <code>DT_MiningStage</code>. <code>BP_MiningNode</code> inicia <code>/mining/start</code>, reproduz <code>GCMiningStartSend</code> e, ao concluir, solicita <code>/mining/complete</code> aplicando <code>ItemRate</code>/<code>BonusItemRate</code>.</li>
+          <li><strong>Moss Merchant &amp; Gamble:</strong> converter <code>Event/MossMerchant.dat</code> em Data Table de horários/slots, usar <code>GambleSystem::SetGambleShop</code> para alternar layout e expor <code>/moss/draw</code> que escolhe itens seguindo <code>MOSS_MERCHANT_ITEM_INFO</code>.</li>
+          <li><strong>Casamento &amp; Alianças:</strong> implementar <code>WBP_MarryChapel</code> com coordenadas <code>ProposeX/Y</code> e <code>AcceptX/Y</code>, enviando <code>/marry/propose</code>/<code>/marry/accept</code>. <code>UUnionService</code> replica <code>Union.cpp</code> para manter relações Guild/Alliance e atualizar badges sociais.</li>
+        </ol>
+        <h4>Integração de Dados e Backend</h4>
+        <ul>
+          <li>Expandir o pipeline ETL para extrair <code>Mining.txt</code>, <code>Event/MossMerchant.dat</code> e catálogos de Lucky Coin/Lucky Item, convertendo-os para CSV/Data Tables UE5.</li>
+          <li>Adicionar rotas dedicadas (<code>/minigames/murummy</code>, <code>/economy/lucky-item</code>, <code>/events/moss</code>, <code>/social/marry</code>) que retornem payloads equivalentes aos pacotes 0x1A/0xFA do servidor.</li>
+          <li>Criar testes funcionais automatizados que percorrem registro de Lucky Coin, compra Moss, sessão MuRummy e casamento comparando <code>LogAddTD</code>/<code>Notice</code> com o comportamento original.</li>
+          <li>Propagar notificações no HUD via <code>Gameplay Event Tags</code> (ex.: <code>Event.MossMerchant.Open</code>) e sons herdados de <code>DSPlaySound.h</code>.</li>
+        </ul>
       </article>
 
       <article class="conversion-pane" data-pane="social">
