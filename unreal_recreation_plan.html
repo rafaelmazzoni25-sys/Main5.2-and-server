@@ -975,6 +975,7 @@
             <li><a href="#paridade">Verificação de paridade</a></li>
             <li><a href="#codigo-main-muserver">Estudo das fontes</a></li>
             <li><a href="#catalogo-modulos">Catálogo de módulos</a></li>
+            <li><a href="#pipeline-recursos">Pipeline de recursos</a></li>
           </ul>
         </div>
         <div class="nav-group">
@@ -986,6 +987,8 @@
             <li><a href="#mob-system-atlas">Sistemas de mobs</a></li>
             <li><a href="#skill-system-guide">Sistemas de skills</a></li>
             <li><a href="#blueprints">Blueprints essenciais</a></li>
+            <li><a href="#input-hotkeys">Input &amp; atalhos</a></li>
+            <li><a href="#audio-vfx">Áudio &amp; efeitos</a></li>
           </ul>
         </div>
         <div class="nav-group">
@@ -3037,6 +3040,141 @@ this->InsertItemNew(ItemIndex, ItemLevel, ItemDurability, ..., Socket5, ItemValu
           </tr>
         </tbody>
       </table>
+    </section>
+
+
+    <section id="pipeline-recursos">
+      <h2>Pipeline de Recursos, Localização e Scripts Compartilhados</h2>
+      <p>
+        A leitura detalhada de <code>GlobalBitmap.cpp</code>, <code>LoadData.cpp</code>, <code>TextureScript.cpp</code>,
+        <code>GlobalText.h</code> e <code>MultiLanguage.cpp</code> mostrou que o cliente clássico organiza texturas,
+        modelos, fontes e arquivos de texto em caches indexados. Abaixo está o passo a passo para converter esse
+        pipeline em fluxos compatíveis com a Unreal Engine 5 sem perder resoluções, offsets ou idiomas originais.
+      </p>
+
+      <div class="catalog-grid">
+        <div class="catalog-card">
+          <h4>Texturas, sprites e tipografia</h4>
+          <p class="path">
+            <strong>Legado:</strong> <code>GlobalBitmap.cpp</code>, <code>GlobalBitmap.h</code>, <code>TextureScript.cpp</code>,
+            <code>GlobalText.h</code>, <code>MultiLanguage.cpp</code>, diretórios
+            <code>Source Main 5.2/bin/Data/Interface</code> e <code>.../Local</code>.
+          </p>
+          <ol class="step-list">
+            <li>
+              Mapear intervalos de índices definidos em <code>CBitmapCache::Create()</code> (ex.:
+              <code>BITMAP_MAPTILE_BEGIN/END</code>) para criar <code>Data Tables</code> UE5 (<code>DT_InterfaceSprites</code>)
+              que listam arquivo original, tamanho e flags de blend. Esse mapeamento garante que cada widget utilize o mesmo
+              atlas do cliente legado.
+            </li>
+            <li>
+              Converter arquivos <code>.ozj</code>, <code>.jpg</code> e <code>.tga</code> com a mesma nomenclatura utilizada por
+              <code>Bitmaps.LoadImage</code>. Utilize o conversor existente em <code>tools/item_converter/main_to_ue5_converter.py</code>
+              ou scripts equivalentes para exportar PNGs preservando paleta e canal alfa; importe-os como
+              <em>Slate Brushes</em> e materiais com <code>Filtering = Nearest</code> para interfaces pixeladas.
+            </li>
+            <li>
+              Replicar as marcações de <code>TextureScriptParsing::parsingTScript()</code>: os sufixos <code>_R</code>,
+              <code>_H</code>, <code>_S</code>, <code>_N</code> definem brilho, ocultação e blend. Em UE5, crie instâncias de
+              material com <em>Additive</em> ou <em>Masked</em> conforme o flag e atribua-as automaticamente com um
+              <code>Editor Utility</code> que lê o mesmo script.
+            </li>
+            <li>
+              Centralizar textos em <code>Primary Data Assets</code> derivados de <code>GlobalText.h</code> e aplicar o pipeline
+              de conversão Unicode de <code>CMultiLanguage</code>. Defina coleções <code>FCompositeFont</code> para cada idioma e
+              exponha um <code>UGameInstanceSubsystem</code> que alterna fonte/codificação seguindo
+              <code>CMultiLanguage::GetLanguage()</code> e <code>GetCodePage()</code>.
+            </li>
+            <li>
+              Automatizar testes comparando capturas do HUD legado com o render UE5 utilizando o mesmo texto (IDs 0–200 do
+              <code>GlobalText</code>). A diferença de cor/tamanho deve ser inferior a 2% para aprovar a etapa.
+            </li>
+          </ol>
+        </div>
+        <div class="catalog-card">
+          <h4>Modelos BMD, animações e materiais</h4>
+          <p class="path">
+            <strong>Legado:</strong> <code>LoadData.cpp</code>, <code>ZzzBMD.cpp</code>, <code>ZzzTexture.cpp</code>,
+            diretórios <code>Data/Character</code>, <code>Data/Monster</code>, <code>Data/Item</code>.
+          </p>
+          <ol class="step-list">
+            <li>
+              Usar <code>CLoadData::AccessModel()</code> para extrair a lista de <code>.bmd</code> necessários por categoria
+              (jogadores, monstros, asas) e alimentar um pipeline de conversão para <code>.fbx</code>/<code>.glb</code>. Mantenha
+              a hierarquia de ossos para compatibilizar animações reutilizadas na UE5.
+            </li>
+            <li>
+              Reaplicar a lógica de <code>CLoadData::OpenTexture()</code> ao importar materiais: texturas iniciadas com
+              <code>skin</code> ou <code>level</code> usam o índice <code>BITMAP_SKIN</code>, enquanto <code>hid</code> e
+              <code>hair</code> devem virar <em>Material Slots</em> específicos com máscaras próprias. Configure um
+              <em>Data Asset</em> que associe cada slot ao material correto.
+            </li>
+            <li>
+              Converter animações sequenciais usando o mesmo padrão que <code>Models[Type].Open2()</code> adota para carregar
+              variantes numéricas (ex.: <code>Monster00.bmd</code> → <code>Monster15.bmd</code>). Gere <code>Animation Sequences</code>
+              UE5 e empacote-as em <code>AnimMontage</code> para o Gameplay Ability System.
+            </li>
+            <li>
+              Criar um <code>AssetManager</code> customizado que registra os <em>Primary Assets</em> equivalentes aos
+              identificadores originais (índices de <code>Item.txt</code> e <code>Monster.txt</code>). Isso permite que
+              Blueprints requisitem meshes e materiais pelo mesmo ID usado pelo backend.
+            </li>
+            <li>
+              Validar colisões e pivôs confrontando os valores importados com as estruturas <code>BMD::BodyHeight</code> e
+              <code>::m_vPivotPosition</code> encontradas em <code>ZzzBMD.cpp</code>. Ajustes são feitos em <code>Retarget Manager</code>
+              mantendo o posicionamento dos sockets originais.
+            </li>
+          </ol>
+        </div>
+        <div class="catalog-card">
+          <h4>Localização, scripts e dados compartilhados</h4>
+          <p class="path">
+            <strong>Legado:</strong> <code>MultiLanguage.cpp</code>, <code>Local.cpp</code>, <code>GlobalPortalSystem.cpp</code>,
+            <code>LoadData.cpp</code>, tabelas <code>Data/Local/</code>, <code>Data/Skill</code>, <code>Data/Quest</code>.
+          </p>
+          <ol class="step-list">
+            <li>
+              Exportar arquivos de texto (<code>Msg*.txt</code>, <code>Quest*.txt</code>, <code>MoveReq.txt</code>) mantendo
+              a codificação original. Aplique o mesmo algoritmo de <code>CMultiLanguage::ConvertANSIToUTF8OrViceVersa</code> para
+              gravar <code>.csv</code> em UTF-8 antes de importar para <code>Data Tables</code>.
+            </li>
+            <li>
+              Reproduzir a lógica de <code>GlobalPortalSystem::LoadScript()</code> para portais/warp: cada linha deve virar um
+              registro em <code>DT_WarpDefinition</code> com mapa, coordenadas, custo e requisitos de quest. Garante paridade com
+              o <code>MoveCommandData</code> usado na interface.
+            </li>
+            <li>
+              Estruturar um <code>Content Validation</code> automático que compara quantidades de linhas carregadas pela UE5 com
+              os contadores do <code>CLoadData</code> (por exemplo, número de habilidades, quests, warps). Falhas travam o build.
+            </li>
+            <li>
+              No backend, exponha endpoints de sincronização (<code>/data/hash</code>) que retornam checksums iguais aos gerados
+              pelo cliente legado ao carregar <code>Data/Local</code>. Assim, o launcher pode validar a versão antes de iniciar a UE5.
+            </li>
+            <li>
+              Documentar traduções customizadas em um repositório separado, referenciando o ID do texto original e o contexto
+              (HUD, quest, portal) para facilitar revisões futuras.
+            </li>
+          </ol>
+        </div>
+      </div>
+
+      <div class="source-card">
+        <div class="source-meta">Cliente — <code>Source Main 5.2/source/LoadData.cpp</code></div>
+        <pre><code>strcpy(szFullPath, "Data\\");
+strcat(szFullPath, SubFolder);
+strcat(szFullPath, pTexture-&gt;FileName);
+...
+else if(tolower(__ext[1])=='t')
+    pModel-&gt;IndexTexture[i] = Bitmaps.LoadImage(szFullPath,GL_NEAREST,Wrap);
+else if(tolower(__ext[1])=='j')
+    pModel-&gt;IndexTexture[i] = Bitmaps.LoadImage(szFullPath,Type,Wrap);</code></pre>
+      </div>
+      <p>
+        Esta amostra reforça que o cliente escolhe filtros diferentes para <code>.tga</code> e <code>.jpg</code>, exigindo materiais
+        específicos na UE5. Replique a lógica com <code>Material Functions</code> distintos e mantenha um relatório de
+        conversão anexado ao build pipeline.
+      </p>
     </section>
 
     <section id="etapas">
@@ -5529,6 +5667,172 @@ with Client(base_url="https://api.seu-jogo.com") as http:
       </div>
     </section>
 
+
+
+    <section id="input-hotkeys">
+      <h2>Input, Hotkeys e Automação de Comandos</h2>
+      <p>
+        A análise de <code>Input.cpp</code>, <code>KeyGenerater.cpp</code>, <code>NewUIHotKey.cpp</code>,
+        <code>NewUICommandWindow.cpp</code>, <code>Button.cpp</code> e <code>NewUIButton.cpp</code> evidencia como o cliente
+        original gerencia mouse, teclado, duplo clique, macros e atalhos para abrir interfaces. Use as instruções abaixo
+        para reproduzir esses comportamentos com o sistema <em>Enhanced Input</em> da UE5 mantendo compatibilidade com os
+        comandos e verificações do backend (<code>CommandManager.cpp</code>, <code>Command.cpp</code>).
+      </p>
+
+      <div class="grid-2">
+        <div class="assurance-card">
+          <h3>Mapeamento de teclado, mouse e seeds</h3>
+          <p class="path"><strong>Legado:</strong> <code>CInput::Create/Update</code>, <code>UsefulDef.h</code>, <code>CKeyGenerater</code>.</p>
+          <ol class="step-list">
+            <li>Implemente <code>UInputAdapterSubsystem</code> que lê preferências (canhoto/destro) e aplica o mesmo <em>clamp</em> de cursor usado em <code>CInput::Update()</code>, incluindo tempo de duplo clique (<code>::GetDoubleClickTime()</code>) e resets quando o mouse se move.</li>
+            <li>Crie <code>Input Mapping Contexts</code> separados para UI, mundo e chat. Atribua ações equivalentes aos códigos virtuais usados em <code>SEASON3B::IsPress</code> (<code>VK_ESCAPE</code>, <code>'I'</code>, <code>'C'</code>, etc.) e exponha eventos para abertura de menus.</li>
+            <li>Utilize <code>UEnhancedInputComponent::BindAction</code> para conectar <code>IA_OpenInventory</code>, <code>IA_ToggleMiniMap</code>, <code>IA_OpenFriend</code> e <code>IA_AutoLoot</code>. Cada binding deve consultar um <code>Gameplay Tag</code> que representa o estado da interface, replicando as verificações feitas em <code>CanUpdateKeyEvent()</code>.</li>
+            <li>Replique o gerador de seeds com <code>UKeySeedComponent</code>: a cada comando crítico, atualize o seed com a mesma fórmula de <code>CKeyGenerater::GenerateKeyValue()</code> e anexe ao payload REST/WebSocket para que o backend valide <em>sequence numbers</em>.</li>
+            <li>Logue entradas suspeitas seguindo o padrão de <code>CommandManager::CheckAuthority</code>, emitindo <code>Gameplay Messages</code> quando permissões não forem suficientes.</li>
+          </ol>
+        </div>
+        <div class="assurance-card">
+          <h3>Hotkeys, macros e janelas contextuais</h3>
+          <p class="path"><strong>Legado:</strong> <code>CNewUIHotKey::UpdateKeyEvent</code>, <code>NewUICommandWindow.cpp</code>, <code>NewUICommonMessageBox.cpp</code>.</p>
+          <ol class="step-list">
+            <li>Monte <code>WBP_HotkeyOverlay</code> com os mesmos botões definidos em <code>NewUIHotKey.cpp</code>, reaproveitando sons <code>PlayBuffer(SOUND_CLICK01)</code> e exibindo atalhos no canto inferior direito.</li>
+            <li>Implemente <code>BP_CommandConsole</code> inspirado em <code>NewUICommandWindow</code>: aceitar texto, aplicar filtro de palavras conforme <code>Filter.cpp</code> e enviar requisições <code>POST /commands/execute</code>.</li>
+            <li>Suportar modo <em>Auto Get Item</em> e <em>Helper</em> chamando os subsistemas descritos na seção de Helper; as mesmas condições de <code>AutoGetItem()</code> devem bloquear o processamento de outras teclas.</li>
+            <li>Adotar <code>CommonUI::UCommonActivatableWidget</code> para modais acionados por <code>VK_ESCAPE</code>, garantindo que a pilha de widgets respeite as prioridades originais (HUD &gt; Inventário &gt; System Menu).</li>
+            <li>Sincronizar estados com o backend emitindo eventos <code>/commands/state</code> e <code>/hotkeys/update</code>, permitindo reconfiguração dinâmica semelhante aos atalhos personalizados introduzidos nos servidores custom.</li>
+          </ol>
+        </div>
+      </div>
+
+      <div class="source-card">
+        <div class="source-meta">Cliente — <code>Source Main 5.2/source/Input.cpp</code></div>
+        <pre><code>m_lDX = m_ptCursor.x - m_ptFormerCursor.x;
+m_lDY = m_ptCursor.y - m_ptFormerCursor.y;
+if (m_lDX || m_lDY)
+    m_bFormerBtn0Dn = m_bFormerBtn1Dn = m_bFormerBtn2Dn = false;
+...
+if (SEASON3B::IsPress('I') || SEASON3B::IsPress('V'))
+{
+    if (g_pNPCShop-&gt;IsSellingItem() == false)
+    {
+        g_pNewUISystem-&gt;Toggle(SEASON3B::INTERFACE_INVENTORY);
+        PlayBuffer(SOUND_CLICK01);
+        return false;
+    }
+}</code></pre>
+      </div>
+      <div class="source-card">
+        <div class="source-meta">Servidor — <code>Source MuServer Update 15/GameServer/GameServer/CommandManager.cpp</code></div>
+        <pre><code>void CCommandManager::MainProc()
+{
+    if (this-&gt;m_CommandInfo[n].MinimumLevel &gt; lpObj-&gt;Level)
+        continue;
+    if (this-&gt;m_CommandInfo[n].GameMaster &amp;&amp; gObjIsGameMaster(lpObj) == 0)
+        continue;
+    this-&gt;m_CommandInfo[n].CommandPointer(lpObj, message);
+}</code></pre>
+      </div>
+
+      <details class="guia">
+        <summary>Blueprint — Enhanced Input e comandos</summary>
+        <pre><code>// BP_PlayerController::SetupInputComponent
+EnhancedInput-&gt;AddMappingContext(MC_Gameplay, 0);
+EnhancedInput-&gt;BindAction(IA_OpenInventory, ETriggerEvent::Triggered, this, &ThisClass::HandleInventory);
+EnhancedInput-&gt;BindAction(IA_CommandEnter, ETriggerEvent::Triggered, this, &ThisClass::HandleCommand);
+
+void ThisClass::HandleInventory(const FInputActionValue&amp; Value)
+{
+    if (!UIStack-&gt;IsModalActive())
+    {
+        UHotkeyService-&gt;TogglePanel(EHotkeyPanel::Inventory);
+        ServerGateway-&gt;SendHotkeySeed(KeySeedComponent-&gt;ConsumeSeed());
+    }
+}
+
+void ThisClass::HandleCommand(const FInputActionValue&amp; Value)
+{
+    FString Text = CommandConsole-&gt;PullLine();
+    if (Text.StartsWith("/"))
+    {
+        ServerGateway-&gt;ExecuteCommand(Text, KeySeedComponent-&gt;ConsumeSeed());
+    }
+}</code></pre>
+      </details>
+    </section>
+
+    <section id="audio-vfx">
+      <h2>Áudio, Mixagem e Efeitos Visuais Modernizados</h2>
+      <p>
+        Para manter paridade audiovisual, estudei <code>DSplaysound.cpp</code>, <code>DSWavRead.h</code>, <code>DSPlaySound.h</code>,
+        <code>ZzzEffect.cpp</code>, <code>ZzzEffectMagicSkill.cpp</code>, <code>SkillEffectMgr.cpp</code> e o carregamento de dados do
+        servidor (<code>GameServer/GameServer/EffectManager.cpp</code>). A estratégia abaixo indica como migrar trilhas, efeitos
+        3D e partículas para a UE5 usando <em>Sound Cue</em>, <em>MetaSounds</em> e Niagara.
+      </p>
+
+      <div class="grid-2">
+        <div class="assurance-card">
+          <h3>Áudio 2D/3D e categorias</h3>
+          <p class="path"><strong>Legado:</strong> <code>g_EnableSound</code>, <code>g_lpDSBuffer</code>, <code>PlayBuffer()</code>, arquivos <code>Data/Sound</code>.</p>
+          <ol class="step-list">
+            <li>Converter <code>.wav</code> originais para <code>USoundWave</code> e agrupar em <code>SoundCue</code> com as mesmas flags de <code>DSBUFFERDESC</code> (loop, 3D). Categorize-os em <em>UI</em>, <em>Ambiente</em>, <em>Skill</em> e <em>Voices</em>.</li>
+            <li>Criar <code>UAudioRoutingSubsystem</code> que controla volumes globais como <code>g_EnableSound</code>/<code>g_Enable3DSound</code>. Exponha sliders no menu de opções replicando <code>NewUIOptionWindow.cpp</code>.</li>
+            <li>Configurar <code>USoundAttenuation</code> e <code>Concurrency</code> para sons posicionais, usando raio equivalente ao cálculo de <code>DS3DBUFFER</code>.</li>
+            <li>Reaproveitar identificadores numéricos (ex.: <code>SOUND_CLICK01</code>, <code>SOUND_FAIL</code>) criando um <code>Data Table</code> <em>DT_SoundCatalog</em> que aponta para o <code>SoundCue</code> correto.</li>
+            <li>Orquestrar streams longos (músicas) com <code>AudioComponent</code> persistente em <code>UGameInstance</code> para imitar o cache <code>MAX_BUFFER/MAX_CHANNEL</code> do cliente.</li>
+          </ol>
+        </div>
+        <div class="assurance-card">
+          <h3>Efeitos, partículas e Gameplay Cues</h3>
+          <p class="path"><strong>Legado:</strong> <code>ZzzEffect::RenderEffects</code>, <code>SkillEffectMgr.cpp</code>, <code>EffectManager::Load</code>.</p>
+          <ol class="step-list">
+            <li>Converter scripts de efeitos (<code>Effect/EffectManager.txt</code>, <code>SkillEffect.txt</code>) em <code>Data Tables</code> UE5, mantendo índices <code>EffectID</code> e <code>Group</code> carregados em <code>CEffectManager::Load</code>.</li>
+            <li>Para cada entrada, criar <code>UNiagaraSystem</code> ou <code>Material FX</code> equivalente, configurando blend, escala e <em>life time</em> segundo os campos <code>Option</code> e <code>Delay</code>.</li>
+            <li>Gerar <code>GameplayCue</code> assets que consultam a tabela e instanciam o Niagara apropriado, replicando as chamadas <code>g_pSkillEffect->Create</code> e <code>PlayBuffer()</code>.</li>
+            <li>Sincronizar aplicações vindas do servidor via canal WebSocket (<code>/effects/broadcast</code>), garantindo que habilidades como <em>Ice Storm</em> e <em>Combo Blade</em> respeitem as mesmas hierarquias de priorização.</li>
+            <li>Automatizar testes comparando número de partículas e duração com capturas do cliente legado (ferramenta Sequencer + Niagara Debugger).</li>
+          </ol>
+        </div>
+      </div>
+
+      <div class="source-card">
+        <div class="source-meta">Cliente — <code>Source Main 5.2/source/DSplaysound.cpp</code></div>
+        <pre><code>bool g_EnableSound = false;
+LPDIRECTSOUND3DLISTENER g_lpDS3DListener;
+LPDIRECTSOUNDBUFFER g_lpDSBuffer[MAX_BUFFER][MAX_CHANNEL];
+...
+void PlayBuffer(int iBufferNum)
+{
+    if(g_EnableSound == false)
+        return;
+    g_lpDSBuffer[iBufferNum][0]-&gt;Play(0,0,0);
+}</code></pre>
+      </div>
+      <div class="source-card">
+        <div class="source-meta">Servidor — <code>Source MuServer Update 15/GameServer/GameServer/EffectManager.cpp</code></div>
+        <pre><code>info.Index = lpMemScript-&gt;GetNumber();
+info.Group = lpMemScript-&gt;GetAsNumber();
+info.ItemIndex = lpMemScript-&gt;GetAsNumber();
+info.EffectOption = lpMemScript-&gt;GetAsNumber();
+this-&gt;SetEffectInfo(info);
+</code></pre>
+      </div>
+
+      <details class="guia">
+        <summary>Blueprint — Disparo de áudio e FX</summary>
+        <pre><code>// Ability GameplayCue Notify
+Event OnExecute
+  → Row = DT_Effects.FindRow(EffectId)
+  → Spawn Niagara System at TargetLocation (Row.NiagaraAsset)
+  → PlaySound2D(DT_SoundCatalog[Row.SoundId].Cue)
+  → if Row.AttachSocket != NAME_None
+        AttachToComponent(TargetMesh, Row.AttachSocket)
+
+// BP_AudioRoutingSubsystem
+Function SetCategoryVolume(Category, Value)
+  → AudioMixer.SetSoundMixClassOverride(SoundMix, CategoryClass, Value, 1.0f)
+  → SaveSetting(Category, Value)</code></pre>
+      </details>
+    </section>
 
     <section id="frontend-backend">
       <h2>Mapa Profundo do Código Original &rarr; Conversão UE5</h2>
