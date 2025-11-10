@@ -1593,6 +1593,177 @@ info.Y = lpMemScript->GetAsNumber();</code></pre></div>
           </ol>
         </details>
       </article>
+
+      <article class="module-category">
+        <h3>Economia, NPCs e Lojas (NPC/Cash/Personal)</h3>
+        <table class="matrix">
+          <thead>
+            <tr>
+              <th>Foco</th>
+              <th>Referência Legada</th>
+              <th>Comportamento Observado</th>
+              <th>Adaptação UE5</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>Layout da vitrine NPC</td>
+              <td><code>CNewUINPCShop::Create</code></td>
+              <td>Instancia <code>CNewUIInventoryCtrl</code> com offset <code>x+15</code>/<code>y+50</code>, grade 8×15 e <code>LockInventory()</code> ativo.</td>
+              <td>Modele <code>WBP_NPCShop</code> com <code>Canvas Panel</code> deslocado 15/50px e <code>UniformGridPanel</code> 8×15 bloqueado para arrasto externo.</td>
+            </tr>
+            <tr>
+              <td>Interação e compra</td>
+              <td><code>CNewUINPCShop::UpdateMouseEvent</code>, <code>InventoryProcess()</code></td>
+              <td>Calcula índice via <code>(pItem-&gt;y * columns) + pItem-&gt;x</code>, diferencia lojas Gamble e envia <code>SendRequestBuy</code> quando <code>BuyCost</code> é zero.</td>
+              <td>Implemente em Blueprint a mesma fórmula de índice, suporte alternância Gamble e bloqueie cliques enquanto <code>InventoryProcess</code> retorna ativo.</td>
+            </tr>
+            <tr>
+              <td>Catálogo backend</td>
+              <td><code>CShopManager::Load</code>, <code>LoadShop</code></td>
+              <td>Lê <code>Shop\*.txt</code>, associa <code>Index</code>, <code>MonsterClass</code>, <code>Map/X/Y</code> e recarrega lista com <code>GCShopItemListSendByIndex</code>.</td>
+              <td>Construa serviço <code>ShopGateway</code> que expõe catálogo filtrado por NPC/mapa e replica resposta JSON para o widget UE5.</td>
+            </tr>
+            <tr>
+              <td>Pacotes Cash Shop</td>
+              <td><code>CCashShop::LoadPackage</code>, <code>LoadProduct</code></td>
+              <td>Define <code>Category</code>, <code>CoinIndex</code>, bônus GP e arrays <code>ProductBaseIndex/MainIndex</code> para cada pacote.</td>
+              <td>Converta <code>CashShopPackage.txt</code>/<code>Product.txt</code> em <code>PrimaryDataAssets</code> UE5 e sincronize compras via endpoint seguro.</td>
+            </tr>
+            <tr>
+              <td>Loja pessoal e trocas</td>
+              <td><code>CPersonalShop::CheckPersonalShop</code>, <code>CTrade::CGTradeRequestRecv</code></td>
+              <td>Loja pessoal confirma slots/preços antes de abrir e trocas validam interface, distância e status antes de chamar <code>gObjInventoryCommit</code>.</td>
+              <td>Implemente atores <code>BP_PersonalShop</code>/<code>BP_TradeSession</code> replicados com as mesmas verificações e commits atômicos.</td>
+            </tr>
+          </tbody>
+        </table>
+
+        <details class="guia" open>
+          <summary>Passo a passo UE5 — Lojas NPC e Cash</summary>
+          <ol>
+            <li>Construa <code>WBP_NPCShop</code> e <code>WBP_CashShop</code> com <code>Canvas</code> reproduzindo offsets 15/50px e grade 8×15.</li>
+            <li>Mapeie botões de compra/venda para chamar <code>ShopGateway</code>, convertendo o índice igual ao cliente legado.</li>
+            <li>Implemente <code>Data Table</code> para <code>Shop</code> e <code>Cash Shop</code> geradas dos arquivos originais e injete-as via <code>Subsystem</code>.</li>
+            <li>Sincronize feedback visual (mensagens, travas) reutilizando os mesmos códigos de resultado (ex.: “NotEnoughZen”).</li>
+          </ol>
+        </details>
+
+        <details class="guia">
+          <summary>Backend — Sincronização de Inventário e Transações</summary>
+          <ul>
+            <li>Replique <code>CShopManager::ReloadShopInterface</code> com endpoint <code>POST /shop/reload</code> para atualizar UIs conectadas.</li>
+            <li>Movimente Zen, Cash e itens usando filas transacionais inspiradas em <code>PersonalShop::GCShopResultSend</code>.</li>
+            <li>Implemente auditoria de compra/venda seguindo <code>LogAddTD</code> do legado.</li>
+          </ul>
+        </details>
+      </article>
+
+      <article class="module-category">
+        <h3>Eventos Clássicos, Instâncias e Bosses</h3>
+        <table class="matrix">
+          <thead>
+            <tr>
+              <th>Foco</th>
+              <th>Referência Legada</th>
+              <th>Comportamento Observado</th>
+              <th>Adaptação UE5</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>Blood Castle</td>
+              <td><code>CBloodCastle::Init</code>, <code>Load</code></td>
+              <td>Estados <code>BC_STATE_*</code> controlam entrada, tempo restante, ponte e NPCs carregados de <code>MonsterSetBase</code>.</td>
+              <td>Crie <code>ABP_BloodCastleController</code> que usa <code>State Machine</code> idêntica e ativa sequências/cutscenes via <em>Level Blueprint</em>.</td>
+            </tr>
+            <tr>
+              <td>Devil/Chaos Castle</td>
+              <td><code>CDevilSquare::SetState</code>, <code>CChaosCastle::ProcState_*</code></td>
+              <td>Rotinas alternam spawn waves, recompensas e expulsão usando timers do <code>gQueueTimer</code>.</td>
+              <td>Implemente <code>World Partition Level Instances</code> com timers equivalentes e atualize HUD via mensagens replicadas.</td>
+            </tr>
+            <tr>
+              <td>Kanturu &amp; Raklion</td>
+              <td><code>CKanturuBattleOfMaya</code>, <code>CRaklionBattleUserMng</code></td>
+              <td>Gerenciam fases sequenciais, spawn de bosses e checkpoints com <code>SetState</code> e estruturas de usuário ativo.</td>
+              <td>Construa componentes de estado (fase atual, contadores) que dirigem <em>Level Streaming</em> e triggers de boss fights.</td>
+            </tr>
+            <tr>
+              <td>Illusion Temple &amp; Imperial Guardian</td>
+              <td><code>CIllusionTemple::Init</code>, <code>CImperialGuardian::Run</code></td>
+              <td>Lê scripts <code>Event/*.txt</code>, sincroniza times e entradas por party, aplicando recompensas específicas.</td>
+              <td>Use <code>Data Assets</code> para configurar objetivos e crie <code>UMG</code> de placar compartilhado sincronizado via backend.</td>
+            </tr>
+          </tbody>
+        </table>
+
+        <details class="guia" open>
+          <summary>Passo a passo UE5 — Eventos Instanciados</summary>
+          <ol>
+            <li>Converta scripts <code>Data/Event/*.txt</code> para <code>Data Tables</code> e carregue-os em um <code>EventSubsystem</code>.</li>
+            <li>Implemente controladores de evento com <code>State Machine</code> equivalentes aos enumeradores <code>STATE_*</code>.</li>
+            <li>Replique drops e recompensas conforme <code>ItemBagManager</code> e <code>BonusManager</code> para manter loot tabelas originais.</li>
+            <li>Sincronize entrada/saída de jogadores via backend REST/WebSocket usando os mesmos limites de party e nível.</li>
+          </ol>
+        </details>
+      </article>
+
+      <article class="module-category">
+        <h3>Infraestrutura de Servidores MuServer</h3>
+        <table class="matrix">
+          <thead>
+            <tr>
+              <th>Componente</th>
+              <th>Referência Legada</th>
+              <th>Responsabilidade</th>
+              <th>Estratégia de Adaptação</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>ConnectServer</td>
+              <td><code>ConnectServer/ConnectServer.cpp</code></td>
+              <td>Inicia sockets TCP/UDP, lê <code>ConnectServer.ini</code>, autentica via <code>gProtect.StartAuth</code> e divulga <code>ServerList.dat</code>.</td>
+              <td>Implemente serviço gateway HTTP/UDP que carrega lista de shards do banco e distribui tokens de sessão para o cliente UE5.</td>
+            </tr>
+            <tr>
+              <td>JoinServer</td>
+              <td><code>JoinServer/JoinServer.cpp</code></td>
+              <td>Valida conta com ODBC, sincroniza com ConnectServer e respeita <code>CaseSensitive</code>/<code>MD5Encryption</code>.</td>
+              <td>Crie microserviço de autenticação que reutiliza hash legado e retorna <code>sessionId</code> + lista de personagens.</td>
+            </tr>
+            <tr>
+              <td>DataServer</td>
+              <td><code>DataServer/DataServer.cpp</code>, <code>QueryManager</code></td>
+              <td>Abre conexão ODBC, carrega <code>AllowableIpList</code>, processa guilds, armazenando dados persistentes.</td>
+              <td>Substitua por API persistente (ex.: gRPC/REST) com pool de conexões e whitelist IP equivalente.</td>
+            </tr>
+            <tr>
+              <td>GameServer</td>
+              <td><code>GameServer/GameServer.cpp</code>, <code>GameMain.cpp</code></td>
+              <td>Carrega configurações, conecta a Join/Data, cria timers (<code>gQueueTimer</code>) para AI, eventos e matchmaking.</td>
+              <td>Modele <code>GameCoordinator</code> que agenda jobs (AI/Event) em fila de tarefas e expõe WebSocket/HTTP para o cliente UE5.</td>
+            </tr>
+            <tr>
+              <td>Protocolos</td>
+              <td><code>Protocol.cpp</code>, <code>JSProtocol.cpp</code>, <code>DSProtocol.cpp</code></td>
+              <td>Define pacotes binários, IDs (0xF1, 0x23 etc.) e roteia mensagens entre camadas.</td>
+              <td>Documente contratos REST/WebSocket equivalentes mantendo códigos/estados legados para minimizar reimplementação no cliente.</td>
+            </tr>
+          </tbody>
+        </table>
+
+        <details class="guia" open>
+          <summary>Sequência de Login Recomendada</summary>
+          <ol>
+            <li><strong>UE5 ➝ Gateway:</strong> solicita lista de servidores (ConnectServer) e recebe <code>sessionToken</code>.</li>
+            <li><strong>UE5 ➝ Auth:</strong> envia credenciais; microserviço reproduz validação <code>MD5Encryption</code>/<code>CaseSensitive</code> e retorna <code>accountId</code>.</li>
+            <li><strong>UE5 ➝ GameCoordinator:</strong> inicia handshake WebSocket inspirado em <code>Protocol.cpp</code> e recebe personagens.</li>
+            <li><strong>Persistência:</strong> operações de inventário, quest e guild vão ao serviço equivalente ao DataServer garantindo transações ACID.</li>
+          </ol>
+        </details>
+      </article>
     </section>
 
     <section id="modulos-expandido">
