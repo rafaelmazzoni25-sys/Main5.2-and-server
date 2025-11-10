@@ -1243,6 +1243,358 @@ info.Y = lpMemScript->GetAsNumber();</code></pre></div>
       </details>
     </section>
 
+    <section id="codigo-main-muserver">
+      <h2>Estudo Profundo das Fontes Main 5.2 e MuServer</h2>
+      <p>
+        As instruções desta etapa foram auditadas diretamente contra o código em
+        <code>Source Main 5.2/source</code> e
+        <code>Source MuServer Update 15/GameServer/GameServer</code>. Utilize os
+        quadros a seguir para alinhar Blueprints, serviços e tabelas de dados à
+        implementação original antes de expandir funcionalidades na Unreal
+        Engine 5.
+      </p>
+
+      <article class="module-category">
+        <h3>Sistema Completo de Itens (Interface, Tooltips, Drops e Persistência)</h3>
+        <table class="matrix">
+          <thead>
+            <tr>
+              <th>Foco</th>
+              <th>Referência Legada</th>
+              <th>Comportamento Observado</th>
+              <th>Adaptação UE5</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>Grid, slots e offsets</td>
+              <td>
+                <code>CNewUIMyInventory::Create</code> e
+                <code>CNewUIInventoryCtrl</code>
+              </td>
+              <td>
+                Inventário inicia em <code>x+15</code>/<code>y+200</code> com
+                grade 8×8 e células 20×20 definidas em
+                <code>INVENTORY_SQUARE_WIDTH</code>.
+              </td>
+              <td>
+                Configure um <code>UniformGridPanel</code> 8×8 e traduza o
+                deslocamento (15, 200) para o <code>Canvas Panel</code> da UE5
+                antes de propagar eventos de arrasto.
+              </td>
+            </tr>
+            <tr>
+              <td>Tooltips multi-resolução</td>
+              <td>
+                <code>CNewUIItemExplanationWindow::Render</code>
+              </td>
+              <td>
+                Larguras e espaçamentos variam por
+                <code>WindowWidth</code>; cada categoria (espadas, staffs,
+                armaduras) reposiciona colunas e tabulações.
+              </td>
+              <td>
+                Crie um <code>WidgetSwitcher</code> com estilos por resolução e
+                ajuste margens conforme os fatores de tabulação originais antes
+                de preencher descrições no UMG.
+              </td>
+            </tr>
+            <tr>
+              <td>Restrições de drop</td>
+              <td>
+                <code>ZzzInventory.cpp</code> → <code>IsDropBan</code>
+              </td>
+              <td>
+                Bloqueia poções específicas, helpers e itens de evento mesmo
+                fora do período (<code>bPeriodItem</code>) para impedir drops
+                indevidos.
+              </td>
+              <td>
+                Valide tipos proibidos na Blueprint<br />
+                <code>BP_Inventario_DropItem</code> antes de enviar a requisição
+                ao backend e informe feedback igual ao cliente legado.
+              </td>
+            </tr>
+            <tr>
+              <td>Tabelas de drop</td>
+              <td>
+                <code>CItemDrop::Load</code> e <code>CustomEventDrop.txt</code>
+              </td>
+              <td>
+                Parser lê índices, nível, opções 0–6, mapa, classe do monstro e
+                taxa de drop diretamente do arquivo de configuração.
+              </td>
+              <td>
+                Carregue o mesmo CSV em uma <code>DataTable</code> e exponha a
+                estrutura via <code>USTRUCT</code> para o serviço HTTP
+                <code>/drops/roll</code>, preservando o pipeline de opções.
+              </td>
+            </tr>
+            <tr>
+              <td>Spawn físico de loot</td>
+              <td>
+                <code>CItemDrop::DropItem</code> e
+                <code>CMapItem::CreateItem</code>
+              </td>
+              <td>
+                Seleção ponderada por <code>DropRate</code> e timers de loot
+                baseados em <code>gServerInfo.m_ItemDropTime</code> definem vida
+                útil e bloqueio inicial do item.
+              </td>
+              <td>
+                Replique temporizadores com <code>FTimerHandle</code> e atributos
+                de <code>GameplayTag</code> para o estado “reservado” até o fim
+                do <em>loot time</em>, sincronizando com o backend via WebSocket.
+              </td>
+            </tr>
+            <tr>
+              <td>Dados brutos</td>
+              <td>
+                <code>Data/Item/Item.txt</code>
+              </td>
+              <td>
+                Define dimensões X/Y de cada item, requisitos e nomes usados por
+                tooltips e validação de slots.
+              </td>
+              <td>
+                Gere <code>Data Tables</code> derivadas do arquivo legado para
+                alimentar validações de tamanho, requisitos e ícones na UE5.
+              </td>
+            </tr>
+          </tbody>
+        </table>
+
+        <details class="guia" open>
+          <summary>Passo a passo UE5 — Inventário, Drop e Tooltips</summary>
+          <ol>
+            <li>
+              Recrie <code>WBP_MyInventory</code> com um
+              <code>Canvas Panel</code> ancorado e posicione o grid em
+              (15, 200) replicando a chamada de criação do controle legado.
+            </li>
+            <li>
+              No <code>OnDragDetected</code>, calcule célula alvo aplicando a
+              mesma correção usada em <code>CNewUIPickedItem::GetTargetPos</code>
+              (metade do tamanho do item) antes de chamar o backend.
+            </li>
+            <li>
+              Sincronize as regras de <code>IsDropBan</code> e do arquivo
+              <code>CustomEventDrop.txt</code> no microserviço
+              <code>InventoryService</code>, retornando códigos de erro
+              equivalentes aos estados do cliente original.
+            </li>
+            <li>
+              Renderize tooltips usando um <code>WidgetSwitcher</code> para cada
+              resolução suportada e aplique os fatores de tabulação capturados em
+              <code>Render</code> para manter alinhamento com o legado.
+            </li>
+            <li>
+              Quando o backend confirmar a criação do item
+              (<code>GDCreateItemSend</code> no código original), instancie um
+              <code>BP_WorldItem</code> com o mesmo tempo de expiração calculado
+              a partir de <code>m_ItemDropTime</code>.
+            </li>
+          </ol>
+        </details>
+      </article>
+
+      <article class="module-category">
+        <h3>Spawns de Mobs, Respawn e Progressão de Experiência</h3>
+        <table class="matrix">
+          <thead>
+            <tr>
+              <th>Foco</th>
+              <th>Referência Legada</th>
+              <th>Comportamento Observado</th>
+              <th>Adaptação UE5</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>Carregamento de spawn</td>
+              <td>
+                <code>CMonsterSetBase::Load</code>
+              </td>
+              <td>
+                Parser lê seções, mapa, raio, coordenadas e quantidade a partir
+                do arquivo de texto antes de preencher
+                <code>m_MonsterSetBaseInfo</code>.
+              </td>
+              <td>
+                Monte um <code>DataTable</code> <em>DT_MonsterSpawn</em> com os
+                mesmos campos e alimente um <code>Subsystem</code> que instancia
+                <code>BP_MobSpawner</code> por mapa.
+              </td>
+            </tr>
+            <tr>
+              <td>Seleção de posição</td>
+              <td>
+                <code>CMonsterSetBase::GetBoxPosition</code>
+              </td>
+              <td>
+                Gera até 100 tentativas aleatórias dentro do retângulo e valida
+                atributos do mapa antes de permitir o spawn.
+              </td>
+              <td>
+                Replique o algoritmo com <code>RandomStream</code> e checagem de
+                <code>NavigationSystem</code> para evitar colisões antes do
+                <code>SpawnActor</code> em UE5.
+              </td>
+            </tr>
+            <tr>
+              <td>Dados de referência</td>
+              <td>
+                <code>Data/Monster/MonsterSetBase.txt</code>
+              </td>
+              <td>
+                Lista NPCs e monstros por mapa, incluindo comentários úteis para
+                identificar cada spot.</td>
+              <td>
+                Utilize o mesmo arquivo para validar coordenadas e gerar gizmos
+                de depuração dentro do editor da UE5.
+              </td>
+            </tr>
+            <tr>
+              <td>Tabela dinâmica de XP</td>
+              <td>
+                <code>CExperienceTable::Load</code> e
+                <code>ExperienceTable.txt</code>
+              </td>
+              <td>
+                Permite taxas diferenciadas por nível, reset e master reset,
+                retornando 100% por padrão.</td>
+              <td>
+                Alimente um <code>Data Asset</code> utilizado pelo
+                <code>ExperienceSubsystem</code> e habilite overrides por mapa ou
+                evento via <code>Gameplay Tags</code>.
+              </td>
+            </tr>
+            <tr>
+              <td>Curva base de experiência</td>
+              <td>
+                <code>gObjSetExperienceTable</code> em <code>User.cpp</code>
+              </td>
+              <td>
+                Calcula <code>gLevelExperience[n]</code> com fórmula cúbica e
+                bônus adicional a partir do nível 256.</td>
+              <td>
+                Use a mesma curva em um <code>CurveFloat</code> e aplique o
+                incremento extra após o nível 255 em Blueprint ou C++ para manter
+                paridade com o servidor.</td>
+            </tr>
+          </tbody>
+        </table>
+
+        <details class="guia" open>
+          <summary>Passo a passo UE5 — Spawns, Respawn e XP</summary>
+          <ol>
+            <li>
+              Gere <code>Data Tables</code> a partir de
+              <code>MonsterSetBase.txt</code> e atribua-as a um
+              <code>Subsystem</code> responsável por criar spawners persistentes
+              em <code>BeginPlay</code>.
+            </li>
+            <li>
+              Dentro de cada spawner, execute a mesma rotina de tentativa de
+              posição (<code>GetBoxPosition</code>) com checagem de navegação
+              antes de instanciar o blueprint do mob.
+            </li>
+            <li>
+              Exponha tempos de respawn e limites de população iguais aos
+              parâmetros originais e sincronize mortes via WebSocket com o
+              backend.</li>
+            <li>
+              Carregue <code>ExperienceTable.txt</code> no backend para calcular
+              multiplicadores e envie-os junto à resposta de kill; a UE5 aplica a
+              curva base <code>gLevelExperience</code> para atualizar a barra de
+              XP.
+            </li>
+          </ol>
+        </details>
+      </article>
+
+      <article class="module-category">
+        <h3>Sistema de Skills, Hitboxes e Consumo de Recursos</h3>
+        <table class="matrix">
+          <thead>
+            <tr>
+              <th>Foco</th>
+              <th>Referência Legada</th>
+              <th>Comportamento Observado</th>
+              <th>Adaptação UE5</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>Metadados de skills</td>
+              <td>
+                <code>CSkillManager::Load</code> e <code>Data/Skill/Skill.txt</code>
+              </td>
+              <td>
+                Cada linha define dano, mana, BP, alcance, atraso, efeito e
+                requisitos por classe.</td>
+              <td>
+                Converta para <code>Gameplay Ability Data Assets</code> e gere
+                <code>FGameplayAbilitySpec</code> com os mesmos custos e tags de
+                requisito.
+              </td>
+            </tr>
+            <tr>
+              <td>Hitboxes direcionais</td>
+              <td>
+                <code>CSkillHitBox::Load</code> e <code>SkillElect.hit</code>
+              </td>
+              <td>
+                Arquivo binário 36×21×21 que mapeia impactos por direção e
+                deslocamento relativo.</td>
+              <td>
+                Importe como <code>Data Asset</code> ou <code>CurveTable</code>
+                e utilize para construir <code>Trace</code> múltiplos na UE5 em
+                vez de colisões genéricas.</td>
+            </tr>
+            <tr>
+              <td>Execução de skills</td>
+              <td>
+                <code>CSkillManager::GetSkillDamage</code>/<code>GetSkillMana</code>
+              </td>
+              <td>
+                Recupera custos e danos diretamente da tabela carregada; falha
+                retorna <code>-1</code>.</td>
+              <td>
+                Garanta verificação prévia no Ability System aplicando os mesmos
+                retornos (por exemplo, status “SkillUnavailable”) quando o índice
+                não existir.</td>
+            </tr>
+          </tbody>
+        </table>
+
+        <details class="guia" open>
+          <summary>Passo a passo UE5 — Blueprints de Skills</summary>
+          <ol>
+            <li>
+              Gere um <code>PrimaryDataAsset</code> por skill contendo dano,
+              custo e tags de requisito extraídos de <code>Skill.txt</code>.
+            </li>
+            <li>
+              No <code>UGameplayAbility</code>, carregue a matriz de hitbox e
+              execute <code>SphereTraceMulti</code> seguindo o padrão de
+              <code>HitCheck</code> (ajuste de 10 unidades para centro).
+            </li>
+            <li>
+              Mapeie os efeitos visuais originais usando o mesmo índice de
+              <code>info.Effect</code> para selecionar Niagara Systems ou Meshes
+              já migrados.
+            </li>
+            <li>
+              Concilie com o backend expondo endpoints de cast que consomem mana
+              e BP conforme <code>GetSkillMana</code>/<code>GetSkillBP</code> e
+              registram cooldowns iguais ao campo <code>Delay</code>.
+            </li>
+          </ol>
+        </details>
+      </article>
+    </section>
+
     <section id="modulos-expandido">
       <h2>Matriz Expandida de Módulos para Migração UE5</h2>
       <p>
