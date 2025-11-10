@@ -138,6 +138,28 @@
       font-size: 1.2rem;
       color: var(--azul-escuro);
     }
+    .coverage-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 1.5rem;
+      margin-top: 1.75rem;
+    }
+    .coverage-card {
+      background: #fafdff;
+      border: 1px solid #d6e6f9;
+      border-radius: 16px;
+      padding: 1.35rem 1.25rem;
+      display: grid;
+      gap: 0.75rem;
+    }
+    .coverage-card h3 {
+      margin: 0;
+      font-size: 1.2rem;
+      color: var(--azul-escuro);
+    }
+    .coverage-card ul {
+      margin: 0 0 0 1.1rem;
+    }
     .layout {
       display: grid;
       grid-template-columns: 280px minmax(0, 1fr);
@@ -992,6 +1014,7 @@
         <div class="nav-group">
           <span class="nav-phase">Fase 5 · Garantia &amp; operação</span>
           <ul>
+            <li><a href="#cobertura-total">Cobertura Front + Back</a></li>
             <li><a href="#garantia-funcionamento">Garantia UE5</a></li>
             <li><a href="#verificacoes">Checklist de validação</a></li>
             <li><a href="#qa-operacoes">QA &amp; operações</a></li>
@@ -4769,6 +4792,182 @@ with Client(base_url="https://api.seu-jogo.com") as http:
         <div class="callout">
           <strong>Rotina de regressão:</strong> execute o script acima após cada build noturno e anexe o resultado ao relatório de QA. Combine com <code>Gauntlet</code> no UE5 para validar menus, HUD e combate.</div>
       </article>
+    </section>
+
+    <section id="cobertura-total">
+      <h2>Cobertura Completa Frontend + Backend</h2>
+      <p>
+        Após revisar os fontes <code>Source Main 5.2/source</code> e a árvore de serviços em
+        <code>MuServer_Season_5_Update_15</code>, utilize esta seção para conferir que cada módulo do
+        guia possui um plano de recriação na UE5 e um serviço moderno correspondente. A lista consolida
+        fluxos críticos do cliente (login, HUD, inventário, skills, sociais) e do backend (autenticação,
+        world, economia, eventos) para evitar lacunas durante a migração.
+      </p>
+
+      <div class="coverage-grid">
+        <article class="coverage-card">
+          <h3>Cliente UE5 (Frontend)</h3>
+          <p>
+            Certifique-se de que cada widget UMG e Blueprint cobre os fluxos definidos no cliente legado.
+          </p>
+          <ul>
+            <li>
+              Replique <code>LoginWin.cpp</code>, <code>CharSelMainWin.cpp</code> e
+              <code>NewUIMainFrameWindow.cpp</code> dentro das instruções de <a href="#guias-frontend">Interfaces &amp; HUD</a>,
+              reaproveitando sprites de <code>Source Main 5.2/bin/Data</code> e respeitando offsets originais.
+            </li>
+            <li>
+              Garanta que <code>WBP_Inventory</code> e <code>BP_ItemDrag</code> cubram a lógica de
+              <code>NewUIInventoryCtrl.cpp</code>, <code>NewUIItemMng.cpp</code> e
+              <code>NewUIItemExplanationWindow.cpp</code>, conforme o roteiro da
+              <a href="#item-system-encyclopedia">Enciclopédia do Sistema de Itens</a>.
+            </li>
+            <li>
+              Confirme que os Blueprints de mobs e skills consomem tabelas derivadas de
+              <code>Data/Monster/MonsterSetBase.txt</code>, <code>Data/Skill/Skill.txt</code> e scripts de eventos citados em
+              <a href="#mob-system-atlas">Sistemas de mobs</a> e <a href="#skill-system-guide">Sistemas de skills</a>.
+            </li>
+            <li>
+              Valide widgets sociais (<code>NewUIFriendWindow.cpp</code>, <code>NewUIGuildInfoWindow.cpp</code>) e economia
+              (<code>NewUINPCShop.cpp</code>, <code>NewUITrade.cpp</code>) com os cards de
+              <a href="#social-guildas">Social</a> e <a href="#economia-lojas">Economia</a>.
+            </li>
+          </ul>
+        </article>
+
+        <article class="coverage-card">
+          <h3>Serviços Modernos (Backend)</h3>
+          <p>
+            Mapeie cada responsabilidade do MuServer para um microserviço ou módulo atualizado.
+          </p>
+          <ul>
+            <li>
+              Recrie autenticação, seleção de servidor e handshake observando <code>ConnectServer</code>,
+              <code>JoinServer</code> e <code>GameServer</code> em
+              <code>MuServer_Season_5_Update_15</code>, seguindo o plano de <a href="#frontend-backend">Gateway UE5 ⇄ Serviços</a>.
+            </li>
+            <li>
+              Converta rotinas de inventário (<code>GameServer/GameServer/ItemBagManager.cpp</code>,
+              <code>GameServer/GameServer/Protocol.cpp</code>) e persistência (<code>DataServer</code>) em APIs descritas nas seções
+              <a href="#backend">Serviços modernos</a> e <a href="#item-system-encyclopedia">Sistema de itens</a>.
+            </li>
+            <li>
+              Cubra eventos e instâncias (<code>GameServer/GameServer/CastleSiege.cpp</code>,
+              <code>GameServer/GameServer/ImperialGuardian.cpp</code>) com os roteiros de
+              <a href="#eventos-liveops">Eventos &amp; live ops</a> e <a href="#missoes_eventos">Missões &amp; rankings</a>.
+            </li>
+            <li>
+              Centralize economia, cash shop e trocas (<code>GameServer/GameServer/CShopManager.cpp</code>,
+              <code>GameServer/GameServer/Trade.cpp</code>) no serviço de economia detalhado em
+              <a href="#economia-lojas">Economia e lojas</a>.
+            </li>
+          </ul>
+        </article>
+
+        <article class="coverage-card">
+          <h3>Sincronização Front ⇄ Back</h3>
+          <p>
+            Utilize estes checkpoints para garantir consistência entre Blueprints e serviços.
+          </p>
+          <ul>
+            <li>
+              Alinhe payloads JSON com as estruturas lidas em <code>GameServer/GameServer/Protocol.h</code> e
+              <code>DataServer/DBItemInfo.cpp</code>, evitando perda de atributos (durabilidade, socket, option).
+            </li>
+            <li>
+              Replique cronogramas de spawn e respawn usando <code>Data/Monster/MonsterSpawn.txt</code> e os timers do
+              <code>GameServer/GameServer/MonsterAIManager.cpp</code>, refletidos em <a href="#mob-system-atlas">Sistemas de mobs</a>.
+            </li>
+            <li>
+              Garanta que o sistema de skills use o mesmo mapeamento de <code>SkillInfo.cpp</code> e
+              <code>SkillManager.cpp</code>, com cooldowns validados no backend antes de aplicar efeitos na UE5.
+            </li>
+            <li>
+              Mantenha logs e telemetria dos serviços <code>Log/</code> originais (como <code>GameServer/log/ItemLog</code>) através
+              dos procedimentos de <a href="#qa-operacoes">QA &amp; operações</a>.
+            </li>
+          </ul>
+        </article>
+      </div>
+
+      <h3>Passo a passo de validação final</h3>
+      <ol>
+        <li>
+          Execute o roteiro de <a href="#guias-frontend">Interfaces &amp; HUD</a> comparando cada widget com as classes
+          <code>LoginWin.cpp</code>, <code>CharSelMainWin.cpp</code>, <code>NewUIBuffWindow.cpp</code> e
+          <code>NewUIMyInventory.cpp</code>. Confirme resolução, âncoras e atalhos.
+        </li>
+        <li>
+          Siga a <a href="#item-system-encyclopedia">Enciclopédia do Sistema de Itens</a> para testar drop, colisão, tooltip e
+          armazenamento, confrontando com <code>NewUIInventoryCtrl.cpp</code>, <code>GItemManager.cpp</code> e scripts
+          <code>Data/Item/*.txt</code>.
+        </li>
+        <li>
+          Valide mobs, XP e skills com os checklists de <a href="#mob-system-atlas">mobs</a> e
+          <a href="#skill-system-guide">skills</a>, garantindo que os dados de <code>MonsterSetBase.txt</code>,
+          <code>SkillTree.txt</code> e handlers como <code>GameServer/GameServer/SkillAttack.cpp</code> estejam sincronizados.
+        </li>
+        <li>
+          Revise sistemas sociais, economia e eventos (<a href="#social-guildas">Social</a>,
+          <a href="#economia-lojas">Economia</a>, <a href="#eventos-liveops">Eventos</a>) com as classes legadas
+          <code>NewUIFriendWindow.cpp</code>, <code>CShopManager.cpp</code>, <code>CCastleSiege.cpp</code> e tabelas
+          <code>Data/Event/*.txt</code>.
+        </li>
+        <li>
+          Finalize com infraestrutura e segurança acompanhando <a href="#comandos-seguranca">Comandos &amp; segurança</a> e
+          <a href="#frontend-backend">Gateway</a>, substituindo <code>ConnectServer</code>, <code>Filter.cpp</code> e
+          <code>HackPacketCheck.cpp</code> por middlewares e monitoramento documentados.
+        </li>
+      </ol>
+
+      <table class="matrix">
+        <thead>
+          <tr>
+            <th>Domínio</th>
+            <th>Fontes principais (Main / MuServer)</th>
+            <th>Seção UE5 correspondente</th>
+            <th>Critério de aceitação</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Fluxos iniciais</td>
+            <td><code>LoginWin.cpp</code>, <code>CharSelMainWin.cpp</code>, <code>ConnectServer/ServerList.cpp</code></td>
+            <td><a href="#guias-frontend">Interfaces &amp; HUD</a>, <a href="#frontend-backend">Gateway UE5 ⇄ Serviços</a></td>
+            <td>Tela de login e seleção autenticam via API e reproduzem layout original.</td>
+          </tr>
+          <tr>
+            <td>HUD &amp; inventário</td>
+            <td><code>NewUIMainFrameWindow.cpp</code>, <code>NewUIInventoryCtrl.cpp</code>, <code>GameServer/Protocol.cpp</code></td>
+            <td><a href="#guias-frontend">Interfaces &amp; HUD</a>, <a href="#item-system-encyclopedia">Sistema de itens</a></td>
+            <td>Slots, tooltips e sincronização de inventário refletem ações do backend em tempo real.</td>
+          </tr>
+          <tr>
+            <td>Mobs &amp; progressão</td>
+            <td><code>MonsterAIManager.cpp</code>, <code>MonsterSetBase.txt</code>, <code>GameServer/Experience.cpp</code></td>
+            <td><a href="#mob-system-atlas">Sistemas de mobs</a>, <a href="#skill-system-guide">Sistemas de skills</a></td>
+            <td>Spawns, AI e XP batem com as curvas e timers originais.</td>
+          </tr>
+          <tr>
+            <td>Economia</td>
+            <td><code>NewUINPCShop.cpp</code>, <code>CShopManager.cpp</code>, <code>Data/CashShop/</code></td>
+            <td><a href="#economia-lojas">Economia e lojas</a>, <a href="#backend">Serviços modernos</a></td>
+            <td>Compras, vendas e cash shop fecham ciclo com logs e rollback confiáveis.</td>
+          </tr>
+          <tr>
+            <td>Social &amp; eventos</td>
+            <td><code>NewUIFriendWindow.cpp</code>, <code>GensSystem.cpp</code>, <code>CastleSiege.cpp</code></td>
+            <td><a href="#social-guildas">Social, guildas &amp; gens</a>, <a href="#eventos-liveops">Eventos &amp; live ops</a></td>
+            <td>Party, guilda e eventos disparados pelo backend aparecem em tempo real na UE5.</td>
+          </tr>
+          <tr>
+            <td>Operação &amp; segurança</td>
+            <td><code>CommandManager.cpp</code>, <code>Filter.cpp</code>, <code>HackPacketCheck.cpp</code></td>
+            <td><a href="#comandos-seguranca">Comandos e segurança</a>, <a href="#qa-operacoes">QA &amp; operações</a></td>
+            <td>Comandos administrativos, logs e alertas de segurança cobrem os cenários originais.</td>
+          </tr>
+        </tbody>
+      </table>
     </section>
 
     <section id="garantia-funcionamento">
