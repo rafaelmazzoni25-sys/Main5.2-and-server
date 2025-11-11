@@ -172,6 +172,21 @@ main {
     color: var(--text-muted);
 }
 
+.step-list {
+    margin: 1.25rem 0 0;
+    padding-left: 1.25rem;
+    color: var(--text-muted);
+}
+
+.step-list li + li {
+    margin-top: 0.75rem;
+}
+
+.step-list code {
+    color: var(--accent);
+    font-weight: 600;
+}
+
 .module-grid {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));

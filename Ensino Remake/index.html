@@ -39,6 +39,9 @@
         <button data-target="laboratorios">Laboratórios Guiados</button>
         <button data-target="erros">Diagnóstico &amp; FAQ</button>
         <button data-target="glossario">Glossário</button>
+        <button data-target="pipeline-assets">Pipeline de Assets</button>
+        <button data-target="playbook-personagem">Playbook Unreal 1:1</button>
+        <button data-target="qa-publicacao">QA &amp; Operações</button>
         <button data-target="recursos">Recursos &amp; Referências</button>
     </nav>
 
@@ -2309,6 +2312,278 @@
                         movimentação.</dd>
                 </div>
             </dl>
+        </section>
+
+        <section id="pipeline-assets" class="panel">
+            <h2>Pipeline de Assets &amp; Migração Técnica</h2>
+            <p>
+                Transforme arquivos do <em>Main 5.2</em> e serviços do <em>MuServer</em> em assets prontos para a
+                <strong>Unreal Engine 5</strong> sem precisar interpretar código. Siga cada checklist para importar,
+                converter e validar o conteúdo reutilizando exatamente os mesmos recursos visuais e sonoros do jogo
+                original.
+            </p>
+            <div class="callouts">
+                <p class="callout callout--tip"><strong>Antes de começar:</strong> deixe o explorador de arquivos aberto
+                    nas pastas <code>Source Main 5.2/Global Release/Data</code> e <code>Source Main 5.2/source</code>. Você
+                    alternará entre elas e a janela da Unreal a cada etapa.</p>
+                <p class="callout callout--warning"><strong>Formato importa:</strong> sempre converta texturas para
+                    <code>.PNG</code> com canal alfa e sons para <code>.WAV</code> 16 bits. Isso evita falhas na importação
+                    automática do Unreal.</p>
+            </div>
+
+            <div class="table-wrapper table-wrapper--compact">
+                <table class="data-table data-table--mapping">
+                    <caption>Mapa rápido de conversão 1:1</caption>
+                    <thead>
+                        <tr>
+                            <th>Origem Main/MuServer</th>
+                            <th>Onde encontrar</th>
+                            <th>Conversão para Unreal</th>
+                            <th>Resultado esperado</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td>HUD e elementos UI</td>
+                            <td><code>Global Release/Data/Interface</code> (arquivos <code>.OZJ</code>/<code>.OZT</code>)</td>
+                            <td>Extrair com <em>MuOZ Extractor</em> &rarr; salvar como <code>.PNG</code> &rarr; importar para
+                                <code>Content/UI/HUD</code> com <em>sRGB</em> ativo.</td>
+                            <td><code>WB_HUDMain</code> exibindo barras, botões e mini mapa com mesma textura.</td>
+                        </tr>
+                        <tr>
+                            <td>Personagens e monstros</td>
+                            <td><code>Global Release/Data/Character</code> e <code>source/ZzzBMD.cpp</code></td>
+                            <td>Converter <code>.BMD</code> usando <em>MuModel Viewer</em> &rarr; exportar <code>.FBX</code>
+                                com skeleton &rarr; importar para <code>Content/Characters</code> com rig <em>Humanoid</em>.</td>
+                            <td>Mallas com animações retargetadas no <code>ABP_Player</code> e <code>ABP_Monster</code>.</td>
+                        </tr>
+                        <tr>
+                            <td>Itens e ícones</td>
+                            <td><code>Global Release/Data/Item</code> e <code>source/ZzzInventory.h</code></td>
+                            <td>Exportar ícones para <code>.PNG</code> 64x64 &rarr; criar <code>DataTable</code> baseado em
+                                <code>FItemSlot</code> &rarr; ligar ao <code>WB_Inventory</code>.</td>
+                            <td>Grid replicado com mesmos ícones e descrições do inventário clássico.</td>
+                        </tr>
+                        <tr>
+                            <td>Efeitos e skills</td>
+                            <td><code>Global Release/Data/Effect</code>, <code>source/ZzzEffect.cpp</code></td>
+                            <td>Converter texturas para <code>.TGA</code> &rarr; criar sistemas Niagara usando curvas de
+                                <code>SkillEffectMgr.cpp</code> &rarr; anexar a <code>AbilitySystemComponent</code>.</td>
+                            <td>Partículas com tempo e cor idênticos às habilidades originais.</td>
+                        </tr>
+                        <tr>
+                            <td>Música e sons</td>
+                            <td><code>Global Release/Data/Music</code> e <code>source/DSPlaySound.h</code></td>
+                            <td>Converter <code>.WAV</code> 22 kHz &rarr; criar <code>SoundCue</code> com volume igual ao
+                                definido em <code>DSPlaySound.cpp</code> &rarr; mapear em <code>AudioSubsystem</code>.</td>
+                            <td>Trilhas e efeitos sincronizados com ações (login, ataque, drop de item).</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <div class="grid">
+                <article class="card">
+                    <h3>Interface &amp; HUD</h3>
+                    <ol class="step-list">
+                        <li>Abrir <code>NewUIMainFrameWindow.cpp</code> e listar widgets (HP, MP, Buff, Radar). Anotar nomes no
+                            diário.</li>
+                        <li>Extrair texturas correspondentes em <code>Data/Interface</code> e importar para
+                            <code>Content/UI/HUD</code>. Marcar “Create Material” desativado.</li>
+                        <li>No Unreal, criar <code>WB_HUDMain</code> duplicando layout da captura do cliente clássico.</li>
+                        <li>Adicionar <code>ProgressBar</code> para HP/MP/AG com preenchimento manual. Conectar a variáveis do
+                            <code>PlayerState</code> via <code>Bind Widget</code>.</li>
+                        <li>Criar <code>WidgetSwitcher</code> para notificações (party, trade, eventos) e replicar textos de
+                            <code>NewUINotice.cpp</code>.</li>
+                    </ol>
+                </article>
+                <article class="card">
+                    <h3>Personagens &amp; animações</h3>
+                    <ol class="step-list">
+                        <li>Extrair modelo do personagem base usando <em>MuModel Viewer</em> e exportar como
+                            <code>Character_Base.fbx</code>.</li>
+                        <li>No importador da Unreal, habilitar <em>Use T0 As Ref Pose</em> e gerar <code>Physics Asset</code>
+                            para colisões.</li>
+                        <li>Configurar <code>ABP_Player</code> com estados Idle/Walk/Run/Attack usando tempos de
+                            <code>ZzzCharacter.cpp</code> (velocidade 6.5f, aceleração 2048).</li>
+                        <li>Retargetar animações de monstros repetindo o processo com <code>ABP_Monster</code> e eventos de
+                            ataque baseados em <code>MonsterSkillManager.cpp</code>.</li>
+                        <li>Salvar <code>DataTable</code> <code>DT_Characters</code> contendo nome da mesh, animação padrão e
+                            sons associados.</li>
+                    </ol>
+                </article>
+                <article class="card">
+                    <h3>Áudio, FX &amp; automação</h3>
+                    <ol class="step-list">
+                        <li>Converter faixas de <code>Data/Music</code> para <code>.WAV</code> estéreo. Importar para
+                            <code>Content/Audio/Music</code> e criar <code>SoundCue</code> com atenuação 3D.</li>
+                        <li>Mapear sons em <code>DSPlaySound.cpp</code> e criar <code>DataTable</code>
+                            <code>DT_SoundLibrary</code> com colunas <em>Evento</em>, <em>SoundCue</em>, <em>Volume</em>.</li>
+                        <li>Converter texturas de efeito para <code>.TGA</code>, criar materiais <code>M_Skill_*</code> e
+                            sistemas Niagara seguindo parâmetros de <code>SkillEffectMgr.cpp</code>.</li>
+                        <li>No Unreal, criar <code>FXSubsystem</code> com funções Blueprint para <code>SpawnEffect</code> e
+                            <code>PlaySoundByEvent</code>.</li>
+                        <li>Registrar automação no <code>Editor Utility Widget</code> para importar novos assets em lote com
+                            prefixos padronizados.</li>
+                    </ol>
+                </article>
+            </div>
+        </section>
+
+        <section id="playbook-personagem" class="panel">
+            <h2>Playbook Unreal 1:1 — Mecânicas Essenciais</h2>
+            <p>
+                Use este playbook para reconstruir comportamento, interações e sistemas principais respeitando o fluxo do
+                <em>Main 5.2</em> e do <em>MuServer</em>. Cada card aponta os arquivos originais, o Blueprint ou classe C++
+                equivalente e a ordem de implementação para não travar em dependências.
+            </p>
+            <div class="callouts">
+                <p class="callout callout--tip"><strong>Modo fácil:</strong> execute uma etapa por vez. Após concluir o
+                    checklist, teste dentro do nível <code>Test_Level</code> com dois jogadores simulados (uma instância
+                    <em>Listen Server</em> e uma instância <em>Client</em>).</p>
+                <p class="callout callout--warning"><strong>Sincronização:</strong> sempre compare os logs do
+                    <code>GameServer</code> (<code>GameServer/GameServer/JSProtocol.cpp</code>) com a aba <em>Output Log</em>
+                    da Unreal. Diferenças indicam pacote montado incorretamente.</p>
+            </div>
+            <div class="grid">
+                <article class="card">
+                    <h3>Movimentação &amp; física</h3>
+                    <ol class="step-list">
+                        <li>Estudar <code>ZzzCharacter.cpp</code> e <code>CameraMove.cpp</code> para anotar velocidade,
+                            aceleração e limites de rotação.</li>
+                        <li>No Unreal, configurar <code>InputAction_Move</code>, <code>InputAction_Look</code> e sensibilidade
+                            idêntica no <code>Enhanced Input</code>.</li>
+                        <li>Atualizar <code>BP_PlayerCharacter</code> para usar <code>CharacterMovement</code> com valores de
+                            <code>Max Walk Speed</code> = 600 e <code>Rotation Rate</code> = 540, espelhando o cliente.
+                        </li>
+                        <li>Criar <code>CameraBoom</code> com ajuste de zoom baseado no valor padrão em
+                            <code>Options.ini</code> do Main (campo <code>CameraDistance</code>).</li>
+                        <li>Testar com <em>Play in Editor</em> em modo <em>New Editor Window</em> e validar que o pacote
+                            <code>0x10</code> (movimento) chega ao <code>GameServer</code> sem divergência.</li>
+                    </ol>
+                </article>
+                <article class="card">
+                    <h3>Combate &amp; skills</h3>
+                    <ol class="step-list">
+                        <li>Anotar no diário as skills básicas lendo <code>SkillInfo.h</code> e os efeitos em
+                            <code>SkillEffectMgr.cpp</code>.</li>
+                        <li>Criar <code>AbilitySystemComponent</code> no <code>BP_PlayerState</code> e registrar habilidades
+                            como <code>GA_NormalAttack</code>, <code>GA_Skill01</code>.</li>
+                        <li>Configurar animações no <code>ABP_Player</code> usando notificadores (<em>AnimNotifies</em>) para
+                            sincronizar sons e efeitos.</li>
+                        <li>Montar <code>BP_CombatComponent</code> que monta pacotes de ataque baseados em
+                            <code>ProtocolSend.cpp::CGSendAttack</code>.</li>
+                        <li>Validar dano recebido usando eventos <code>JSProtocol.cpp::CGDamageRecv</code> e atualizar
+                            <code>WB_HUDMain</code> com feedback visual.</li>
+                    </ol>
+                </article>
+                <article class="card">
+                    <h3>Economia &amp; inventário</h3>
+                    <ol class="step-list">
+                        <li>Ler <code>NewUIInventoryCtrl.cpp</code> e <code>ItemType.h</code> para entender slots, pilhas e
+                            limites.</li>
+                        <li>Popular <code>DT_ItemDefinitions</code> usando colunas <em>ID</em>, <em>Nome</em>, <em>Mesh</em>,
+                            <em>Icone</em>, <em>Stack</em>.</li>
+                        <li>Implementar <code>BP_InventoryComponent</code> com replicação <code>COND_OwnerOnly</code>.</li>
+                        <li>Ligar <code>WB_Inventory</code> ao componente via <code>Event OnRep_Items</code> e arrastar itens
+                            com <code>DragDropOperation</code>.</li>
+                        <li>Sincronizar com o servidor usando o pacote <code>0x79</code> seguindo estrutura de
+                            <code>DataServerProtocol.cpp::WarehouseItemsSend</code>.</li>
+                    </ol>
+                </article>
+                <article class="card">
+                    <h3>Sistemas sociais &amp; chat</h3>
+                    <ol class="step-list">
+                        <li>Revisar <code>ChatWnd.cpp</code> e <code>ProtocolSend.cpp::SendChatMessage</code> para saber os
+                            canais (global, party, guild).</li>
+                        <li>No Unreal, criar <code>WB_Chat</code> com abas e cores iguais às constantes em
+                            <code>ChatMacroDef.h</code>.</li>
+                        <li>Implementar <code>BP_ChatComponent</code> com filas replicadas e filtros anti-spam baseados em
+                            <code>Filter.cpp</code>.</li>
+                        <li>Enviar mensagens usando <code>NetworkBridge</code> e atualizar o servidor via
+                            <code>Protocol.cpp::CGChatRecv</code>.</li>
+                        <li>Adicionar histórico persistente salvando em <code>Saved/Logs/chat.log</code> para facilitar
+                            suporte.</li>
+                    </ol>
+                </article>
+                <article class="card">
+                    <h3>Mundo, eventos &amp; instâncias</h3>
+                    <ol class="step-list">
+                        <li>Listar mapas em <code>WorldList.xml</code> e arquivos <code>Terrain</code> do cliente clássico.
+                        </li>
+                        <li>Importar alturas para o Unreal usando <code>Landscape</code> e texturas de splat extraídas com
+                            <em>MuTerrain Tool</em>.</li>
+                        <li>Criar <code>LevelInstance</code> para eventos (Blood Castle, Devil Square) e conectar ao
+                            <code>EventManager</code> inspirado em <code>GameServer/Event/*.cpp</code>.</li>
+                        <li>Configurar <code>BP_Portal</code> com colisão e pacote <code>0x1C</code> para sincronizar
+                            transições com o servidor.</li>
+                        <li>Testar spawn de monstros usando dados de <code>MonsterSetBase.txt</code> convertidos para
+                            <code>DataTable</code> <code>DT_SpawnGroups</code>.</li>
+                    </ol>
+                </article>
+            </div>
+        </section>
+
+        <section id="qa-publicacao" class="panel">
+            <h2>QA, Testes Multijogador &amp; Operações Contínuas</h2>
+            <p>
+                Garanta que o remake funcione do login à publicação. Esta seção organiza testes passo a passo, validação de
+                rede, preparação de builds e rotinas de suporte para que qualquer pessoa consiga manter o projeto ativo sem
+                consultar outras fontes.
+            </p>
+            <div class="callouts">
+                <p class="callout callout--tip"><strong>Registro automático:</strong> use a planilha “QA Ensino Remake” do
+                    diário para marcar cada execução. Sem marcação, a etapa deve ser refeita.</p>
+                <p class="callout callout--warning"><strong>Dois computadores?</strong> Caso não tenha, abra duas instâncias
+                    do editor (Play as Listen Server + Play as Client) para simular partidas.</p>
+            </div>
+            <div class="grid">
+                <article class="card">
+                    <h3>Checklists diários</h3>
+                    <ol class="step-list">
+                        <li>Iniciar ConnectServer, JoinServer, GameServer e DataServer com scripts fornecidos.</li>
+                        <li>Abrir o cliente Unreal, logar com conta de teste e percorrer login &rarr; seleção &rarr; mapa.</li>
+                        <li>Validar HUD completo (HP, MP, buffs) e inventário carregado do banco.</li>
+                        <li>Executar combate contra um monstro e garantir drops corretos.</li>
+                        <li>Registrar resultado e anexar screenshot no diário.</li>
+                    </ol>
+                </article>
+                <article class="card">
+                    <h3>Testes multijogador</h3>
+                    <ol class="step-list">
+                        <li>Executar <code>RunUAT -Test</code> com cenário “Dois jogadores + servidor local”.</li>
+                        <li>Verificar latência exibida no HUD (<code>TelemetrySubsystem</code>) e comparar com ping real.</li>
+                        <li>Conferir sincronização de inventário, chat e movimentação usando logs do <code>GameServer</code>.
+                        </li>
+                        <li>Testar negociações (trade) e partilha de party replicando pacotes <code>0xCB</code> e
+                            <code>0xF3</code>.</li>
+                        <li>Registrar bugs em planilha com status (Novo, Investigando, Resolvido).</li>
+                    </ol>
+                </article>
+                <article class="card">
+                    <h3>Publicação &amp; atualização</h3>
+                    <ol class="step-list">
+                        <li>Gerar build <em>Shipping</em> via <code>File &gt; Package Project &gt; Windows</code> e salvar em
+                            <code>Builds/Cliente</code>.</li>
+                        <li>Copiar arquivos de configuração <code>DefaultEngine.ini</code>, <code>DefaultGame.ini</code> e
+                            credenciais de rede para pasta <code>Config</code>.</li>
+                        <li>Rodar script <code>PackageMuServer.bat</code> para agrupar serviços com configurações atualizadas.</li>
+                        <li>Testar instalador em máquina limpa (VM) e documentar passos com screenshots.</li>
+                        <li>Atualizar seção “Release Notes” no diário com mudanças e links para download.</li>
+                    </ol>
+                </article>
+                <article class="card">
+                    <h3>Suporte &amp; monitoramento</h3>
+                    <ol class="step-list">
+                        <li>Ativar logs detalhados no servidor (<code>GameServer/GameServer/LogProc.cpp</code>) e salvar em
+                            <code>Logs/&lt;data&gt;</code>.</li>
+                        <li>Criar <code>Dashboard.xlsx</code> com métricas: jogadores online, ping médio, erros críticos.</li>
+                        <li>Configurar alertas de e-mail usando <code>PowerShell</code> para quedas de serviço.</li>
+                        <li>Manter FAQ atualizada com soluções rápidas (reinstalação, reset de senha, portas bloqueadas).</li>
+                        <li>Planejar sessões semanais de revisão para revisar feedback e priorizar correções.</li>
+                    </ol>
+                </article>
+            </div>
         </section>
 
         <section id="recursos" class="panel">
