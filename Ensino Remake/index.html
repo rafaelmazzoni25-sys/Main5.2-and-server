@@ -28,6 +28,7 @@
         <button data-target="servidor-detalhado">Servidor em Detalhes</button>
         <button data-target="unreal-detalhado">Guia Unreal Detalhado</button>
         <button data-target="receitas-unreal">Receitas Unreal</button>
+        <button data-target="atlas-unreal">Enciclopédia de Sistemas</button>
         <button data-target="protocolos">Protocolos &amp; Pacotes</button>
         <button data-target="banco-dados">Banco de Dados</button>
         <button data-target="preparacao">Preparação</button>
@@ -474,6 +475,151 @@
                             <li>Existe um registro completo de testes no diário (data, ação, resultado).</li>
                             <li>Você consegue repetir o login, seleção e entrada no mapa sem consultar outras fontes.</li>
                             <li>Tem uma lista de próximas melhorias (efeitos, eventos) priorizada.</li>
+                        </ul>
+                    </div>
+                </li>
+                <li>
+                    <h3>Passo 11 — Movimentação e câmera idênticas</h3>
+                    <p class="stepper__goal">Reproduzir a sensação de controle original ajustando velocidade, animações e sincronização de posição.</p>
+                    <div class="stepper__details">
+                        <h4>Faça assim</h4>
+                        <ul>
+                            <li>No Unreal, ajuste o <code>CharacterMovement</code> para <code>Max Walk Speed = 550</code> e <code>Rotation Rate = 720</code>, igual aos valores observados em <code>gObjCalCharacter</code>.</li>
+                            <li>Implemente um <code>UMovementCommandComponent</code> que converta entradas WASD em direções de grade (8 direções) como <code>MoveCommand.cpp</code> faz com <code>PathFindMoveMsg</code>.</li>
+                            <li>Ao pressionar uma direção, chame <code>UNetworkBridgeSubsystem::EnviarMovimento</code> (código 0x1B) e aguarde a confirmação 0x1C antes de mover definitivamente o personagem.</li>
+                            <li>Sincronize a câmera com um <code>SpringArm</code> com <code>Lag</code> configurado para 0.15 e altura 420 replicando o offset definido em <code>ZzzCharacter.cpp</code>.</li>
+                        </ul>
+                    </div>
+                    <div class="stepper__details stepper__details--explain">
+                        <h4>Tradução do código original</h4>
+                        <ul>
+                            <li><code>Source Main 5.2/source/MoveCommand.cpp</code> limita direções válidas e calcula passos.</li>
+                            <li><code>Source Main 5.2/source/ProtocolSend.cpp</code> envia <code>SendRequestMove</code> com direção.</li>
+                            <li><code>Source MuServer Update 15/GameServer/GameServer/Protocol.cpp</code> trata <code>case 0x1B/0x1C</code> confirmando posição e corrige desvios.</li>
+                        </ul>
+                    </div>
+                    <div class="stepper__details stepper__details--checklist">
+                        <h4>Você termina quando...</h4>
+                        <ul>
+                            <li>O personagem só conclui o passo após receber 0x1C e corrige automaticamente se houver diferença.</li>
+                            <li>A câmera acompanha suavemente sem tremores tanto no cliente clássico quanto no remake.</li>
+                            <li>O console do GameServer mostra as mesmas direções registradas em <code>MoveCommand.cpp</code>.</li>
+                        </ul>
+                    </div>
+                </li>
+                <li>
+                    <h3>Passo 12 — Combate básico e habilidades</h3>
+                    <p class="stepper__goal">Replicar ataques, combos e lançamento de magias respeitando confirmações do servidor.</p>
+                    <div class="stepper__details">
+                        <h4>Faça assim</h4>
+                        <ul>
+                            <li>Crie um <code>UCombatComponent</code> com funções <code>SolicitarAtaqueBasico</code> e <code>SolicitarHabilidade</code> chamando códigos 0x11 e 0x19, como em <code>ProtocolSend.cpp</code>.</li>
+                            <li>Monte animações no Unreal usando <em>Montages</em> iguais aos estados listados em <code>NewCharacterModel.cpp</code> (Idle, Walk, Attack1, Attack2).</li>
+                            <li>Registre tabelas <code>DT_Skills</code> com dano, custo e efeitos copiando de <code>SkillAttribute.cpp</code>.</li>
+                            <li>Quando o GameServer responder com 0x1A/0x1B (confirmação de dano), atualize HUD, efeitos e números flutuantes.</li>
+                        </ul>
+                    </div>
+                    <div class="stepper__details stepper__details--explain">
+                        <h4>Tradução do código original</h4>
+                        <ul>
+                            <li><code>Source Main 5.2/source/SkillManager.cpp</code> valida mana, alcance e tempo de recarga.</li>
+                            <li><code>Source MuServer Update 15/GameServer/GameServer/Attack.cpp</code> calcula o dano real.</li>
+                            <li><code>Protocol.cpp</code> reenvia 0x11/0x19 confirmando acertos para todos os jogadores.</li>
+                        </ul>
+                    </div>
+                    <div class="stepper__details stepper__details--checklist">
+                        <h4>Você termina quando...</h4>
+                        <ul>
+                            <li>Ataques básicos tocam o mesmo som e consomem stamina como no cliente clássico.</li>
+                            <li>Habilidades respeitam cooldowns e exibem partículas equivalentes aos efeitos originais.</li>
+                            <li>O servidor valida dano e envia número final antes de aplicar no HUD.</li>
+                        </ul>
+                    </div>
+                </li>
+                <li>
+                    <h3>Passo 13 — NPCs, missões e economia</h3>
+                    <p class="stepper__goal">Recriar diálogos, lojas, quests e recompensas conectadas ao banco de dados.</p>
+                    <div class="stepper__details">
+                        <h4>Faça assim</h4>
+                        <ul>
+                            <li>Cadastre NPCs em <code>DT_NPCs</code> com ID, nome, diálogo e itens usando <code>Data/NPC.txt</code> como referência.</li>
+                            <li>Implemente <code>WB_Dialogue</code> exibindo as frases mapeadas em <code>NewNPCDialog.cpp</code> com botões “Comprar”, “Quest”, “Fechar”.</li>
+                            <li>Replique o fluxo de quests lendo <code>QuestInfo.cpp</code> e criando um <code>UQuestComponent</code> que sincroniza progresso com pacotes 0x7A/0x7B.</li>
+                            <li>Integre com o DataServer chamando procedures equivalentes a <code>GDSaveQuestProgress</code> e atualizando Zen via <code>GDShopLogSave</code>.</li>
+                        </ul>
+                    </div>
+                    <div class="stepper__details stepper__details--explain">
+                        <h4>Tradução do código original</h4>
+                        <ul>
+                            <li><code>Source Main 5.2/source/NewUINPCShop.cpp</code> e <code>QuestInfoWindow.cpp</code> definem layout e botões.</li>
+                            <li><code>Source MuServer Update 15/GameServer/GameServer/Quest.cpp</code> processa estados e recompensas.</li>
+                            <li><code>DataServer/DataServer/DataServerProtocol.cpp</code> grava compras, Zen e etapas concluídas.</li>
+                        </ul>
+                    </div>
+                    <div class="stepper__details stepper__details--checklist">
+                        <h4>Você termina quando...</h4>
+                        <ul>
+                            <li>NPCs abrem janelas idênticas às do cliente clássico, com os mesmos itens e preços.</li>
+                            <li>Quests atualizam objetivos automaticamente quando monstros são derrotados.</li>
+                            <li>O Zen descontado ou ganho aparece tanto na Unreal quanto no banco após recarregar.</li>
+                        </ul>
+                    </div>
+                </li>
+                <li>
+                    <h3>Passo 14 — Mundo, monstros e eventos ao vivo</h3>
+                    <p class="stepper__goal">Montar mapas, spawns e scripts de eventos como Blood Castle dentro da Unreal.</p>
+                    <div class="stepper__details">
+                        <h4>Faça assim</h4>
+                        <ul>
+                            <li>Importe os mapas usando <code>World Machine</code> ou <code>Heightmaps</code> gerados de <code>World\Terrain</code>, aplicando texturas originais.</li>
+                            <li>Cadastre spawns em <code>DT_Monsters</code> com posição e tempo de respawn baseando-se em <code>MonsterSetBase.txt</code>.</li>
+                            <li>Implemente <code>Behavior Trees</code> para IA seguindo padrões de <code>MonsterAI.cpp</code> (perseguir, atacar, retornar).</li>
+                            <li>Crie controladores de evento (Blueprint Actor) que leem arquivos de configuração como <code>BloodCastle.txt</code> e disparam timers iguais aos do <code>Event.cpp</code>.</li>
+                        </ul>
+                    </div>
+                    <div class="stepper__details stepper__details--explain">
+                        <h4>Tradução do código original</h4>
+                        <ul>
+                            <li><code>Source Main 5.2/source/ZzzScene.cpp</code> carrega mapas e define zona segura.</li>
+                            <li><code>Source MuServer Update 15/GameServer/GameServer/MonsterAI.cpp</code> controla lógica de perseguição.</li>
+                            <li><code>GameServer/GameServer/Event.cpp</code> agenda Blood Castle, Devil Square e outros.</li>
+                        </ul>
+                    </div>
+                    <div class="stepper__details stepper__details--checklist">
+                        <h4>Você termina quando...</h4>
+                        <ul>
+                            <li>Monstros reaparecem nas mesmas coordenadas e respeitam limites de agressão.</li>
+                            <li>Eventos iniciam e encerram com mensagens iguais às do cliente clássico.</li>
+                            <li>O minimapa e o HUD mostram indicadores de objetivo atual do evento.</li>
+                        </ul>
+                    </div>
+                </li>
+                <li>
+                    <h3>Passo 15 — Publicação, QA e suporte</h3>
+                    <p class="stepper__goal">Empacotar build, documentar testes e preparar suporte contínuo.</p>
+                    <div class="stepper__details">
+                        <h4>Faça assim</h4>
+                        <ul>
+                            <li>Gere build <em>Shipping</em> no Unreal configurando <code>Project Settings &rarr; Packaging</code> para copiar assets convertidos automaticamente.</li>
+                            <li>Crie scripts <code>StartAll.bat</code> e <code>StopAll.bat</code> para os serviços do MuServer com logs direcionados para <code>logs/</code>.</li>
+                            <li>Documente plano de testes repetível (login, evento, trade) usando modelos de <code>TestCases.xlsx</code> disponíveis neste guia.</li>
+                            <li>Monte pasta “Distribuição” com build, scripts, banco e este tutorial em PDF para novos testers.</li>
+                        </ul>
+                    </div>
+                    <div class="stepper__details stepper__details--explain">
+                        <h4>Tradução do código original</h4>
+                        <ul>
+                            <li><code>GameServer/GameServer/LogProc.cpp</code> mostra formato ideal de logs para replicar no Unreal.</li>
+                            <li><code>Source Main 5.2/source/CrashHandler.cpp</code> registra erros — use abordagens parecidas com <code>Unreal Insights</code>.</li>
+                            <li><code>Tools/Launcher</code> no pacote original inspiram scripts de distribuição.</li>
+                        </ul>
+                    </div>
+                    <div class="stepper__details stepper__details--checklist">
+                        <h4>Você termina quando...</h4>
+                        <ul>
+                            <li>Existe um pacote zipado com build Unreal, executáveis do servidor e scripts.</li>
+                            <li>Qualquer pessoa consegue seguir o plano de testes sem ajuda externa.</li>
+                            <li>Logs são armazenados em pastas datadas, facilitando suporte e correções.</li>
                         </ul>
                     </div>
                 </li>
@@ -1385,6 +1531,422 @@
                         <li>Itens do NPC aparecem nas mesmas posições do arquivo original.</li>
                         <li>É impossível mover itens enquanto a janela de compra estiver aberta, evitando bugs.</li>
                         <li>Trocas só finalizam quando os dois jogadores confirmam, replicando a lógica do pacote 0x3C.</li>
+                    </ul>
+                </article>
+                <article class="recipe-card">
+                    <h3>Receita 8 — Diário de missões e recompensas</h3>
+                    <p class="recipe-intro">Configura o sistema de quests, diário e recompensas automáticas igual ao cliente clássico.</p>
+                    <h4>Copie do projeto original</h4>
+                    <ul>
+                        <li><code>Source Main 5.2/source/QuestInfoWindow.cpp</code> e <code>QuestProgress.cpp</code> — fluxo do diário e atualizações visuais.</li>
+                        <li><code>Source MuServer Update 15/GameServer/GameServer/Quest.cpp</code> — validações de requisitos e pacotes 0x7A/0x7B.</li>
+                        <li><code>Data/Quest/QuestList.txt</code> e <code>QuestProgress.txt</code> — dados de objetivos e recompensas.</li>
+                    </ul>
+                    <h4>Monte na Unreal</h4>
+                    <ol>
+                        <li>Crie a <code>Data Table</code> <code>DT_Quests</code> com campos ID, título, descrição, requisito e recompensa usando os arquivos <code>QuestList</code>.</li>
+                        <li>Implemente <code>UQuestComponent</code> com arrays <code>QuestsAtivas</code> e <code>QuestsConcluidas</code>, espelhando <code>QuestProgress.cpp</code>.</li>
+                        <li>Monte o Widget <code>WB_QuestLog</code> com duas colunas (ativas/completas) e botões “Rastrear” e “Recompensa”.</li>
+                        <li>Conecte o componente ao <code>UNetworkBridgeSubsystem</code> para enviar 0x7A (aceitar) e receber 0x7B (atualizar progresso).</li>
+                        <li>Implemente função <code>AplicarRecompensa</code> que chama o servidor (0x7D) e atualiza inventário/XP antes de marcar como concluída.</li>
+                    </ol>
+                    <h4>Fluxo Blueprint</h4>
+                    <ol class="blueprint-list">
+                        <li>No <code>WB_QuestLog</code>, use <em>Event Construct</em> &rarr; <em>Populate List</em> com dados do componente.</li>
+                        <li>Ao clicar em “Aceitar”, chame <code>UQuestComponent::SolicitarAceite</code> &rarr; <code>EnviarQuest</code> (0x7A) &rarr; desabilite botão até resposta.</li>
+                        <li>Quando receber 0x7B, atualize barras de progresso via <em>Set Percent</em> e exiba mensagem na HUD.</li>
+                        <li>Acione <code>AplicarRecompensa</code> após confirmar no servidor (0x7D) e reproduza efeitos de brilho.</li>
+                        <li>Atualize o minimapa com marcadores de objetivo usando <code>Add Quest Marker</code> do componente.</li>
+                    </ol>
+                    <h4>Checklist final</h4>
+                    <ul>
+                        <li>Objetivos aumentam automaticamente ao derrotar monstros ou coletar itens.</li>
+                        <li>Recompensas adicionam XP, Zen e itens exatamente como no arquivo <code>QuestList</code>.</li>
+                        <li>O diário mostra estados corretos mesmo após reconectar.</li>
+                    </ul>
+                    <div class="recipe-mapping">
+                        <h4>Arquivos de referência</h4>
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Elemento</th>
+                                    <th>Unreal</th>
+                                    <th>Original</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td>Lista de quests</td>
+                                    <td><code>DT_Quests</code></td>
+                                    <td><code>QuestList.txt</code></td>
+                                </tr>
+                                <tr>
+                                    <td>Atualização de progresso</td>
+                                    <td><code>UQuestComponent</code></td>
+                                    <td><code>QuestProgress.cpp</code></td>
+                                </tr>
+                                <tr>
+                                    <td>Entrega de recompensa</td>
+                                    <td>Evento <code>AplicarRecompensa</code></td>
+                                    <td><code>Quest.cpp :: QuestRewardRun</code></td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </article>
+                <article class="recipe-card">
+                    <h3>Receita 9 — IA de monstros e respawns</h3>
+                    <p class="recipe-intro">Constrói respawns, comportamento e sincronização de monstros replicando o servidor.</p>
+                    <h4>Copie do projeto original</h4>
+                    <ul>
+                        <li><code>Source MuServer Update 15/GameServer/GameServer/MonsterAI.cpp</code> e <code>MonsterRegen.cpp</code> — regras de perseguição e respawn.</li>
+                        <li><code>Data/Monster/MonsterSetBase.txt</code> — posições, direções e tempo de reaparecimento.</li>
+                        <li><code>Source Main 5.2/source/ZzzAI.cpp</code> — efeitos visuais de agressão.</li>
+                    </ul>
+                    <h4>Monte na Unreal</h4>
+                    <ol>
+                        <li>Converta <code>MonsterSetBase.txt</code> em <code>DT_MonsterSpawns</code> com mapa, coordenadas e intervalo.</li>
+                        <li>Crie <code>AMonsterSpawner</code> que lê a tabela e instancia <code>ABaseMonster</code> com Behavior Tree.</li>
+                        <li>Configure Behavior Tree com estados Patrulha, Perseguir, Atacar e Retornar, seguindo as condições de <code>MonsterAI.cpp</code>.</li>
+                        <li>Implemente <code>UNetworkBridgeSubsystem::RegistrarSpawn</code> enviando 0x16 (spawn) e recebendo 0x17 (morte).</li>
+                        <li>Adapte partículas de agressão usando Niagara com texturas de <code>Data/Effects</code>.</li>
+                    </ol>
+                    <h4>Fluxo Blueprint</h4>
+                    <ol class="blueprint-list">
+                        <li>No <code>AMonsterSpawner</code>, execute <em>BeginPlay</em> &rarr; <em>For Each Spawn</em> &rarr; <em>Spawn Actor</em> com parâmetros.</li>
+                        <li>No <code>ABaseMonster</code>, use <em>Event Possessed</em> para iniciar Behavior Tree.</li>
+                        <li>Ao detectar jogador (<em>OnPerceptionUpdated</em>), dispare evento <code>SolicitarAtaqueMonstro</code> (0x17) e aguarde retorno.</li>
+                        <li>Quando morrer, chame <code>UNetworkBridgeSubsystem::NotificarMorteMonstro</code> para o DataServer liberar drops.</li>
+                        <li>Use <em>Delay</em> baseado no campo <code>RespawnTime</code> antes de chamar <code>Spawn Actor</code> novamente.</li>
+                    </ol>
+                    <h4>Checklist final</h4>
+                    <ul>
+                        <li>Monstros respeitam limites de perseguição e retornam à posição original.</li>
+                        <li>Drops são liberados somente após confirmação do servidor.</li>
+                        <li>Respawns seguem os segundos definidos em <code>MonsterSetBase.txt</code>.</li>
+                    </ul>
+                    <div class="recipe-mapping">
+                        <h4>Arquivos de referência</h4>
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Elemento</th>
+                                    <th>Unreal</th>
+                                    <th>Original</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td>Respawn</td>
+                                    <td><code>AMonsterSpawner</code></td>
+                                    <td><code>MonsterRegen.cpp</code></td>
+                                </tr>
+                                <tr>
+                                    <td>Comportamento</td>
+                                    <td>Behavior Tree + Blackboard</td>
+                                    <td><code>MonsterAI.cpp</code></td>
+                                </tr>
+                                <tr>
+                                    <td>Pacote de spawn</td>
+                                    <td><code>UNetworkBridgeSubsystem::RegistrarSpawn</code></td>
+                                    <td><code>Protocol.cpp</code> (0x16/0x17)</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </article>
+                <article class="recipe-card">
+                    <h3>Receita 10 — Party, guild e correio social</h3>
+                    <p class="recipe-intro">Permite formar grupos, guilds e enviar mensagens internas com a mesma lógica do clássico.</p>
+                    <h4>Copie do projeto original</h4>
+                    <ul>
+                        <li><code>Source Main 5.2/source/NewUIPartyWindow.cpp</code> e <code>NewUIGuildInfoWindow.cpp</code> — layout e interações.</li>
+                        <li><code>Source MuServer Update 15/GameServer/GameServer/Party.cpp</code> e <code>GuildClass.cpp</code> — regras de convite, expulsão e habilidades de guild.</li>
+                        <li><code>ProtocolSend.cpp</code> (0x40–0x43) e <code>Protocol.cpp</code> (respostas de party/guild).</li>
+                    </ul>
+                    <h4>Monte na Unreal</h4>
+                    <ol>
+                        <li>Crie Widgets <code>WB_Party</code>, <code>WB_Guild</code> e <code>WB_GuildNotice</code> com slots dinâmicos.</li>
+                        <li>Implemente <code>USocialComponent</code> com listas de membros, convites pendentes e privilégios.</li>
+                        <li>Conecte convites a pacotes 0x40/0x41 e atualize componentes com respostas 0x42/0x43.</li>
+                        <li>Implemente sistema de correio interno usando <code>WB_Mailbox</code> e DataServer (procedures <code>GDSaveMail</code>/<code>GDReadMail</code>).</li>
+                        <li>Sincronize buffs de guild (por exemplo, HP extra) aplicando <code>Gameplay Effects</code> quando <code>GuildClass.cpp</code> enviar atualização.</li>
+                    </ol>
+                    <h4>Fluxo Blueprint</h4>
+                    <ol class="blueprint-list">
+                        <li>No <code>WB_Party</code>, use <em>Event Construct</em> para preencher slots e bindar botões Sair/Kick.</li>
+                        <li>Ao clicar “Convidar”, abra <code>WB_SelectPlayer</code>, chame <code>USocialComponent::EnviarConviteParty</code> e aguarde retorno.</li>
+                        <li>Quando receber atualização 0x42, atualize lista e emita notificação sonora via HUD.</li>
+                        <li>No correio, ao enviar mensagem, chame <code>EnviarMail</code> (0x78) e limpe formulário somente após confirmação.</li>
+                        <li>Atualize buffs de guild usando <em>Gameplay Tags</em> acionadas pelo servidor.</li>
+                    </ol>
+                    <h4>Checklist final</h4>
+                    <ul>
+                        <li>Party mostra HP/MP dos membros em tempo real.</li>
+                        <li>Guild notice aparece na tela inicial exatamente como no cliente original.</li>
+                        <li>Mensagens do correio persistem após desconectar.</li>
+                    </ul>
+                    <div class="recipe-mapping">
+                        <h4>Arquivos de referência</h4>
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Elemento</th>
+                                    <th>Unreal</th>
+                                    <th>Original</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td>Gerenciamento de Party</td>
+                                    <td><code>USocialComponent</code></td>
+                                    <td><code>Party.cpp</code></td>
+                                </tr>
+                                <tr>
+                                    <td>Informações da Guild</td>
+                                    <td><code>WB_Guild</code></td>
+                                    <td><code>NewUIGuildInfoWindow.cpp</code></td>
+                                </tr>
+                                <tr>
+                                    <td>Correio</td>
+                                    <td><code>WB_Mailbox</code> + DataServer</td>
+                                    <td><code>GuildClass.cpp</code> / <code>GDSaveMail</code></td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </article>
+                <article class="recipe-card">
+                    <h3>Receita 11 — Eventos instanciados (Blood Castle, Devil Square)</h3>
+                    <p class="recipe-intro">Recria os eventos em instâncias com controles de tempo, objetivos e recompensas.</p>
+                    <h4>Copie do projeto original</h4>
+                    <ul>
+                        <li><code>Source MuServer Update 15/GameServer/GameServer/BloodCastle.cpp</code> e <code>DevilSquare.cpp</code> — regras e fases.</li>
+                        <li><code>Source Main 5.2/source/NewUIBattleCastle.cpp</code> e <code>NewUIEventNotifyWindow.cpp</code> — interface dos eventos.</li>
+                        <li>Arquivos <code>Data/Event/BloodCastle.txt</code>, <code>DevilSquare.txt</code> — configuração de horários e recompensas.</li>
+                    </ul>
+                    <h4>Monte na Unreal</h4>
+                    <ol>
+                        <li>Crie níveis dedicados (<code>LV_BloodCastle</code>, <code>LV_DevilSquare</code>) com Level Streaming carregado quando o evento começar.</li>
+                        <li>Implemente <code>AEventController</code> que lê tabelas <code>DT_BloodCastle</code>/<code>DT_DevilSquare</code> derivadas dos arquivos originais.</li>
+                        <li>Desenvolva Widgets <code>WB_EventTimer</code> e <code>WB_EventScore</code> replicando a UI clássica.</li>
+                        <li>Sincronize entradas e saídas com pacotes 0x90–0x94, confirmando com o GameServer antes de teleportar jogadores.</li>
+                        <li>Ao finalizar, distribua recompensas chamando <code>UNetworkBridgeSubsystem::EnviarRecompensaEvento</code> (0x95) e atualizando o inventário.</li>
+                    </ol>
+                    <h4>Fluxo Blueprint</h4>
+                    <ol class="blueprint-list">
+                        <li>Quando o servidor enviar “Evento iniciou”, carregue o nível com <em>Load Stream Level</em> e exiba <code>WB_EventTimer</code>.</li>
+                        <li>Atualize tempo restante usando <em>Set Timer by Event</em> a cada segundo.</li>
+                        <li>Registre progresso (portões destruídos, pontos coletados) em <code>UEventProgressComponent</code> e envie para o servidor.</li>
+                        <li>Ao terminar, execute <code>Unload Stream Level</code> e retorne jogadores à cidade original.</li>
+                        <li>Chame <code>AplicarRecompensaEvento</code> para adicionar itens/XP e registrar log.</li>
+                    </ol>
+                    <h4>Checklist final</h4>
+                    <ul>
+                        <li>Eventos respeitam horários configurados e notificam todos os jogadores.</li>
+                        <li>Objetivos e pontuações combinam com o cliente clássico.</li>
+                        <li>Recompensas são entregues somente após confirmação do GameServer.</li>
+                    </ul>
+                    <div class="recipe-mapping">
+                        <h4>Arquivos de referência</h4>
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Elemento</th>
+                                    <th>Unreal</th>
+                                    <th>Original</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td>Controle de fases</td>
+                                    <td><code>AEventController</code></td>
+                                    <td><code>BloodCastle.cpp</code> / <code>DevilSquare.cpp</code></td>
+                                </tr>
+                                <tr>
+                                    <td>HUD do evento</td>
+                                    <td><code>WB_EventTimer</code></td>
+                                    <td><code>NewUIEventNotifyWindow.cpp</code></td>
+                                </tr>
+                                <tr>
+                                    <td>Recompensas</td>
+                                    <td><code>AplicarRecompensaEvento</code></td>
+                                    <td><code>Event.cpp</code></td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </article>
+            </div>
+        </section>
+
+        <section id="atlas-unreal" class="panel panel--atlas">
+            <h2>Enciclopédia de Sistemas — clássico &rarr; Unreal Engine 5</h2>
+            <p>
+                Este atlas reúne cada área funcional do <em>Main 5.2</em> e do <em>MuServer Update 15</em> com a tradução
+                direta para Blueprints, componentes C++ e ferramentas da <strong>Unreal Engine 5</strong>. Leia cada cartão
+                como um mapa: ele mostra quais arquivos abrir, quais assets reutilizar e a ordem das ações para obter o
+                mesmo resultado sem precisar interpretar código sozinho.
+            </p>
+            <div class="callouts">
+                <p class="callout callout--tip"><strong>Como usar:</strong> escolha o cartão da área que está trabalhando,
+                    siga a lista “Na Unreal” em sequência e marque o checklist antes de avançar.</p>
+                <p class="callout callout--warning"><strong>Importante:</strong> sempre compare com os logs do servidor e
+                    com o cliente clássico após cada implementação para garantir 100% de compatibilidade.</p>
+            </div>
+            <div class="atlas-grid">
+                <article class="atlas-card">
+                    <h3>Interface e UX</h3>
+                    <p><strong>Objetivo:</strong> reconstruir todas as janelas do <code>NewUI</code> com Widgets Unreal.</p>
+                    <h4>Arquivos clássicos</h4>
+                    <ul>
+                        <li><code>NewUIMainFrameWindow.cpp</code> — HUD, menus e botões.</li>
+                        <li><code>NewUIManager.cpp</code> — fluxo de abertura/fechamento.</li>
+                        <li><code>NewUIInventoryCtrl.cpp</code>, <code>NewUIPartyWindow.cpp</code>, <code>NewUICustomMessageBox.cpp</code>.</li>
+                    </ul>
+                    <h4>Na Unreal</h4>
+                    <ol class="atlas-steps">
+                        <li>Modele Widgets <code>WB_HUDMain</code>, <code>WB_MenuLateral</code>, <code>WB_JanelasSecundarias</code> seguindo as texturas importadas.</li>
+                        <li>Crie um <code>UUIFlowSubsystem</code> com funções <code>AbrirJanela</code>, <code>FecharJanela</code> e <code>AlternarHUD</code>.</li>
+                        <li>Implemente navegação por teclado/mouse usando <em>Widget Switchers</em> e <code>Focus Target</code>.</li>
+                        <li>Adicione tabela <code>DT_UIHotkeys</code> para mapear atalhos iguais aos do <code>KeyManager.cpp</code>.</li>
+                    </ol>
+                    <h4>Checklist</h4>
+                    <ul>
+                        <li>Janelas respeitam posições e atalhos do cliente clássico.</li>
+                        <li>Os sons de abrir/fechar são disparados pela mesma estrutura de dados de <code>DSPlaySound</code>.</li>
+                    </ul>
+                </article>
+                <article class="atlas-card">
+                    <h3>Personagem, Movimento e Animações</h3>
+                    <p><strong>Objetivo:</strong> espelhar movimento, dash, montarias e câmera.</p>
+                    <h4>Arquivos clássicos</h4>
+                    <ul>
+                        <li><code>MoveCommand.cpp</code>, <code>ZzzCharacter.cpp</code>, <code>NewCharacterModel.cpp</code>.</li>
+                        <li><code>ProtocolSend::SendRequestMove</code> e confirmações 0x1C no servidor.</li>
+                        <li><code>PetAction.cpp</code> para montarias.</li>
+                    </ul>
+                    <h4>Na Unreal</h4>
+                    <ol class="atlas-steps">
+                        <li>Configure <code>Enhanced Input</code> para WASD, Dash (duplo clique) e montaria (tecla <code>A</code>).</li>
+                        <li>Use <code>CharacterMovement</code> com <code>Orient Rotation to Movement</code> e <code>Braking Deceleration = 2048</code>.</li>
+                        <li>Implemente <code>UMovementCommandComponent</code> para fila de passos e teleporte via <code>Server Corrections</code>.</li>
+                        <li>Adicione animação de montaria usando <em>Montage Slots</em> sincronizados com o servidor (pacote 0x2D).</li>
+                    </ol>
+                    <h4>Checklist</h4>
+                    <ul>
+                        <li>O personagem nunca desliza após parar (valide no console do GameServer).</li>
+                        <li>Montar e desmontar atualiza HUD e velocidade instantaneamente.</li>
+                    </ul>
+                </article>
+                <article class="atlas-card">
+                    <h3>Combate, Skills e Efeitos</h3>
+                    <p><strong>Objetivo:</strong> garantir que dano, buffs e debuffs funcionem como no clássico.</p>
+                    <h4>Arquivos clássicos</h4>
+                    <ul>
+                        <li><code>SkillManager.cpp</code>, <code>MagicInf.cpp</code>, <code>GCMagicSend.cpp</code>.</li>
+                        <li><code>Attack.cpp</code> e <code>SkillEffect.cpp</code> no GameServer.</li>
+                        <li>Textos de efeito em <code>Data/Local/SkillTooltip.txt</code>.</li>
+                    </ul>
+                    <h4>Na Unreal</h4>
+                    <ol class="atlas-steps">
+                        <li>Crie <code>UAbilityDataTable</code> com dano, alcance, animação e efeitos de partículas.</li>
+                        <li>Implemente <code>UCombatComponent</code> com <em>Ability Queue</em> e validações de mana/tempo de recarga.</li>
+                        <li>Conecte com <code>UNetworkBridgeSubsystem</code> enviando 0x11/0x19 e recebendo 0x1A/0x1B.</li>
+                        <li>Use <em>Niagara</em> para partículas reaproveitando texturas originais de <code>Effects</code>.</li>
+                    </ol>
+                    <h4>Checklist</h4>
+                    <ul>
+                        <li>Dano exibido combina com os valores do servidor.</li>
+                        <li>Buffs aparecem no HUD e expiram conforme <code>SkillEffect.cpp</code>.</li>
+                    </ul>
+                </article>
+                <article class="atlas-card">
+                    <h3>NPCs, Missões e Economia</h3>
+                    <p><strong>Objetivo:</strong> oferecer todas as interações sociais (lojas, quests, trade, refinamento).</p>
+                    <h4>Arquivos clássicos</h4>
+                    <ul>
+                        <li><code>NewUINPCShop.cpp</code>, <code>QuestInfoWindow.cpp</code>, <code>NewUITrade.cpp</code>.</li>
+                        <li><code>Quest.cpp</code>, <code>Shop.cpp</code>, <code>Warehouse.cpp</code> no GameServer.</li>
+                        <li>Scripts SQL <code>ShopItem</code>, <code>QuestProgress</code>, <code>WarehouseItems</code>.</li>
+                    </ul>
+                    <h4>Na Unreal</h4>
+                    <ol class="atlas-steps">
+                        <li>Monte Widgets <code>WB_NPCShop</code>, <code>WB_Quest</code> e <code>WB_Trade</code> reutilizando componentes do inventário.</li>
+                        <li>Adicione <code>UNPCInteractionComponent</code> com função <code>SolicitarServico</code> para enviar códigos 0x30–0x3D, 0x6F e 0x7A.</li>
+                        <li>Integre com <code>UQuestComponent</code> que salva progresso no DataServer antes de liberar recompensas.</li>
+                        <li>Sincronize valores de Zen, Joias e itens com tabelas SQL através de <code>Stored Procedures</code> chamadas pelo GameServer.</li>
+                    </ol>
+                    <h4>Checklist</h4>
+                    <ul>
+                        <li>Compras e vendas refletem imediatamente no inventário e no Zen.</li>
+                        <li>Quests mostram objetivos, contadores e recompensas idênticos ao original.</li>
+                    </ul>
+                </article>
+                <article class="atlas-card">
+                    <h3>Mundo, Monstros e Eventos</h3>
+                    <p><strong>Objetivo:</strong> replicar mapas, respawns, IA e cronogramas de eventos.</p>
+                    <h4>Arquivos clássicos</h4>
+                    <ul>
+                        <li><code>ZzzScene.cpp</code>, <code>MapServerManager.cpp</code>, arquivos <code>Data/World</code>.</li>
+                        <li><code>MonsterAI.cpp</code>, <code>MonsterSetBase.txt</code>, <code>MonsterSkill.cpp</code>.</li>
+                        <li><code>Event.cpp</code>, <code>BloodCastle.cpp</code>, <code>DevilSquare.cpp</code>.</li>
+                    </ul>
+                    <h4>Na Unreal</h4>
+                    <ol class="atlas-steps">
+                        <li>Recrie terrenos com <em>Landscape</em> e aplique materiais com <code>Runtime Virtual Texture</code>.</li>
+                        <li>Construa <code>Data Layers</code> por mapa para carregar apenas o necessário (Lorencia, Noria, etc.).</li>
+                        <li>Implemente <code>AMonsterSpawner</code> lendo <code>DT_MonsterSpawns</code> gerados a partir de <code>MonsterSetBase.txt</code>.</li>
+                        <li>Crie <em>State Machines</em> de IA (Patrulha, Perseguir, Atacar, Retornar) e conecte eventos de servidor (0x18, 0x1E).</li>
+                    </ol>
+                    <h4>Checklist</h4>
+                    <ul>
+                        <li>Spawns e respawns respeitam limites e horários dos arquivos originais.</li>
+                        <li>Eventos exibem mensagens globais e prêmios iguais aos configurados em <code>Event.cpp</code>.</li>
+                    </ul>
+                </article>
+                <article class="atlas-card">
+                    <h3>Rede, Banco e Serviços</h3>
+                    <p><strong>Objetivo:</strong> manter protocolos, segurança e persistência idênticos.</p>
+                    <h4>Arquivos clássicos</h4>
+                    <ul>
+                        <li><code>ProtocolSend.cpp</code>, <code>ProtocolCore.cpp</code>, <code>Protocol.cpp</code>.</li>
+                        <li><code>ConnectServer.cpp</code>, <code>JoinServerProtocol.cpp</code>, <code>DataServerProtocol.cpp</code>.</li>
+                        <li>Scripts SQL <code>Account</code>, <code>Character</code>, <code>Warehouse</code>.</li>
+                    </ul>
+                    <h4>Na Unreal</h4>
+                    <ol class="atlas-steps">
+                        <li>Implemente <code>UNetworkBridgeSubsystem</code> usando <code>FSocket</code> + threads para leitura.</li>
+                        <li>Crie <code>FPacketHeader</code>, <code>FPacketWriter</code> e <code>FPacketReader</code> replicando cabeçalhos C1/C3.</li>
+                        <li>Implemente heartbeat (0x0E) com timers e reconexão automática.</li>
+                        <li>Mapeie todas as estruturas persistentes para <code>USTRUCT</code> que serão convertidas em JSON/SQL nos serviços externos.</li>
+                    </ol>
+                    <h4>Checklist</h4>
+                    <ul>
+                        <li>Todos os pacotes do quadro “Protocolos” têm equivalente na Unreal.</li>
+                        <li>Logs registram latência, erros e reconexões como nos serviços originais.</li>
+                    </ul>
+                </article>
+                <article class="atlas-card">
+                    <h3>Qualidade, Publicação e Operação</h3>
+                    <p><strong>Objetivo:</strong> distribuir o remake com processos repetíveis e documentação clara.</p>
+                    <h4>Arquivos clássicos</h4>
+                    <ul>
+                        <li><code>GameServer/LogProc.cpp</code>, <code>EventManagement.cpp</code>.</li>
+                        <li>Pasta <code>tools/</code> e scripts de backup originais.</li>
+                        <li>Anotações do guia (este documento) para checklist.</li>
+                    </ul>
+                    <h4>Na Unreal</h4>
+                    <ol class="atlas-steps">
+                        <li>Configure <code>Automation Tests</code> para login, inventário e combate usando <em>Functional Testing</em>.</li>
+                        <li>Gere builds <em>Shipping</em> e <em>Test</em> com scripts <code>RunUAT BuildCookRun</code>.</li>
+                        <li>Monte <code>StartAll.bat</code>, <code>StopAll.bat</code> e <code>BackupDB.bat</code> replicando os passos do original.</li>
+                        <li>Crie um manual PDF com capturas de tela do remake e checklist para suporte.</li>
+                    </ol>
+                    <h4>Checklist</h4>
+                    <ul>
+                        <li>Builds podem ser recriadas com um único comando documentado.</li>
+                        <li>Backups e restaurações do banco foram testados sem perda de dados.</li>
                     </ul>
                 </article>
             </div>
