@@ -4,95 +4,132 @@ const curriculum = {
             title: "Tour pelo pacote original",
             duration: "Dia 1",
             description:
-                "Conheça a estrutura geral: leia o README, abra as pastas Source Main 5.2 e Source MuServer Update 15 e identifique onde ficam código, assets e ferramentas.",
+                "Conheça cada pasta: identifique onde o cliente carrega recursos (Winmain.cpp, ZzzScene.cpp) e onde o servidor processa pacotes (GameMain.cpp, JSProtocol.cpp).",
             prereqs: [
-                "Ler README.md e destacar as seções que citam cliente e servidor",
-                "Abrir Source Main 5.2/source no editor e listar arquivos como Winmain.cpp e ZzzScene.cpp",
-                "Visitar Source MuServer Update 15/ e anotar a função de ConnectServer, JoinServer, GameServer e DataServer"
+                "Ler README.md destacando links para cliente e servidor",
+                "Abrir Source Main 5.2/source e listar arquivos centrais (Winmain.cpp, NewUIMainFrameWindow.cpp, ProtocolSend.cpp)",
+                "Visitar Source MuServer Update 15/ e apontar funções de ConnectServer, JoinServer, GameServer e DataServer",
+                "Anotar dúvidas iniciais no diário de bordo"
+            ]
+        },
+        {
+            title: "Compilar o cliente original",
+            duration: "Dia 2",
+            description:
+                "Abra Main.sln, ajuste caminhos de dependências e garanta que o build Debug executa sem erros. Isso valida seu ambiente de C++ antes de iniciar o remake.",
+            prereqs: [
+                "Configurar diretórios de include/lib em Project Properties",
+                "Compilar Debug e Release verificando avisos",
+                "Executar o cliente clássico e checar se o login abre",
+                "Registrar soluções para erros de compilação encontrados"
             ]
         },
         {
             title: "Configurar ferramentas",
-            duration: "Dia 2",
+            duration: "Dia 3",
             description:
-                "Instale softwares essenciais e faça um teste rápido de funcionamento. O objetivo é ter Visual Studio 2019, Unreal Engine 5.3+, Git e um banco de dados local prontos para uso.",
+                "Instale softwares essenciais e confirme versões compatíveis com o código clássico e a Unreal Engine 5.3+.",
             prereqs: [
-                "Instalar Visual Studio 2019 com Desktop development with C++",
+                "Instalar Visual Studio 2019 com Desktop development with C++ e Windows SDK 10",
                 "Instalar Unreal Engine 5.3 ou superior via Epic Games Launcher",
-                "Configurar Git com usuário, e-mail e repositório remoto",
+                "Configurar Git (nome, e-mail, chave SSH ou token)",
                 "Instalar SQL Server Express ou MariaDB para simular o DataServer"
             ]
         },
         {
             title: "Organizar assets reutilizáveis",
-            duration: "Dia 3",
+            duration: "Dia 4",
             description:
-                "Separe texturas, sons e fontes do cliente clássico para importação futura. Documente onde cada item será usado no remake.",
+                "Separe texturas, fontes, sons e modelos do cliente clássico e catalogue onde cada item será reaproveitado na Unreal.",
             prereqs: [
-                "Copiar Source Main 5.2/Global Release/Data para uma pasta de trabalho",
-                "Identificar arquivos essenciais da interface nas pastas Interface e UI",
-                "Criar estrutura Content/UI e Content/Audio no projeto Unreal",
-                "Registrar em planilha qual asset pertence a cada tela"
+                "Copiar Source Main 5.2/Global Release/Data para a área de trabalho",
+                "Identificar texturas de interface em Interface/, UI/ e Mark/",
+                "Criar estrutura Content/UI, Content/Audio e Content/Characters no projeto Unreal",
+                "Registrar em planilha qual asset corresponde a cada tela ou efeito"
             ]
         },
         {
             title: "Rotina de estudos",
-            duration: "Dia 4",
+            duration: "Dia 5",
             description:
-                "Monte um cronograma semanal com blocos de leitura, prática em C++ e prática na Unreal. Anote dúvidas para revisar ao fim de cada sessão.",
+                "Monte um cronograma semanal equilibrando leitura de código, prática em C++ e implementação na Unreal. Documente avanços diariamente.",
             prereqs: [
-                "Definir horários fixos para teoria, prática e revisão",
-                "Criar um diário de bordo (caderno ou documento digital)",
-                "Configurar lembretes para pausas e resumo diário",
-                "Criar checklist de tópicos concluídos por módulo"
+                "Definir blocos de estudo para cliente, servidor e Unreal",
+                "Criar diário de bordo (caderno, Notion ou Google Docs)",
+                "Configurar lembretes para pausas, revisão e backup",
+                "Criar checklist por módulo (UI, rede, banco, efeitos)"
             ]
         },
         {
-            title: "Fluxo do cliente clássico",
-            duration: "Dia 5",
+            title: "Mapear o fluxo do cliente",
+            duration: "Dia 6",
             description:
-                "Entenda como o Main 5.2 inicia, mostra telas e comunica com o servidor. O foco está em Winmain.cpp, LoginWin.cpp, NewUIMainFrameWindow.cpp e ProtocolSend.cpp.",
+                "Entenda a sequência de inicialização do Main 5.2: leitura de recursos, criação do HUD e chamadas de rede. Esse mapa orienta a arquitetura do remake.",
             prereqs: [
-                "Ler Winmain.cpp e identificar o loop principal",
-                "Mapear a transição de cenas em ZzzScene.cpp",
-                "Anotar quais funções em LoginWin.cpp chamam gProtocolSend",
-                "Desenhar um diagrama simples do HUD baseado em NewUIMainFrameWindow.cpp"
+                "Desenhar fluxograma com funções principais de Winmain.cpp",
+                "Relacionar cenas em ZzzScene.cpp com janelas do NewUI",
+                "Listar chamadas de ProtocolSend.cpp usadas em LoginWin.cpp",
+                "Esboçar layout da HUD baseado em NewUIMainFrameWindow.cpp"
+            ]
+        },
+        {
+            title: "Catalogar protocolos essenciais",
+            duration: "Dia 7",
+            description:
+                "Registre pacotes obrigatórios (login, lista de personagens, movimento, chat) observando como ProtocolSend.cpp envia e Protocol.cpp recebe.",
+            prereqs: [
+                "Identificar enums em ProtocolHead (cliente) e cases em Protocol.cpp (servidor)",
+                "Documentar estrutura de login com BuxConvert e versão",
+                "Associar cada pacote a uma tela ou ação da Unreal",
+                "Criar tabela inicial para acompanhar testes de rede"
             ]
         },
         {
             title: "Serviços do MuServer",
-            duration: "Dia 6",
+            duration: "Dia 8",
             description:
-                "Analise cada serviço dedicado para entender o caminho completo de conexão. Leia ConnectServer.cpp, JoinServer.cpp, GameMain.cpp e DataServerProtocol.cpp.",
+                "Analise ConnectServer, JoinServer, GameServer e DataServer para compreender a jornada completa do jogador e preparar scripts de inicialização.",
             prereqs: [
-                "Abrir ConnectServer/ConnectServer.cpp e destacar o fluxo de sockets",
-                "Revisar JoinServer/JoinServer.cpp e anotar as etapas de validação",
-                "Ler GameServer/GameServer/GameMain.cpp para entender a inicialização",
-                "Verificar DataServer/DataServer/DataServerProtocol.cpp e mapear chamadas ao banco"
+                "Ler ConnectServer/ConnectServer.cpp destacando configuração de sockets",
+                "Revisar JoinServer/GameServer/JSProtocol.cpp para login e movimentação",
+                "Estudar GameServer/GameServer/GameMain.cpp observando timers e conexões",
+                "Ler DataServer/DataServer/DataServerProtocol.cpp e listar chamadas ao banco"
             ]
         },
         {
             title: "Projeto base na Unreal",
-            duration: "Dia 7",
+            duration: "Dia 9",
             description:
-                "Crie o projeto Unreal Engine 5 que receberá o remake. Configure controle de versão, estrutura de pastas e um nível de teste simples.",
+                "Crie o projeto Unreal Engine 5 que receberá o remake, configure plugins e estabeleça pastas de conteúdo alinhadas ao código clássico.",
             prereqs: [
                 "Criar projeto Third Person em C++ com nome EnsinoRemake",
-                "Ativar o plug-in Git Source Control e conectar ao repositório",
-                "Criar pastas Content/UI, Content/Characters e Content/Maps",
-                "Adicionar um nível Test_Level com personagem padrão para navegação"
+                "Ativar Git Source Control, Online Subsystem e qualquer plugin necessário (ex.: WebSocket)",
+                "Configurar módulos C++ (Core, NetworkBridge, UI) no .uproject",
+                "Adicionar nível Test_Level com personagem padrão para validar build"
+            ]
+        },
+        {
+            title: "Mapeamento do banco de dados",
+            duration: "Dia 10",
+            description:
+                "Configure o banco com tabelas Account, Character e Warehouse e teste stored procedures chamadas pelo DataServer antes de conectar a Unreal.",
+            prereqs: [
+                "Criar banco com collation compatível (Latin1_General_CI_AI)",
+                "Executar script de criação de contas e personagens de teste",
+                "Testar procedures equivalentes a GDCharacterListRecv/GDWarehouseItemRecv",
+                "Documentar credenciais e portas usadas pelos serviços"
             ]
         },
         {
             title: "Primeiro commit documentado",
-            duration: "Dia 8",
+            duration: "Dia 11",
             description:
-                "Registre o estado inicial do projeto no Git com notas sobre o que já foi preparado. Essa prática garante rastreabilidade desde o começo.",
+                "Registre o estado inicial do projeto no Git, anexando notas com ferramentas instaladas, assets separados e links para scripts SQL.",
             prereqs: [
-                "Executar git status e conferir arquivos adicionados",
-                "Escrever README curto explicando o objetivo do remake",
-                "Criar commit inicial descrevendo ferramentas instaladas",
-                "Enviar o commit para o repositório remoto"
+                "Executar git status e revisar arquivos adicionados",
+                "Escrever README curto explicando objetivos e dependências",
+                "Criar commit inicial listando passos concluídos",
+                "Enviar o commit para o repositório remoto ou backup local"
             ]
         }
     ],
@@ -101,72 +138,72 @@ const curriculum = {
             title: "Preparação & Ferramentas",
             duration: "Semana 1",
             description:
-                "Consolide ambiente, assets organizados e projeto Unreal configurado. Garanta que cliente, servidor e Unreal podem ser abertos sem erros.",
+                "Consolide ambiente, assets organizados e projeto Unreal configurado. Garanta que cliente, servidor e Unreal abrem sem erros e documente a estrutura completa.",
             prereqs: [
-                "Completar todos os passos da preparação inicial",
-                "Abrir Main.sln e compilar um build vazio",
-                "Executar projeto Unreal para validar o mapa de teste",
-                "Salvar checklist com links para arquivos importantes"
+                "Completar todos os passos da preparação inicial (dias 1 a 11)",
+                "Compilar Main.sln (Debug e Release) e registrar dependências usadas",
+                "Executar projeto Unreal validando Test_Level e logando em arquivo",
+                "Atualizar checklist com caminhos para assets, scripts SQL e serviços"
             ]
         },
         {
             title: "Fundamentos do Cliente",
             duration: "Semanas 2-3",
             description:
-                "Recrie telas principais, entenda o fluxo de UI e registre como ProtocolSend.cpp lida com autenticação e movimentação.",
+                "Recrie telas principais, entenda o fluxo do <code>CNewUIManager</code> e registre como <code>ProtocolSend.cpp</code> lida com autenticação e movimentação.",
             prereqs: [
-                "Compilar Main.sln em modo Debug com sucesso",
-                "Documentar arquivos-chave como LoginWin.cpp e NewUIMainFrameWindow.cpp",
-                "Listar pacotes enviados por gProtocolSend nas principais ações",
-                "Capturar screenshots do cliente original para referência"
+                "Documentar arquivos-chave (LoginWin.cpp, NewUIMainFrameWindow.cpp, NewUIInventoryCtrl.cpp)",
+                "Listar pacotes enviados por gProtocolSend nas ações de login, seleção e movimento",
+                "Criar protótipo de HUD no Unreal usando assets importados",
+                "Capturar screenshots do cliente original e anexar ao diário"
             ]
         },
         {
             title: "Base na Unreal Engine 5",
             duration: "Semanas 4-5",
             description:
-                "Construa a navegação de login e seleção de personagem na Unreal, importando assets e conectando Blueprints a funções C++ simplificadas.",
+                "Construa navegação de login e seleção na Unreal, importando assets e conectando Widgets a funções C++ que simulam <code>ProtocolSend</code>.",
             prereqs: [
-                "Criar Widget Blueprint para login inspirado em LoginWin.cpp",
-                "Importar texturas de interface e configurar fontes",
-                "Implementar GameMode e GameInstance personalizados",
-                "Testar navegação entre telas usando InputActions"
+                "Criar Widgets para login/seleção inspirados em LoginWin.cpp e CharSelMainWin.cpp",
+                "Importar texturas de interface e configurar fontes/paleta",
+                "Implementar GameMode, GameState e GameInstance personalizados",
+                "Simular pacotes de login em modo offline e validar feedback visual"
             ]
         },
         {
             title: "Fundamentos do Servidor",
             duration: "Semanas 6-7",
             description:
-                "Compile os serviços do MuServer, configure o banco de dados e garanta que ConnectServer, JoinServer e GameServer trocam mensagens básicas.",
+                "Compile os serviços do MuServer, configure o banco e garanta que ConnectServer, JoinServer e GameServer trocam mensagens básicas com o cliente clássico.",
             prereqs: [
-                "Compilar ConnectServer, JoinServer, GameServer e DataServer",
-                "Configurar banco com tabelas Account e Character",
-                "Executar JoinServer e verificar logs de conexão",
-                "Documentar portas abertas e scripts de inicialização"
+                "Compilar ConnectServer, JoinServer, GameServer e DataServer sem warnings críticos",
+                "Configurar banco com tabelas Account/Character/Warehouse",
+                "Executar JoinServer e verificar logs aceitando o cliente clássico",
+                "Criar scripts de inicialização e desligamento para cada serviço"
             ]
         },
         {
             title: "Integração & Testes",
             duration: "Semanas 8-9",
             description:
-                "Sincronize autenticação, movimentação e inventário entre cliente Unreal e MuServer. Crie cenários de teste guiados para validar cada requisito.",
+                "Sincronize autenticação, movimentação e inventário entre a Unreal e o MuServer. Crie cenários de teste guiados para validar cada requisito e comparar logs com o cliente original.",
             prereqs: [
-                "Cliente Unreal conectando ao JoinServer com pacote de login",
-                "GameServer registrando entradas de movimento via JSProtocol.cpp",
-                "Inventário replicado comparando dados com User.cpp",
-                "Planilha de bugs com prioridade e responsável"
+                "Cliente Unreal conectando ao JoinServer com pacote de login completo",
+                "GameServer registrando movimento/ação via JSProtocol.cpp e Protocol.cpp",
+                "Inventário replicado comparando slots com <code>CNewUIInventoryCtrl</code> e DataServer",
+                "Planilha de bugs com prioridade, responsável e status"
             ]
         },
         {
             title: "Polimento & Publicação",
             duration: "Semana 10",
             description:
-                "Refine efeitos, otimize pacotes, gere builds finais da Unreal e documente passos de instalação para outras pessoas repetirem o processo.",
+                "Refine efeitos, otimize pacotes, gere builds finais da Unreal e documente instalação para que novos estudantes repitam o processo sem consultar fontes externas.",
             prereqs: [
-                "Executar build Shipping no Unreal e validar desempenho",
-                "Registrar melhorias gráficas priorizadas",
-                "Preparar guia passo a passo de instalação",
-                "Rodar sessão de testes com voluntários e coletar feedback"
+                "Executar build Shipping no Unreal e validar desempenho em máquina de referência",
+                "Registrar melhorias gráficas priorizadas (Niagara, materiais)",
+                "Preparar guia passo a passo de instalação para cliente e servidor",
+                "Rodar testes com voluntários e coletar feedback documentado"
             ]
         },
         {
@@ -187,12 +224,12 @@ const curriculum = {
             title: "Recompilar o cliente base",
             duration: "Semana 2",
             description:
-                "Abra Main.sln, ajuste dependências em Source Main 5.2/dependencies e garanta um build Debug limpo com os executáveis originais.",
+                "Abra Main.sln, ajuste dependências em Source Main 5.2/dependencies e garanta builds Debug/Release limpos reproduzindo o executável original.",
             prereqs: [
                 "Configurar caminhos de include e lib das dependências",
-                "Gerar build Debug e registrar passos executados",
-                "Testar execução do cliente original em ambiente local",
-                "Salvar relatório com erros encontrados e soluções"
+                "Gerar builds Debug/Release anotando qualquer alteração necessária",
+                "Testar execução do cliente original em ambiente local com logs ativos",
+                "Salvar relatório com erros encontrados e soluções aplicadas"
             ]
         },
         {
@@ -211,7 +248,7 @@ const curriculum = {
             title: "Explorar UI clássica",
             duration: "Semana 3",
             description:
-                "Mapeie telas como LoginWin.cpp, CharSelMainWin.cpp e NewUIMainFrameWindow.cpp registrando botões, sons e interações necessárias para a Unreal.",
+                "Mapeie telas como LoginWin.cpp, CharSelMainWin.cpp e NewUIMainFrameWindow.cpp registrando botões, sons e interações necessários para a Unreal.",
             prereqs: [
                 "Listar widgets e textos exibidos em cada janela",
                 "Salvar referências de texturas em Global Release/Data",
@@ -223,7 +260,7 @@ const curriculum = {
             title: "Gerenciador de UI",
             duration: "Semana 3",
             description:
-                "Resuma a lógica de abertura e fechamento de janelas com base em NewUIManager.cpp e UIControls.cpp para replicar o comportamento com Widgets na Unreal.",
+                "Resuma a lógica de abertura e fechamento de janelas baseada em NewUIManager.cpp e UIControls.cpp e desenhe o equivalente com Widgets e Subsystems na Unreal.",
             prereqs: [
                 "Listar janelas controladas por NewUIManager.cpp",
                 "Entender hierarquia de componentes em UIControls.cpp",
@@ -235,7 +272,7 @@ const curriculum = {
             title: "HUD e inventário",
             duration: "Semana 4",
             description:
-                "Remonte o HUD principal (NewUIMainFrameWindow.cpp) e o inventário (NewUIInventoryCtrl.cpp) anotando dados necessários para replicação.",
+                "Remonte o HUD principal (NewUIMainFrameWindow.cpp) e o inventário (NewUIInventoryCtrl.cpp), anotando dados necessários para replicação e sincronização com o servidor.",
             prereqs: [
                 "Identificar structs de itens usadas em ZzzInventory.h",
                 "Relacionar slots e colunas com NewUIInventoryCtrl.cpp",
@@ -247,7 +284,7 @@ const curriculum = {
             title: "Sistema de input e câmera",
             duration: "Semana 4",
             description:
-                "Analise arquivos como MouseProc.cpp e CameraMove.cpp para entender entradas e movimentação da câmera a serem replicadas no Unreal.",
+                "Analise arquivos como MouseProc.cpp, Input.h e CameraMove.cpp para entender entradas, sensibilidade e câmera a serem replicadas na Unreal.",
             prereqs: [
                 "Ler MouseProc.cpp e mapear botões do mouse",
                 "Estudar CameraMove.cpp para comportamento da câmera",
@@ -259,7 +296,7 @@ const curriculum = {
             title: "Protocolos de rede",
             duration: "Semana 5",
             description:
-                "Conecte o cliente clássico ao servidor usando ProtocolSend.cpp e WSclient.cpp como referência para login, seleção de personagem e movimentação.",
+                "Analise ProtocolSend.cpp, WSclient.cpp e wsclientinline.h para entender conexão, login, seleção e movimentação e preparar equivalentes na Unreal.",
             prereqs: [
                 "Catalogar pacotes enviados por ProtocolSend.cpp",
                 "Documentar handlers em WSclient.cpp e wsclientinline.h",
@@ -271,12 +308,24 @@ const curriculum = {
             title: "Efeitos e otimização",
             duration: "Semana 5",
             description:
-                "Analise ZzzEffect.cpp, SkillEffectMgr.cpp e TextureScript.cpp para decidir quais efeitos migrar para Niagara ou Material Instances no Unreal.",
+                "Analise ZzzEffect.cpp, SkillEffectMgr.cpp, TextureScript.cpp e arquivos de modelos (ZzzBMD.cpp) para decidir quais efeitos migrar para Niagara ou materiais dinâmicos.",
             prereqs: [
                 "Listar efeitos essenciais para a primeira versão",
                 "Medir impacto de partículas no cliente clássico",
                 "Definir estratégia para efeitos avançados no Unreal",
                 "Criar backlog de otimizações pós-lançamento"
+            ]
+        },
+        {
+            title: "Depuração e ferramentas",
+            duration: "Semana 6",
+            description:
+                "Estude utilitários em ./Utilities/ (logs, crash reporter) para implementar diagnósticos equivalentes no remake e manter aprendizes informados.",
+            prereqs: [
+                "Ativar g_ConsoleDebug no cliente clássico e observar saídas",
+                "Configurar builds com símbolos para usar CrashReporter",
+                "Documentar pontos de log importantes em ProtocolSend e Winmain",
+                "Planejar ferramentas de captura de log para a Unreal"
             ]
         }
     ],
@@ -285,23 +334,23 @@ const curriculum = {
             title: "Criar projeto remake",
             duration: "Semana 4",
             description:
-                "Configure o projeto Unreal com controle de versão, pastas organizadas e plugins necessários para replicação de rede e UI.",
+                "Configure o projeto Unreal com controle de versão, módulos C++ (Core, NetworkBridge, UI) e plugins necessários para replicar rede e UI do Main 5.2.",
             prereqs: [
-                "Ativar plug-ins Git Source Control e Online Subsystem",
+                "Ativar plug-ins Git Source Control, Online Subsystem e WebSocket/TCP conforme necessidade",
                 "Criar branches Git específicos (interface, gameplay, rede)",
-                "Configurar pasta Content/UI para texturas importadas",
-                "Documentar convenções de nome (prefixos BP_, WB_, C++)"
+                "Configurar pastas Content/UI, Content/Characters e Content/Maps",
+                "Documentar convenções de nome (prefixos BP_, WB_, C++, FX_)"
             ]
         },
         {
             title: "Interface com UMG",
             duration: "Semana 4",
             description:
-                "Reproduza o fluxo de login e seleção de personagem em Widgets UMG, conectando botões a eventos Blueprint e preparando chamadas C++.",
+                "Reproduza o fluxo de login e seleção em Widgets UMG inspirados em LoginWin.cpp e CharSelMainWin.cpp, conectando botões a eventos Blueprint e chamadas C++.",
             prereqs: [
                 "Importar fontes e texturas do Main 5.2",
-                "Criar Widget Blueprint WB_LoginMenu com campos validados",
-                "Configurar Widget WB_SelectCharacter inspirado em CharSelMainWin.cpp",
+                "Criar Widget Blueprint WB_LoginMenu com validação e estados de carregamento",
+                "Configurar Widget WB_SelectCharacter com ListViews e dados recebidos",
                 "Testar estados de erro (login inválido, servidor offline)"
             ]
         },
@@ -309,48 +358,60 @@ const curriculum = {
             title: "Personagem e controles",
             duration: "Semana 5",
             description:
-                "Configure movimentação, câmera e animações com Enhanced Input e Animation Blueprints para reproduzir a sensação do cliente clássico.",
+                "Configure movimentação, câmera e animações com Enhanced Input, Animation Blueprints e valores retirados de ZzzCharacter.cpp e CameraMove.cpp.",
             prereqs: [
-                "Criar InputActions para movimento, câmera e ataque",
-                "Conectar Animation Blueprint às malhas importadas",
-                "Sincronizar velocidade com dados de ZzzCharacter.cpp",
-                "Configurar modo de câmera alternando entre mouse e teclado"
+                "Criar InputActions para movimento, câmera, ataque e interação",
+                "Conectar Animation Blueprint às malhas importadas do cliente clássico",
+                "Sincronizar velocidade, aceleração e limites com dados de ZzzCharacter.cpp",
+                "Configurar modos de câmera alternando entre mouse travado e livre"
             ]
         },
         {
             title: "Inventário replicado",
             duration: "Semana 6",
             description:
-                "Implemente inventário usando Actor Components e replicação, sincronizando slots com pacotes enviados pelo servidor.",
+                "Implemente inventário usando Actor Components replicados, Data Tables e widgets dinâmicos, sincronizando slots com pacotes definidos em Protocol.cpp e DataServerProtocol.cpp.",
             prereqs: [
-                "Criar struct FItemSlot em C++ inspirada em ZzzInventory.h",
-                "Montar Widget WB_Inventory com grids dinâmicos",
-                "Conectar componente de inventário à UI",
-                "Testar adição e remoção de itens em sessão multiplayer local"
+                "Criar struct FItemSlot inspirada em ZzzInventory.h e ItemAttribute",
+                "Montar Widget WB_Inventory com grids e drag & drop",
+                "Conectar componente de inventário à UI atualizando slots replicados",
+                "Testar adição/remoção de itens em sessão multiplayer local"
             ]
         },
         {
             title: "Comunicação com MuServer",
             duration: "Semana 7",
             description:
-                "Utilize sockets em C++ na Unreal para enviar pacotes compatíveis com ProtocolSend.cpp e consumir respostas tratadas por JSProtocol.cpp.",
+                "Implemente sockets TCP/UDP na Unreal para enviar pacotes compatíveis com ProtocolSend.cpp e consumir respostas tratadas por JSProtocol.cpp/Protocol.cpp.",
             prereqs: [
-                "Criar módulo C++ NetworkBridge com classe para sockets",
-                "Serializar pacotes seguindo estrutura do cliente clássico",
-                "Logar pacotes recebidos e comparar com o WSclient.cpp",
-                "Implementar reconexão simples e feedback visual"
+                "Criar módulo C++ NetworkBridge com classes de conexão e filas",
+                "Serializar pacotes seguindo formato C1/C3 e estrutura do cliente clássico",
+                "Registrar pacotes recebidos comparando com WSclient.cpp",
+                "Implementar reconexão, heartbeat e feedback visual no HUD"
             ]
         },
         {
             title: "Build e automação",
             duration: "Semana 9",
             description:
-                "Gere builds Development e Shipping, configure scripts de empacotamento e registre passos de distribuição para testers iniciantes.",
+                "Gere builds Development e Shipping, automatize empacotamento e alinhe a distribuição com os serviços do MuServer.",
             prereqs: [
                 "Executar File > Package Project para Windows",
-                "Criar script que copia dependências para uma pasta Distribuicao",
+                "Criar script que copia dependências e configura arquivos .ini",
                 "Rodar testes automatizados de navegação com Unreal Automation",
                 "Documentar procedimento de instalação passo a passo"
+            ]
+        },
+        {
+            title: "Telemetria e suporte",
+            duration: "Semana 9",
+            description:
+                "Implemente dashboards simples para exibir ping, FPS, status de serviços e erros capturados, auxiliando iniciantes na depuração do remake.",
+            prereqs: [
+                "Criar eventos que capturem ping/FPS e os exibam no HUD",
+                "Mostrar status de conexão com ConnectServer/JoinServer",
+                "Registrar falhas em arquivo inspirado no CrashReporter",
+                "Publicar checklist de suporte e recuperação rápida"
             ]
         }
     ],
@@ -359,31 +420,31 @@ const curriculum = {
             title: "Topologia do MuServer",
             duration: "Semana 6",
             description:
-                "Entenda como ConnectServer, JoinServer, GameServer e DataServer trocam dados. Desenhe o fluxo completo desde a conexão inicial até a entrega de pacotes de jogo.",
+                "Entenda como ConnectServer, JoinServer, GameServer e DataServer trocam dados. Desenhe o fluxo completo desde a conexão inicial até a entrega de pacotes comparando com Protocol.cpp.",
             prereqs: [
-                "Ler arquivos de configuração de cada serviço",
-                "Desenhar diagrama com portas utilizadas",
-                "Identificar logs gerados por cada processo",
-                "Reservar portas locais e ajustar firewall"
+                "Ler arquivos de configuração (.ini) de cada serviço",
+                "Desenhar diagrama com portas utilizadas e sequência de mensagens",
+                "Identificar logs gerados (ServerDisplayer, LogAdd) em cada processo",
+                "Reservar portas locais e ajustar firewall para testes"
             ]
         },
         {
             title: "Build dos serviços",
             duration: "Semana 6",
             description:
-                "Compile todos os projetos em Source MuServer Update 15 garantindo que Util/ ofereça as bibliotecas corretas e que dependências externas estejam acessíveis.",
+                "Compile todos os projetos em Source MuServer Update 15 garantindo que Util/ forneça bibliotecas corretas e que dependências externas estejam acessíveis.",
             prereqs: [
                 "Abrir soluções individuais (ConnectServer.sln, JoinServer.sln, etc.)",
                 "Resolver referências faltantes em Util/",
-                "Gerar executáveis em modo Debug",
-                "Documentar caminho de saída de cada build"
+                "Gerar executáveis em modo Debug/Release",
+                "Documentar caminho de saída e parâmetros de cada build"
             ]
         },
         {
             title: "Autenticação",
             duration: "Semana 7",
             description:
-                "Implemente e teste o fluxo de login completo: ConnectServer redireciona, JoinServer valida e GameServer inicia sessão com base no banco.",
+                "Implemente e teste o fluxo de login completo: ConnectServer redireciona, JoinServer valida e GameServer inicia sessão com base no banco e no JSProtocol.cpp.",
             prereqs: [
                 "Criar contas de teste no banco de dados",
                 "Ativar logs detalhados em JoinServer/JoinServer.cpp",
@@ -395,7 +456,7 @@ const curriculum = {
             title: "Persistência e economia",
             duration: "Semana 8",
             description:
-                "Revise DataServer e as estruturas de itens/experiência para garantir gravação consistente e compatibilidade com o inventário da Unreal.",
+                "Revise DataServer e as estruturas de itens/experiência para garantir gravação consistente e compatibilidade com o inventário e a progressão do remake na Unreal.",
             prereqs: [
                 "Mapear tabelas de itens e personagens no banco",
                 "Testar salvamento de inventário via DataServerProtocol.cpp",
@@ -407,7 +468,7 @@ const curriculum = {
             title: "Sincronização com Unreal",
             duration: "Semana 8",
             description:
-                "Ajuste Protocol.cpp e JSProtocol.cpp para aceitar os pacotes enviados pelo remake na Unreal, garantindo que posições, inventário e eventos estejam alinhados.",
+                "Ajuste Protocol.cpp, JSProtocol.cpp e DataServerProtocol.cpp para aceitar pacotes enviados pela Unreal, garantindo que posições, inventário e eventos estejam alinhados.",
             prereqs: [
                 "Comparar estrutura de pacotes com o cliente original",
                 "Implementar logs customizados para cada mensagem",
@@ -431,7 +492,7 @@ const curriculum = {
             title: "Implantação local controlada",
             duration: "Semana 9",
             description:
-                "Prepare scripts para iniciar e derrubar serviços, monitore logs em tempo real e estabeleça rotina de testes integrados com o cliente da Unreal.",
+                "Prepare scripts para iniciar/derrubar serviços, monitore logs em tempo real e estabeleça rotina de testes integrados com o cliente da Unreal.",
             prereqs: [
                 "Criar scripts batch ou PowerShell para start/stop",
                 "Configurar rotação de logs usando ferramentas do Windows",
@@ -443,7 +504,7 @@ const curriculum = {
             title: "Monitoramento e suporte",
             duration: "Semana 10",
             description:
-                "Implemente dashboards simples ou planilhas para acompanhar erros, métricas de servidor e feedback dos jogadores durante a fase de testes.",
+                "Implemente dashboards ou planilhas para acompanhar erros, métricas de servidor e feedback dos jogadores durante a fase de testes.",
             prereqs: [
                 "Definir indicadores como número de conexões simultâneas",
                 "Criar planilha para acompanhar crashes e soluções",
