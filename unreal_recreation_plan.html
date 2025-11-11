@@ -1009,6 +1009,7 @@
           <ul>
             <li><a href="#social-guildas">Social, guildas &amp; gens</a></li>
             <li><a href="#economia-lojas">Economia e lojas</a></li>
+            <li><a href="#equipamentos-especiais">Equipamentos especiais</a></li>
             <li><a href="#eventos-liveops">Eventos &amp; live ops</a></li>
             <li><a href="#crafting-refino">Crafting e reforço</a></li>
             <li><a href="#montarias-pets">Montarias e pets</a></li>
@@ -1093,6 +1094,7 @@
             <ul>
               <li><a href="#social-guildas">Social e guildas</a></li>
               <li><a href="#economia-lojas">Economia &amp; lojas</a></li>
+              <li><a href="#equipamentos-especiais">Equipamentos especiais</a></li>
               <li><a href="#pvp-arenas">PvP e eventos especiais</a></li>
             </ul>
           </div>
@@ -3788,10 +3790,12 @@ Delegate OnInventoryReceived(Itens)
         <button class="conversion-button" data-pane="progression">Progressão / XP</button>
         <button class="conversion-button" data-pane="drops">Sistema de Drops</button>
         <button class="conversion-button" data-pane="character-select">Seleção de Personagens</button>
+        <button class="conversion-button" data-pane="system-ui">Menus &amp; Configurações</button>
         <button class="conversion-button" data-pane="mobs">Sistema de Mobs</button>
         <button class="conversion-button" data-pane="skills">Sistema de Skills</button>
         <button class="conversion-button" data-pane="companions">Companheiros &amp; Recursos Avançados</button>
         <button class="conversion-button" data-pane="minigames">Minigames &amp; Conteúdos Especiais</button>
+        <button class="conversion-button" data-pane="custom">Customizações &amp; Serviços Extras</button>
         <button class="conversion-button" data-pane="social">Party, Guild &amp; Gens</button>
         <button class="conversion-button" data-pane="maps">Mapas e Navegação</button>
         <button class="conversion-button" data-pane="effects">Efeitos Visuais</button>
@@ -4483,6 +4487,137 @@ WBP_CharacterCreation::OnConfirm(Name, Class)
           replicando os logs do <em>GameServer</em> original.</div>
       </article>
 
+      <article class="conversion-pane" data-pane="system-ui">
+        <h3>Menus do Sistema, Opções Globais e Mensagens</h3>
+        <p>
+          A camada de UI do cliente original centraliza comandos de logout, opções gráficas, atalhos sociais
+          e pop-ups em estruturas como <code>CSysMenuWin</code>, <code>CNewUIOptionWindow</code>,
+          <code>CNewUICommandWindow</code> e as caixas de mensagem personalizadas. Ao migrar para UE5,
+          reproduza os posicionamentos absolutos, textos do <code>GlobalText</code> e integrações com o
+          <code>CommandManager</code> para preservar os comportamentos de confirmação e comando remoto.
+        </p>
+        <div class="grid-2">
+          <div class="source-card">
+            <div class="source-meta">Cliente &mdash; <code>Source Main 5.2/source/SysMenuWin.cpp</code></div>
+            <pre><code>const char* apszBtnText[SMW_BTN_MAX] = { GlobalText[381], GlobalText[382], GlobalText[385], GlobalText[388] };
+for (int i = 0; i &lt; SMW_BTN_MAX; ++i) {
+    m_aBtn[i].Create(108, 30, BITMAP_TEXT_BTN, 4, 2, 1);
+    m_aBtn[i].SetText(apszBtnText[i], adwBtnClr);
+}
+m_aBtn[SMW_BTN_OPTION].SetPosition(nBtnPosX, nCloseBtnPosY - nBtnGap);
+if (m_aBtn[SMW_BTN_SERVER_SEL].IsClick()) {
+    SendRequestLogOut(2);
+    CUIMng::Instance().HideWin(this);
+}</code></pre>
+          </div>
+          <div class="source-card">
+            <div class="source-meta">Cliente &mdash; <code>Source Main 5.2/source/NewUIOptionWindow.cpp</code></div>
+            <pre><code>m_BtnClose.ChangeButtonInfo(m_Pos.x+68, m_Pos.y+209, 54, 30);
+if(IsPress(VK_LBUTTON) &amp;&amp; CheckMouseIn(m_Pos.x+150, m_Pos.y+43, 15, 15)) {
+    m_bAutoAttack = !m_bAutoAttack;
+}
+if(CheckMouseIn(m_Pos.x+33-8, m_Pos.y+104, 124+8, 16)) {
+    int iOldValue = m_iVolumeLevel;
+    if(MouseWheel &gt; 0) { m_iVolumeLevel = min(m_iVolumeLevel+1, 10); }
+    if(iOldValue != m_iVolumeLevel) { SetEffectVolumeLevel(m_iVolumeLevel); }
+}</code></pre>
+          </div>
+        </div>
+        <div class="grid-2">
+          <div class="source-card">
+            <div class="source-meta">Cliente &mdash; <code>Source Main 5.2/source/NewUICommandWindow.cpp</code></div>
+            <pre><code>m_BtnCommand[COMMAND_TRADE].ChangeText(GlobalText[943]);
+for(int i = COMMAND_TRADE; i &lt; COMMAND_END; i++) {
+    m_BtnCommand[i].ChangeButtonInfo(m_Pos.x+(COMMAND_WINDOW_WIDTH/2-108/2),
+        (m_Pos.y+33)+(i*(29+COMMAND_BTN_INTERVAL_SIZE)), 108, 29);
+}
+if(m_BtnCommand[i].UpdateMouseEvent()) {
+    if(g_CursedTemple-&gt;GetInterfaceState(INTERFACE_COMMAND, i)) {
+        m_iCurSelectCommand = i;
+        SetBtnState(m_iCurSelectCommand, true);
+    }
+}</code></pre>
+          </div>
+          <div class="source-card">
+            <div class="source-meta">Cliente &mdash; <code>Source Main 5.2/source/NewUICustomMessageBox.cpp</code></div>
+            <pre><code>m_pInputBox-&gt;Init(g_hWnd, iInputBoxWidth, iInputBoxHeight, iTextLimit, bIsPassword);
+m_pInputBox-&gt;SetPosition(x, y);
+m_BtnOk.SetInfo(IMAGE_MSGBOX_BTN_OK, x, y, width, height);
+if(m_BtnOk.IsMouseIn()) {
+    g_MessageBox-&gt;SendEvent(pOwner, MSGBOX_EVENT_USER_COMMON_OK);
+    return CALLBACK_BREAK;
+}</code></pre>
+          </div>
+        </div>
+        <div class="source-card">
+          <div class="source-meta">Servidor &mdash; <code>Source MuServer Update 15/GameServer/GameServer/CommandManager.cpp</code></div>
+          <pre><code>void CCommandManager::Init() {
+    for(int n=0; n &lt; MAX_COMMAND; n++) {
+        this-&gt;m_CommandInfo[n].code = -1;
+        this-&gt;Add(gCommand.GetCommand(n), n+1);
+    }
+}
+if(strcmp(mode,this-&gt;m_CustomStoreCommandJoBSyntax) == 0) {
+    if(this-&gt;OpenCustomStore(lpObj,0) != 0) { return 1; }
+}</code></pre>
+        </div>
+        <h4>Passos para a UE5</h4>
+        <ol>
+          <li><strong>Assets:</strong> converta as texturas <code>Interface\\SystemMenu\\*.ozj</code>,
+            <code>Interface\\Option\\*.ozj</code> e <code>Interface\\CommandWindow\\*.ozj</code> seguindo a rotina de
+            <code>GlobalBitmap.cpp</code>. Preserve os tamanhos 108&times;30 dos botões e as larguras dos painéis.</li>
+          <li><strong>Widgets:</strong> crie <code>WBP_SystemMenu</code>, <code>WBP_Options</code> e
+            <code>WBP_CommandWheel</code> com <em>Canvas Panel</em> fixo em 640&times;480. Use <em>Vertical Boxes</em>
+            para os botões, aplicando margens equivalentes a <code>SMW_BTN_GAP</code> e o <em>Spacing</em> de 4&nbsp;px.</li>
+          <li><strong>Binding de texto:</strong> importe <code>Msg*.txt</code> via <code>DataTable</code> e
+            associe as linhas <code>GlobalText[381..388]</code>, <code>[943..949]</code> aos rótulos usando um
+            <code>FDataTableRowHandle</code> dentro do <code>LocalizationSubsystem</code>.</li>
+          <li><strong>Controles de volume:</strong> implemente <code>WBP_Options::OnMouseWheel</code> ajustando um
+            <code>SoundClass</code> (0–10) igual ao incremento de <code>m_iVolumeLevel</code>. Persistir valores em
+            <code>SaveGame</code> e aplicar em <code>GameInstance::InitAudio</code>.</li>
+          <li><strong>Comandos contextuais:</strong> adicione um <code>UCommandRouterComponent</code> aos atores de
+            jogador que recebe o comando selecionado no widget e chama endpoints REST/WebSocket equivalentes a
+            <code>/command/{code}</code>. Valide estados como <em>interface ativa</em> antes de enviar, replicando
+            <code>g_CursedTemple-&gt;GetInterfaceState</code>.</li>
+          <li><strong>Message boxes:</strong> utilize <code>CommonUI</code> para gerar diálogos modais reaproveitando o
+            layout original. Configure <code>FocusTarget</code> para campos de texto e encaminhe respostas para o
+            <code>CommandRouterComponent</code>, seguindo o fluxo de <code>MSGBOX_EVENT_USER_COMMON_OK</code>.</li>
+          <li><strong>Atalhos &amp; ESC:</strong> registre <code>Enhanced Input</code> para abrir/fechar o menu com ESC e
+            para alternar auto-ataque, whisper e ajuda chamando <code>ToggleAutoAttack</code>, <code>ToggleWhisper</code>
+            e <code>ToggleSlideHelp</code> em um <code>UPlayerPreferencesSubsystem</code>.</li>
+        </ol>
+        <h4>Blueprint sugerido</h4>
+        <pre><code>// WBP_SystemMenu
+Event Construct
+  → Bind OnLogoutRequested → GameInstance.RequestLogout
+  → Bind OnOpenOptions → UIManager.ShowWidget(WBP_Options)
+
+OnButtonClicked_Logout
+  → PlaySound2D(SFX_Click)
+  → ShowDialog("Confirmar saída", OnConfirmLogout)
+
+Function OnConfirmLogout(Accepted)
+  → Branch (Accepted)
+    → ServerGateway.Post("/session/logout")
+    → OpenLevel(MainMenu)
+
+// WBP_CommandWheel
+Event OnCommandSelected(CommandId)
+  → CommandRouterComponent.Execute(CommandId)
+  → CloseWidget()</code></pre>
+        <div class="callout">
+          <strong>Checklist:</strong>
+          <ul>
+            <li>Confirme que os espaçamentos dos botões correspondem às métricas originais (33&nbsp;px de offset no menu, 29&nbsp;px
+              entre comandos).</li>
+            <li>Mapeie <code>CommandManager</code> → <code>Gameplay Tags</code> (ex.: <code>Command.Talk.Trade</code>) para
+              validar permissões por cena e conta (PK level, resets, VIP).</li>
+            <li>Sincronize estados persistentes (auto-ataque, whisper, render level) com o backend via
+              <code>PATCH /profile/preferences</code> para manter paridade multi-dispositivo.</li>
+          </ul>
+        </div>
+      </article>
+
       <article class="conversion-pane" data-pane="mobs">
         <h3>Sistema de Mobs (Spawn &rarr; IA &rarr; Drop)</h3>
         <p>
@@ -4834,6 +4969,142 @@ this->m_Sync.Unlock();</code></pre>
           <li>Criar testes funcionais automatizados que percorrem registro de Lucky Coin, compra Moss, sessão MuRummy e casamento comparando <code>LogAddTD</code>/<code>Notice</code> com o comportamento original.</li>
           <li>Propagar notificações no HUD via <code>Gameplay Event Tags</code> (ex.: <code>Event.MossMerchant.Open</code>) e sons herdados de <code>DSPlaySound.h</code>.</li>
         </ul>
+      </article>
+
+      <article class="conversion-pane" data-pane="custom">
+        <h3>Customizações &amp; Serviços Extras</h3>
+        <p>
+          O pacote <em>Main 5.2</em> + <em>MuServer</em> inclui uma série de extensões identificadas pelos arquivos
+          <code>Custom*.cpp</code> que habilitam movimentação especial de NPCs, eventos programados de drop,
+          lojas/vip customizados e ranqueamentos automáticos. Esta aba consolida as referências diretas do código
+          legado e descreve como portar cada comportamento para Blueprints e microserviços da UE5 sem perder os
+          gatilhos, limites e mensagens originais.
+        </p>
+        <div class="grid-2">
+          <div class="source-card">
+            <div class="source-meta">Servidor &mdash; <code>CustomNpcMove.cpp</code></div>
+            <pre><code>info.Index = lpMemScript-&gt;GetNumber();
+info.MonsterClass = lpMemScript-&gt;GetAsNumber();
+info.Map = lpMemScript-&gt;GetAsNumber();
+info.MoveMap = lpMemScript-&gt;GetAsNumber();
+info.MoveX = lpMemScript-&gt;GetAsNumber();
+info.MinLevel = lpMemScript-&gt;GetAsNumber();
+info.MaxReset = lpMemScript-&gt;GetAsNumber();
+info.AccountLevel = lpMemScript-&gt;GetAsNumber();
+this-&gt;m_CustomNpcMove.insert(std::make_pair(info.Index, info));</code></pre>
+          </div>
+          <div class="source-card">
+            <div class="source-meta">Servidor &mdash; <code>CustomEventDrop.cpp</code></div>
+            <pre><code>this-&gt;m_CustomEventDropInfo[n].StartTime.clear();
+this-&gt;m_CustomEventDropInfo[n].RuleInfo.DropItem.clear();
+if(strcmp("end",lpMemScript-&gt;GetAsString()) == 0) { break; }
+CUSTOM_EVENT_DROP_START_TIME info;
+info.Year = lpMemScript-&gt;GetAsNumber();
+info.Day = lpMemScript-&gt;GetAsNumber();
+info.Hour = lpMemScript-&gt;GetAsNumber();
+this-&gt;m_CustomEventDropInfo[index].StartTime.push_back(info);</code></pre>
+          </div>
+        </div>
+        <div class="grid-2">
+          <div class="source-card">
+            <div class="source-meta">Servidor &mdash; <code>CustomBuyVip.cpp</code></div>
+            <pre><code>info.Index = lpMemScript-&gt;GetNumber();
+info.Exp = lpMemScript-&gt;GetAsNumber();
+info.Drop = lpMemScript-&gt;GetAsNumber();
+info.Days = lpMemScript-&gt;GetAsNumber();
+info.Coin1 = lpMemScript-&gt;GetAsNumber();
+strcpy_s(info.VipName, lpMemScript-&gt;GetAsString());
+this-&gt;SetInfo(info);</code></pre>
+          </div>
+          <div class="source-card">
+            <div class="source-meta">Servidor &mdash; <code>CustomStore.cpp</code></div>
+            <pre><code>this-&gt;m_CustomStoreTime[0] = GetPrivateProfileInt(section,"CustomStoreTime_AL0",0,path);
+GetPrivateProfileString(section,"CustomStoreCommandJoBSyntax","",this-&gt;m_CustomStoreCommandJoBSyntax,sizeof(...),path);
+if(strcmp(mode,this-&gt;m_CustomStoreCommandJoSSyntax) == 0) {
+    if(this-&gt;OpenCustomStore(lpObj,1) != 0) { return 1; }
+}</code></pre>
+          </div>
+        </div>
+        <div class="grid-2">
+          <div class="source-card">
+            <div class="source-meta">Servidor &mdash; <code>CustomCommandDescription.cpp</code></div>
+            <pre><code>info.Index = lpMemScript-&gt;GetNumber();
+strcpy_s(info.Commmand,lpMemScript-&gt;GetAsString());
+strcpy_s(info.Description,lpMemScript-&gt;GetAsString());
+this-&gt;m_CustomCommandDescriptionInfo.insert(std::make_pair(info.Index,info));
+if(_stricmp(it-&gt;second.Commmand,command) == 0) {
+    gNotice.GCNoticeSend(lpObj-&gt;Index,0,0,0,0,0,0,it-&gt;second.Description,lpObj-&gt;Name);
+}</code></pre>
+          </div>
+          <div class="source-card">
+            <div class="source-meta">Servidor &mdash; <code>CustomRanking.cpp</code></div>
+            <pre><code>while(true) {
+    if(strcmp("end",lpMemScript-&gt;GetAsString()) == 0) { break; }
+    int index = lpMemScript-&gt;GetNumber();
+    strcpy_s(this-&gt;r_Data[index].Name,lpMemScript-&gt;GetAsString());
+    strcpy_s(this-&gt;r_Data[index].Col1,lpMemScript-&gt;GetAsString());
+    this-&gt;m_count++;
+}
+pMsg.count = (this-&gt;m_count &gt; MAX_RANK) ? MAX_RANK : this-&gt;m_count;</code></pre>
+          </div>
+        </div>
+        <h4>Estratégia de Conversão UE5</h4>
+        <ol>
+          <li><strong>Catálogo de dados:</strong> converta <code>Data/Custom/*.txt</code> e INIs de loja/vip em
+            <code>Data Tables</code> (<code>DT_CustomNpcMove</code>, <code>DT_CustomEventDrop</code>,
+            <code>DT_CustomVipTier</code>, <code>DT_CustomStoreCommands</code>, <code>DT_CustomRanking</code>)
+            utilizando a mesma ordem de campos carregada pelos scripts acima.</li>
+          <li><strong>Serviços backend:</strong> exponha microserviços específicos:
+            <code>/custom/npc-move</code> (GET) para informar destinos liberados, <code>/custom/drops/schedule</code>
+            (GET/POST) para eventos temporizados, <code>/custom/vip/purchase</code> (POST) aplicando bônus de
+            EXP/Drop e <code>/custom/store/{mode}</code> (POST) replicando <code>OpenCustomStore</code> com
+            validação de <code>AccountLevel</code>.</li>
+          <li><strong>Widgets:</strong> crie <code>WBP_CustomControlCenter</code> contendo abas “Eventos”, “VIP” e “Loja”.
+            Reaproveite o estilo de <code>NewUICustomMessageBox</code> para exibir descrições vindas de
+            <code>CustomCommandDescription</code> quando o jogador digitar <code>/ajuda</code>.</li>
+          <li><strong>NPCs especiais:</strong> adicione um componente <code>UCustomNpcMoveComponent</code> aos NPCs em UE5
+            que consulta o serviço e decide se deve mostrar opção de teleporte. Utilize <em>Gameplay Tags</em>
+            (<code>Restriction.Level</code>, <code>Restriction.Reset</code>) para bloquear interação caso os
+            limites definidos em <code>NPC_MOVE_INFO</code> não sejam atendidos.</li>
+          <li><strong>Eventos de drop:</strong> agende timers em um <code>UCustomEventScheduler</code> que consome a lista de
+            horários convertida e dispara <code>/custom/drops/start</code> no backend. No cliente, exiba banners
+            reutilizando o widget de avisos globais para cada estado (pré-aviso, ativo, encerrado).</li>
+          <li><strong>Ranking:</strong> implemente <code>WBP_CustomRanking</code> com <em>ListView</em> alinhada às colunas
+            definidas em <code>r_Data</code>. Atualize via <code>GET /custom/ranking?table=</code> e destaque o jogador
+            atual usando o mesmo tom dos avisos (<code>GlobalText[1284]</code>).</li>
+        </ol>
+        <h4>Blueprint &amp; Fluxo de Serviços</h4>
+        <pre><code>// BP_CustomEventScheduler
+Event BeginPlay
+  → LoadTable(DT_CustomEventDrop)
+  → ForEach Entry → ScheduleTimer(Entry.NextExecution)
+
+OnTimerFired(EventId)
+  → ServerGateway.Post("/custom/drops/start", { EventId })
+  → HUD.BroadcastNotice(EventId, "Evento de drop iniciado!")
+
+// WBP_CustomVip
+OnConfirmPurchase(TierId)
+  → ServerGateway.Post("/custom/vip/purchase", { TierId })
+  → OnSuccess → ApplyVipBuffs(Payload.ExpRate, Payload.DropRate, Payload.ExpiresAt)
+
+// CommandRouterComponent
+OnChatCommand(Command)
+  → if Command == "ajuda" → RequestDescription(Command)
+
+RequestDescription(Name)
+  → ServerGateway.Get("/custom/command-description", { name = Name })
+  → HUD.ShowFloatingNotice(Response.Description)</code></pre>
+        <div class="callout">
+          <strong>Checklist:</strong>
+          <ul>
+            <li>Valide no backend os mesmos limites de nível/reset/VIP usados pelo legado antes de liberar teleporte ou compra.</li>
+            <li>Garanta que cronogramas de evento respeitam <code>ScheduleManager</code> (timezone, repetição) e emitam avisos
+              equivalentes a <code>gNotice.GCNoticeSend</code>.</li>
+            <li>Mantenha logs analíticos (<code>LogAddTD</code>) para cada comando custom e replique-os em um serviço de audit
+              trail moderno.</li>
+          </ul>
+        </div>
       </article>
 
       <article class="conversion-pane" data-pane="social">
@@ -6785,6 +7056,188 @@ Event OnPurchaseResponse(Response)
           <li>NPCs respeitam horários/condições configurados em Data Table reaproveitada.</li>
           <li>Compras bloqueadas corretamente quando inventário não possui espaço.</li>
           <li>Logs de compra acessíveis no painel administrativo recriado.</li>
+        </ul>
+      </div>
+    </section>
+
+    <section id="equipamentos-especiais">
+      <h2>Guia de Recriação — Equipamentos Especiais e Evoluções</h2>
+      <p>
+        As fontes <code>SocketSystem.cpp</code>, <code>UIJewelHarmony.cpp</code>, <code>ChangeRingManager.cpp</code> e os
+        módulos de servidor como <code>SocketItemOption.cpp</code>, <code>JewelOfHarmonyOption.cpp</code>,
+        <code>SummonScroll.cpp</code> e <code>SkillManager.cpp</code> descrevem regras cruciais para itens com soquetes,
+        Joia da Harmonia, asas customizadas e transformações. Esta seção consolida esses comportamentos para que o
+        projeto UE5 mantenha paridade com o cliente Main 5.2 e o MuServer Update 15.
+      </p>
+      <div class="grid-3">
+        <div class="card">
+          <h3>Socket &amp; Seed Sphere</h3>
+          <p class="path"><strong>Legado:</strong> <code>Source Main 5.2/source/SocketSystem.cpp</code>,
+            <code>NewUIItemExplanationWindow.cpp</code>, <code>NewUIItemEnduranceInfo.cpp</code> ⇄
+            <code>Source MuServer Update 15/GameServer/GameServer/SocketItemOption.cpp</code>,
+            <code>SocketItemType.cpp</code>, <code>SocketManager.cpp</code>, dados
+            <code>Data/Item/SocketItemOption.txt</code> e <code>Data/Item/SocketItemType.txt</code>.</p>
+          <ul>
+            <li>Converter as seções 0/1 de <code>SocketItemOption.txt</code> em <code>DT_SocketOption</code> e
+              <code>DT_SocketBonus</code> preservando campos <code>Rate</code>, <code>RequireOptionTypeTable</code> e
+              <code>ValueTable</code>.</li>
+            <li>Construir <code>BP_SocketForge</code> (Widget UMG) reutilizando molduras do inventário (<code>NewUIInventoryCtrl</code>)
+              e exibindo <code>SocketSeedID</code> conforme cálculo de <code>CSocketItemMgr::GetSeedShpereSeedID</code>.</li>
+            <li>No backend, expor rotas <code>POST /socket/apply</code>, <code>POST /socket/combine</code> que chamam
+              regras de <code>CSocketItemOption::SetInfo</code>/<code>gSocketItemOption.InsertSocketOption</code> e validações de
+              <code>SocketManager.cpp</code>.</li>
+            <li>Validar bônus equip set (<code>m_SocketEquitSetBonusOptions</code>) aplicando <code>GameplayEffect</code> com os mesmos
+              multiplicadores calculados em <code>CalcSocketBonusItemValue</code>.</li>
+          </ul>
+        </div>
+        <div class="card">
+          <h3>Jewel of Harmony &amp; Itens 380</h3>
+          <p class="path"><strong>Legado:</strong> <code>Source Main 5.2/source/UIJewelHarmony.cpp</code>,
+            <code>NewUIItemExplanationWindow.cpp</code>, <code>NewUIItemEnduranceInfo.cpp</code> ⇄
+            <code>Source MuServer Update 15/GameServer/GameServer/JewelOfHarmonyOption.cpp</code>,
+            <code>JewelOfHarmonyType.cpp</code>, <code>380ItemOption.cpp</code>, <code>380ItemType.cpp</code>, dados
+            <code>Data/Item/JewelOfHarmonyOption.txt</code>, <code>Data/Item/JewelOfHarmonyType.txt</code>,
+            <code>Data/Item/380ItemOption.txt</code>.</p>
+          <ul>
+            <li>Gerar <code>DT_HarmonyOptions</code> com colunas <code>Rate</code>, <code>Level</code>,
+              <code>ValueTable[5]</code>, <code>MoneyTable[5]</code>, alinhando-se a <code>CJewelOfHarmonyOption::Load</code>.</li>
+            <li>Criar <code>BP_HarmonyRefinery</code> com layout de 320&nbsp;×&nbsp;190 px (coordenadas de <code>UIJewelHarmony.cpp</code>) e
+              reutilizar texturas <code>Data/Interface/Refinery/*.ozj</code> convertidas para UTexture2D.</li>
+            <li>Adicionar componente <code>UHarmonyComponent</code> nos personagens UE5 para aplicar bônus em tempo real, lendo o mesmo
+              tier (<code>StrengthenItem</code>) e limites (<code>JEWEL_OF_HARMONY_OPTION_INFO.Level</code>).</li>
+            <li>Atualizar o serviço de itens para incluir verificações de <code>Is380Item</code> (<code>380ItemOption.cpp</code>) antes de aceitar
+              novas opções de harmonia ou remoção no backend.</li>
+          </ul>
+        </div>
+        <div class="card">
+          <h3>Asas, Transformações e Summons</h3>
+          <p class="path"><strong>Legado:</strong> <code>Source Main 5.2/source/SummonSystem.cpp</code>,
+            <code>ChangeRingManager.cpp</code>, <code>NewUI3DRenderMng.cpp</code>,
+            <code>CSPetSystem.cpp</code> ⇄ <code>Source MuServer Update 15/GameServer/GameServer/SummonScroll.cpp</code>,
+            <code>SkillManager.cpp</code>, <code>User.cpp</code>, <code>ServerInfo.cpp</code>, dados
+            <code>Data/Move/MoveSummon.txt</code>, <code>Data/Custom/CustomWing.txt</code>,
+            <code>Data/Custom/CustomWingMix.txt</code>.</p>
+          <ul>
+            <li>Construir <code>DT_SummonSpawn</code> com colunas <code>MonsterID</code>, <code>Position</code>,
+              <code>Duration</code> seguindo <code>SummonScroll.cpp</code> e <code>MoveSummon.txt</code>.</li>
+            <li>Replicar tabela de transformações (<code>gServerInfo.m_TransformationRing1..6</code>) em <code>DT_TransformationRing</code>
+              e criar <code>UTransformationComponent</code> que troca malhas/anim BP conforme <code>ChangeRingManager.cpp</code>.</li>
+            <li>Importar modelos e efeitos de asas customizadas de acordo com <code>CustomWing.cpp</code>/<code>CustomWingMix.cpp</code>,
+              mantendo requisitos e probabilidades definidos nas mesmas tabelas.</li>
+            <li>Integrar <code>BP_SummonController</code> com o backend através de <code>POST /summon/spawn</code>, aplicando regras de
+              cooldown e custo idênticas às verificações de <code>CSummonSystem::CanSummon</code>.</li>
+          </ul>
+        </div>
+      </div>
+
+      <details class="accordion open">
+        <summary>Blueprint Focus — Oficina de Socket</summary>
+        <pre class="code-card"><code>// WBP_SocketForge
+Event Construct
+  SocketOptions ← DataTableRowNames(DT_SocketOption)
+  BonusOptions ← DataTableRowNames(DT_SocketBonus)
+
+Event HandleApplySocket()
+  SelectedItem ← InventorySubsystem.GetFocusedItem()
+  Payload.ItemUID = SelectedItem.UID
+  Payload.Slots = SelectedItem.SocketSeedIDs
+  HTTP_Post("/socket/apply", Payload, OnSocketResponse)
+
+Event OnSocketResponse(Response)
+  If Response.Success
+    InventorySubsystem.UpdateItemSockets(Response.NewSockets)
+    PlayAnimation(ApplySuccess)
+  Else
+    ShowError(Response.ErrorCode)</code></pre>
+      </details>
+
+      <details class="accordion">
+        <summary>Blueprint Focus — Refinaria da Harmonia</summary>
+        <pre class="code-card"><code>// WBP_HarmonyRefinery
+Event OnStrengthenPressed()
+  Request.ItemUID = InventorySubsystem.GetFocusedItem().UID
+  Request.OptionId = HarmonyOptionsList.GetSelectedOption()
+  Request.Fee = DT_HarmonyOptions[OptionId].MoneyTable[CurrentTier]
+  HTTP_Post("/harmony/strengthen", Request, OnHarmonyResponse)
+
+Event OnHarmonyResponse(Response)
+  Switch Response.Status
+    Case "ok":
+      InventorySubsystem.OverrideHarmony(Response.OptionData)
+      CharacterStats.ApplyHarmony(Response.OptionData)
+    Case "fail":
+      PlayAnimation(FailAnim)</code></pre>
+      </details>
+
+      <details class="accordion">
+        <summary>Blueprint Focus — Transformação &amp; Summon</summary>
+        <pre class="code-card"><code>// BP_SummonController (Actor Component)
+Event TryCastSummon(SkillId)
+  if (Cooldowns.IsReady(SkillId))
+    HTTP_Post("/summon/spawn", MakeSummonPayload(SkillId), OnSummonResult)
+
+Event OnSummonResult(Response)
+  if Response.Success
+    SpawnActor(Response.MonsterBlueprint, Response.Location)
+    Cooldowns.Start(SkillId, Response.Cooldown)
+  else
+    HUD.ShowMessage(Response.Error)
+
+Event ApplyTransformation(RingId)
+  Data ← DT_TransformationRing[RingId]
+  MeshOverride.SetSkeletalMesh(Data.Mesh)
+  AbilitySystem.ApplyEffect(Data.EffectHandle)</code></pre>
+      </details>
+
+      <table class="matrix">
+        <thead>
+          <tr>
+            <th>Módulo</th>
+            <th>Cliente (Main 5.2)</th>
+            <th>Servidor (MuServer)</th>
+            <th>Dados</th>
+            <th>Ação na UE5</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Socket</td>
+            <td><code>SocketSystem.cpp</code>, <code>NewUIItemExplanationWindow.cpp</code></td>
+            <td><code>SocketItemOption.cpp</code>, <code>SocketManager.cpp</code></td>
+            <td><code>Data/Item/SocketItemOption.txt</code>, <code>Data/Item/SocketItemType.txt</code></td>
+            <td>Montar Data Tables e widgets <code>WBP_SocketForge</code>, expor serviços <code>/socket/*</code>.</td>
+          </tr>
+          <tr>
+            <td>Harmony</td>
+            <td><code>UIJewelHarmony.cpp</code>, <code>NewUIItemEnduranceInfo.cpp</code></td>
+            <td><code>JewelOfHarmonyOption.cpp</code>, <code>JewelOfHarmonyType.cpp</code>, <code>380ItemOption.cpp</code></td>
+            <td><code>Data/Item/JewelOfHarmonyOption.txt</code>, <code>Data/Item/JewelOfHarmonyType.txt</code>, <code>Data/Item/380ItemOption.txt</code></td>
+            <td>Criar refinaria UMG, componente <code>UHarmonyComponent</code> e endpoints <code>/harmony/*</code>.</td>
+          </tr>
+          <tr>
+            <td>Asas Custom</td>
+            <td><code>NewUI3DRenderMng.cpp</code>, <code>CustomWing.cpp</code></td>
+            <td><code>CustomWing.cpp</code>, <code>CustomWingMix.cpp</code></td>
+            <td><code>Data/Custom/CustomWing.txt</code>, <code>Data/Custom/CustomWingMix.txt</code></td>
+            <td>Importar modelos, criar <code>BP_WingForge</code> e microserviço <code>/wing/mix</code> com as taxas originais.</td>
+          </tr>
+          <tr>
+            <td>Summon/Transform</td>
+            <td><code>SummonSystem.cpp</code>, <code>ChangeRingManager.cpp</code></td>
+            <td><code>SummonScroll.cpp</code>, <code>SkillManager.cpp</code>, <code>User.cpp</code>, <code>ServerInfo.cpp</code></td>
+            <td><code>Data/Move/MoveSummon.txt</code>, parâmetros <code>GameServerInfo</code> (TransformationRing1..6)</td>
+            <td>Componentes <code>BP_SummonController</code>/<code>UTransformationComponent</code> com APIs <code>/summon</code> e <code>/transform</code>.</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <div class="checklist">
+        <p><strong>Checklist Equipamentos Especiais</strong></p>
+        <ul>
+          <li>Conversões de soquete/harmonia validam limites de opção, custos em Zen e taxas conforme arquivos de dados originais.</li>
+          <li>Transformações respeitam restrições de mapa/classe e alternam meshes/anim BP iguais às entradas de <code>ChangeRingManager.cpp</code>.</li>
+          <li>Summons consultam <code>MoveSummon.txt</code> para spawn seguro e sincronizam cooldowns com o backend.</li>
+          <li>Testes automatizados cobrem fluxos de reforço 380, aplicação de sementes e craft de asas customizadas.</li>
         </ul>
       </div>
     </section>
