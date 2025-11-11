@@ -515,6 +515,358 @@ const curriculum = {
     ]
 };
 
+const assetConversionRules = [
+    {
+        id: "ui-textures",
+        label: "Texturas de interface (.OZJ/.OZT)",
+        description:
+            "Imagens da HUD, menus e notificações carregadas pelo cliente clássico em NewUIMainFrameWindow.",
+        extensions: [".ozj", ".ozt"],
+        target: "<code>.PNG</code> 32 bits com <em>sRGB</em>",
+        destination: "<code>Content/UI/HUD</code>",
+        steps: [
+            "Abrir os arquivos no MuOZ Extractor e exportar para PNG mantendo o mesmo nome.",
+            "Revisar as texturas na pasta Interface para conferir alinhamento com o layout original.",
+            "Importar em lote para o Unreal e atribuir às imagens do widget WB_HUDMain e demais UIs recreadas."
+        ],
+        references: [
+            {
+                path: "Source Main 5.2/source/NewUIMainFrameWindow.cpp",
+                note: "Carga das texturas e botões do HUD"
+            },
+            {
+                path: "Source Main 5.2/bin/Data/Interface",
+                note: "Arquivos .OZJ/.OZT originais"
+            }
+        ]
+    },
+    {
+        id: "character-models",
+        label: "Modelos 3D (.BMD/.SMD)",
+        description:
+            "Meshes e animações usadas por personagens, monstros e objetos interativos definidos em ZzzBMD.",
+        extensions: [".bmd", ".smd"],
+        target: "<code>.FBX</code> com esqueleto compartilhado",
+        destination: "<code>Content/Characters</code> e <code>Content/Monsters</code>",
+        steps: [
+            "Abrir o modelo no MuModel Viewer (ou ferramenta equivalente) e exportar FBX incluindo animações chave.",
+            "Validar hierarquia de ossos conforme a estrutura documentada em ZzzBMD.cpp antes de importar no Unreal.",
+            "Ativar \"Use T0 As Ref Pose\" no importador do Unreal e retargetar para o esqueleto player/monster."
+        ],
+        references: [
+            {
+                path: "Source Main 5.2/source/ZzzBMD.cpp",
+                note: "Estrutura de ossos e animações"
+            },
+            {
+                path: "Source Main 5.2/bin/Data/Character",
+                note: "Modelos originais do cliente"
+            }
+        ]
+    },
+    {
+        id: "terrain-maps",
+        label: "Terrenos e atributos (.MAP/.ATT)",
+        description:
+            "Arquivos responsáveis por altura, colisão e zonas especiais de cada mundo carregados por ZzzOpenData.",
+        extensions: [".map", ".att", ".att1"],
+        target: "Heightmap <code>.RAW16</code> + tabelas <code>.CSV</code>",
+        destination: "<code>Content/Levels</code> e <code>Content/Data/Terrain</code>",
+        steps: [
+            "Converter os arquivos .MAP para imagens RAW16 usando MuTerrain Tool ou scripts Python dedicados.",
+            "Gerar uma planilha CSV com os atributos das .ATT para popular DataTables de colisão no Unreal.",
+            "Aplicar as máscaras no Landscape e configurar volumes de colisão seguindo os flags usados no cliente clássico."
+        ],
+        references: [
+            {
+                path: "Source Main 5.2/source/ZzzOpenData.cpp",
+                note: "Persistência de Terrain.map e Terrain.att"
+            },
+            {
+                path: "Source Main 5.2/source/MapManager.cpp",
+                note: "Leitura dos atributos de terreno"
+            }
+        ]
+    },
+    {
+        id: "effect-packages",
+        label: "Pacotes de efeitos (.OZB)",
+        description:
+            "Arquivos compactados que agrupam texturas e dados de efeitos usados por partículas e terrenos LOD.",
+        extensions: [".ozb"],
+        target: "Extrair para <code>.PNG</code>/<code>.TGA</code> antes da importação",
+        destination: "<code>Content/FX</code> e <code>Content/Terrain</code>",
+        steps: [
+            "Usar MuOZ Extractor para abrir o pacote .OZB e recuperar os arquivos internos .OZJ/.OZT.",
+            "Converter os recursos extraídos para PNG ou TGA respeitando canais alfa e iluminação original.",
+            "Importar os assets no Unreal e recriar sistemas Niagara conforme parâmetros de efeito clássicos."
+        ],
+        references: [
+            {
+                path: "Source Main 5.2/source/ZzzLodTerrain.cpp",
+                note: "Uso dos pacotes OZB nos terrenos"
+            },
+            {
+                path: "Source Main 5.2/source/GlobalBitmap.cpp",
+                note: "Geração e salvamento de OZB"
+            }
+        ]
+    },
+    {
+        id: "legacy-tga",
+        label: "Texturas legadas (.TGA)",
+        description:
+            "Arquivos já compatíveis com o importador da Unreal, mas que exigem ajustes de compressão e canais.",
+        extensions: [".tga"],
+        target: "Importar direto com ajustes de compressão",
+        destination: "<code>Content/UI</code> e <code>Content/FX</code>",
+        steps: [
+            "Verificar se o canal alfa está correto e aplicar compressão \"UserInterface2D\" ou \"HDR\" conforme o caso.",
+            "Para mapas normais, habilitar \"Flip Green Channel\" seguindo o padrão de sombreamento do cliente original.",
+            "Revisar materiais criados automaticamente para garantir que o sRGB esteja ativado somente quando necessário."
+        ],
+        references: [
+            {
+                path: "Source Main 5.2/source/ZzzOpenData.cpp",
+                note: "Carregamento de bitmaps e texturas TGA"
+            }
+        ]
+    }
+];
+
+const extensionRuleMap = new Map();
+assetConversionRules.forEach((rule) => {
+    rule.extensions.forEach((ext) => {
+        extensionRuleMap.set(ext, rule);
+    });
+});
+
+const nativeCompatibleExtensions = new Set([".png", ".wav", ".ogg", ".fbx", ".uasset", ".umap", ".ubulk"]);
+const numberFormatter = new Intl.NumberFormat("pt-BR");
+
+const assetInput = document.getElementById("asset-root-input");
+const assetStatus = document.getElementById("asset-tool-status");
+const assetSummary = document.getElementById("asset-tool-summary");
+const assetResults = document.getElementById("asset-results");
+const assetTotalEl = document.getElementById("asset-total-files");
+const assetConvertibleEl = document.getElementById("asset-convertible-files");
+const assetCompatibleEl = document.getElementById("asset-compatible-files");
+
+function normaliseExtension(path) {
+    const lastDot = path.lastIndexOf(".");
+    if (lastDot === -1) {
+        return "";
+    }
+    return path.slice(lastDot).toLowerCase();
+}
+
+function createList(items, className, ordered = false) {
+    const element = document.createElement(ordered ? "ol" : "ul");
+    element.className = className;
+    items.forEach((item) => {
+        const li = document.createElement("li");
+        if (item && item.__html) {
+            li.innerHTML = item.__html;
+        } else {
+            li.textContent = item;
+        }
+        element.appendChild(li);
+    });
+    return element;
+}
+
+function buildReferenceText(references) {
+    if (!references || references.length === 0) {
+        return null;
+    }
+
+    const paragraph = document.createElement("p");
+    paragraph.className = "asset-tool__references";
+
+    const strong = document.createElement("strong");
+    strong.textContent = "Referências do código original: ";
+    paragraph.appendChild(strong);
+
+    references.forEach((ref, index) => {
+        const code = document.createElement("code");
+        code.textContent = ref.path;
+        paragraph.appendChild(code);
+        if (ref.note) {
+            const span = document.createElement("span");
+            span.textContent = ` — ${ref.note}`;
+            paragraph.appendChild(span);
+        }
+        if (index < references.length - 1) {
+            paragraph.appendChild(document.createTextNode(" · "));
+        }
+    });
+
+    return paragraph;
+}
+
+function renderAssetGroups(groups, totals) {
+    if (!assetResults) {
+        return;
+    }
+
+    assetResults.innerHTML = "";
+
+    if (groups.length === 0) {
+        const emptyState = document.createElement("p");
+        emptyState.className = "asset-tool__empty";
+        emptyState.textContent =
+            "Nenhum arquivo que exija conversão foi identificado automaticamente. Revise o diretório selecionado ou analise manualmente os formatos desconhecidos.";
+        assetResults.appendChild(emptyState);
+        return;
+    }
+
+    groups.forEach(({ rule, files }) => {
+        const category = document.createElement("article");
+        category.className = "asset-tool__category";
+
+        const title = document.createElement("h4");
+        title.textContent = rule.label;
+        category.appendChild(title);
+
+        const description = document.createElement("p");
+        description.className = "asset-tool__description";
+        description.textContent = rule.description;
+        category.appendChild(description);
+
+        const metaList = document.createElement("div");
+        metaList.className = "asset-tool__meta";
+
+        const count = document.createElement("p");
+        count.innerHTML = `<strong>Arquivos detectados:</strong> ${numberFormatter.format(files.length)}`;
+        metaList.appendChild(count);
+
+        const target = document.createElement("p");
+        target.innerHTML = `<strong>Formato Unreal:</strong> ${rule.target}`;
+        metaList.appendChild(target);
+
+        const destination = document.createElement("p");
+        destination.innerHTML = `<strong>Destino sugerido:</strong> ${rule.destination}`;
+        metaList.appendChild(destination);
+
+        category.appendChild(metaList);
+
+        const sampleLabel = document.createElement("p");
+        sampleLabel.className = "asset-tool__samples-label";
+        sampleLabel.textContent = "Exemplos encontrados:";
+        category.appendChild(sampleLabel);
+
+        const sampleFiles = files.slice(0, 6).map((file) => ({ __html: `<code>${file}</code>` }));
+        if (files.length > 6) {
+            sampleFiles.push({ __html: `… +${numberFormatter.format(files.length - 6)} outros` });
+        }
+        category.appendChild(createList(sampleFiles, "asset-tool__samples"));
+
+        const details = document.createElement("details");
+        details.className = "asset-tool__details";
+        details.open = true;
+
+        const summary = document.createElement("summary");
+        summary.textContent = "Passo a passo de conversão";
+        details.appendChild(summary);
+
+        const stepsList = createList(
+            rule.steps.map((step) => ({ __html: step })),
+            "asset-tool__steps",
+            true
+        );
+        details.appendChild(stepsList);
+
+        category.appendChild(details);
+
+        const references = buildReferenceText(rule.references);
+        if (references) {
+            category.appendChild(references);
+        }
+
+        assetResults.appendChild(category);
+    });
+
+    if (totals.unknown > 0) {
+        const unknownWarning = document.createElement("p");
+        unknownWarning.className = "asset-tool__unknown";
+        unknownWarning.innerHTML =
+            `<strong>Atenção:</strong> ${numberFormatter.format(
+                totals.unknown
+            )} arquivo(s) não foram classificados automaticamente. Consulte o diário de bordo para anotá-los e verifique se pertencem a scripts, textos ou formatos proprietários.`;
+        assetResults.appendChild(unknownWarning);
+    }
+}
+
+function handleAssetSelection(event) {
+    if (!assetStatus || !assetTotalEl || !assetConvertibleEl || !assetCompatibleEl) {
+        return;
+    }
+
+    const files = Array.from(event.target.files || []);
+
+    if (files.length === 0) {
+        assetSummary?.setAttribute("hidden", "");
+        assetStatus.textContent =
+            "Nenhum diretório analisado ainda. Assim que você apontar a pasta Data, os resultados aparecem aqui.";
+        assetResults && (assetResults.innerHTML = "");
+        return;
+    }
+
+    const grouped = new Map();
+    let convertible = 0;
+    let compatible = 0;
+    let unknown = 0;
+
+    files.forEach((file) => {
+        const relativePath = file.webkitRelativePath || file.name;
+        const extension = normaliseExtension(relativePath);
+
+        if (extensionRuleMap.has(extension)) {
+            const rule = extensionRuleMap.get(extension);
+            convertible += 1;
+            if (!grouped.has(rule.id)) {
+                grouped.set(rule.id, { rule, files: [] });
+            }
+            grouped.get(rule.id).files.push(relativePath);
+        } else if (nativeCompatibleExtensions.has(extension)) {
+            compatible += 1;
+        } else {
+            unknown += 1;
+        }
+    });
+
+    const total = files.length;
+    const convertiblePercent = total ? Math.round((convertible / total) * 100) : 0;
+    const compatiblePercent = total ? Math.round((compatible / total) * 100) : 0;
+
+    assetTotalEl.textContent = numberFormatter.format(total);
+    assetConvertibleEl.textContent = numberFormatter.format(convertible);
+    assetCompatibleEl.textContent = numberFormatter.format(compatible);
+
+    const summaryText = [`Analisados ${numberFormatter.format(total)} arquivo(s).`];
+    summaryText.push(
+        `${numberFormatter.format(convertible)} precisam de conversão (${convertiblePercent}% do total).`
+    );
+    summaryText.push(
+        `${numberFormatter.format(compatible)} já são aceitos pela Unreal (${compatiblePercent}%).`
+    );
+    if (unknown > 0) {
+        summaryText.push(
+            `${numberFormatter.format(unknown)} arquivo(s) exigem revisão manual (formatos proprietários ou scripts).`
+        );
+    }
+
+    assetStatus.textContent = summaryText.join(" ");
+    assetSummary?.removeAttribute("hidden");
+
+    const groups = Array.from(grouped.values()).sort((a, b) => b.files.length - a.files.length);
+    renderAssetGroups(groups, { unknown });
+}
+
+if (assetInput) {
+    assetInput.addEventListener("change", handleAssetSelection);
+}
+
 const navigationButtons = document.querySelectorAll(".quick-nav button");
 
 navigationButtons.forEach((button) => {

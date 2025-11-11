@@ -2331,6 +2331,52 @@
                     automática do Unreal.</p>
             </div>
 
+            <div class="asset-tool" aria-live="polite">
+                <div class="asset-tool__header">
+                    <h3>Assistente automático de assets</h3>
+                    <p>
+                        Carregue a pasta <code>Data</code> do cliente original e deixe o navegador indicar o que precisa ser
+                        convertido para formatos aceitos pela <strong>Unreal Engine 5</strong>. Nada é enviado para a internet:
+                        a análise acontece localmente usando o mesmo mapeamento visto em
+                        <code>NewUIMainFrameWindow.cpp</code>, <code>ZzzBMD.cpp</code> e <code>ZzzOpenData.cpp</code>.
+                    </p>
+                </div>
+                <div class="asset-tool__picker">
+                    <label for="asset-root-input" class="asset-tool__label">
+                        <span>Escolha a pasta <code>Data</code> ou o diretório raiz com os assets</span>
+                        <input type="file" id="asset-root-input" name="asset-root-input" webkitdirectory directory multiple>
+                    </label>
+                    <ul class="asset-tool__tips">
+                        <li>Use navegadores baseados em Chromium (Chrome, Edge) para habilitar a seleção de pastas.</li>
+                        <li>Mantenha o diretório original do cliente sem renomear subpastas; isso melhora o reconhecimento.</li>
+                        <li>Após a varredura, siga as receitas exibidas para converter e importar cada categoria.</li>
+                    </ul>
+                </div>
+                <div class="asset-tool__status" id="asset-tool-status">
+                    Nenhum diretório analisado ainda. Assim que você apontar a pasta <code>Data</code>, os resultados aparecem
+                    aqui.
+                </div>
+                <div class="asset-tool__summary" id="asset-tool-summary" hidden>
+                    <div class="asset-tool__totals">
+                        <div>
+                            <span class="asset-tool__totals-label">Arquivos analisados</span>
+                            <span class="asset-tool__totals-value" id="asset-total-files">0</span>
+                        </div>
+                        <div>
+                            <span class="asset-tool__totals-label">Conversões sugeridas</span>
+                            <span class="asset-tool__totals-value" id="asset-convertible-files">0</span>
+                        </div>
+                        <div>
+                            <span class="asset-tool__totals-label">Arquivos já compatíveis</span>
+                            <span class="asset-tool__totals-value" id="asset-compatible-files">0</span>
+                        </div>
+                    </div>
+                    <div class="asset-tool__categories" id="asset-results">
+                        <!-- conteúdo gerado via JavaScript -->
+                    </div>
+                </div>
+            </div>
+
             <div class="table-wrapper table-wrapper--compact">
                 <table class="data-table data-table--mapping">
                     <caption>Mapa rápido de conversão 1:1</caption>
