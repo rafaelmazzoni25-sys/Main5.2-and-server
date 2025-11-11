@@ -22,11 +22,13 @@
     <nav class="quick-nav" aria-label="Navegação rápida">
         <button data-target="introducao">Visão Geral</button>
         <button data-target="modulos">Módulos Essenciais</button>
+        <button data-target="mapa-codigo">Mapa do Código</button>
         <button data-target="preparacao">Preparação</button>
         <button data-target="trilha-geral">Linha do Tempo</button>
         <button data-target="frontend">Trilha Cliente</button>
         <button data-target="unreal">Trilha Unreal Engine 5</button>
         <button data-target="backend">Trilha Servidor</button>
+        <button data-target="laboratorios">Laboratórios Guiados</button>
         <button data-target="glossario">Glossário</button>
         <button data-target="recursos">Recursos &amp; Referências</button>
     </nav>
@@ -40,6 +42,12 @@
                 o cenário, depois preparar o ambiente, em seguida reconstruir o cliente <em>Main</em>, adaptar sistemas na
                 <strong>Unreal Engine 5</strong> e finalizar com a estrutura do servidor dedicado.
             </p>
+            <div class="callouts">
+                <p class="callout callout--tip"><strong>Dica:</strong> Leia cada etapa como se fosse uma receita. Quando um termo
+                    parecer complicado, volte ao glossário antes de continuar.</p>
+                <p class="callout callout--warning"><strong>Importante:</strong> Sempre faça backup dos arquivos originais
+                    antes de editar qualquer asset ou código. Use o Git para registrar cada vitória.</p>
+            </div>
             <div class="grid">
                 <article class="card">
                     <h3>Como usar</h3>
@@ -82,8 +90,8 @@
                     <ul>
                         <li>Execute exemplos simples em Visual Studio 2019.</li>
                         <li>Pratique variáveis, estruturas condicionais e funções.</li>
-                        <li>Leia <code>main.cpp</code> e arquivos de cabeçalho em <code>Source Main 5.2/source</code> apenas para
-                            observar a sintaxe.</li>
+                        <li>Leia <code>Winmain.cpp</code> e arquivos de cabeçalho em <code>Source Main 5.2/source</code> apenas
+                            para observar a sintaxe.</li>
                     </ul>
                 </article>
                 <article class="card card--module">
@@ -100,6 +108,62 @@
                         <li>Desenhe um mapa simples conectando cliente &rarr; ConnectServer &rarr; JoinServer &rarr; GameServer.</li>
                         <li>Identifique onde o inventário e o login são processados no código original.</li>
                         <li>Marque quais pacotes precisarão ser refeitos no remake.</li>
+                    </ul>
+                </article>
+                <article class="card card--module">
+                    <h3>Banco de Dados e Ferramentas</h3>
+                    <ul>
+                        <li>Instale o SQL Server Express ou MariaDB para simular o armazenamento do MuServer.</li>
+                        <li>Pratique consultas básicas com tabelas de exemplo, como <code>Character</code> e <code>Account</code>.</li>
+                        <li>Configure um script de backup automático para não perder progresso.</li>
+                    </ul>
+                </article>
+                <article class="card card--module">
+                    <h3>Lógica Visual e Blueprints</h3>
+                    <ul>
+                        <li>Recrie um contador com botões no Blueprint para entender eventos e variáveis.</li>
+                        <li>Experimente o sistema de <em>Enhanced Input</em> para ligar teclado, mouse e gamepad.</li>
+                        <li>Importe uma textura do Main e use-a em um Widget para praticar fluxo de assets.</li>
+                    </ul>
+                </article>
+            </div>
+        </section>
+
+        <section id="mapa-codigo" class="panel">
+            <h2>Mapa do Código Original</h2>
+            <p>
+                Esta visão geral funciona como um GPS. Repare nos nomes das pastas e arquivos porque cada etapa do tutorial
+                citará esses pontos de referência. Explore-os em modo de leitura antes de alterar qualquer linha.
+            </p>
+            <div class="map-grid">
+                <article class="card card--map">
+                    <h3>Main 5.2 (Cliente)</h3>
+                    <ul>
+                        <li><code>Source Main 5.2/source/Winmain.cpp</code> &mdash; controla o loop principal do jogo.</li>
+                        <li><code>Source Main 5.2/source/NewUIMainFrameWindow.cpp</code> &mdash; monta o HUD clássico.</li>
+                        <li><code>Source Main 5.2/source/LoginWin.cpp</code> &mdash; fluxo da tela de login com botões e caixas.</li>
+                        <li><code>Source Main 5.2/source/ProtocolSend.cpp</code> &amp; <code>WSclient.cpp</code> &mdash; enviam e recebem pacotes.</li>
+                        <li><code>Source Main 5.2/Global Release/Data/</code> &mdash; texturas, fontes e sons que serão importados.</li>
+                    </ul>
+                </article>
+                <article class="card card--map">
+                    <h3>MuServer Update 15</h3>
+                    <ul>
+                        <li><code>Source MuServer Update 15/ConnectServer/ConnectServer.cpp</code> &mdash; primeira porta de entrada dos clientes.</li>
+                        <li><code>Source MuServer Update 15/JoinServer/JoinServer.cpp</code> &mdash; valida usuários e repassa para o GameServer.</li>
+                        <li><code>Source MuServer Update 15/GameServer/GameServer/GameMain.cpp</code> &mdash; inicializa os mapas e eventos.</li>
+                        <li><code>Source MuServer Update 15/GameServer/GameServer/JSProtocol.cpp</code> &mdash; interpreta pacotes da Unreal.</li>
+                        <li><code>Source MuServer Update 15/DataServer/DataServer/DataServerProtocol.cpp</code> &mdash; conversa com o banco de dados.</li>
+                    </ul>
+                </article>
+                <article class="card card--map">
+                    <h3>Ferramentas Utilitárias</h3>
+                    <ul>
+                        <li><code>tools/</code> &mdash; scripts auxiliares para builds e importação de assets.</li>
+                        <li><code>unreal_recreation_plan.html</code> &mdash; visão macro da migração para Unreal.</li>
+                        <li><code>inventory_unreal_inventory_system.html</code> &mdash; referência para o remake do inventário.</li>
+                        <li><code>sprite_hud_explanation.html</code> &mdash; detalhes sobre sprites usados na interface.</li>
+                        <li>Documentos extras ajudam a tirar dúvidas sem mergulhar direto no código.</li>
                     </ul>
                 </article>
             </div>
@@ -144,6 +208,46 @@
                 configurar, testar e integrar cada peça.
             </p>
             <div class="timeline" data-track="backend"></div>
+        </section>
+
+        <section id="laboratorios" class="panel">
+            <h2>Laboratórios Guiados</h2>
+            <p>
+                Use estes roteiros práticos para testar cada módulo. Faça um laboratório por vez e anote o que funcionou ou
+                não. Se ficar perdido, retorne ao mapa do código para localizar os arquivos citados.
+            </p>
+            <div class="labs">
+                <article class="lab">
+                    <h3>Laboratório 1 &mdash; Menu de Login na Unreal</h3>
+                    <ol>
+                        <li>Copie as texturas em <code>Source Main 5.2/Global Release/Data/Interface</code> para a pasta <code>Content/UI</code> do projeto Unreal.</li>
+                        <li>Crie um <em>Widget Blueprint</em> chamado <code>WB_LoginMenu</code> com campos de usuário e senha.</li>
+                        <li>Adapte o fluxo de <code>LoginWin.cpp</code> para Blueprints: valide campos e prepare um evento "Conectar".</li>
+                        <li>Implemente uma chamada C++ que usa <code>ProtocolSend.cpp</code> como referência para enviar o pacote de login.</li>
+                        <li>Teste com um botão "Modo Offline" que apenas imprime uma mensagem para confirmar o layout.</li>
+                    </ol>
+                </article>
+                <article class="lab">
+                    <h3>Laboratório 2 &mdash; Inventário Sincronizado</h3>
+                    <ol>
+                        <li>Mapeie a estrutura de slots em <code>Source Main 5.2/source/NewUIInventoryCtrl.cpp</code>.</li>
+                        <li>Crie uma <em>Data Table</em> na Unreal com colunas para nome do item, ícone e tipo de slot.</li>
+                        <li>Implemente um <code>ActorComponent</code> C++ que replica dados usando o exemplo de <code>Source MuServer Update 15/GameServer/GameServer/User.cpp</code>.</li>
+                        <li>Monte um Widget <code>WB_Inventory</code> que atualiza slots quando o servidor enviar pacotes de <code>JSProtocol.cpp</code>.</li>
+                        <li>Execute um teste multijogador local e observe se dois clientes recebem as mesmas atualizações.</li>
+                    </ol>
+                </article>
+                <article class="lab">
+                    <h3>Laboratório 3 &mdash; Combate Básico Online</h3>
+                    <ol>
+                        <li>Estude <code>Source Main 5.2/source/ZzzCharacter.cpp</code> para entender como danos são aplicados.</li>
+                        <li>No GameServer, leia <code>GameServer/GameServer/SkillManager.cpp</code> e <code>Protocol.cpp</code> para mapear pacotes de ataque.</li>
+                        <li>No projeto Unreal, crie uma <em>Ability</em> simples usando <em>Blueprint</em> ou C++ que chama um RPC confiável.</li>
+                        <li>Imite a estrutura de pacotes do servidor com um <code>UStruct</code> C++ e envie os dados via <code>JSProtocol.cpp</code>.</li>
+                        <li>Valide o resultado checando o log do servidor e os números de dano exibidos na HUD.</li>
+                    </ol>
+                </article>
+            </div>
         </section>
 
         <section id="glossario" class="panel">
