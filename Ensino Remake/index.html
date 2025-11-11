@@ -11,17 +11,23 @@
         <div class="hero__overlay"></div>
         <div class="hero__content">
             <h1>Ensino Remake</h1>
-            <p>Uma trilha didática para reconstruir o <strong>Main 5.2</strong> (cliente) e o <strong>MuServer Update 15</strong> (servidor) a partir dos assets originais.</p>
+            <p>
+                Uma trilha didática para reconstruir o <strong>Main 5.2</strong> (cliente) e o <strong>MuServer Update 15</strong>
+                (servidor) com adaptação para <strong>Unreal Engine 5</strong>, guiando pessoas que nunca programaram.
+            </p>
             <a class="hero__cta" href="#trilha-geral">Começar agora</a>
         </div>
     </header>
 
     <nav class="quick-nav" aria-label="Navegação rápida">
         <button data-target="introducao">Visão Geral</button>
+        <button data-target="modulos">Módulos Essenciais</button>
         <button data-target="preparacao">Preparação</button>
         <button data-target="trilha-geral">Linha do Tempo</button>
         <button data-target="frontend">Trilha Cliente</button>
+        <button data-target="unreal">Trilha Unreal Engine 5</button>
         <button data-target="backend">Trilha Servidor</button>
+        <button data-target="glossario">Glossário</button>
         <button data-target="recursos">Recursos &amp; Referências</button>
     </nav>
 
@@ -29,24 +35,72 @@
         <section id="introducao" class="panel">
             <h2>Propósito</h2>
             <p>
-                Este espaço organiza o processo de remake para pessoas iniciantes em programação. Cada etapa apresenta
-                objetivos claros, pré-requisitos e materiais de apoio. A proposta é seguir um caminho lógico: primeiro
-                compreender o cenário, depois preparar o ambiente, em seguida trabalhar o cliente <em>Main</em> e, por fim,
-                estruturar o servidor dedicado.
+                Este espaço organiza o processo de remake para pessoas iniciantes. Cada etapa apresenta objetivos claros,
+                pré-requisitos amigáveis e materiais de apoio. A proposta é seguir um caminho lógico: primeiro compreender
+                o cenário, depois preparar o ambiente, em seguida reconstruir o cliente <em>Main</em>, adaptar sistemas na
+                <strong>Unreal Engine 5</strong> e finalizar com a estrutura do servidor dedicado.
             </p>
             <div class="grid">
                 <article class="card">
                     <h3>Como usar</h3>
-                    <p>Avance na ordem sugerida. Cada módulo desbloqueia o próximo quando você concluir os pré-requisitos listados.</p>
+                    <p>
+                        Avance na ordem sugerida. A conclusão de um módulo libera o próximo e reduz dúvidas quando chegar
+                        o momento de integrar cliente, Unreal Engine 5 e servidor.
+                    </p>
                 </article>
                 <article class="card">
                     <h3>Perfil</h3>
-                    <p>Linguagem simples, com foco em quem nunca programou. Termos técnicos vêm acompanhados de explicações rápidas.</p>
+                    <p>
+                        Linguagem simples, focada em quem nunca programou. Sempre explique conceitos com o glossário e
+                        marque dúvidas para serem revisitadas ao final de cada etapa.
+                    </p>
                 </article>
                 <article class="card">
                     <h3>Metodologia</h3>
-                    <p>Baseada em dependências reais do projeto original: primeiro configuramos ferramentas, depois reaproveitamos assets,
-                    finalizando com a integração cliente-servidor.</p>
+                    <p>
+                        Baseada nas dependências reais do projeto original: preparar ferramentas, reaproveitar assets e
+                        então sincronizar cliente, Unreal Engine e servidor por meio de passos incrementais.
+                    </p>
+                </article>
+            </div>
+        </section>
+
+        <section id="modulos" class="panel">
+            <h2>Módulos Essenciais para Iniciantes</h2>
+            <p>Use estes módulos como base para montar uma rotina de estudos e prática.</p>
+            <div class="module-grid">
+                <article class="card card--module">
+                    <h3>Fundamentos de Computação</h3>
+                    <ul>
+                        <li>Aprenda a criar pastas, mover arquivos e usar um editor de texto.</li>
+                        <li>Entenda o que é um <strong>repositório Git</strong> e por que usamos controle de versão.</li>
+                        <li>Revise o conceito de <em>compilar</em> versus <em>executar</em>.</li>
+                    </ul>
+                </article>
+                <article class="card card--module">
+                    <h3>Primeiros passos em C++</h3>
+                    <ul>
+                        <li>Execute exemplos simples em Visual Studio 2019.</li>
+                        <li>Pratique variáveis, estruturas condicionais e funções.</li>
+                        <li>Leia <code>main.cpp</code> e arquivos de cabeçalho em <code>Source Main 5.2/source</code> apenas para
+                            observar a sintaxe.</li>
+                    </ul>
+                </article>
+                <article class="card card--module">
+                    <h3>Unreal Engine 5 para Iniciantes</h3>
+                    <ul>
+                        <li>Instale via Epic Games Launcher com os módulos de <strong>C++</strong>.</li>
+                        <li>Assista ao tutorial “First Hour in Unreal Engine 5” para navegar no editor.</li>
+                        <li>Crie um projeto vazio baseado no template <em>Third Person</em> para testes.</li>
+                    </ul>
+                </article>
+                <article class="card card--module">
+                    <h3>Fluxo de Rede do Mu Online</h3>
+                    <ul>
+                        <li>Desenhe um mapa simples conectando cliente &rarr; ConnectServer &rarr; JoinServer &rarr; GameServer.</li>
+                        <li>Identifique onde o inventário e o login são processados no código original.</li>
+                        <li>Marque quais pacotes precisarão ser refeitos no remake.</li>
+                    </ul>
                 </article>
             </div>
         </section>
@@ -58,29 +112,85 @@
 
         <section id="trilha-geral" class="panel">
             <h2>Linha do Tempo Geral</h2>
-            <p>Use esta linha do tempo como referência macro. Ela mostra como os módulos do cliente e do servidor se encaixam.</p>
+            <p>Use esta linha do tempo como referência macro. Ela mostra como os módulos do cliente, da Unreal Engine 5 e do
+                servidor se encaixam.</p>
             <div class="timeline" data-track="geral"></div>
         </section>
 
         <section id="frontend" class="panel">
             <h2>Trilha Cliente (Main 5.2)</h2>
-            <p>O código do cliente está organizado principalmente em <code>Source Main 5.2/source</code>, com muitos módulos da interface e sistemas de jogo.</p>
+            <p>
+                O código do cliente original está em <code>Source Main 5.2/source</code>, com módulos de interface e sistemas
+                de jogo escritos em C++. As etapas desta trilha ajudam a compreender a estrutura antes de portar ou adaptar
+                funcionalidades para a Unreal Engine 5.
+            </p>
             <div class="timeline" data-track="frontend"></div>
+        </section>
+
+        <section id="unreal" class="panel">
+            <h2>Trilha Unreal Engine 5</h2>
+            <p>
+                Depois de entender o cliente clássico, estas etapas guiam a criação do remake dentro da Unreal Engine 5,
+                conectando Blueprints, C++ e assets importados do projeto original.
+            </p>
+            <div class="timeline" data-track="unreal"></div>
         </section>
 
         <section id="backend" class="panel">
             <h2>Trilha Servidor (MuServer)</h2>
-            <p>O servidor é dividido em serviços dedicados como <code>ConnectServer</code>, <code>JoinServer</code>, <code>GameServer</code> e outros dentro de <code>Source MuServer Update 15</code>.</p>
+            <p>
+                O servidor é dividido em serviços dedicados como <code>ConnectServer</code>, <code>JoinServer</code>,
+                <code>GameServer</code> e outros dentro de <code>Source MuServer Update 15</code>. Esta trilha ensina como
+                configurar, testar e integrar cada peça.
+            </p>
             <div class="timeline" data-track="backend"></div>
+        </section>
+
+        <section id="glossario" class="panel">
+            <h2>Glossário Rápido</h2>
+            <dl class="glossario">
+                <div>
+                    <dt>Asset</dt>
+                    <dd>Qualquer arquivo reutilizável (textura, som, modelo 3D) que pode ser importado no cliente ou no Unreal.
+                    </dd>
+                </div>
+                <div>
+                    <dt>Blueprint</dt>
+                    <dd>Sistema visual da Unreal que permite criar lógica sem programar escrevendo código. Ideal para montar a
+                        primeira versão da interface.</dd>
+                </div>
+                <div>
+                    <dt>Build</dt>
+                    <dd>Processo de compilar o código e gerar um executável. O Visual Studio cuida disso para o cliente e a
+                        Unreal gera <em>packages</em> para o remake.</dd>
+                </div>
+                <div>
+                    <dt>Hot Reload</dt>
+                    <dd>Recurso da Unreal para recompilar código C++ enquanto o editor está aberto, acelerando testes rápidos.</dd>
+                </div>
+                <div>
+                    <dt>Replica&ccedil;&atilde;o</dt>
+                    <dd>Mecânica que sincroniza dados entre cliente e servidor na Unreal. Fundamental para inventário e
+                        movimentação.</dd>
+                </div>
+            </dl>
         </section>
 
         <section id="recursos" class="panel">
             <h2>Recursos &amp; Referências</h2>
             <ul class="resource-list">
-                <li><strong>Documentação original:</strong> consulte <code>README.md</code> para uma visão geral do que acompanha o pacote.</li>
-                <li><strong>Assets do cliente:</strong> disponíveis em <code>Source Main 5.2/Global Release</code> e <code>Source Main 5.2/source</code>.</li>
-                <li><strong>Componentes do servidor:</strong> explore <code>Source MuServer Update 15/</code> para entender cada serviço.</li>
-                <li><strong>Guias complementares:</strong> verifique os arquivos <code>unreal_item_system_guide.html</code> e <code>unreal_recreation_plan.html</code> para insights adicionais.</li>
+                <li><strong>Documentação original:</strong> consulte <code>README.md</code> para uma visão geral do pacote.</li>
+                <li><strong>Assets do cliente:</strong> disponíveis em <code>Source Main 5.2/Global Release</code> e
+                    <code>Source Main 5.2/source</code>.</li>
+                <li><strong>Componentes do servidor:</strong> explore <code>Source MuServer Update 15/</code> para entender cada
+                    serviço.</li>
+                <li><strong>Guias complementares:</strong> verifique
+                    <code>unreal_recreation_plan.html</code>, <code>unreal_item_system_guide.html</code> e
+                    <code>inventory_unreal_inventory_system.html</code> para aprofundar sistemas específicos.</li>
+                <li><strong>Aprendizado Unreal Engine 5:</strong> playlist oficial “Unreal Engine 5 Fundamentals” e a
+                    documentação sobre <em>Enhanced Input</em> e <em>Common UI</em>.</li>
+                <li><strong>Comunidade:</strong> participe de fóruns como o Unreal Slackers (Discord) para tirar dúvidas
+                    rápidas.</li>
             </ul>
         </section>
     </main>

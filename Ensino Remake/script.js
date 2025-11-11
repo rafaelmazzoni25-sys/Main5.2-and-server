@@ -15,10 +15,11 @@ const curriculum = {
             title: "Configurar ferramentas",
             duration: "Dia 2",
             description:
-                "Instale os softwares necessários: Visual Studio 2019 (compilador C++), editor de código leve e Git para versionamento.",
+                "Instale os softwares necessários: Visual Studio 2019 (compilador C++), Unreal Engine 5 via Epic Games Launcher, editor de texto leve e Git para versionamento.",
             prereqs: [
                 "Criar conta no GitHub ou GitLab para hospedar o remake",
                 "Instalar Visual Studio 2019 com a carga de trabalho C++",
+                "Instalar Unreal Engine 5.3 ou superior pelo Epic Games Launcher",
                 "Instalar Git e configurar usuário e e-mail"
             ]
         },
@@ -32,6 +33,17 @@ const curriculum = {
                 "Selecionar assets essenciais para UI (pastas NewUI, ZzzInterface, etc.)",
                 "Criar pastas de destino no novo projeto para armazenar assets reaproveitados"
             ]
+        },
+        {
+            title: "Rotina de estudos",
+            duration: "Dia 4",
+            description:
+                "Defina blocos de tempo para teoria, prática no Visual Studio e prática na Unreal, mantendo anotações do que aprendeu.",
+            prereqs: [
+                "Montar um calendário semanal com metas realistas",
+                "Separar um caderno físico ou digital para registrar descobertas",
+                "Criar um checklist simples para marcar módulos concluídos"
+            ]
         }
     ],
     geral: [
@@ -44,24 +56,58 @@ const curriculum = {
         },
         {
             title: "Fundamentos do Cliente",
-            duration: "Semanas 2-4",
+            duration: "Semanas 2-3",
             description:
-                "Recrie telas principais (login, seleção de personagem) e configure o loop principal do jogo.",
-            prereqs: ["Compilar o projeto Main.sln em modo Debug", "Replicar assets de interface básicos"]
+                "Recrie telas principais (login, seleção de personagem) e configure o loop principal do jogo clássico.",
+            prereqs: [
+                "Compilar o projeto Main.sln em modo Debug",
+                "Documentar arquivos essenciais da interface",
+                "Ter uma lista dos pacotes de rede que o cliente envia"
+            ]
+        },
+        {
+            title: "Base na Unreal Engine 5",
+            duration: "Semanas 4-5",
+            description:
+                "Criar o projeto na Unreal, importar assets e reproduzir a navegação básica com Blueprints e UMG.",
+            prereqs: [
+                "Criar projeto Third Person limpo",
+                "Importar texturas e fontes da interface original",
+                "Recriar menu de login com UMG"
+            ]
         },
         {
             title: "Fundamentos do Servidor",
-            duration: "Semanas 5-7",
+            duration: "Semanas 6-7",
             description:
-                "Recompilar os serviços principais do MuServer e estabelecer comunicação básica com o cliente.",
-            prereqs: ["Executar ConnectServer e JoinServer em ambiente local", "Disponibilizar GameServer com personagens de teste"]
+                "Recompilar os serviços principais do MuServer, preparar banco de dados e estabelecer comunicação básica com o cliente remake.",
+            prereqs: [
+                "Executar ConnectServer e JoinServer em ambiente local",
+                "Disponibilizar GameServer com personagens de teste",
+                "Mapear portas e firewall necessários"
+            ]
         },
         {
             title: "Integração & Testes",
             duration: "Semanas 8-9",
             description:
-                "Sincronize autenticação, movimentação e inventário entre cliente e servidor e documente os testes.",
-            prereqs: ["Cliente renderizando mapas de teste", "Servidor aceitando conexões locais"]
+                "Sincronize autenticação, movimentação e inventário entre cliente, Unreal Engine 5 e servidor, documentando cada teste.",
+            prereqs: [
+                "Cliente Unreal conectando ao JoinServer",
+                "Servidor aceitando conexões locais",
+                "Checklist de bugs atualizado"
+            ]
+        },
+        {
+            title: "Polimento & Publicação",
+            duration: "Semana 10",
+            description:
+                "Refine efeitos, otimize pacotes, empacote a build da Unreal e registre um guia de instalação para outras pessoas.",
+            prereqs: [
+                "Executar build Shipping no Unreal",
+                "Rodar sessão de testes com voluntários",
+                "Publicar changelog no repositório"
+            ]
         }
     ],
     frontend: [
@@ -77,21 +123,21 @@ const curriculum = {
             ]
         },
         {
-            title: "Tela de login e seleção",
+            title: "Explorar UI clássica",
             duration: "Semana 2",
             description:
-                "Recrie a lógica visual baseada em LoginMainWin.cpp e CharSelMainWin.cpp, introduzindo botões simplificados.",
+                "Mapeie telas como LoginMainWin.cpp, CharSelMainWin.cpp e NewUIMainFrameWindow.cpp, anotando quais texturas e sons cada uma usa.",
             prereqs: [
-                "Ler LoginMainWin.cpp para entender eventos de entrada",
-                "Mapear assets usados na pasta NewUILogin",
-                "Criar mock de servidor para validar fluxo de login"
+                "Abrir arquivos da pasta NewUI no Visual Studio",
+                "Identificar funções disparadas ao clicar em botões",
+                "Capturar screenshots para referência visual"
             ]
         },
         {
             title: "Gerenciador de UI",
             duration: "Semana 3",
             description:
-                "Implemente um sistema básico inspirado em NewUIManager.cpp e UIControls.cpp para abrir/fechar janelas.",
+                "Implemente um resumo da lógica de abertura/fechamento de janelas baseada em NewUIManager.cpp e UIControls.cpp.",
             prereqs: [
                 "Estudar NewUIManager.cpp",
                 "Identificar componentes reutilizáveis em UIControls.cpp",
@@ -100,7 +146,7 @@ const curriculum = {
         },
         {
             title: "HUD e inventário",
-            duration: "Semana 4",
+            duration: "Semana 3",
             description:
                 "Remonte o HUD principal (NewUIMainFrameWindow.cpp) e uma versão simplificada do inventário (NewUIInventoryCtrl.cpp).",
             prereqs: [
@@ -111,9 +157,9 @@ const curriculum = {
         },
         {
             title: "Protocolos de rede",
-            duration: "Semana 5",
+            duration: "Semana 4",
             description:
-                "Conecte o cliente ao servidor usando ProtocolSend.cpp e WSclient.cpp como referência para enviar pacotes básicos.",
+                "Conecte o cliente clássico ao servidor usando ProtocolSend.cpp e WSclient.cpp como referência para enviar pacotes básicos.",
             prereqs: [
                 "Ler ProtocolSend.cpp para entender mensagens de login",
                 "Implementar handlers mínimos em WSclient.cpp",
@@ -121,21 +167,89 @@ const curriculum = {
             ]
         },
         {
-            title: "Efeitos e otimização",
-            duration: "Semana 6",
+            title: "Extra: efeitos e otimização",
+            duration: "Semana 5",
             description:
-                "Trabalhe gradualmente com ZzzEffect.cpp, SkillEffectMgr.cpp e otimizações em TextureScript.cpp para polir a apresentação visual.",
+                "Analise ZzzEffect.cpp, SkillEffectMgr.cpp e otimizações em TextureScript.cpp para registrar quais elementos migrar para a Unreal.",
             prereqs: [
                 "Confirmar renderização estável em mapas de teste",
                 "Listar efeitos prioritários (skills, impactos)",
-                "Documentar ganhos de desempenho após ajustes"
+                "Documentar ajustes desejados para a Unreal"
+            ]
+        }
+    ],
+    unreal: [
+        {
+            title: "Criar projeto remake",
+            duration: "Semana 4",
+            description:
+                "Crie um projeto Unreal Engine 5 baseado no template Third Person, configure o controle de versão com Git e ajuste pastas para assets importados.",
+            prereqs: [
+                "Instalar plug-in GitSourceControl na Unreal",
+                "Configurar pasta Content/UI para texturas da interface",
+                "Criar branches específicos para interface e gameplay"
+            ]
+        },
+        {
+            title: "Interface com UMG",
+            duration: "Semana 4",
+            description:
+                "Reproduza o fluxo de login e seleção de personagem usando Widgets UMG, conectando botões a eventos Blueprint simples.",
+            prereqs: [
+                "Importar fontes e texturas da pasta NewUI",
+                "Criar Widget Blueprint LoginWB",
+                "Simular respostas do servidor com Blueprint ou Level Blueprint"
+            ]
+        },
+        {
+            title: "Personagem e controles",
+            duration: "Semana 5",
+            description:
+                "Configure movimentação e câmera com o sistema Enhanced Input, ajustando a velocidade e animações para lembrar o cliente clássico.",
+            prereqs: [
+                "Estudar Character.cpp e conectar atributos equivalentes",
+                "Importar malhas do personagem principal",
+                "Testar esquema de teclado e mouse"
+            ]
+        },
+        {
+            title: "Inventário replicado",
+            duration: "Semana 6",
+            description:
+                "Implemente inventário usando Actor Components e Replication Graph, sincronizando slots com dados recebidos do servidor.",
+            prereqs: [
+                "Criar estrutura \"FItemSlot\" em C++",
+                "Conectar HUD UMG ao componente de inventário",
+                "Testar adição e remoção de itens em modo multiplayer local"
+            ]
+        },
+        {
+            title: "Comunicação com MuServer",
+            duration: "Semana 7",
+            description:
+                "Utilize sockets TCP/UDP em C++ na Unreal para enviar pacotes baseados em ProtocolSend.cpp e receber atualizações do GameServer.",
+            prereqs: [
+                "Criar módulo C++ separado para rede",
+                "Serializar pacotes seguindo a estrutura original",
+                "Logar pacotes recebidos para depuração"
+            ]
+        },
+        {
+            title: "Build e automação",
+            duration: "Semana 9",
+            description:
+                "Gere builds Development e Shipping, configure scripts de empacotamento e registre passos de publicação para testes externos.",
+            prereqs: [
+                "Executar \"File > Package Project\" no Unreal",
+                "Criar script PowerShell ou Bash para copiar arquivos necessários",
+                "Testar instalação em outra máquina"
             ]
         }
     ],
     backend: [
         {
             title: "Topologia do MuServer",
-            duration: "Semana 5",
+            duration: "Semana 6",
             description:
                 "Entenda como os serviços ConnectServer, JoinServer, GameServer e DataServer se conectam e quais portas utilizam.",
             prereqs: [
@@ -146,7 +260,7 @@ const curriculum = {
         },
         {
             title: "Build dos serviços",
-            duration: "Semana 5",
+            duration: "Semana 6",
             description:
                 "Compile cada projeto dentro de Source MuServer Update 15, garantindo que bibliotecas compartilhadas de Util/ estejam corretas.",
             prereqs: [
@@ -157,18 +271,18 @@ const curriculum = {
         },
         {
             title: "Autenticação",
-            duration: "Semana 6",
+            duration: "Semana 7",
             description:
                 "Implemente e teste o fluxo de login: ConnectServer redireciona, JoinServer valida e GameServer cria sessão.",
             prereqs: [
                 "Configurar contas de teste no banco de dados",
                 "Ativar logs detalhados de JoinServer",
-                "Verificar integração com ProtocolSend.cpp no cliente"
+                "Verificar integração com a camada de rede da Unreal"
             ]
         },
         {
             title: "Persistência e economia",
-            duration: "Semana 7",
+            duration: "Semana 8",
             description:
                 "Revise DataServer e as estruturas de itens/experiência para garantir gravação consistente.",
             prereqs: [
@@ -181,7 +295,7 @@ const curriculum = {
             title: "Eventos e sistemas avançados",
             duration: "Semana 8",
             description:
-                "Gradualmente, ative eventos como Blood Castle e Castle Siege conforme as janelas equivalentes do cliente ficarem prontas.",
+                "Ative eventos como Blood Castle e Castle Siege conforme as janelas equivalentes do cliente na Unreal ficarem prontas.",
             prereqs: [
                 "Identificar arquivos de configuração de eventos",
                 "Sincronizar horários com o cliente",
@@ -192,7 +306,7 @@ const curriculum = {
             title: "Implantação local controlada",
             duration: "Semana 9",
             description:
-                "Prepare scripts para iniciar/derrubar serviços, monitore logs e estabeleça rotinas de testes integrados.",
+                "Prepare scripts para iniciar/derrubar serviços, monitore logs e estabeleça rotinas de testes integrados com o cliente da Unreal.",
             prereqs: [
                 "Criar scripts batch ou PowerShell para inicialização",
                 "Configurar logs rotativos",
@@ -255,4 +369,5 @@ function renderTimeline(trackName) {
 renderTimeline("preparacao");
 renderTimeline("geral");
 renderTimeline("frontend");
+renderTimeline("unreal");
 renderTimeline("backend");
