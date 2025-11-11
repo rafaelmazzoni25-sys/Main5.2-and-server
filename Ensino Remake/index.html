@@ -1,0 +1,1277 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ensino Remake - Guia do Projeto</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <header class="hero">
+        <div class="hero__overlay"></div>
+        <div class="hero__content">
+            <h1>Ensino Remake</h1>
+            <p>
+                Uma trilha didática para reconstruir o <strong>Main 5.2</strong> (cliente) e o <strong>MuServer Update 15</strong>
+                (servidor) com adaptação para <strong>Unreal Engine 5</strong>, guiando pessoas que nunca programaram.
+            </p>
+            <a class="hero__cta" href="#trilha-geral">Começar agora</a>
+        </div>
+    </header>
+
+    <nav class="quick-nav" aria-label="Navegação rápida">
+        <button data-target="introducao">Visão Geral</button>
+        <button data-target="tutorial-completo">Tutorial Passo a Passo</button>
+        <button data-target="modulos">Módulos Essenciais</button>
+        <button data-target="mapa-codigo">Mapa do Código</button>
+        <button data-target="cliente-detalhado">Cliente em Detalhes</button>
+        <button data-target="servidor-detalhado">Servidor em Detalhes</button>
+        <button data-target="unreal-detalhado">Guia Unreal Detalhado</button>
+        <button data-target="protocolos">Protocolos &amp; Pacotes</button>
+        <button data-target="banco-dados">Banco de Dados</button>
+        <button data-target="preparacao">Preparação</button>
+        <button data-target="trilha-geral">Linha do Tempo</button>
+        <button data-target="frontend">Trilha Cliente</button>
+        <button data-target="unreal">Trilha Unreal Engine 5</button>
+        <button data-target="backend">Trilha Servidor</button>
+        <button data-target="laboratorios">Laboratórios Guiados</button>
+        <button data-target="erros">Diagnóstico &amp; FAQ</button>
+        <button data-target="glossario">Glossário</button>
+        <button data-target="recursos">Recursos &amp; Referências</button>
+    </nav>
+
+    <main>
+        <section id="introducao" class="panel">
+            <h2>Propósito</h2>
+            <p>
+                Este espaço organiza o processo de remake para pessoas iniciantes. Cada etapa apresenta objetivos claros,
+                pré-requisitos amigáveis e materiais de apoio. A proposta é seguir um caminho lógico: primeiro compreender
+                o cenário, depois preparar o ambiente, em seguida reconstruir o cliente <em>Main</em>, adaptar sistemas na
+                <strong>Unreal Engine 5</strong> e finalizar com a estrutura do servidor dedicado.
+            </p>
+            <div class="callouts">
+                <p class="callout callout--tip"><strong>Dica:</strong> Leia cada etapa como se fosse uma receita. Quando um termo
+                    parecer complicado, volte ao glossário antes de continuar.</p>
+                <p class="callout callout--warning"><strong>Importante:</strong> Sempre faça backup dos arquivos originais
+                    antes de editar qualquer asset ou código. Use o Git para registrar cada vitória.</p>
+            </div>
+            <div class="grid">
+                <article class="card">
+                    <h3>Como usar</h3>
+                    <p>
+                        Avance na ordem sugerida. A conclusão de um módulo libera o próximo e reduz dúvidas quando chegar
+                        o momento de integrar cliente, Unreal Engine 5 e servidor.
+                    </p>
+                </article>
+                <article class="card">
+                    <h3>Perfil</h3>
+                    <p>
+                        Linguagem simples, focada em quem nunca programou. Sempre explique conceitos com o glossário e
+                        marque dúvidas para serem revisitadas ao final de cada etapa.
+                    </p>
+                </article>
+                <article class="card">
+                    <h3>Metodologia</h3>
+                    <p>
+                        Baseada nas dependências reais do projeto original: preparar ferramentas, reaproveitar assets e
+                        então sincronizar cliente, Unreal Engine e servidor por meio de passos incrementais.
+                    </p>
+                </article>
+            </div>
+        </section>
+
+        <section id="tutorial-completo" class="panel panel--stepper">
+            <h2>Tutorial passo a passo completo</h2>
+            <p>
+                Siga estes dez passos como se estivesse montando um móvel com instruções ilustradas. Cada item traduz o
+                que acontece nos arquivos originais (<code>Source Main 5.2</code> e <code>Source MuServer Update 15</code>)
+                para ações concretas dentro da <strong>Unreal Engine 5</strong>, sempre reutilizando os assets do cliente
+                clássico.
+            </p>
+            <div class="callouts">
+                <p class="callout callout--tip"><strong>Como ler:</strong> execute os passos em ordem. Ao terminar um
+                    bloco, marque a checklist antes de seguir adiante.</p>
+                <p class="callout callout--warning"><strong>Priorize a documentação:</strong> use o diário de bordo para
+                    anotar qualquer termo novo. A meta é não depender de outra fonte além deste guia.</p>
+            </div>
+            <ol class="stepper">
+                <li>
+                    <h3>Passo 1 — Preparar o ambiente sem medo de código</h3>
+                    <p class="stepper__goal">Instale e organize as ferramentas que abrirão os arquivos originais e a
+                        Unreal Engine 5.</p>
+                    <div class="stepper__details">
+                        <h4>Faça assim</h4>
+                        <ul>
+                            <li>Baixe e instale o <strong>Visual Studio 2019</strong>. No instalador, marque “Desktop
+                                development with C++”, “MSVC v142” e “Windows 10 SDK”.</li>
+                            <li>No <strong>Epic Games Launcher</strong>, instale a <strong>Unreal Engine 5.3</strong> (ou
+                                mais recente) com suporte a C++.</li>
+                            <li>Crie a pasta <code>C:\EnsinoRemake</code> e as subpastas <code>MainOriginal</code>,
+                                <code>MuServer</code>, <code>UnrealProjeto</code> e <code>Documentos</code>.</li>
+                            <li>Copie o conteúdo de <code>Source Main 5.2/</code> para <code>MainOriginal</code> e de
+                                <code>Source MuServer Update 15/</code> para <code>MuServer</code>.</li>
+                            <li>Abra um documento em branco (Google Docs, Notion ou caderno) chamado “Diário Ensino
+                                Remake” com seções Cliente, Unreal e Servidor.</li>
+                        </ul>
+                    </div>
+                    <div class="stepper__details stepper__details--explain">
+                        <h4>Como isso aparece no projeto original</h4>
+                        <p>Os arquivos <code>Main.sln</code>, <code>ConnectServer.sln</code>, <code>JoinServer.sln</code>
+                            e <code>GameServer.sln</code> foram pensados para o Visual Studio. Sem esse ambiente os
+                            passos seguintes não carregam. A Unreal precisa da pasta organizada para gerar builds na
+                            etapa 10.</p>
+                    </div>
+                    <div class="stepper__details stepper__details--checklist">
+                        <h4>Você termina quando...</h4>
+                        <ul>
+                            <li>O Visual Studio abre <code>MainOriginal/Main.sln</code> sem pedir componentes extras.</li>
+                            <li>A Unreal Engine 5 abre com o template “Third Person” salvo em
+                                <code>UnrealProjeto</code>.</li>
+                            <li>Seu diário possui a primeira anotação listando ferramentas instaladas.</li>
+                        </ul>
+                    </div>
+                </li>
+                <li>
+                    <h3>Passo 2 — Separar e catalogar os assets originais</h3>
+                    <p class="stepper__goal">Reaproveite texturas, fontes, sons e modelos do cliente clássico para
+                        importar na Unreal.</p>
+                    <div class="stepper__details">
+                        <h4>Faça assim</h4>
+                        <ul>
+                            <li>Abra <code>MainOriginal/source/Global Release/Data</code> e copie as pastas
+                                <code>Interface</code>, <code>World</code>, <code>Sound</code> e <code>Local</code> para
+                                <code>C:\EnsinoRemake\Documentos\AssetsOriginais</code>.</li>
+                            <li>No projeto Unreal, crie em <code>Content</code> as pastas <code>UI</code>,
+                                <code>Characters</code>, <code>Effects</code>, <code>Audio</code> e <code>Maps</code>.</li>
+                            <li>Importe um exemplo de cada categoria (por exemplo
+                                <code>Interface\Layout.tga</code>) apenas para validar a organização.</li>
+                            <li>Monte uma planilha com colunas “Asset”, “Local original” e “Onde usar na Unreal”.</li>
+                        </ul>
+                    </div>
+                    <div class="stepper__details stepper__details--explain">
+                        <h4>Como isso aparece no projeto original</h4>
+                        <p><code>ZzzTexture.cpp</code> e <code>NewUIManager.cpp</code> carregam essas imagens através de
+                            caminhos como <code>Data/Interface</code>. Quando você importar para a Unreal, usará os
+                            mesmos arquivos para montar os Widgets descritos nos próximos passos.</p>
+                    </div>
+                    <div class="stepper__details stepper__details--checklist">
+                        <h4>Você termina quando...</h4>
+                        <ul>
+                            <li>Consegue localizar qualquer textura pelo nome na planilha.</li>
+                            <li>O Content Browser da Unreal mostra pastas organizadas com ícones importados.</li>
+                            <li>Os assets originais estão duplicados em um local seguro (backup).</li>
+                        </ul>
+                    </div>
+                </li>
+                <li>
+                    <h3>Passo 3 — Fazer o tour guiado pelo cliente Main 5.2</h3>
+                    <p class="stepper__goal">Ler os arquivos principais apenas para entender o que cada um controla.</p>
+                    <div class="stepper__details">
+                        <h4>Faça assim</h4>
+                        <ul>
+                            <li>No Visual Studio, abra <code>Main.sln</code> e clique duas vezes em
+                                <code>Winmain.cpp</code>. Use <kbd>Ctrl</kbd>+<kbd>F</kbd> para procurar
+                                <code>g_pUIManager</code>.</li>
+                            <li>Abra <code>NewUIManager.cpp</code>, <code>NewUIMainFrameWindow.cpp</code> e
+                                <code>LoginWin.cpp</code> para observar como as janelas são criadas.</li>
+                            <li>Leia <code>ProtocolSend.cpp</code> e marque onde aparece
+                                <code>SendRequestLogInNew</code>. Essa função é a base do login.</li>
+                            <li>Anote no diário qual arquivo controla música (dica: <code>PlayMp3</code> em
+                                <code>Winmain.cpp</code>).</li>
+                        </ul>
+                    </div>
+                    <div class="stepper__details stepper__details--explain">
+                        <h4>Tradução do código original</h4>
+                        <ul>
+                            <li><code>Winmain.cpp</code> inicia o jogo, cria <code>g_pTimer</code>, configura janelas e
+                                chama <code>GameLoop</code>.</li>
+                            <li><code>NewUIManager.cpp</code> adiciona e mostra interfaces como inventário e opções.</li>
+                            <li><code>ProtocolSend::SendRequestLogInNew</code> prepara a mensagem de login com
+                                <code>BuxConvert</code>, versão e serial.</li>
+                        </ul>
+                    </div>
+                    <div class="stepper__details stepper__details--checklist">
+                        <h4>Você termina quando...</h4>
+                        <ul>
+                            <li>Consegue explicar em voz alta para que serve cada arquivo visitado.</li>
+                            <li>Fez capturas de tela dos trechos citados e colou no diário com legendas simples.</li>
+                            <li>Sabe onde buscar o fluxo de login, HUD e música no código.</li>
+                        </ul>
+                    </div>
+                </li>
+                <li>
+                    <h3>Passo 4 — Traduzir janelas e HUD para um roteiro visual</h3>
+                    <p class="stepper__goal">Converter o comportamento das telas do cliente clássico em instruções que
+                        qualquer pessoa consiga seguir.</p>
+                    <div class="stepper__details">
+                        <h4>Faça assim</h4>
+                        <ul>
+                            <li>No Visual Studio, abra <code>NewUIMainFrameWindow.cpp</code> e liste quais barras,
+                                minimapas e botões aparecem.</li>
+                            <li>Leia <code>NewUIInventoryCtrl.cpp</code> para saber o tamanho da grade e como os itens são
+                                arrastados.</li>
+                            <li>No cliente original (se compilado) ou em vídeos, capture imagens de cada janela e cole na
+                                seção “Cliente” do diário com comentários.</li>
+                            <li>Crie um checklist com a sequência: Login &rarr; Seleção &rarr; HUD &rarr; Inventário &rarr;
+                                Loja.</li>
+                        </ul>
+                    </div>
+                    <div class="stepper__details stepper__details--explain">
+                        <h4>Tradução do código original</h4>
+                        <ul>
+                            <li><code>NewUIMainFrameWindow::CreateSubControl</code> monta as barras de HP/MP usando as
+                                texturas de <code>Data/Interface</code>.</li>
+                            <li><code>CNewUIInventoryCtrl::LoadImages</code> carrega cada célula do inventário com base em
+                                <code>ZzzInventory.h</code>.</li>
+                            <li><code>LoginWin.cpp</code> habilita botões e toca sons com <code>DSPlaySound</code>.</li>
+                        </ul>
+                    </div>
+                    <div class="stepper__details stepper__details--checklist">
+                        <h4>Você termina quando...</h4>
+                        <ul>
+                            <li>Possui uma página do diário com fotos ou desenhos de cada tela.</li>
+                            <li>Tem uma legenda simples explicando o que acontece quando o jogador clica em cada botão.</li>
+                            <li>Consegue apontar quais texturas serão importadas para cada tela.</li>
+                        </ul>
+                    </div>
+                </li>
+                <li>
+                    <h3>Passo 5 — Configurar o projeto base na Unreal Engine 5</h3>
+                    <p class="stepper__goal">Criar a estrutura que substituirá o loop e os gerenciadores do cliente
+                        clássico.</p>
+                    <div class="stepper__details">
+                        <h4>Faça assim</h4>
+                        <ul>
+                            <li>Abra a Unreal e crie o projeto C++ “EnsinoRemake” dentro de
+                                <code>C:\EnsinoRemake\UnrealProjeto</code>.</li>
+                            <li>No menu <strong>Tools &gt; New C++ Class</strong>, gere:
+                                <ul>
+                                    <li><code>UEnsinoRemakeGameInstance</code> (herda de <code>UGameInstance</code>) para
+                                        iniciar serviços.</li>
+                                    <li><code>UUIFlowSubsystem</code> (GameInstance Subsystem) para trocar telas.</li>
+                                    <li><code>UNetworkBridgeSubsystem</code> para lidar com rede.</li>
+                                </ul>
+                            </li>
+                            <li>Ative os plugins <em>Enhanced Input</em> e <em>Gameplay Tasks</em>.</li>
+                            <li>Crie pastas <code>Blueprints</code>, <code>UI</code>, <code>Systems</code> e
+                                <code>Network</code> dentro de <code>Content</code>.</li>
+                        </ul>
+                    </div>
+                    <div class="stepper__details stepper__details--explain">
+                        <h4>Tradução do código original</h4>
+                        <ul>
+                            <li><code>Winmain.cpp</code> &rarr; <code>UEnsinoRemakeGameInstance</code> controla o ciclo de
+                                vida.</li>
+                            <li><code>g_pUIManager</code> &rarr; <code>UUIFlowSubsystem</code> decide quais Widgets ficam na
+                                tela.</li>
+                            <li><code>ProtocolSend.cpp</code> &rarr; <code>UNetworkBridgeSubsystem</code> envia e recebe
+                                pacotes.</li>
+                        </ul>
+                    </div>
+                    <div class="stepper__details stepper__details--checklist">
+                        <h4>Você termina quando...</h4>
+                        <ul>
+                            <li>O projeto compila com sucesso (menu <strong>Build</strong> da Unreal ou Visual Studio).</li>
+                            <li>Os Subsystems aparecem no <strong>Output Log</strong> ao clicar em <strong>Play</strong>.</li>
+                            <li>Há uma anotação no diário mapeando cada classe nova ao arquivo original.</li>
+                        </ul>
+                    </div>
+                </li>
+                <li>
+                    <h3>Passo 6 — Recriar login e seleção de personagens</h3>
+                    <p class="stepper__goal">Transformar o fluxo clássico de botões em Widgets amigáveis.</p>
+                    <div class="stepper__details">
+                        <h4>Faça assim</h4>
+                        <ul>
+                            <li>No Content Browser, crie os Widgets <code>WB_LoginMenu</code>,
+                                <code>WB_SelectCharacter</code> e <code>WB_ServerStatus</code>.</li>
+                            <li>Arraste as texturas importadas (background, botões) para cada Widget.</li>
+                            <li>No <code>WB_LoginMenu</code>, adicione campos de texto e um botão “Conectar”. No gráfico
+                                de eventos, chame uma função <code>SolicitarLogin</code> do
+                                <code>UNetworkBridgeSubsystem</code>.</li>
+                            <li>No <code>WB_SelectCharacter</code>, use um <em>ListView</em> para listar personagens.
+                                Preencha com dados fictícios (nome, classe) antes de conectar ao servidor.</li>
+                        </ul>
+                    </div>
+                    <div class="stepper__details stepper__details--explain">
+                        <h4>Tradução do código original</h4>
+                        <ul>
+                            <li><code>LoginWin.cpp</code> chama <code>ProtocolSend::SendRequestLogInNew</code> quando o
+                                botão é pressionado.</li>
+                            <li><code>CharSelMainWin.cpp</code> carrega a lista de personagens e destaca o selecionado.</li>
+                            <li><code>GlobalText[472]</code> e <code>GlobalText[473]</code> são mensagens de “aguarde”. Use
+                                o mesmo texto no Widget.</li>
+                        </ul>
+                    </div>
+                    <div class="stepper__details stepper__details--checklist">
+                        <h4>Você termina quando...</h4>
+                        <ul>
+                            <li>Clicar em “Conectar” mostra uma animação ou mensagem de carregamento.</li>
+                            <li>O Widget de seleção troca entre personagens fictícios sem erros.</li>
+                            <li>Existe um botão “Voltar” que retorna ao login (como no cliente clássico).</li>
+                        </ul>
+                    </div>
+                </li>
+                <li>
+                    <h3>Passo 7 — Montar personagem, câmeras e interações</h3>
+                    <p class="stepper__goal">Replicar movimentação, animações e câmera baseados no código clássico.</p>
+                    <div class="stepper__details">
+                        <h4>Faça assim</h4>
+                        <ul>
+                            <li>Crie o Blueprint <code>BP_RemakeCharacter</code> herdando de <code>Character</code> e
+                                substitua o personagem padrão.</li>
+                            <li>No <code>Enhanced Input</code>, crie ações <code>IA_Move</code>, <code>IA_Look</code>,
+                                <code>IA_Attack</code> e <code>IA_Action</code>. Ligue aos eventos do Blueprint.</li>
+                            <li>Importe animações do cliente ou placeholders e configure um <code>Animation Blueprint</code>
+                                para alternar entre idle, corrida e ataque.</li>
+                            <li>Adicione uma câmera principal com <code>SpringArm</code> e ajuste zoom para imitar
+                                <code>CameraMove.cpp</code>.</li>
+                        </ul>
+                    </div>
+                    <div class="stepper__details stepper__details--explain">
+                        <h4>Tradução do código original</h4>
+                        <ul>
+                            <li><code>ZzzCharacter.cpp</code> define velocidades e animações usadas pelo personagem.</li>
+                            <li><code>MouseProc.cpp</code> e <code>CameraMove.cpp</code> controlam zoom e rotação do mouse.</li>
+                            <li><code>ProtocolSend::SendPositionNew</code> envia coordenadas X/Y a cada movimento.</li>
+                        </ul>
+                    </div>
+                    <div class="stepper__details stepper__details--checklist">
+                        <h4>Você termina quando...</h4>
+                        <ul>
+                            <li>O personagem se move, gira e ataca dentro do mapa de teste.</li>
+                            <li>A câmera respeita limites de zoom similares ao cliente clássico.</li>
+                            <li>As ações disparam eventos de log (usando <code>Print String</code>) para futura ligação com a rede.</li>
+                        </ul>
+                    </div>
+                </li>
+                <li>
+                    <h3>Passo 8 — Construir a ponte de rede compatível</h3>
+                    <p class="stepper__goal">Enviar e receber pacotes iguais aos do cliente clássico para conversar com o MuServer.</p>
+                    <div class="stepper__details">
+                        <h4>Faça assim</h4>
+                        <ul>
+                            <li>Adicione uma classe C++ <code>UNetworkBridge</code> (instanciada pelo Subsystem) que usa
+                                <code>FSocket</code> para abrir conexão TCP.</li>
+                            <li>Implemente métodos <code>EnviarLogin</code>, <code>SolicitarListaDePersonagens</code> e
+                                <code>EnviarMovimento</code> copiando o formato de <code>ProtocolSend.cpp</code>.</li>
+                            <li>Crie uma função utilitária <code>ApplyBuxConvert</code> reproduzindo a lógica de
+                                <code>BuxConvert</code> (troca de bytes) antes de mandar usuário e senha.</li>
+                            <li>Use <code>AsyncTask(ENamedThreads::AnyBackgroundThreadNormalTask, ...)</code> para ler
+                                pacotes continuamente e repassar eventos ao <code>UUIFlowSubsystem</code>.</li>
+                        </ul>
+                    </div>
+                    <div class="stepper__details stepper__details--explain">
+                        <h4>Tradução do código original</h4>
+                        <ul>
+                            <li><code>CProtocolSend::SendRequestLogInNew</code> monta o pacote de login (cabeçalho C1,
+                                tamanho, conta, senha, versão).</li>
+                            <li><code>WSclient.cpp</code> mantém a conexão viva e trata desconexões.</li>
+                            <li><code>JoinServer/JoinServerProtocol.cpp</code> (<code>GJConnectAccountRecv</code>) valida os dados.</li>
+                            <li><code>GameServer/GameServer/Protocol.cpp</code> (<code>case 0x1B</code>) processa movimento e deve receber exatamente os mesmos bytes.</li>
+                        </ul>
+                    </div>
+                    <div class="stepper__details stepper__details--checklist">
+                        <h4>Você termina quando...</h4>
+                        <ul>
+                            <li>Os logs da Unreal mostram os pacotes hexadecimais enviados e recebidos.</li>
+                            <li>Um comando <code>Telnet</code> ou <code>Wireshark</code> confirma que o cabeçalho C1 foi enviado.</li>
+                            <li>O Subsystem informa erros amigáveis quando o servidor está offline.</li>
+                        </ul>
+                    </div>
+                </li>
+                <li>
+                    <h3>Passo 9 — Subir o MuServer e validar a comunicação</h3>
+                    <p class="stepper__goal">Executar ConnectServer, JoinServer, GameServer e DataServer aceitando o novo cliente.</p>
+                    <div class="stepper__details">
+                        <h4>Faça assim</h4>
+                        <ul>
+                            <li>No Visual Studio, abra cada solução (<code>ConnectServer.sln</code>, <code>JoinServer.sln</code>, <code>GameServer.sln</code>, <code>DataServer.sln</code>) e compile em <em>Release</em>.</li>
+                            <li>Edite os arquivos <code>*.ini</code> para usar <code>127.0.0.1</code> como endereço IP e portas padrão (44405, 55901, 55960).</li>
+                            <li>Inicie os serviços nessa ordem: ConnectServer &rarr; JoinServer &rarr; GameServer &rarr; DataServer.</li>
+                            <li>Observe os consoles. Mensagens como “Account logged with global password” aparecem em <code>JoinServerProtocol.cpp</code> quando o login é aceito.</li>
+                        </ul>
+                    </div>
+                    <div class="stepper__details stepper__details--explain">
+                        <h4>Tradução do código original</h4>
+                        <ul>
+                            <li><code>GameServer/GameServer/GameMain.cpp</code> cria conexões com JoinServer e DataServer.</li>
+                            <li><code>JoinServerProtocol::GJConnectAccountRecv</code> confirma contas com o banco.</li>
+                            <li><code>DataServer/DataServer/DataServerProtocol.cpp</code> grava inventário e personagens.</li>
+                        </ul>
+                    </div>
+                    <div class="stepper__details stepper__details--checklist">
+                        <h4>Você termina quando...</h4>
+                        <ul>
+                            <li>Todos os serviços mostram “Connected” e “listening” nos consoles.</li>
+                            <li>O log do JoinServer registra a conta de teste criada no banco.</li>
+                            <li>A Unreal tenta logar e recebe resposta (mesmo que mensagem de erro) do JoinServer.</li>
+                        </ul>
+                    </div>
+                </li>
+                <li>
+                    <h3>Passo 10 — Testar, ajustar e documentar</h3>
+                    <p class="stepper__goal">Comparar comportamento entre cliente clássico e remake, registrando melhorias.</p>
+                    <div class="stepper__details">
+                        <h4>Faça assim</h4>
+                        <ul>
+                            <li>Execute os quatro serviços do MuServer e abra o cliente Unreal. Faça login com a conta de teste.</li>
+                            <li>Movimente o personagem e verifique no console do GameServer se <code>case 0x1B</code> registra as posições.</li>
+                            <li>Abra o inventário e confirme no DataServer se a tabela <code>Warehouse</code> recebe atualizações.</li>
+                            <li>Anote no diário erros encontrados e como reproduzi-los.</li>
+                        </ul>
+                    </div>
+                    <div class="stepper__details stepper__details--explain">
+                        <h4>Tradução do código original</h4>
+                        <ul>
+                            <li><code>Protocol.cpp</code> envia atualizações para <code>gGameServerLogOut</code> quando a conexão cai.</li>
+                            <li><code>DataServerProtocol::GDCharacterListRecv</code> devolve a lista de personagens.</li>
+                            <li><code>NewUIInventoryCtrl.cpp</code> define como itens aparecem; compare com o Widget Unreal.</li>
+                        </ul>
+                    </div>
+                    <div class="stepper__details stepper__details--checklist">
+                        <h4>Você termina quando...</h4>
+                        <ul>
+                            <li>Existe um registro completo de testes no diário (data, ação, resultado).</li>
+                            <li>Você consegue repetir o login, seleção e entrada no mapa sem consultar outras fontes.</li>
+                            <li>Tem uma lista de próximas melhorias (efeitos, eventos) priorizada.</li>
+                        </ul>
+                    </div>
+                </li>
+            </ol>
+            <div class="table-wrapper table-wrapper--compact">
+                <table class="data-table data-table--mapping">
+                    <caption>Mapa rápido entre arquivos clássicos e componentes da Unreal</caption>
+                    <thead>
+                        <tr>
+                            <th>Elemento original</th>
+                            <th>Onde encontrar</th>
+                            <th>Como refazer na Unreal 5</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td>Loop principal do cliente</td>
+                            <td><code>Source Main 5.2/source/Winmain.cpp</code></td>
+                            <td><code>UEnsinoRemakeGameInstance</code> + <code>GameInstanceSubsystems</code> que inicializam serviços.</td>
+                        </tr>
+                        <tr>
+                            <td>Gerenciador de janelas</td>
+                            <td><code>Source Main 5.2/source/NewUIManager.cpp</code></td>
+                            <td><code>UUIFlowSubsystem</code> controlando <em>Widget Blueprints</em> (login, HUD, inventário).</td>
+                        </tr>
+                        <tr>
+                            <td>HUD principal</td>
+                            <td><code>Source Main 5.2/source/NewUIMainFrameWindow.cpp</code></td>
+                            <td>Widgets <code>WB_HUDMain</code> + <code>AHUD</code> customizado com barras, minimapa e mensagens.</td>
+                        </tr>
+                        <tr>
+                            <td>Inventário e slots</td>
+                            <td><code>Source Main 5.2/source/NewUIInventoryCtrl.cpp</code></td>
+                            <td><code>UInventoryComponent</code> replicado + <code>WB_Inventory</code> com grade e drag &amp; drop.</td>
+                        </tr>
+                        <tr>
+                            <td>Envio de pacotes</td>
+                            <td><code>Source Main 5.2/source/ProtocolSend.cpp</code></td>
+                            <td><code>UNetworkBridgeSubsystem</code> + funções <code>EnviarLogin</code>, <code>EnviarMovimento</code> com <code>FSocket</code>.</td>
+                        </tr>
+                        <tr>
+                            <td>Tratamento de login no servidor</td>
+                            <td><code>Source MuServer Update 15/JoinServer/JoinServer/JoinServerProtocol.cpp</code></td>
+                            <td>Método <code>OnLoginResponse</code> no Subsystem validando códigos de retorno 0x01/0x02.</td>
+                        </tr>
+                        <tr>
+                            <td>Movimento e ações do servidor</td>
+                            <td><code>Source MuServer Update 15/GameServer/GameServer/Protocol.cpp</code></td>
+                            <td>Handlers no <code>UNetworkBridgeSubsystem</code> convertendo bytes em eventos (andar, atacar).</td>
+                        </tr>
+                        <tr>
+                            <td>Salvamento no banco de dados</td>
+                            <td><code>Source MuServer Update 15/DataServer/DataServer/DataServerProtocol.cpp</code></td>
+                            <td>Chamadas a stored procedures via DataServer + scripts SQL documentados no diário.</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </section>
+
+        <section id="modulos" class="panel">
+            <h2>Módulos Essenciais para Iniciantes</h2>
+            <p>Use estes módulos como base para montar uma rotina de estudos e prática.</p>
+            <div class="module-grid">
+                <article class="card card--module">
+                    <h3>Fundamentos de Computação</h3>
+                    <ul>
+                        <li>Aprenda a criar pastas, mover arquivos e usar um editor de texto.</li>
+                        <li>Entenda o que é um <strong>repositório Git</strong> e por que usamos controle de versão.</li>
+                        <li>Revise o conceito de <em>compilar</em> versus <em>executar</em>.</li>
+                    </ul>
+                </article>
+                <article class="card card--module">
+                    <h3>Primeiros passos em C++</h3>
+                    <ul>
+                        <li>Execute exemplos simples em Visual Studio 2019.</li>
+                        <li>Pratique variáveis, estruturas condicionais e funções.</li>
+                        <li>Leia <code>Winmain.cpp</code> e arquivos de cabeçalho em <code>Source Main 5.2/source</code> apenas
+                            para observar a sintaxe.</li>
+                    </ul>
+                </article>
+                <article class="card card--module">
+                    <h3>Unreal Engine 5 para Iniciantes</h3>
+                    <ul>
+                        <li>Instale via Epic Games Launcher com os módulos de <strong>C++</strong>.</li>
+                        <li>Assista ao tutorial “First Hour in Unreal Engine 5” para navegar no editor.</li>
+                        <li>Crie um projeto vazio baseado no template <em>Third Person</em> para testes.</li>
+                    </ul>
+                </article>
+                <article class="card card--module">
+                    <h3>Fluxo de Rede do Mu Online</h3>
+                    <ul>
+                        <li>Desenhe um mapa simples conectando cliente &rarr; ConnectServer &rarr; JoinServer &rarr; GameServer.</li>
+                        <li>Identifique onde o inventário e o login são processados no código original.</li>
+                        <li>Marque quais pacotes precisarão ser refeitos no remake.</li>
+                    </ul>
+                </article>
+                <article class="card card--module">
+                    <h3>Banco de Dados e Ferramentas</h3>
+                    <ul>
+                        <li>Instale o SQL Server Express ou MariaDB para simular o armazenamento do MuServer.</li>
+                        <li>Pratique consultas básicas com tabelas de exemplo, como <code>Character</code> e <code>Account</code>.</li>
+                        <li>Configure um script de backup automático para não perder progresso.</li>
+                    </ul>
+                </article>
+                <article class="card card--module">
+                    <h3>Lógica Visual e Blueprints</h3>
+                    <ul>
+                        <li>Recrie um contador com botões no Blueprint para entender eventos e variáveis.</li>
+                        <li>Experimente o sistema de <em>Enhanced Input</em> para ligar teclado, mouse e gamepad.</li>
+                        <li>Importe uma textura do Main e use-a em um Widget para praticar fluxo de assets.</li>
+                    </ul>
+                </article>
+            </div>
+        </section>
+
+        <section id="mapa-codigo" class="panel">
+            <h2>Mapa do Código Original</h2>
+            <p>
+                Esta visão geral funciona como um GPS. Repare nos nomes das pastas e arquivos porque cada etapa do tutorial
+                citará esses pontos de referência. Explore-os em modo de leitura antes de alterar qualquer linha.
+            </p>
+            <div class="map-grid">
+                <article class="card card--map">
+                    <h3>Main 5.2 (Cliente)</h3>
+                    <ul>
+                        <li><code>Source Main 5.2/source/Winmain.cpp</code> &mdash; controla o loop principal do jogo.</li>
+                        <li><code>Source Main 5.2/source/NewUIMainFrameWindow.cpp</code> &mdash; monta o HUD clássico.</li>
+                        <li><code>Source Main 5.2/source/LoginWin.cpp</code> &mdash; fluxo da tela de login com botões e caixas.</li>
+                        <li><code>Source Main 5.2/source/ProtocolSend.cpp</code> &amp; <code>WSclient.cpp</code> &mdash; enviam e recebem pacotes.</li>
+                        <li><code>Source Main 5.2/Global Release/Data/</code> &mdash; texturas, fontes e sons que serão importados.</li>
+                    </ul>
+                </article>
+                <article class="card card--map">
+                    <h3>MuServer Update 15</h3>
+                    <ul>
+                        <li><code>Source MuServer Update 15/ConnectServer/ConnectServer.cpp</code> &mdash; primeira porta de entrada dos clientes.</li>
+                        <li><code>Source MuServer Update 15/JoinServer/JoinServer.cpp</code> &mdash; valida usuários e repassa para o GameServer.</li>
+                        <li><code>Source MuServer Update 15/GameServer/GameServer/GameMain.cpp</code> &mdash; inicializa os mapas e eventos.</li>
+                        <li><code>Source MuServer Update 15/GameServer/GameServer/JSProtocol.cpp</code> &mdash; interpreta pacotes da Unreal.</li>
+                        <li><code>Source MuServer Update 15/DataServer/DataServer/DataServerProtocol.cpp</code> &mdash; conversa com o banco de dados.</li>
+                    </ul>
+                </article>
+                <article class="card card--map">
+                    <h3>Ferramentas Utilitárias</h3>
+                    <ul>
+                        <li><code>tools/</code> &mdash; scripts auxiliares para builds e importação de assets.</li>
+                        <li><code>unreal_recreation_plan.html</code> &mdash; visão macro da migração para Unreal.</li>
+                        <li><code>inventory_unreal_inventory_system.html</code> &mdash; referência para o remake do inventário.</li>
+                        <li><code>sprite_hud_explanation.html</code> &mdash; detalhes sobre sprites usados na interface.</li>
+                        <li>Documentos extras ajudam a tirar dúvidas sem mergulhar direto no código.</li>
+                    </ul>
+                </article>
+            </div>
+        </section>
+
+        <section id="cliente-detalhado" class="panel">
+            <h2>Cliente Main 5.2 em Detalhes</h2>
+            <p>
+                Use esta seção como manual definitivo. Cada bloco descreve partes críticas do cliente clássico e explica
+                como traduzir o comportamento para o remake na Unreal. Leia com calma e marque no diário de bordo quando
+                cada item estiver compreendido ou reproduzido.
+            </p>
+            <div class="guide-grid">
+                <article class="guide-card">
+                    <h3>Boot, janelas e áudio</h3>
+                    <p>
+                        <code>Winmain.cpp</code> centraliza a inicialização: importa gerenciadores de UI, cenas, modelos,
+                        áudio e rede, ativa o temporizador global <code>g_pTimer</code> e expõe utilitários como
+                        <code>PlayMp3</code>/<code>StopMp3</code> usando <code>wzAudio.lib</code>. Esse arquivo mostra a
+                        ordem de carga e serve de referência para a sequência do seu <em>GameInstance</em> na Unreal.
+                    </p>
+                    <ul>
+                        <li>Liste todos os cabeçalhos incluídos em <code>Winmain.cpp</code> para identificar dependências
+                            diretas (renderização, inventário, login, efeitos, som).</li>
+                        <li>Repita a lógica de tocar e parar trilhas sonoras mapeando cada chamada <code>PlayMp3</code> para
+                            <em>Audio Components</em> na Unreal com filas nomeadas.</li>
+                        <li>Anote variáveis globais (por exemplo <code>g_pUIManager</code>, <code>g_hWnd</code>) e planeje
+                            equivalentes seguros em C++/Blueprint (subsystems, singletons controlados).</li>
+                    </ul>
+                </article>
+                <article class="guide-card">
+                    <h3>Gestão de UI e janelas</h3>
+                    <p>
+                        O gerenciador <code>CNewUIManager</code> mantém uma lista ordenada de janelas, processa eventos de
+                        mouse/teclado e garante que apenas a interface ativa consuma entrada. Entenda como os métodos
+                        <code>AddUIObj</code>, <code>UpdateMouseEvent</code> e <code>UpdateKeyEvent</code> definem a
+                        hierarquia para recriar a mesma fila de foco com <em>Widget Switchers</em> e subsistemas de UI.
+                    </p>
+                    <ul>
+                        <li>Mapeie chaves (<code>dwKey</code>) usadas em <code>AddUIObj</code> para saber quais telas devem
+                            existir no remake (login, inventário, loja, HUD).</li>
+                        <li>Traduza a lógica de ordenação (<code>CompareLayerDepthReverse</code>) para camadas e <em>Z-order</em>
+                            no <em>UMG</em>.</li>
+                        <li>Implemente na Unreal um serviço de UI que troque widgets imitando <code>RemoveUIObj</code> e
+                            <code>RemoveAllUIObjs</code>, garantindo limpeza entre níveis.</li>
+                    </ul>
+                </article>
+                <article class="guide-card">
+                    <h3>HUD, inventário e itens</h3>
+                    <p>
+                        <code>NewUIMainFrameWindow.cpp</code> monta o HUD, enquanto <code>NewUIInventoryCtrl.cpp</code>
+                        gerencia slots, itens arrastados e interações de mouse. Observe como o inventário duplica itens,
+                        calcula posição pela grade e consulta <code>ItemAttribute</code> para tamanho e regras especiais.
+                    </p>
+                    <ul>
+                        <li>Registre tamanhos e offsets de cada slot para construir um grid idêntico no widget
+                            <code>WB_Inventory</code>.</li>
+                        <li>Documente como <code>CNewUIPickedItem</code> move itens com base no mouse para espelhar o fluxo
+                            com <em>Drag &amp; Drop</em> do UMG.</li>
+                        <li>Separe texturas em <code>Global Release/Data/Interface</code> e conecte-as às mesmas categorias
+                            (armas, armaduras, jóias) antes da importação.</li>
+                    </ul>
+                </article>
+                <article class="guide-card">
+                    <h3>Personagens, efeitos e câmera</h3>
+                    <p>
+                        As funções de <code>ZzzCharacter.h</code> criam heróis, monstros e helpers, calculam velocidade e
+                        atualizam animações. Combine com os módulos de câmera/entrada para definir suas <em>Animation</em>
+                        <em>Blueprints</em> e controladores de jogador na Unreal.</p>
+                    <ul>
+                        <li>Estude <code>CreateCharacter</code>, <code>SetPlayerAttack</code> e <code>CharacterMoveSpeed</code>
+                            para derivar estados de máquina e velocidades padrões.</li>
+                        <li>Liste efeitos ligados a armas, ataques e buffs para decidir quais migrar para Niagara logo no
+                            início.</li>
+                        <li>Replique a lógica de <code>ClientSendMoveCharacter</code>/<code>ClientSendPositionPacket</code>
+                            como RPCs confiáveis ou <em>replicated moves</em> na Unreal.</li>
+                    </ul>
+                </article>
+                <article class="guide-card">
+                    <h3>Rede e protocolos do cliente</h3>
+                    <p>
+                        <code>ProtocolSend.cpp</code> mostra como o cliente se conecta, envia login, sincroniza posição e
+                        repassa pacotes ao tradutor. Cada case do <code>switch</code> revela os cabeçalhos e formatos que a
+                        Unreal deve produzir.</p>
+                    <ul>
+                        <li>Liste todos os <code>ProtocolHead::</code> usados nos cases e crie enums equivalentes.</li>
+                        <li>Observe como <code>SendRequestLogInNew</code> aplica <code>BuxConvert</code> e adiciona versão para
+                            reproduzir a mesma serialização.</li>
+                        <li>Implemente logs no remake inspirados no console <code>g_ConsoleDebug</code> para depurar pacotes.</li>
+                    </ul>
+                </article>
+                <article class="guide-card">
+                    <h3>Ferramentas e depuração</h3>
+                    <p>
+                        Vários módulos adicionais (por exemplo <code>./Utilities/Log/</code>, <code>CrashReporter.h</code>)
+                        cuidam de relatórios e depuração. Recrie ferramentas equivalentes para registrar problemas no
+                        remake, principalmente durante testes em rede.</p>
+                    <ul>
+                        <li>Implemente logs estruturados (arquivo + canal) inspirados no <code>g_ConsoleDebug</code>.</li>
+                        <li>Adapte o comportamento do <code>CrashReporter</code> para capturar falhas da Unreal (use o
+                            <em>Crash Reporter</em> nativo ou plugins).</li>
+                        <li>Documente flags globais como <code>g_bGameServerConnected</code> e aponte equivalentes em seu
+                            <code>UGameInstance</code>.</li>
+                    </ul>
+                </article>
+            </div>
+            <div class="guide-notes">
+                <h3>Checklist para considerar o cliente compreendido</h3>
+                <ul>
+                    <li>Você consegue explicar a ordem das chamadas principais em <code>Winmain.cpp</code> sem consultar o
+                        código.</li>
+                    <li>Consegue demonstrar a movimentação de um item no inventário original e repetir na Unreal.</li>
+                    <li>Consegue listar quais pacotes o cliente envia ao logar, mover e atacar.</li>
+                    <li>Consegue apontar qual arquivo de textura corresponde a cada elemento da HUD.</li>
+                </ul>
+            </div>
+        </section>
+
+        <section id="servidor-detalhado" class="panel">
+            <h2>MuServer em Detalhes</h2>
+            <p>
+                O servidor clássico é dividido em serviços independentes. Esta seção explica responsabilidades, arquivos
+                principais e o que deve ser adaptado para receber clientes criados na Unreal. Leia antes de iniciar qualquer
+                ajuste de rede.
+            </p>
+            <div class="guide-grid">
+                <article class="guide-card">
+                    <h3>ConnectServer</h3>
+                    <p>
+                        Responsável por aceitar conexões iniciais, aplicar limitações por IP e devolver a lista de servidores.
+                        O <code>WinMain</code> deste serviço carrega dados do <code>ConnectServer.ini</code>, inicia sockets
+                        TCP/UDP e agenda timers para atualizar a UI administrativa.</p>
+                    <ul>
+                        <li>Replique a leitura de configurações (ports, <code>MaxIpConnection</code>) em arquivos <code>.ini</code>
+                            próprios ou no banco.</li>
+                        <li>Garanta que o remake na Unreal respeite as portas e o handshake esperados antes de contatar o
+                            JoinServer.</li>
+                        <li>Crie scripts para subir/derrubar o serviço e monitorar logs como o ConnectServer original faz.</li>
+                    </ul>
+                </article>
+                <article class="guide-card">
+                    <h3>JoinServer &amp; autenticação</h3>
+                    <p>
+                        <code>JSProtocol.cpp</code> recebe pacotes do ConnectServer e repassa resultados ao GameServer. Ele
+                        valida contas, bloqueios e troca códigos de autenticação para mudança de mapa.</p>
+                    <ul>
+                        <li>Implemente logs detalhados para cada case de <code>JoinServerProtocolCore</code> durante os testes
+                            com a Unreal.</li>
+                        <li>Confirme que o JoinServer envia <code>GCConnectAccountSend</code> com resultado 1 após validar a
+                            conta e replique mensagens de erro para feedback amigável.</li>
+                        <li>Documente requisitos de nível de conta (<code>AccountLevel</code>) e bloqueios para configurar seu
+                            ambiente de testes.</li>
+                    </ul>
+                </article>
+                <article class="guide-card">
+                    <h3>GameServer</h3>
+                    <p>
+                        <code>GameMain.cpp</code> inicializa o servidor de jogo: carrega monstros, tabelas de experiência,
+                        conecta-se ao JoinServer e ao DataServer e agenda timers. O loop processa mensagens, atualiza objetos
+                        e mantém a lista global <code>gObj</code>.</p>
+                    <ul>
+                        <li>Leia a sequência <code>GameMainInit</code> &rarr; <code>gObjInit</code> &rarr;
+                            <code>gMonsterManager.SetMonsterData</code> para planejar dados que precisam existir antes de o
+                            cliente Unreal se conectar.</li>
+                        <li>Revise <code>JoinServerMsgProc</code> e <code>DataServerMsgProc</code> para entender como tratar
+                            desconexões automaticamente.</li>
+                        <li>Planeje como mapear <code>gObj</code> para suas estruturas replicadas, respeitando estados
+                            <code>OBJECT_CONNECTED</code>/<code>OBJECT_LOGGED</code>/<code>OBJECT_PLAYING</code>.</li>
+                    </ul>
+                </article>
+                <article class="guide-card">
+                    <h3>Protocolos in-game</h3>
+                    <p>
+                        <code>Protocol.cpp</code> interpreta tudo que chega do cliente: chat, movimento, ataques, itens,
+                        comércio, teleporte. Cada cabeçalho (<code>head</code>) dispara módulos especializados como
+                        <code>gAttack</code>, <code>gItemManager</code> e <code>gSkillManager</code>.</p>
+                    <ul>
+                        <li>Monte uma tabela com cada <code>case</code> usado na sua primeira entrega (chat, movimento,
+                            ataques básicos, inventário) e ignore temporariamente o restante.</li>
+                        <li>Garanta que a Unreal envie o mesmo formato de pacote (C1/C3 ou C2/C4) antes de implementar novas
+                            funcionalidades.</li>
+                        <li>Ative logs para <code>PacketIN</code> até estabilizar o remake e desative depois para desempenho.</li>
+                    </ul>
+                </article>
+                <article class="guide-card">
+                    <h3>DataServer e persistência</h3>
+                    <p>
+                        <code>DataServerProtocol.cpp</code> manipula listas de personagens, inventários, resets, quests e
+                        armazém. Ele divide mensagens por subcabeçalhos para salvar/ler dados específicos.</p>
+                    <ul>
+                        <li>Mapeie quais chamadas impactam o inventário (<code>GDWarehouseItem</code>) e habilidades
+                            (<code>GDMasterSkillTree</code>) para sincronizar com a Unreal.</li>
+                        <li>Repita a lógica de <code>gServerManager[index].m_PacketTime</code> em suas ferramentas de
+                            monitoramento para detectar travamentos.</li>
+                        <li>Projete uma camada intermediária se decidir usar outro banco de dados (ORM, REST) mantendo o
+                            formato dos pacotes.</li>
+                    </ul>
+                </article>
+                <article class="guide-card">
+                    <h3>Usuários e eventos</h3>
+                    <p>
+                        <code>User.cpp</code> e os diversos gerenciadores de evento controlam estados do jogador, arenas,
+                        quests e loja. Mesmo que nem tudo seja implementado na primeira fase, consulte esses arquivos para
+                        saber como o servidor clássico espera atualizar estatísticas.</p>
+                    <ul>
+                        <li>Liste variáveis globais (<code>gObjTotalUser</code>, <code>gObjOffStore</code>) e mantenha um
+                            dashboard simples para compará-las com a Unreal.</li>
+                        <li>Documente eventos obrigatórios (Blood Castle, Castle Siege) para planejar adaptações futuras.</li>
+                        <li>Garanta que resets de sessão (<code>CloseClient</code>, <code>gObjAllDisconnect</code>) funcionem
+                            mesmo quando o cliente for a Unreal.</li>
+                    </ul>
+                </article>
+            </div>
+            <div class="guide-notes">
+                <h3>Checklist do servidor</h3>
+                <ul>
+                    <li>Você sabe qual serviço subir primeiro e quais portas abrir.</li>
+                    <li>Você consegue reproduzir o fluxo de login completo com logs detalhados.</li>
+                    <li>Você consegue explicar onde cada pacote é tratado (JoinServer, GameServer, DataServer).</li>
+                    <li>Você possui scripts de start/stop e backup do banco validados.</li>
+                </ul>
+            </div>
+        </section>
+
+        <section id="unreal-detalhado" class="panel">
+            <h2>Guia Unreal Detalhado</h2>
+            <p>
+                Agora que os sistemas originais foram dissecados, use esta seção para planejar o remake na Unreal Engine 5
+                passo a passo. Cada bloco conecta arquivos C++ clássicos aos componentes equivalentes na Unreal.
+            </p>
+            <div class="guide-grid">
+                <article class="guide-card">
+                    <h3>Arquitetura do projeto</h3>
+                    <p>
+                        Estruture o projeto com módulos C++ (Core, NetworkBridge, UI) e camadas de Blueprint. Use um
+                        <code>UGameInstance</code> para inicialização (equivalente a <code>Winmain.cpp</code>) e <em>Subsystems</em>
+                        para serviços persistentes.</p>
+                    <ul>
+                        <li>Crie pastas <code>Content/UI</code>, <code>Content/Characters</code>, <code>Content/Maps</code> e
+                            <code>Source/EnsinoRemake</code> com submódulos organizados.</li>
+                        <li>Implemente um <code>UPrimaryGameLayout</code> ou <code>GameFeature</code> para controlar telas
+                            equivalentes às janelas do <code>CNewUIManager</code>.</li>
+                        <li>Configure <em>GameMode</em>, <em>PlayerController</em> e <em>HUD</em> específicos para login,
+                            seleção e jogo.</li>
+                    </ul>
+                </article>
+                <article class="guide-card">
+                    <h3>Fluxo de login e seleção</h3>
+                    <p>
+                        Monte Widgets para login e seleção de personagens com validação. Crie <code>USTRUCTS</code> que
+                        representem mensagens compatíveis com <code>ProtocolSend.cpp</code> e <code>JSProtocol.cpp</code>.</p>
+                    <ul>
+                        <li>Construa <code>WB_LoginMenu</code> com estados de carregamento e mensagens de erro reutilizáveis.</li>
+                        <li>Implemente <code>WB_SelectCharacter</code> usando <em>ListView</em> e dados recebidos do servidor.</li>
+                        <li>Crie uma fila de requisições para garantir uma mensagem por vez ao JoinServer.</li>
+                    </ul>
+                </article>
+                <article class="guide-card">
+                    <h3>Movimentação, combate e câmeras</h3>
+                    <p>
+                        Use <em>Enhanced Input</em> para mapear teclas/mouse, configure um <code>CharacterMovementComponent</code>
+                        com valores de velocidade herdados de <code>ZzzCharacter</code> e implemente câmeras equivalentes ao
+                        comportamento clássico.</p>
+                    <ul>
+                        <li>Crie ações para clique de movimentação, WASD e câmera livre.</li>
+                        <li>Configure <em>Animation Montages</em> para ataques corpo a corpo e ranged, sincronizando com
+                            pacotes de <code>Protocol.cpp</code>.</li>
+                        <li>Utilize <em>Timeline</em> e <em>Camera Rigs</em> para replicar zoom/rotação do cliente original.</li>
+                    </ul>
+                </article>
+                <article class="guide-card">
+                    <h3>Inventário e HUD</h3>
+                    <p>
+                        Recrie o inventário com <em>Widget Blueprints</em>, <code>ActorComponents</code> replicados e tabelas
+                        de dados. Sincronize com os pacotes do DataServer para persistência.</p>
+                    <ul>
+                        <li>Implemente <code>UInventoryComponent</code> com arrays bidimensionais para slots e funções de
+                            validação.</li>
+                        <li>Configure binding entre o componente e o <code>WB_Inventory</code>, incluindo arrastar/soltar.</li>
+                        <li>Atualize o HUD com barras de HP/MP, minimapa e mensagens usando dados replicados do servidor.</li>
+                    </ul>
+                </article>
+                <article class="guide-card">
+                    <h3>Rede e serialização</h3>
+                    <p>
+                        Crie um módulo <code>NetworkBridge</code> em C++ usando sockets <code>FSocket</code>. Serializa pacotes
+                        respeitando cabeçalhos C1/C3 e converta estruturas antigas para <code>UStruct</code> alinhados.</p>
+                    <ul>
+                        <li>Escreva funções utilitárias para BuxConvert, checksums e compressão conforme o cliente clássico.</li>
+                        <li>Implemente threads ou <em>Async Tasks</em> para leitura contínua e filas de processamento.</li>
+                        <li>Crie eventos <em>Delegates</em> para despachar respostas (login, lista de personagens, movimento).</li>
+                    </ul>
+                </article>
+                <article class="guide-card">
+                    <h3>Builds, automação e QA</h3>
+                    <p>
+                        Configure <em>CI</em> local (scripts) para empacotar a Unreal e subir os serviços do MuServer. Documente
+                        testes repetíveis para qualquer iniciante executar.</p>
+                    <ul>
+                        <li>Gere builds Development e Shipping e valide com a mesma base de dados usada pelo servidor.</li>
+                        <li>Automatize cópia de <code>Global Release/Data</code> para a pasta <code>Content</code>.</li>
+                        <li>Crie checklists de QA (login, spawn, ataque, desconexão) e peça feedback a outros estudantes.</li>
+                    </ul>
+                </article>
+            </div>
+        </section>
+
+        <section id="protocolos" class="panel">
+            <h2>Protocolos &amp; Pacotes Essenciais</h2>
+            <p>
+                Esta tabela reúne os pacotes que precisam ser implementados primeiro para que o remake funcione. Compare as
+                estruturas com o cliente clássico e mantenha logs organizados.
+            </p>
+            <div class="table-wrapper">
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>Ação</th>
+                            <th>Código</th>
+                            <th>Origem</th>
+                            <th>Destino</th>
+                            <th>Referência</th>
+                            <th>Notas para a Unreal</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td>Login</td>
+                            <td><code>ProtocolHead::BOTH_CONNECT_LOGIN</code></td>
+                            <td>Cliente</td>
+                            <td>JoinServer</td>
+                            <td><code>ProtocolSend::SendRequestLogInNew</code></td>
+                            <td>Aplicar <code>BuxConvert</code>, enviar versão/serial corretos e aguardar retorno 0x01.</td>
+                        </tr>
+                        <tr>
+                            <td>Lista de personagens</td>
+                            <td><code>ProtocolHead::BOTH_CONNECT_CHARACTER</code></td>
+                            <td>JoinServer</td>
+                            <td>Cliente</td>
+                            <td><code>ReceiveCharacterList</code> no cliente, <code>GDCharacterListRecv</code> no DataServer</td>
+                            <td>Crie estruturas com nome, classe, nível e posição para preencher o widget de seleção.</td>
+                        </tr>
+                        <tr>
+                            <td>Movimento</td>
+                            <td><code>ProtocolHead::BOTH_MOVE</code> / <code>0x1B</code></td>
+                            <td>Cliente</td>
+                            <td>GameServer</td>
+                            <td><code>ClientSendMoveCharacter</code>, <code>ProtocolCore</code> case 0x1B</td>
+                            <td>Sincronize passos e caminhos; use <em>Server Authoritative Movement</em> na Unreal.</td>
+                        </tr>
+                        <tr>
+                            <td>Posição</td>
+                            <td><code>ProtocolHead::BOTH_POSITION</code> / <code>0x1C</code></td>
+                            <td>GameServer</td>
+                            <td>Cliente</td>
+                            <td><code>ReceiveMovePosition</code>, <code>gMove.CGTeleportRecv</code></td>
+                            <td>Atualize posição confirmada e trate teleporte antes de atualizar câmera.</td>
+                        </tr>
+                        <tr>
+                            <td>Itens no inventário</td>
+                            <td><code>0x24</code> / subcódigos</td>
+                            <td>Cliente &amp; GameServer</td>
+                            <td>Cliente &amp; DataServer</td>
+                            <td><code>gItemManager.CGItemMoveRecv</code>, <code>GDWarehouseItemRecv</code></td>
+                            <td>Converta slots linha/coluna e mantenha histórico para desfazer ações.</td>
+                        </tr>
+                        <tr>
+                            <td>Chat</td>
+                            <td><code>0x00</code></td>
+                            <td>Cliente</td>
+                            <td>GameServer</td>
+                            <td><code>CGChatRecv</code>, <code>ProtocolCore</code></td>
+                            <td>Implemente filtro básico na Unreal e mostre mensagens no chat replicado.</td>
+                        </tr>
+                        <tr>
+                            <td>Ataque básico</td>
+                            <td><code>PROTOCOL_CODE2</code></td>
+                            <td>Cliente</td>
+                            <td>GameServer</td>
+                            <td><code>gAttack.CGAttackRecv</code></td>
+                            <td>Envie ID do alvo, direção e animação; valide se o servidor responde com dano/efeito.</td>
+                        </tr>
+                        <tr>
+                            <td>Keep alive</td>
+                            <td><code>ProtocolHead::SERVER_CONNECT</code> / <code>0x0E</code></td>
+                            <td>Cliente &amp; GameServer</td>
+                            <td>Ambos</td>
+                            <td><code>SendPingTest</code>, <code>CGLiveClientRecv</code></td>
+                            <td>Implemente heartbeat com timers na Unreal para detectar quedas rapidamente.</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+            <div class="callouts">
+                <p class="callout callout--tip"><strong>Prática:</strong> Antes de implementar um pacote na Unreal, capture o
+                    tráfego do cliente original e anote bytes relevantes. Reproduza exatamente e só depois modernize.</p>
+                <p class="callout"><strong>Segurança:</strong> Mantenha validações de servidor (nível, estado) intactas para
+                    evitar exploits mesmo em versões de estudo.</p>
+            </div>
+        </section>
+
+        <section id="banco-dados" class="panel">
+            <h2>Banco de Dados e Configuração</h2>
+            <p>
+                O DataServer espera um conjunto específico de tabelas e stored procedures. Para quem nunca administrou banco,
+                siga os passos abaixo e use scripts de teste antes de conectar o cliente da Unreal.
+            </p>
+            <div class="guide-grid">
+                <article class="guide-card">
+                    <h3>Estrutura mínima</h3>
+                    <ul>
+                        <li>Tabela <code>Account</code> com colunas <code>memb___id</code>, <code>memb__pwd</code>,
+                            <code>AccountLevel</code>, <code>bloc_code</code> e <code>ConnectStat</code>.</li>
+                        <li>Tabela <code>Character</code> com nome, classe, nível, mapa, coordenadas e inventário binário.</li>
+                        <li>Tabela <code>Warehouse</code> para itens do baú e <code>Guild</code> para informações de guilda.</li>
+                        <li>Stored procedures equivalentes a <code>dbo.sp_CreateCharacter</code>,
+                            <code>dbo.sp_DeleteCharacter</code>, <code>dbo.sp_GetWarehouse</code>.</li>
+                    </ul>
+                </article>
+                <article class="guide-card">
+                    <h3>Scripts de inicialização</h3>
+                    <ul>
+                        <li>Crie um script SQL que gera usuários de teste, personagens e inventários básicos.</li>
+                        <li>Implemente backup automático diário (SQL Server Agent ou tarefas agendadas).</li>
+                        <li>Valide permissões: o DataServer utiliza um usuário com <em>db_owner</em> limitado ao banco do jogo.</li>
+                        <li>Mantenha um script de restauração rápida para voltar ao estado inicial durante treinamentos.</li>
+                    </ul>
+                </article>
+                <article class="guide-card">
+                    <h3>Configuração dos serviços</h3>
+                    <ul>
+                        <li>Atualize arquivos <code>*.ini</code> dos serviços com IP local, portas e credenciais do banco.</li>
+                        <li>Teste a conexão com ferramentas simples (por exemplo, <code>sqlcmd</code> ou scripts Python) antes de
+                            rodar o DataServer.</li>
+                        <li>Registre no diário de bordo o endereço de cada serviço (ConnectServer, JoinServer, GameServer).</li>
+                        <li>Configure firewall para permitir tráfego nas portas especificadas.</li>
+                    </ul>
+                </article>
+                <article class="guide-card">
+                    <h3>Monitoramento e diagnóstico</h3>
+                    <ul>
+                        <li>Implemente planilha ou dashboard para acompanhar <code>gServerManager[index].m_PacketTime</code> e
+                            detectar travamentos.</li>
+                        <li>Automatize exportação de logs do DataServer para análise posterior.</li>
+                        <li>Crie scripts que limpem personagens antigos mas mantenham contas de teste.</li>
+                        <li>Documente como reexecutar scripts quando atualizar pacotes ou formatos de inventário.</li>
+                    </ul>
+                </article>
+            </div>
+            <div class="callouts">
+                <p class="callout callout--warning"><strong>Cuidado:</strong> Nunca teste comandos destrutivos em produção.
+                    Use sempre um banco de dados local separado e backups antes de qualquer migração.</p>
+            </div>
+        </section>
+
+        <section id="preparacao" class="panel">
+            <h2>Preparação Inicial</h2>
+            <div class="timeline" data-track="preparacao"></div>
+        </section>
+
+        <section id="trilha-geral" class="panel">
+            <h2>Linha do Tempo Geral</h2>
+            <p>Use esta linha do tempo como referência macro. Ela mostra como os módulos do cliente, da Unreal Engine 5 e do
+                servidor se encaixam.</p>
+            <div class="timeline" data-track="geral"></div>
+        </section>
+
+        <section id="frontend" class="panel">
+            <h2>Trilha Cliente (Main 5.2)</h2>
+            <p>
+                O código do cliente original está em <code>Source Main 5.2/source</code>, com módulos de interface e sistemas
+                de jogo escritos em C++. As etapas desta trilha ajudam a compreender a estrutura antes de portar ou adaptar
+                funcionalidades para a Unreal Engine 5.
+            </p>
+            <div class="timeline" data-track="frontend"></div>
+        </section>
+
+        <section id="unreal" class="panel">
+            <h2>Trilha Unreal Engine 5</h2>
+            <p>
+                Depois de entender o cliente clássico, estas etapas guiam a criação do remake dentro da Unreal Engine 5,
+                conectando Blueprints, C++ e assets importados do projeto original.
+            </p>
+            <div class="timeline" data-track="unreal"></div>
+        </section>
+
+        <section id="backend" class="panel">
+            <h2>Trilha Servidor (MuServer)</h2>
+            <p>
+                O servidor é dividido em serviços dedicados como <code>ConnectServer</code>, <code>JoinServer</code>,
+                <code>GameServer</code> e outros dentro de <code>Source MuServer Update 15</code>. Esta trilha ensina como
+                configurar, testar e integrar cada peça.
+            </p>
+            <div class="timeline" data-track="backend"></div>
+        </section>
+
+        <section id="laboratorios" class="panel">
+            <h2>Laboratórios Guiados</h2>
+            <p>
+                Use estes roteiros práticos para testar cada módulo. Faça um laboratório por vez e anote o que funcionou ou
+                não. Se ficar perdido, retorne ao mapa do código para localizar os arquivos citados.
+            </p>
+            <div class="labs">
+                <article class="lab">
+                    <h3>Laboratório 1 &mdash; Menu de Login na Unreal</h3>
+                    <ol>
+                        <li>Copie as texturas em <code>Source Main 5.2/Global Release/Data/Interface</code> para a pasta <code>Content/UI</code> do projeto Unreal.</li>
+                        <li>Crie um <em>Widget Blueprint</em> chamado <code>WB_LoginMenu</code> com campos de usuário e senha.</li>
+                        <li>Adapte o fluxo de <code>LoginWin.cpp</code> para Blueprints: valide campos e prepare um evento "Conectar".</li>
+                        <li>Implemente uma chamada C++ que usa <code>ProtocolSend.cpp</code> como referência para enviar o pacote de login.</li>
+                        <li>Teste com um botão "Modo Offline" que apenas imprime uma mensagem para confirmar o layout.</li>
+                    </ol>
+                </article>
+                <article class="lab">
+                    <h3>Laboratório 2 &mdash; Inventário Sincronizado</h3>
+                    <ol>
+                        <li>Mapeie a estrutura de slots em <code>Source Main 5.2/source/NewUIInventoryCtrl.cpp</code>.</li>
+                        <li>Crie uma <em>Data Table</em> na Unreal com colunas para nome do item, ícone e tipo de slot.</li>
+                        <li>Implemente um <code>ActorComponent</code> C++ que replica dados usando o exemplo de <code>Source MuServer Update 15/GameServer/GameServer/User.cpp</code>.</li>
+                        <li>Monte um Widget <code>WB_Inventory</code> que atualiza slots quando o servidor enviar pacotes de <code>JSProtocol.cpp</code>.</li>
+                        <li>Execute um teste multijogador local e observe se dois clientes recebem as mesmas atualizações.</li>
+                    </ol>
+                </article>
+                <article class="lab">
+                    <h3>Laboratório 3 &mdash; Combate Básico Online</h3>
+                    <ol>
+                        <li>Estude <code>Source Main 5.2/source/ZzzCharacter.cpp</code> para entender como danos são aplicados.</li>
+                        <li>No GameServer, leia <code>GameServer/GameServer/SkillManager.cpp</code> e <code>Protocol.cpp</code> para mapear pacotes de ataque.</li>
+                        <li>No projeto Unreal, crie uma <em>Ability</em> simples usando <em>Blueprint</em> ou C++ que chama um RPC confiável.</li>
+                        <li>Imite a estrutura de pacotes do servidor com um <code>UStruct</code> C++ e envie os dados via <code>JSProtocol.cpp</code>.</li>
+                        <li>Valide o resultado checando o log do servidor e os números de dano exibidos na HUD.</li>
+                    </ol>
+                </article>
+                <article class="lab">
+                    <h3>Laboratório 4 &mdash; Pacotes e Monitoramento</h3>
+                    <ol>
+                        <li>Capture pacotes com o cliente clássico realizando login, movimento e ataque. Salve os hexadecimais.</li>
+                        <li>Implemente no módulo <code>NetworkBridge</code> da Unreal um log similar ao <code>Protocol.cpp</code>
+                            que escreva cada cabeçalho recebido.</li>
+                        <li>Teste o envio de um pacote de login pela Unreal e valide se o JoinServer responde com <code>result = 1</code>.</li>
+                        <li>Ative o <code>PacketIN</code> do <code>Protocol.cpp</code> e compare byte a byte com os pacotes do remake.</li>
+                        <li>Documente discrepâncias e ajuste serialização até que os logs fiquem idênticos.</li>
+                    </ol>
+                </article>
+                <article class="lab">
+                    <h3>Laboratório 5 &mdash; DataServer e Persistência</h3>
+                    <ol>
+                        <li>Execute scripts SQL para criar contas e personagens de teste.</li>
+                        <li>Inicie o DataServer e verifique se <code>GDCharacterListRecv</code> retorna dados completos.</li>
+                        <li>Conecte a Unreal e confirme se o inventário recebido bate com o banco (slots, itens e quantidades).</li>
+                        <li>Realize uma troca de item no remake e observe <code>GDWarehouseItemSaveRecv</code> gravando a alteração.</li>
+                        <li>Faça backup e restaure o banco para garantir que o processo está documentado.</li>
+                    </ol>
+                </article>
+            </div>
+        </section>
+
+        <section id="erros" class="panel">
+            <h2>Diagnóstico, Erros Comuns e Perguntas Frequentes</h2>
+            <p>
+                Quando algo der errado, utilize este roteiro para isolar o problema rapidamente. Cada cenário aponta arquivos
+                específicos do cliente ou servidor que explicam a causa e como resolvê-la.
+            </p>
+            <div class="faq-grid">
+                <article class="faq-card">
+                    <h3>Cliente Unreal não conecta ao JoinServer</h3>
+                    <ul>
+                        <li>Verifique se o ConnectServer está entregando a porta correta conforme <code>ConnectServer.ini</code>.</li>
+                        <li>Confirme que o pacote de login contém versão/serial processados por <code>SendRequestLogInNew</code>.</li>
+                        <li>Leia os logs de <code>JoinServerProtocolCore</code> e identifique se o resultado é 0 (erro de senha) ou 5 (conta bloqueada).</li>
+                        <li>Teste com o cliente clássico para validar se o serviço está funcional.</li>
+                    </ul>
+                </article>
+                <article class="faq-card">
+                    <h3>Inventário não atualiza ou itens somem</h3>
+                    <ul>
+                        <li>Confirme se o componente da Unreal envia pacotes com mesma grid do <code>CNewUIInventoryCtrl</code>.</li>
+                        <li>Ative logs no DataServer para <code>GDWarehouseItemSaveRecv</code> e veja se a mensagem chega.</li>
+                        <li>Cheque a serialização do item (tipo, opção, durabilidade) antes de enviar ao servidor.</li>
+                        <li>Restaurar backup do banco e repetir o teste garante consistência.</li>
+                    </ul>
+                </article>
+                <article class="faq-card">
+                    <h3>Movimento atrasado ou teleporte inesperado</h3>
+                    <ul>
+                        <li>Certifique-se de que <code>ClientSendMoveCharacter</code> está sendo replicado como RPC confiável.</li>
+                        <li>Observe <code>gMove.CGTeleportRecv</code> para entender se o servidor está corrigindo posição.</li>
+                        <li>Sincronize o tick rate da Unreal com o tempo esperado pelo servidor clássico.</li>
+                        <li>Desative temporariamente efeitos pesados para descartar problemas de performance.</li>
+                    </ul>
+                </article>
+                <article class="faq-card">
+                    <h3>Crash ao iniciar qualquer serviço</h3>
+                    <ul>
+                        <li>Verifique dependências faltantes (bibliotecas, redistribuíveis) listadas nos projetos Visual Studio.</li>
+                        <li>Use o <code>CrashReporter</code> ou <code>CMiniDump</code> para coletar logs e identificar DLLs ausentes.</li>
+                        <li>Execute como administrador apenas se o serviço precisar abrir portas reservadas (&lt; 1024).</li>
+                        <li>Mantenha antivírus/desligamento de firewall controlado durante os testes.</li>
+                    </ul>
+                </article>
+                <article class="faq-card">
+                    <h3>Blueprints bagunçados ou difíceis de manter</h3>
+                    <ul>
+                        <li>Separe lógica de interface (Widgets) de lógica de rede (Actor Components) conforme o cliente clássico faz com módulos distintos.</li>
+                        <li>Nomeie todas as variáveis com prefixos (<code>BP_</code>, <code>C++</code>) e documente no diário.</li>
+                        <li>Utilize <em>Comment Boxes</em> para agrupar blocos equivalentes a funções do código original.</li>
+                        <li>Faça revisões semanais para refatorar Blueprints em C++ se necessário.</li>
+                    </ul>
+                </article>
+                <article class="faq-card">
+                    <h3>Diferenças entre gráfico original e Unreal</h3>
+                    <ul>
+                        <li>Releia o pipeline de efeitos em <code>Winmain.cpp</code> e arquivos <code>ZzzEffect</code> para priorizar o que migrar.</li>
+                        <li>Use Niagara para partículas e <em>Material Instances</em> para texturas animadas.</li>
+                        <li>Ative <em>Lumen</em> ou <em>Nanite</em> somente após validar desempenho em máquinas modestas.</li>
+                        <li>Documente diferenças aceitas (ex.: novas sombras) e explique aos aprendizes o motivo.</li>
+                    </ul>
+                </article>
+            </div>
+        </section>
+
+        <section id="glossario" class="panel">
+            <h2>Glossário Rápido</h2>
+            <dl class="glossario">
+                <div>
+                    <dt>Asset</dt>
+                    <dd>Qualquer arquivo reutilizável (textura, som, modelo 3D) que pode ser importado no cliente ou no Unreal.
+                    </dd>
+                </div>
+                <div>
+                    <dt>Blueprint</dt>
+                    <dd>Sistema visual da Unreal que permite criar lógica sem programar escrevendo código. Ideal para montar a
+                        primeira versão da interface.</dd>
+                </div>
+                <div>
+                    <dt>Build</dt>
+                    <dd>Processo de compilar o código e gerar um executável. O Visual Studio cuida disso para o cliente e a
+                        Unreal gera <em>packages</em> para o remake.</dd>
+                </div>
+                <div>
+                    <dt>Hot Reload</dt>
+                    <dd>Recurso da Unreal para recompilar código C++ enquanto o editor está aberto, acelerando testes rápidos.</dd>
+                </div>
+                <div>
+                    <dt>Replica&ccedil;&atilde;o</dt>
+                    <dd>Mecânica que sincroniza dados entre cliente e servidor na Unreal. Fundamental para inventário e
+                        movimentação.</dd>
+                </div>
+            </dl>
+        </section>
+
+        <section id="recursos" class="panel">
+            <h2>Recursos &amp; Referências</h2>
+            <ul class="resource-list">
+                <li><strong>Documentação original:</strong> consulte <code>README.md</code> para uma visão geral do pacote.</li>
+                <li><strong>Assets do cliente:</strong> disponíveis em <code>Source Main 5.2/Global Release</code> e
+                    <code>Source Main 5.2/source</code>.</li>
+                <li><strong>Componentes do servidor:</strong> explore <code>Source MuServer Update 15/</code> para entender cada
+                    serviço.</li>
+                <li><strong>Guias complementares:</strong> verifique
+                    <code>unreal_recreation_plan.html</code>, <code>unreal_item_system_guide.html</code> e
+                    <code>inventory_unreal_inventory_system.html</code> para aprofundar sistemas específicos.</li>
+                <li><strong>Aprendizado Unreal Engine 5:</strong> playlist oficial “Unreal Engine 5 Fundamentals” e a
+                    documentação sobre <em>Enhanced Input</em> e <em>Common UI</em>.</li>
+                <li><strong>Comunidade:</strong> participe de fóruns como o Unreal Slackers (Discord) para tirar dúvidas
+                    rápidas.</li>
+            </ul>
+        </section>
+    </main>
+
+    <footer>
+        <p>Projeto educativo criado para orientar o remake completo usando os assets originais.</p>
+    </footer>
+
+    <template id="timeline-item">
+        <article class="timeline__item">
+            <header>
+                <h3 class="timeline__title"></h3>
+                <p class="timeline__duration"></p>
+            </header>
+            <p class="timeline__description"></p>
+            <button class="timeline__toggle" type="button">Ver pré-requisitos</button>
+            <ul class="timeline__prereqs" hidden></ul>
+        </article>
+    </template>
+
+    <script src="script.js"></script>
+</body>
+</html>
