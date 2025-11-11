@@ -27,6 +27,7 @@
         <button data-target="cliente-detalhado">Cliente em Detalhes</button>
         <button data-target="servidor-detalhado">Servidor em Detalhes</button>
         <button data-target="unreal-detalhado">Guia Unreal Detalhado</button>
+        <button data-target="receitas-unreal">Receitas Unreal</button>
         <button data-target="protocolos">Protocolos &amp; Pacotes</button>
         <button data-target="banco-dados">Banco de Dados</button>
         <button data-target="preparacao">Preparação</button>
@@ -206,14 +207,27 @@
                     <div class="stepper__details">
                         <h4>Faça assim</h4>
                         <ul>
-                            <li>No Visual Studio, abra <code>NewUIMainFrameWindow.cpp</code> e liste quais barras,
-                                minimapas e botões aparecem.</li>
-                            <li>Leia <code>NewUIInventoryCtrl.cpp</code> para saber o tamanho da grade e como os itens são
-                                arrastados.</li>
-                            <li>No cliente original (se compilado) ou em vídeos, capture imagens de cada janela e cole na
-                                seção “Cliente” do diário com comentários.</li>
-                            <li>Crie um checklist com a sequência: Login &rarr; Seleção &rarr; HUD &rarr; Inventário &rarr;
-                                Loja.</li>
+                            <li>No Visual Studio, abra <code>NewUIMainFrameWindow.cpp</code> e anote cada chamada a
+                                <code>LoadBitmap</code>. Registre o caminho completo citado pelo código (ex. <code>Interface\newui_menu01.jpg</code>,
+                                <code>Interface\newui_menu_red.jpg</code>, <code>Interface\partCharge1\newui_menu03.jpg</code>) para saber exatamente
+                                quais arquivos do diretório <code>Source Main 5.2/bin/Data/Interface</code> importar.</li>
+                            <li>Use o roteiro de <code>ZzzTexture.cpp</code> para converter os pacotes:
+                                <ul>
+                                    <li>Para texturas <code>.OZJ</code>, descarte os primeiros 24 bytes e salve o restante como <code>.jpg</code>.</li>
+                                    <li>Para texturas <code>.OZT</code>, descarte 16 bytes após o cabeçalho e salve como <code>.tga</code> (32 bits).</li>
+                                    <li>Repita o processo com um conversor (por exemplo, 7-Zip + editor hexadecimal) e organize os arquivos
+                                        convertidos em <code>Content/UI/HUD</code>.</li>
+                                </ul>
+                            </li>
+                            <li>Na Unreal, crie o Widget <code>WB_HUDMain</code> com uma <em>Canvas Panel</em> 640×480 ancorada ao canto inferior.
+                                Adicione três <em>Image</em> usando as texturas <code>newui_menu01.jpg</code>, <code>newui_menu02.jpg</code> e
+                                <code>newui_menu03.jpg</code> posicionadas em (0,429), (256,429) e (384,429) respectivamente. Crie imagens para as
+                                barras de HP/MP/AG/SD e vincule a largura das imagens a variáveis <code>PercentHP</code>, <code>PercentMP</code> etc.</li>
+                            <li>Desenhe o minimapa copiando o comportamento de <code>NewUIMiniMap.cpp</code>: importe <code>Interface\WorldMap\MiniMap\</code>,
+                                coloque um <em>Image</em> circular e um <em>Border</em> para moldura. Para o inventário, abra <code>NewUIInventoryCtrl.cpp</code>
+                                e replique o grid 8×8 com uma <em>UniformGridPanel</em> (cada célula 32×32 px) e eventos de <em>Drag &amp; Drop</em>.</li>
+                            <li>No cliente original (build antigo ou capturas), compare cada janela com o widget equivalente. Marque no diário onde
+                                cada textura foi usada e registre a sequência Login &rarr; Seleção &rarr; HUD &rarr; Inventário &rarr; Loja.</li>
                         </ul>
                     </div>
                     <div class="stepper__details stepper__details--explain">
@@ -224,6 +238,11 @@
                             <li><code>CNewUIInventoryCtrl::LoadImages</code> carrega cada célula do inventário com base em
                                 <code>ZzzInventory.h</code>.</li>
                             <li><code>LoginWin.cpp</code> habilita botões e toca sons com <code>DSPlaySound</code>.</li>
+                            <li><code>CNewUIMainFrameWindow::RenderStats</code> atualiza as barras chamando
+                                <code>m_PlayerStatusBar.SetStatus()</code>; crie funções Blueprint que recebam valores de HP/MP e
+                                atualizem os <em>Bindings</em> do Widget.</li>
+                            <li><code>ZzzTexture::OpenJpeg</code> e <code>ZzzTexture::OpenTga</code> mostram como os arquivos
+                                <code>.OZJ/.OZT</code> são convertidos; siga o mesmo offset ao exportar manualmente.</li>
                         </ul>
                     </div>
                     <div class="stepper__details stepper__details--checklist">
@@ -285,12 +304,21 @@
                         <ul>
                             <li>No Content Browser, crie os Widgets <code>WB_LoginMenu</code>,
                                 <code>WB_SelectCharacter</code> e <code>WB_ServerStatus</code>.</li>
-                            <li>Arraste as texturas importadas (background, botões) para cada Widget.</li>
-                            <li>No <code>WB_LoginMenu</code>, adicione campos de texto e um botão “Conectar”. No gráfico
-                                de eventos, chame uma função <code>SolicitarLogin</code> do
-                                <code>UNetworkBridgeSubsystem</code>.</li>
+                            <li>Arraste as texturas importadas (background, botões) para cada Widget e configure estados de
+                                hover/pressed com imagens <code>newui_menu_Bt01.OZJ</code>, <code>newui_menu_Bt02.OZJ</code> e
+                                <code>newui_menu_Bt03.OZJ</code> convertidas para <code>.jpg</code>.</li>
+                            <li>No <code>WB_LoginMenu</code>, adicione campos de texto e um botão “Conectar”. No gráfico de
+                                eventos, monte a sequência: validar campos &rarr; chamar <code>UUIFlowSubsystem::MostrarStatus</code>
+                                &rarr; executar uma função <code>SolicitarLogin</code> no <code>UNetworkBridgeSubsystem</code>
+                                passando versão, serial e hash iguais aos definidos em <code>ProtocolSend::SendRequestLogInNew</code>.</li>
                             <li>No <code>WB_SelectCharacter</code>, use um <em>ListView</em> para listar personagens.
-                                Preencha com dados fictícios (nome, classe) antes de conectar ao servidor.</li>
+                                Preencha com dados fictícios (nome, classe) antes de conectar ao servidor, crie botões “Criar” e
+                                “Deletar” que apenas exibem mensagens enquanto o backend não estiver ligado e invoque
+                                <code>SolicitarEntradaNoJogo</code> quando o usuário clicar em “Entrar”.</li>
+                            <li>No <code>UUIFlowSubsystem</code>, registre funções <code>MostrarLogin</code>,
+                                <code>MostrarSelecao</code> e <code>MostrarHUD</code> que trocam widgets usando
+                                <code>AddToViewport</code>/<code>RemoveFromParent</code>, reproduzindo a lógica de foco de
+                                <code>g_pNewUISystem-&gt;Show</code>.</li>
                         </ul>
                     </div>
                     <div class="stepper__details stepper__details--explain">
@@ -301,6 +329,8 @@
                             <li><code>CharSelMainWin.cpp</code> carrega a lista de personagens e destaca o selecionado.</li>
                             <li><code>GlobalText[472]</code> e <code>GlobalText[473]</code> são mensagens de “aguarde”. Use
                                 o mesmo texto no Widget.</li>
+                            <li><code>NewUIButton.cpp</code> demonstra como estados de botões usam texturas alternadas —
+                                replique isso com o <em>Button Style</em> do UMG.</li>
                         </ul>
                     </div>
                     <div class="stepper__details stepper__details--checklist">
@@ -326,6 +356,15 @@
                                 para alternar entre idle, corrida e ataque.</li>
                             <li>Adicione uma câmera principal com <code>SpringArm</code> e ajuste zoom para imitar
                                 <code>CameraMove.cpp</code>.</li>
+                            <li>No componente <code>CharacterMovement</code>, copie limites de velocidade de
+                                <code>CharacterMoveSpeed</code> ajustando <code>MaxWalkSpeed</code> para a média registrada no
+                                diário (ex.: 350 UU/s) e habilite <em>Use Controller Desired Rotation</em> para sincronizar com
+                                a câmera.</li>
+                            <li>Crie funções <code>EnviarMovimento</code> e <code>EnviarAtaque</code> no
+                                <code>UNetworkBridgeSubsystem</code> que serializam posição (<code>FVector_NetQuantize</code>) e
+                                usam a mesma estrutura de <code>ProtocolHead::BOTH_MOVE</code>/<code>BOTH_MESSAGE</code> vista em
+                                <code>ProtocolSend::SendCharacterMoveNew</code> e nos pacotes de ataque documentados em
+                                <code>Protocol.cpp</code>.</li>
                         </ul>
                     </div>
                     <div class="stepper__details stepper__details--explain">
@@ -893,6 +932,268 @@
             </div>
         </section>
 
+        <section id="receitas-unreal" class="panel panel--recipes">
+            <h2>Receitas Unreal — Funções recriadas passo a passo</h2>
+            <p>
+                Utilize estas receitas como manuais de cozinha. Cada bloco indica exatamente quais arquivos do cliente
+                e do servidor observar, quais assets converter e quais ações executar dentro da <strong>Unreal Engine 5</strong>
+                para obter o mesmo resultado. Siga os passos na ordem e marque a checklist antes de continuar.
+            </p>
+            <div class="recipe-grid">
+                <article class="recipe-card">
+                    <h3>Receita 1 — HUD principal idêntica</h3>
+                    <p class="recipe-intro">Recompõe a barra inferior com HP/MP/AG/SD, minimapa e ícones exatamente como o
+                        cliente clássico exibe.</p>
+                    <h4>Copie do projeto original</h4>
+                    <ul>
+                        <li><code>Source Main 5.2/source/NewUIMainFrameWindow.cpp</code> — observe as chamadas
+                            <code>LoadBitmap</code> (texturas <code>Interface\newui_menu01.jpg</code>,
+                            <code>Interface\newui_menu_red.jpg</code>, <code>Interface\partCharge1\newui_menu03.jpg</code>)
+                            e funções <code>RenderFrame</code>/<code>RenderStats</code>.</li>
+                        <li><code>Source Main 5.2/source/NewUIMiniMap.cpp</code> — identifica texturas de moldura
+                            (<code>Interface\WorldMap\MiniMap</code>) e atualização do ponto do jogador.</li>
+                        <li><code>Source Main 5.2/source/ZzzTexture.cpp</code> — explica como converter arquivos
+                            <code>.OZJ/.OZT</code> em <code>.jpg/.tga</code> removendo 24 ou 16 bytes iniciais.</li>
+                    </ul>
+                    <h4>Monte na Unreal</h4>
+                    <ol>
+                        <li>Converta as texturas citadas (use qualquer editor hexadecimal para descartar o cabeçalho) e
+                            importe tudo para <code>Content/UI/HUD</code>.</li>
+                        <li>Crie o Widget <code>WB_HUDMain</code> com <em>Canvas Panel</em> 640×480. Adicione três imagens
+                            base posicionadas em (0,429), (256,429) e (384,429). Sobreponha imagens menores para barras e
+                            configure <em>Size Box</em> para que a largura varie conforme porcentagens.</li>
+                        <li>Crie um <code>Widget Blueprint</code> separado (<code>WB_Minimap</code>) com textura circular e
+                            máscara. Adicione ao <code>WB_HUDMain</code> dentro de um <em>Overlay</em> no canto superior
+                            direito.</li>
+                        <li>No gráfico do <code>WB_HUDMain</code>, exponha funções <code>AtualizarHP</code>,
+                            <code>AtualizarMP</code>, <code>AtualizarAG</code> e <code>AtualizarSD</code>. Cada uma recebe o
+                            valor atual e máximo, calcula a porcentagem e altera a escala ou tamanho da imagem.</li>
+                        <li>No <code>UEnsinoRemakeGameInstance</code>, instancie o Widget e mantenha referência global.
+                            Chame as funções de atualização quando eventos de status forem recebidos do servidor.</li>
+                    </ol>
+                    <h4>Checklist final</h4>
+                    <ul>
+                        <li>As texturas convertidas aparecem sem bordas corrompidas.</li>
+                        <li>Reduzir o HP no servidor altera imediatamente a barra vermelha na Unreal.</li>
+                        <li>O minimapa mostra a posição do jogador e rotaciona conforme a câmera.</li>
+                    </ul>
+                    <div class="recipe-mapping">
+                        <h4>Arquivos de referência</h4>
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Elemento</th>
+                                    <th>Unreal</th>
+                                    <th>Original</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td>Faixa da HUD</td>
+                                    <td>Imagens em <code>WB_HUDMain</code></td>
+                                    <td><code>NewUIMainFrameWindow::LoadImages</code></td>
+                                </tr>
+                                <tr>
+                                    <td>Barras de status</td>
+                                    <td>Funções <code>Atualizar*</code> + <em>Bindings</em></td>
+                                    <td><code>RenderStats</code> e <code>m_PlayerStatusBar.SetStatus</code></td>
+                                </tr>
+                                <tr>
+                                    <td>Minimapa</td>
+                                    <td><code>WB_Minimap</code> + material com máscara</td>
+                                    <td><code>NewUIMiniMap::Render</code></td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </article>
+                <article class="recipe-card">
+                    <h3>Receita 2 — Inventário e arrastar/soltar</h3>
+                    <p class="recipe-intro">Recria o inventário 8×8, lógica de tamanho de itens e movimentação com o mouse.</p>
+                    <h4>Copie do projeto original</h4>
+                    <ul>
+                        <li><code>Source Main 5.2/source/NewUIInventoryCtrl.cpp</code> — observe <code>LoadImages</code>,
+                            <code>SetItem</code>, <code>UpdateMouseEvent</code> e uso de <code>CNewUIPickedItem</code>.</li>
+                        <li><code>Source Main 5.2/source/ZzzInventory.h</code> — lista tamanhos (colunas, linhas) para cada
+                            item.</li>
+                        <li><code>Source MuServer Update 15/GameServer/GameServer/ItemAddOption.cpp</code> — mostra como o
+                            servidor envia atributos extras.</li>
+                    </ul>
+                    <h4>Monte na Unreal</h4>
+                    <ol>
+                        <li>Crie uma <em>Data Table</em> <code>DT_Items</code> com colunas Nome, Classe, Largura, Altura e
+                            Caminho da textura, preenchendo com dados de <code>ZzzInventory.h</code>.</li>
+                        <li>Implemente um <code>UInventoryComponent</code> com matriz 8×8 de <code>FItemSlot</code> contendo
+                            ID, rotação e quantidade.</li>
+                        <li>Monte o Widget <code>WB_Inventory</code> com <em>UniformGridPanel</em>. Cada célula possui um
+                            <em>Border</em> vazio e um <em>Image</em> preenchido quando existir item.</li>
+                        <li>Implemente eventos de <em>Drag &amp; Drop</em>: ao iniciar, armazene o item em uma variável
+                            temporária; ao soltar, valide posição e tamanho usando a matriz do componente (mesma lógica de
+                            <code>CanMoveTo</code> no código original).</li>
+                        <li>Conecte o componente ao Widget via <em>Event Dispatcher</em> que seja chamado quando pacotes do
+                            servidor (inventário completo, troca de item) chegarem.</li>
+                    </ol>
+                    <h4>Checklist final</h4>
+                    <ul>
+                        <li>Itens grandes (2×4) ocupam múltiplas células e bloqueiam sobreposição.</li>
+                        <li>Arrastar um item toca o mesmo som configurado em <code>DSPlaySound</code>.</li>
+                        <li>O inventário atualiza quando o servidor envia <code>GCInventoryItemOneSend</code> (caso de teste).</li>
+                    </ul>
+                    <div class="recipe-mapping">
+                        <h4>Arquivos de referência</h4>
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Elemento</th>
+                                    <th>Unreal</th>
+                                    <th>Original</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td>Tamanhos e slots</td>
+                                    <td><code>FItemSlot</code> + <em>Data Table</em></td>
+                                    <td><code>ZzzInventory.h</code></td>
+                                </tr>
+                                <tr>
+                                    <td>Drag &amp; drop</td>
+                                    <td>Eventos de <code>WB_Inventory</code></td>
+                                    <td><code>CNewUIPickedItem::Update</code></td>
+                                </tr>
+                                <tr>
+                                    <td>Atualização visual</td>
+                                    <td><code>OnInventoryChanged</code> (delegate)</td>
+                                    <td><code>NewUIInventoryCtrl::UpdateMouseEvent</code></td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </article>
+                <article class="recipe-card">
+                    <h3>Receita 3 — Chat, notificações e mensagens</h3>
+                    <p class="recipe-intro">Permite digitar mensagens, exibir log e mostrar alertas como no cliente clássico.</p>
+                    <h4>Copie do projeto original</h4>
+                    <ul>
+                        <li><code>Source Main 5.2/source/NewUIChatInputBox.cpp</code> — fluxo de foco e envio.</li>
+                        <li><code>Source Main 5.2/source/NewUIChatLogWindow.cpp</code> — rolagem, filtros e exibição.</li>
+                        <li><code>Source Main 5.2/source/wsclientinline.h</code> — função <code>SendChat</code> utilizada pelo
+                            cliente clássico para enviar mensagens e whispers.</li>
+                        <li><code>Source MuServer Update 15/GameServer/GameServer/Protocol.cpp</code> — casos 0x00/0x02 de
+                            mensagens recebidas.</li>
+                    </ul>
+                    <h4>Monte na Unreal</h4>
+                    <ol>
+                        <li>Crie <code>WB_Chat</code> com um <em>ScrollBox</em> para o log e um <em>EditableTextBox</em>
+                            para entrada.</li>
+                        <li>Adicione botões de filtro (Geral, Guilda, Grupo). Alterne a cor do texto com base na seleção.</li>
+                        <li>No evento <code>OnTextCommitted</code>, chame <code>UNetworkBridgeSubsystem::EnviarChat</code>
+                            montando pacote igual ao do cliente antigo.</li>
+                        <li>Ao receber resposta do servidor, adicione uma linha ao <em>ScrollBox</em> com carimbo de hora.</li>
+                        <li>Para notificações (ex. “Você entrou na party”), crie um <code>Widget</code> flutuante usando
+                            animações <em>Timeline</em> e textos de <code>GlobalText</code>.</li>
+                    </ol>
+                    <h4>Checklist final</h4>
+                    <ul>
+                        <li>Pressionar <kbd>Enter</kbd> alterna entre chat ativo/inativo como no arquivo
+                            <code>NewUIChatInputBox.cpp</code>.</li>
+                        <li>Mensagens longas quebram linha automaticamente.</li>
+                        <li>Alertas importantes aparecem na área superior com fade-in/fade-out.</li>
+                    </ul>
+                    <div class="recipe-mapping">
+                        <h4>Arquivos de referência</h4>
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Elemento</th>
+                                    <th>Unreal</th>
+                                    <th>Original</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td>Entrada de texto</td>
+                                    <td><code>EditableTextBox</code> + bindings</td>
+                                    <td><code>NewUIChatInputBox::Update</code></td>
+                                </tr>
+                                <tr>
+                                    <td>Log rolável</td>
+                                    <td><em>ScrollBox</em></td>
+                                    <td><code>NewUIChatLogWindow::RenderText</code></td>
+                                </tr>
+                                <tr>
+                                    <td>Envio de pacote</td>
+                                    <td><code>UNetworkBridgeSubsystem::EnviarChat</code></td>
+                                    <td><code>SendChat</code> (<code>wsclientinline.h</code>)</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </article>
+                <article class="recipe-card">
+                    <h3>Receita 4 — Ações do personagem e rede</h3>
+                    <p class="recipe-intro">Conecta movimento, ataque básico e confirmação do servidor respeitando os mesmos
+                        pacotes.</p>
+                    <h4>Copie do projeto original</h4>
+                    <ul>
+                        <li><code>Source Main 5.2/source/ProtocolSend.cpp</code> — funções <code>SendRequestLogInNew</code>,
+                            <code>SendCharacterMoveNew</code> e <code>SendPositionNew</code>.</li>
+                        <li><code>Source Main 5.2/source/WSclient.cpp</code> — tratamento de respostas
+                            (<code>ReceiveMoveCharacter</code>, <code>ReceiveMovePosition</code>).</li>
+                        <li><code>Source MuServer Update 15/GameServer/GameServer/Protocol.cpp</code> — casos 0x1D/0xD7 que
+                            interpretam movimento e ataque.</li>
+                    </ul>
+                    <h4>Monte na Unreal</h4>
+                    <ol>
+                        <li>No <code>UNetworkBridgeSubsystem</code>, implemente <code>Conectar</code>,
+                            <code>EnviarLogin</code>, <code>EnviarMovimento</code> e <code>EnviarAtaque</code> serializando
+                            cabeçalho (C1/C3) e corpo igual ao cliente clássico.</li>
+                        <li>Crie um <code>FQueuedPacket</code> para armazenar mensagens recebidas e processe-as no
+                            <code>Tick</code> do GameInstance, chamando <code>ReceiveMoveCharacter</code> equivalente para
+                            atualizar atores.</li>
+                        <li>Conecte eventos de <code>BP_RemakeCharacter</code> (clique de movimento, ataque) às funções do
+                            <code>NetworkBridge</code> e aguarde confirmação antes de reproduzir animações.</li>
+                        <li>Implemente logs formatados no estilo <code>g_ConsoleDebug-&gt;Write</code> para comparar pacotes.</li>
+                    </ol>
+                    <h4>Checklist final</h4>
+                    <ul>
+                        <li>O pacote enviado pela Unreal tem o mesmo cabeçalho/bytes do cliente clássico (confira com a
+                            ferramenta do Laboratório 4).</li>
+                        <li>O personagem só se move após o servidor confirmar <code>ReceiveMoveCharacter</code>.</li>
+                        <li>Erro de login mostra a mesma mensagem do arquivo <code>GlobalText</code>.</li>
+                    </ul>
+                    <div class="recipe-mapping">
+                        <h4>Arquivos de referência</h4>
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Elemento</th>
+                                    <th>Unreal</th>
+                                    <th>Original</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td>Login</td>
+                                    <td><code>EnviarLogin</code></td>
+                                    <td><code>ProtocolSend::SendRequestLogInNew</code></td>
+                                </tr>
+                                <tr>
+                                    <td>Movimento</td>
+                                    <td><code>EnviarMovimento</code></td>
+                                    <td><code>SendCharacterMoveNew</code></td>
+                                </tr>
+                                <tr>
+                                    <td>Confirmação</td>
+                                    <td>Processamento no <code>GameInstance</code></td>
+                                    <td><code>WSclient::ReceiveMoveCharacter</code></td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </article>
+            </div>
+        </section>
+
         <section id="protocolos" class="panel">
             <h2>Protocolos &amp; Pacotes Essenciais</h2>
             <p>
@@ -1138,6 +1439,21 @@
                         <li>Conecte a Unreal e confirme se o inventário recebido bate com o banco (slots, itens e quantidades).</li>
                         <li>Realize uma troca de item no remake e observe <code>GDWarehouseItemSaveRecv</code> gravando a alteração.</li>
                         <li>Faça backup e restaure o banco para garantir que o processo está documentado.</li>
+                    </ol>
+                </article>
+                <article class="lab">
+                    <h3>Laboratório 6 &mdash; HUD completa na Unreal</h3>
+                    <ol>
+                        <li>Converta as texturas citadas em <code>NewUIMainFrameWindow.cpp</code> usando o método de
+                            <code>ZzzTexture::OpenJpeg/OpenTga</code> (remova 24/16 bytes) e importe para <code>Content/UI/HUD</code>.</li>
+                        <li>Monte os Widgets <code>WB_HUDMain</code> e <code>WB_Minimap</code> seguindo a Receita 1: combine
+                            imagens base, barras e minimapa com máscaras circulares.</li>
+                        <li>No <code>UEnsinoRemakeGameInstance</code>, crie um evento <code>OnStatusAtualizado</code> chamado
+                            quando o <code>UNetworkBridgeSubsystem</code> processar pacotes de <code>ReceiveDamage</code> e
+                            <code>ReceiveMovePosition</code>. Atualize HP/MP/AG/SD e a posição do minimapa.</li>
+                        <li>Execute o cliente clássico em paralelo, cause dano em ambos os personagens e compare visualmente se
+                            as barras da Unreal respondem no mesmo ritmo.</li>
+                        <li>Documente screenshots com HUD original x HUD Unreal e anote diferenças que precisam de ajuste.</li>
                     </ol>
                 </article>
             </div>
