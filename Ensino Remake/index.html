@@ -971,6 +971,22 @@
                         <li>No <code>UEnsinoRemakeGameInstance</code>, instancie o Widget e mantenha referência global.
                             Chame as funções de atualização quando eventos de status forem recebidos do servidor.</li>
                     </ol>
+                    <h4>Fluxo Blueprint (sem escrever código)</h4>
+                    <ol class="blueprint-list">
+                        <li>No <strong>Graph</strong> do <code>WB_HUDMain</code>, clique em <em>Event Construct</em> &rarr;
+                            <em>Create Widget</em> (<code>WB_Minimap</code>) &rarr; <em>Add to Viewport</em> dentro de um
+                            <em>Overlay</em>.</li>
+                        <li>Para cada barra, crie um <em>Binding</em> do tamanho: <em>Get Percent HP</em> &rarr;
+                            <em>Divide</em> valor atual pelo máximo &rarr; <em>Set Render Scale</em> da imagem.</li>
+                        <li>Adicione um <em>Custom Event</em> chamado <code>AplicarStatusDoServidor</code> que recebe uma
+                            <code>struct</code> com HP, MP, AG e SD. Dentro dele, chame as quatro funções de atualização.</li>
+                        <li>No <code>GameInstance</code>, use <em>Event Init</em> &rarr; <em>Create Widget</em>
+                            (<code>WB_HUDMain</code>) &rarr; <em>Add to Viewport</em> &rarr; <em>Promote to Variable</em>
+                            (<code>HUDAtivo</code>).</li>
+                        <li>Quando o <code>UNetworkBridgeSubsystem</code> processar <code>ReceiveMoveCharacter</code>,
+                            dispare <code>HUDAtivo-&gt;AplicarStatusDoServidor</code> para refletir a vida confirmada pelo
+                            servidor.</li>
+                    </ol>
                     <h4>Checklist final</h4>
                     <ul>
                         <li>As texturas convertidas aparecem sem bordas corrompidas.</li>
@@ -1033,6 +1049,22 @@
                         <li>Conecte o componente ao Widget via <em>Event Dispatcher</em> que seja chamado quando pacotes do
                             servidor (inventário completo, troca de item) chegarem.</li>
                     </ol>
+                    <h4>Fluxo Blueprint</h4>
+                    <ol class="blueprint-list">
+                        <li>No <code>WB_Inventory</code>, utilize <em>Event Construct</em> &rarr; <em>For Each Loop</em> na
+                            matriz 8×8 &rarr; <em>Create Widget</em> (<code>WB_Slot</code>) &rarr; <em>Add Child to
+                                UniformGrid</em> definindo linha e coluna.</li>
+                        <li>No <em>OnMouseButtonDown</em> do <code>WB_Slot</code>, chame um <em>Event Dispatcher</em>
+                            <code>SolicitarMovimentacao</code> passando índice do slot.</li>
+                        <li>No <code>UInventoryComponent</code>, implemente <em>Custom Event</em>
+                            <code>AplicarMovimentacao</code>: verifique tamanho com <em>Branch</em> + <em>For Loop</em>
+                            (igual ao cálculo de <code>GetTargetPos</code>), atualize a matriz e dispare
+                            <code>AtualizarWidgets</code>.</li>
+                        <li>Crie uma <code>Timeline</code> curta para animações de feedback (fade quando item encaixa) e
+                            conecte-a ao <code>WB_Slot</code> após <code>AplicarMovimentacao</code>.</li>
+                        <li>No retorno do servidor (<code>GCInventoryItemOneSend</code>), chame
+                            <code>AplicarMovimentacao</code> com os dados recebidos antes de permitir outro arrasto.</li>
+                    </ol>
                     <h4>Checklist final</h4>
                     <ul>
                         <li>Itens grandes (2×4) ocupam múltiplas células e bloqueiam sobreposição.</li>
@@ -1091,6 +1123,20 @@
                         <li>Ao receber resposta do servidor, adicione uma linha ao <em>ScrollBox</em> com carimbo de hora.</li>
                         <li>Para notificações (ex. “Você entrou na party”), crie um <code>Widget</code> flutuante usando
                             animações <em>Timeline</em> e textos de <code>GlobalText</code>.</li>
+                    </ol>
+                    <h4>Fluxo Blueprint</h4>
+                    <ol class="blueprint-list">
+                        <li>No <em>Event Construct</em> do <code>WB_Chat</code>, associe o <em>ScrollBox</em> a uma variável
+                            e inicialize um <em>Array</em> de mensagens vazias.</li>
+                        <li>No <em>OnTextCommitted</em>, use <em>Select</em> para diferenciar <em>Commit</em> por Enter,
+                            construa a string “/w Nome Mensagem” quando detectar whisper e encaminhe para o
+                            <code>UNetworkBridgeSubsystem</code>.</li>
+                        <li>Ao receber mensagens, crie widgets <code>WB_LinhaChat</code>, defina cor com <em>Switch on
+                                ECanalChat</em> e adicione ao <em>ScrollBox</em>; depois chame <em>Scroll To End</em>.</li>
+                        <li>Para alertas de sistema, dispare um <code>Event Dispatcher</code> que o <code>HUD</code>
+                            escuta, instanciando <code>WB_Notificacao</code> com <em>Play Animation</em>.</li>
+                        <li>Armazene as últimas 50 mensagens em array; quando ultrapassar, use <em>Remove Index</em> para
+                            manter desempenho.</li>
                     </ol>
                     <h4>Checklist final</h4>
                     <ul>
@@ -1154,6 +1200,20 @@
                             <code>NetworkBridge</code> e aguarde confirmação antes de reproduzir animações.</li>
                         <li>Implemente logs formatados no estilo <code>g_ConsoleDebug-&gt;Write</code> para comparar pacotes.</li>
                     </ol>
+                    <h4>Fluxo Blueprint</h4>
+                    <ol class="blueprint-list">
+                        <li>No <code>BP_RemakeCharacter</code>, capture <em>InputAxis MoveForward/MoveRight</em> &rarr;
+                            <em>Add Movement Input</em> e, ao liberar a tecla, chame
+                            <code>UNetworkBridgeSubsystem::EnviarMovimento</code> com posição arredondada.</li>
+                        <li>No evento de clique direito no chão (<em>Player Controller</em>), trace <em>Hit Result</em>,
+                            converta para coordenadas de grade e envie pelo subsistema.</li>
+                        <li>Quando o subsistema emitir <code>OnPacoteMovimentoConfirmado</code>, atualize a posição real do
+                            personagem com <em>SetActorLocation</em> para evitar discrepância.</li>
+                        <li>No ataque básico, use <em>InputAction Attack</em> &rarr; <em>Play Montage</em> &rarr;
+                            <code>EnviarAtaque</code> e aguarde retorno para aplicar dano.</li>
+                        <li>Registre erros em um <em>Widget Debug</em> chamando <em>Add String</em> sempre que um pacote
+                            inesperado chegar, igual ao <code>g_ConsoleDebug</code> do cliente clássico.</li>
+                    </ol>
                     <h4>Checklist final</h4>
                     <ul>
                         <li>O pacote enviado pela Unreal tem o mesmo cabeçalho/bytes do cliente clássico (confira com a
@@ -1190,6 +1250,142 @@
                             </tbody>
                         </table>
                     </div>
+                </article>
+                <article class="recipe-card">
+                    <h3>Receita 5 — Tela de login e seleção de personagem</h3>
+                    <p class="recipe-intro">Clona o fluxo de entrada do cliente, desde botões até o handshake com o
+                        JoinServer.</p>
+                    <h4>Copie do projeto original</h4>
+                    <ul>
+                        <li><code>Source Main 5.2/source/LoginMainWin.cpp</code> — organização dos botões e sons da tela
+                            inicial.</li>
+                        <li><code>Source Main 5.2/source/ProtocolSend.cpp</code> — respostas de login e exibição de mensagens
+                            ao usuário.</li>
+                        <li><code>Source MuServer Update 15/GameServer/GameServer/JSProtocol.cpp</code> — sequência de validação
+                            de conta e movimentação entre servidores.</li>
+                        <li><code>Source MuServer Update 15/GameServer/GameServer/Protocol.cpp</code> — pacotes 0x00, 0x03 e 0x1D
+                            usados depois da autenticação.</li>
+                    </ul>
+                    <h4>Monte na Unreal</h4>
+                    <ol>
+                        <li>Crie o Widget <code>WB_Login</code> com três botões (Entrar, Opções, Créditos) e um formulário com
+                            <em>EditableTextBox</em> para ID e senha, replicando a disposição descrita em
+                            <code>LoginMainWin::Create</code>.</li>
+                        <li>Implemente <code>UMenuAudioComponent</code> para tocar os mesmos efeitos de clique listados no arquivo
+                            clássico.</li>
+                        <li>No <code>UNetworkBridgeSubsystem</code>, defina a função <code>EnviarLogin</code> serializando a
+                            estrutura <code>PMSG_CONNECT_ACCOUNT_SEND</code> e aguarde <code>JGConnectAccountRecv</code>.</li>
+                        <li>Construa a tela <code>WB_SelecaoPersonagem</code> com <em>ScrollBox</em> exibindo modelos 3D em
+                            <code>LevelSequence</code>, seguindo a ordem do array <code>CharactersClient</code>.</li>
+                        <li>Adicione botões para criar/apagar personagem que chamam eventos no servidor simulando os mesmos códigos
+                            usados em <code>JSProtocol.cpp</code>.</li>
+                    </ol>
+                    <h4>Fluxo Blueprint</h4>
+                    <ol class="blueprint-list">
+                        <li>No <code>WB_Login</code>, ligue o botão Entrar ao <em>Custom Event</em> <code>SolicitarLogin</code>
+                            &rarr; valide campos com <em>Is Empty</em> &rarr; chame o subsistema.</li>
+                        <li>Ao receber <code>OnLoginResultado</code>, use <em>Switch on Byte</em> para mapear códigos 0x00 a 0x0C
+                            exibindo <code>WB_Popup</code> com os textos equivalentes.</li>
+                        <li>Crie um <em>Widget Switcher</em> para alternar entre login e seleção de personagem quando o pacote
+                            0xF3/0x03 chegar.</li>
+                        <li>No nível de seleção, instancie <code>BP_PersonagemPreview</code> para cada slot e use <em>Async Load
+                                Asset</em> com os modelos importados.</li>
+                        <li>Confirme escolha chamando <code>EnviarReqEntrarMundo</code> e, ao receber o pacote de mapa, carregue o
+                            nível principal com <em>Open Level (by Name)</em>.</li>
+                    </ol>
+                    <h4>Checklist final</h4>
+                    <ul>
+                        <li>Mensagens de erro exibem os mesmos textos que o cliente clássico (versão incorreta, conta bloqueada).</li>
+                        <li>A seleção mostra o personagem com rotação contínua até clicar em Entrar.</li>
+                        <li>Ao confirmar, o servidor responde com o mesmo pacote 0x1D tratado pelo cliente original.</li>
+                    </ul>
+                </article>
+                <article class="recipe-card">
+                    <h3>Receita 6 — Barra de habilidades e atalhos</h3>
+                    <p class="recipe-intro">Permite arrastar habilidades para teclas rápidas, consumindo mana e respeitando atrasos
+                        como no cliente original.</p>
+                    <h4>Copie do projeto original</h4>
+                    <ul>
+                        <li><code>Source Main 5.2/source/NewUIHotKey.cpp</code> — lógica de atalhos, abertura do menu rápido e
+                            teclas como I, V e F.</li>
+                        <li><code>Source Main 5.2/source/SkillManager.cpp</code> — consulta a mana, distância e delay de cada
+                            habilidade.</li>
+                        <li><code>Source MuServer Update 15/GameServer/GameServer/Protocol.cpp</code> — pacotes 0x19, 0x1B e 0x1E de
+                            ataque com habilidades.</li>
+                    </ul>
+                    <h4>Monte na Unreal</h4>
+                    <ol>
+                        <li>Crie o Widget <code>WB_SkillBar</code> com 9 slots (1–8 e botão direito). Cada slot é um <em>Button</em>
+                            com imagem e texto da tecla.</li>
+                        <li>Implemente <code>USkillBarComponent</code> contendo um array de <code>FSkillSlot</code> (SkillID, Tecla,
+                            TempoRestante) preenchido a partir de uma <em>Data Table</em> baseada em <code>SkillAttribute</code>.</li>
+                        <li>Quando o jogador aprender uma habilidade, atualize o componente e emita evento para o Widget exibir ícone e
+                            custo.</li>
+                        <li>Na Unreal, associe cada tecla (1–8, botão direito) ao componente chamando
+                            <code>SolicitarUsoHabilidade</code>.</li>
+                        <li>Integre com o HUD mostrando barras de cooldown usando <em>Material Parameter Collection</em>.</li>
+                    </ol>
+                    <h4>Fluxo Blueprint</h4>
+                    <ol class="blueprint-list">
+                        <li>No <code>WB_SkillBar</code>, utilize <em>Event Construct</em> &rarr; <em>For Each Slot</em> &rarr; crie um
+                            <code>WB_SkillSlot</code> e vincule <em>OnClicked</em> ao evento <code>OnSkillSlotClicado</code>.</li>
+                        <li>Ao clicar, chame <code>USkillBarComponent::SolicitarUsoHabilidade</code>, que verifica mana e delay
+                            consultando <code>SkillManager</code> via C++ ou Blueprint Function Library.</li>
+                        <li>Se aprovado, envie pacote 0x19 para o servidor e inicie um <em>Timeline</em> que controla o preenchimento
+                            do cooldown.</li>
+                        <li>Quando o servidor confirmar com pacote 0x1B/0x1E, finalize o <em>Timeline</em> e notifique o HUD com o dano
+                            aplicado.</li>
+                        <li>Se faltar mana, exiba callout vermelho reutilizando a lógica do cliente clássico de mensagens no chat.</li>
+                    </ol>
+                    <h4>Checklist final</h4>
+                    <ul>
+                        <li>Cooldowns respeitam o mesmo tempo definido em <code>SkillAttribute</code>.</li>
+                        <li>Habilidades fora de alcance mostram aviso “Muito longe” como no cliente original.</li>
+                        <li>O servidor valida cada uso antes de causar dano ou efeitos.</li>
+                    </ul>
+                </article>
+                <article class="recipe-card">
+                    <h3>Receita 7 — NPC Loja e trocas entre jogadores</h3>
+                    <p class="recipe-intro">Recria o atendimento de NPCs comerciantes e a janela de trade usando as mesmas verificações de
+                        servidor.</p>
+                    <h4>Copie do projeto original</h4>
+                    <ul>
+                        <li><code>Source Main 5.2/source/NewUINPCShop.cpp</code> — abertura da janela, bloqueio de slots e envio de
+                            compras.</li>
+                        <li><code>Source Main 5.2/source/NewUIInventoryCtrl.cpp</code> — cálculo da posição alvo para itens.</li>
+                        <li><code>Source MuServer Update 15/GameServer/GameServer/Protocol.cpp</code> — pacotes 0x30–0x3D para conversar
+                            com NPCs, comprar, vender e confirmar trocas.</li>
+                    </ul>
+                    <h4>Monte na Unreal</h4>
+                    <ol>
+                        <li>Crie o Widget <code>WB_NPCShop</code> com grade 8×15 para itens do vendedor e botões Comprar, Vender, Reparar.
+                        </li>
+                        <li>No <code>UNetworkBridgeSubsystem</code>, implemente <code>EnviarAbrirNPC</code>,
+                            <code>EnviarCompraNPC</code> e <code>EnviarVendaNPC</code> espelhando os pacotes 0x30–0x33.</li>
+                        <li>Para trocas entre jogadores, desenvolva o Widget <code>WB_Trade</code> com duas grades (você e alvo) e campos de
+                            zen.</li>
+                        <li>Crie animações de feedback quando o servidor confirmar com 0x3A/0x3C (zen e confirmação final).</li>
+                        <li>Integre com o componente de inventário para bloquear slots enquanto a janela estiver aberta, tal como
+                            <code>CNewUINPCShop::LockInventory</code>.</li>
+                    </ol>
+                    <h4>Fluxo Blueprint</h4>
+                    <ol class="blueprint-list">
+                        <li>Ao interagir com NPC, use <em>Line Trace</em> &rarr; cheque tag “Merchant” &rarr; chame
+                            <code>EnviarAbrirNPC</code>; quando o servidor responder com a lista, preencha a grade através de um
+                            <em>For Each Loop</em>.</li>
+                        <li>No botão Comprar, leia slot selecionado, calcule preço e envie <code>EnviarCompraNPC</code>. Desabilite o botão
+                            até receber confirmação.</li>
+                        <li>Para trade, ao aceitar convite, abra <code>WB_Trade</code>, use <em>Event Dispatcher</em> para bloquear movimentos
+                            e envie 0x36/0x37 conforme resposta.</li>
+                        <li>Ao clicar em OK, envie 0x3C e aguarde 0x3D; apenas quando ambos confirmarem libere itens e feche janelas.</li>
+                        <li>Sincronize o ouro digitado com <code>Binding</code> que chama validação no servidor a cada alteração.</li>
+                    </ol>
+                    <h4>Checklist final</h4>
+                    <ul>
+                        <li>Itens do NPC aparecem nas mesmas posições do arquivo original.</li>
+                        <li>É impossível mover itens enquanto a janela de compra estiver aberta, evitando bugs.</li>
+                        <li>Trocas só finalizam quando os dois jogadores confirmam, replicando a lógica do pacote 0x3C.</li>
+                    </ul>
                 </article>
             </div>
         </section>

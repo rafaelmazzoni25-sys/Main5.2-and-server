@@ -241,6 +241,23 @@ main {
     padding-left: 1.25rem;
 }
 
+.blueprint-list {
+    background: rgba(56, 189, 248, 0.08);
+    border: 1px solid rgba(56, 189, 248, 0.25);
+    border-radius: 14px;
+    padding: 0.85rem 1.25rem;
+    list-style: decimal-leading-zero;
+}
+
+.blueprint-list li {
+    margin-bottom: 0.5rem;
+    color: var(--text);
+}
+
+.blueprint-list li:last-child {
+    margin-bottom: 0;
+}
+
 .recipe-intro {
     margin: 0;
     color: var(--text-muted);
