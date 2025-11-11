@@ -755,11 +755,24 @@ function renderAssetGroups(groups, totals) {
         sampleLabel.textContent = "Exemplos encontrados:";
         category.appendChild(sampleLabel);
 
-        const sampleFiles = files.slice(0, 6).map((file) => ({ __html: `<code>${file}</code>` }));
+        const samplesList = document.createElement("ul");
+        samplesList.className = "asset-tool__samples";
+
+        files.slice(0, 6).forEach((file) => {
+            const item = document.createElement("li");
+            const code = document.createElement("code");
+            code.textContent = file;
+            item.appendChild(code);
+            samplesList.appendChild(item);
+        });
+
         if (files.length > 6) {
-            sampleFiles.push({ __html: `… +${numberFormatter.format(files.length - 6)} outros` });
+            const remainingItem = document.createElement("li");
+            remainingItem.textContent = `… +${numberFormatter.format(files.length - 6)} outros`;
+            samplesList.appendChild(remainingItem);
         }
-        category.appendChild(createList(sampleFiles, "asset-tool__samples"));
+
+        category.appendChild(samplesList);
 
         const details = document.createElement("details");
         details.className = "asset-tool__details";
