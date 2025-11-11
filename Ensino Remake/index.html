@@ -1,0 +1,320 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ensino Remake - Guia do Projeto</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <header class="hero">
+        <div class="hero__overlay"></div>
+        <div class="hero__content">
+            <h1>Ensino Remake</h1>
+            <p>
+                Uma trilha didática para reconstruir o <strong>Main 5.2</strong> (cliente) e o <strong>MuServer Update 15</strong>
+                (servidor) com adaptação para <strong>Unreal Engine 5</strong>, guiando pessoas que nunca programaram.
+            </p>
+            <a class="hero__cta" href="#trilha-geral">Começar agora</a>
+        </div>
+    </header>
+
+    <nav class="quick-nav" aria-label="Navegação rápida">
+        <button data-target="introducao">Visão Geral</button>
+        <button data-target="modulos">Módulos Essenciais</button>
+        <button data-target="mapa-codigo">Mapa do Código</button>
+        <button data-target="preparacao">Preparação</button>
+        <button data-target="trilha-geral">Linha do Tempo</button>
+        <button data-target="frontend">Trilha Cliente</button>
+        <button data-target="unreal">Trilha Unreal Engine 5</button>
+        <button data-target="backend">Trilha Servidor</button>
+        <button data-target="laboratorios">Laboratórios Guiados</button>
+        <button data-target="glossario">Glossário</button>
+        <button data-target="recursos">Recursos &amp; Referências</button>
+    </nav>
+
+    <main>
+        <section id="introducao" class="panel">
+            <h2>Propósito</h2>
+            <p>
+                Este espaço organiza o processo de remake para pessoas iniciantes. Cada etapa apresenta objetivos claros,
+                pré-requisitos amigáveis e materiais de apoio. A proposta é seguir um caminho lógico: primeiro compreender
+                o cenário, depois preparar o ambiente, em seguida reconstruir o cliente <em>Main</em>, adaptar sistemas na
+                <strong>Unreal Engine 5</strong> e finalizar com a estrutura do servidor dedicado.
+            </p>
+            <div class="callouts">
+                <p class="callout callout--tip"><strong>Dica:</strong> Leia cada etapa como se fosse uma receita. Quando um termo
+                    parecer complicado, volte ao glossário antes de continuar.</p>
+                <p class="callout callout--warning"><strong>Importante:</strong> Sempre faça backup dos arquivos originais
+                    antes de editar qualquer asset ou código. Use o Git para registrar cada vitória.</p>
+            </div>
+            <div class="grid">
+                <article class="card">
+                    <h3>Como usar</h3>
+                    <p>
+                        Avance na ordem sugerida. A conclusão de um módulo libera o próximo e reduz dúvidas quando chegar
+                        o momento de integrar cliente, Unreal Engine 5 e servidor.
+                    </p>
+                </article>
+                <article class="card">
+                    <h3>Perfil</h3>
+                    <p>
+                        Linguagem simples, focada em quem nunca programou. Sempre explique conceitos com o glossário e
+                        marque dúvidas para serem revisitadas ao final de cada etapa.
+                    </p>
+                </article>
+                <article class="card">
+                    <h3>Metodologia</h3>
+                    <p>
+                        Baseada nas dependências reais do projeto original: preparar ferramentas, reaproveitar assets e
+                        então sincronizar cliente, Unreal Engine e servidor por meio de passos incrementais.
+                    </p>
+                </article>
+            </div>
+        </section>
+
+        <section id="modulos" class="panel">
+            <h2>Módulos Essenciais para Iniciantes</h2>
+            <p>Use estes módulos como base para montar uma rotina de estudos e prática.</p>
+            <div class="module-grid">
+                <article class="card card--module">
+                    <h3>Fundamentos de Computação</h3>
+                    <ul>
+                        <li>Aprenda a criar pastas, mover arquivos e usar um editor de texto.</li>
+                        <li>Entenda o que é um <strong>repositório Git</strong> e por que usamos controle de versão.</li>
+                        <li>Revise o conceito de <em>compilar</em> versus <em>executar</em>.</li>
+                    </ul>
+                </article>
+                <article class="card card--module">
+                    <h3>Primeiros passos em C++</h3>
+                    <ul>
+                        <li>Execute exemplos simples em Visual Studio 2019.</li>
+                        <li>Pratique variáveis, estruturas condicionais e funções.</li>
+                        <li>Leia <code>Winmain.cpp</code> e arquivos de cabeçalho em <code>Source Main 5.2/source</code> apenas
+                            para observar a sintaxe.</li>
+                    </ul>
+                </article>
+                <article class="card card--module">
+                    <h3>Unreal Engine 5 para Iniciantes</h3>
+                    <ul>
+                        <li>Instale via Epic Games Launcher com os módulos de <strong>C++</strong>.</li>
+                        <li>Assista ao tutorial “First Hour in Unreal Engine 5” para navegar no editor.</li>
+                        <li>Crie um projeto vazio baseado no template <em>Third Person</em> para testes.</li>
+                    </ul>
+                </article>
+                <article class="card card--module">
+                    <h3>Fluxo de Rede do Mu Online</h3>
+                    <ul>
+                        <li>Desenhe um mapa simples conectando cliente &rarr; ConnectServer &rarr; JoinServer &rarr; GameServer.</li>
+                        <li>Identifique onde o inventário e o login são processados no código original.</li>
+                        <li>Marque quais pacotes precisarão ser refeitos no remake.</li>
+                    </ul>
+                </article>
+                <article class="card card--module">
+                    <h3>Banco de Dados e Ferramentas</h3>
+                    <ul>
+                        <li>Instale o SQL Server Express ou MariaDB para simular o armazenamento do MuServer.</li>
+                        <li>Pratique consultas básicas com tabelas de exemplo, como <code>Character</code> e <code>Account</code>.</li>
+                        <li>Configure um script de backup automático para não perder progresso.</li>
+                    </ul>
+                </article>
+                <article class="card card--module">
+                    <h3>Lógica Visual e Blueprints</h3>
+                    <ul>
+                        <li>Recrie um contador com botões no Blueprint para entender eventos e variáveis.</li>
+                        <li>Experimente o sistema de <em>Enhanced Input</em> para ligar teclado, mouse e gamepad.</li>
+                        <li>Importe uma textura do Main e use-a em um Widget para praticar fluxo de assets.</li>
+                    </ul>
+                </article>
+            </div>
+        </section>
+
+        <section id="mapa-codigo" class="panel">
+            <h2>Mapa do Código Original</h2>
+            <p>
+                Esta visão geral funciona como um GPS. Repare nos nomes das pastas e arquivos porque cada etapa do tutorial
+                citará esses pontos de referência. Explore-os em modo de leitura antes de alterar qualquer linha.
+            </p>
+            <div class="map-grid">
+                <article class="card card--map">
+                    <h3>Main 5.2 (Cliente)</h3>
+                    <ul>
+                        <li><code>Source Main 5.2/source/Winmain.cpp</code> &mdash; controla o loop principal do jogo.</li>
+                        <li><code>Source Main 5.2/source/NewUIMainFrameWindow.cpp</code> &mdash; monta o HUD clássico.</li>
+                        <li><code>Source Main 5.2/source/LoginWin.cpp</code> &mdash; fluxo da tela de login com botões e caixas.</li>
+                        <li><code>Source Main 5.2/source/ProtocolSend.cpp</code> &amp; <code>WSclient.cpp</code> &mdash; enviam e recebem pacotes.</li>
+                        <li><code>Source Main 5.2/Global Release/Data/</code> &mdash; texturas, fontes e sons que serão importados.</li>
+                    </ul>
+                </article>
+                <article class="card card--map">
+                    <h3>MuServer Update 15</h3>
+                    <ul>
+                        <li><code>Source MuServer Update 15/ConnectServer/ConnectServer.cpp</code> &mdash; primeira porta de entrada dos clientes.</li>
+                        <li><code>Source MuServer Update 15/JoinServer/JoinServer.cpp</code> &mdash; valida usuários e repassa para o GameServer.</li>
+                        <li><code>Source MuServer Update 15/GameServer/GameServer/GameMain.cpp</code> &mdash; inicializa os mapas e eventos.</li>
+                        <li><code>Source MuServer Update 15/GameServer/GameServer/JSProtocol.cpp</code> &mdash; interpreta pacotes da Unreal.</li>
+                        <li><code>Source MuServer Update 15/DataServer/DataServer/DataServerProtocol.cpp</code> &mdash; conversa com o banco de dados.</li>
+                    </ul>
+                </article>
+                <article class="card card--map">
+                    <h3>Ferramentas Utilitárias</h3>
+                    <ul>
+                        <li><code>tools/</code> &mdash; scripts auxiliares para builds e importação de assets.</li>
+                        <li><code>unreal_recreation_plan.html</code> &mdash; visão macro da migração para Unreal.</li>
+                        <li><code>inventory_unreal_inventory_system.html</code> &mdash; referência para o remake do inventário.</li>
+                        <li><code>sprite_hud_explanation.html</code> &mdash; detalhes sobre sprites usados na interface.</li>
+                        <li>Documentos extras ajudam a tirar dúvidas sem mergulhar direto no código.</li>
+                    </ul>
+                </article>
+            </div>
+        </section>
+
+        <section id="preparacao" class="panel">
+            <h2>Preparação Inicial</h2>
+            <div class="timeline" data-track="preparacao"></div>
+        </section>
+
+        <section id="trilha-geral" class="panel">
+            <h2>Linha do Tempo Geral</h2>
+            <p>Use esta linha do tempo como referência macro. Ela mostra como os módulos do cliente, da Unreal Engine 5 e do
+                servidor se encaixam.</p>
+            <div class="timeline" data-track="geral"></div>
+        </section>
+
+        <section id="frontend" class="panel">
+            <h2>Trilha Cliente (Main 5.2)</h2>
+            <p>
+                O código do cliente original está em <code>Source Main 5.2/source</code>, com módulos de interface e sistemas
+                de jogo escritos em C++. As etapas desta trilha ajudam a compreender a estrutura antes de portar ou adaptar
+                funcionalidades para a Unreal Engine 5.
+            </p>
+            <div class="timeline" data-track="frontend"></div>
+        </section>
+
+        <section id="unreal" class="panel">
+            <h2>Trilha Unreal Engine 5</h2>
+            <p>
+                Depois de entender o cliente clássico, estas etapas guiam a criação do remake dentro da Unreal Engine 5,
+                conectando Blueprints, C++ e assets importados do projeto original.
+            </p>
+            <div class="timeline" data-track="unreal"></div>
+        </section>
+
+        <section id="backend" class="panel">
+            <h2>Trilha Servidor (MuServer)</h2>
+            <p>
+                O servidor é dividido em serviços dedicados como <code>ConnectServer</code>, <code>JoinServer</code>,
+                <code>GameServer</code> e outros dentro de <code>Source MuServer Update 15</code>. Esta trilha ensina como
+                configurar, testar e integrar cada peça.
+            </p>
+            <div class="timeline" data-track="backend"></div>
+        </section>
+
+        <section id="laboratorios" class="panel">
+            <h2>Laboratórios Guiados</h2>
+            <p>
+                Use estes roteiros práticos para testar cada módulo. Faça um laboratório por vez e anote o que funcionou ou
+                não. Se ficar perdido, retorne ao mapa do código para localizar os arquivos citados.
+            </p>
+            <div class="labs">
+                <article class="lab">
+                    <h3>Laboratório 1 &mdash; Menu de Login na Unreal</h3>
+                    <ol>
+                        <li>Copie as texturas em <code>Source Main 5.2/Global Release/Data/Interface</code> para a pasta <code>Content/UI</code> do projeto Unreal.</li>
+                        <li>Crie um <em>Widget Blueprint</em> chamado <code>WB_LoginMenu</code> com campos de usuário e senha.</li>
+                        <li>Adapte o fluxo de <code>LoginWin.cpp</code> para Blueprints: valide campos e prepare um evento "Conectar".</li>
+                        <li>Implemente uma chamada C++ que usa <code>ProtocolSend.cpp</code> como referência para enviar o pacote de login.</li>
+                        <li>Teste com um botão "Modo Offline" que apenas imprime uma mensagem para confirmar o layout.</li>
+                    </ol>
+                </article>
+                <article class="lab">
+                    <h3>Laboratório 2 &mdash; Inventário Sincronizado</h3>
+                    <ol>
+                        <li>Mapeie a estrutura de slots em <code>Source Main 5.2/source/NewUIInventoryCtrl.cpp</code>.</li>
+                        <li>Crie uma <em>Data Table</em> na Unreal com colunas para nome do item, ícone e tipo de slot.</li>
+                        <li>Implemente um <code>ActorComponent</code> C++ que replica dados usando o exemplo de <code>Source MuServer Update 15/GameServer/GameServer/User.cpp</code>.</li>
+                        <li>Monte um Widget <code>WB_Inventory</code> que atualiza slots quando o servidor enviar pacotes de <code>JSProtocol.cpp</code>.</li>
+                        <li>Execute um teste multijogador local e observe se dois clientes recebem as mesmas atualizações.</li>
+                    </ol>
+                </article>
+                <article class="lab">
+                    <h3>Laboratório 3 &mdash; Combate Básico Online</h3>
+                    <ol>
+                        <li>Estude <code>Source Main 5.2/source/ZzzCharacter.cpp</code> para entender como danos são aplicados.</li>
+                        <li>No GameServer, leia <code>GameServer/GameServer/SkillManager.cpp</code> e <code>Protocol.cpp</code> para mapear pacotes de ataque.</li>
+                        <li>No projeto Unreal, crie uma <em>Ability</em> simples usando <em>Blueprint</em> ou C++ que chama um RPC confiável.</li>
+                        <li>Imite a estrutura de pacotes do servidor com um <code>UStruct</code> C++ e envie os dados via <code>JSProtocol.cpp</code>.</li>
+                        <li>Valide o resultado checando o log do servidor e os números de dano exibidos na HUD.</li>
+                    </ol>
+                </article>
+            </div>
+        </section>
+
+        <section id="glossario" class="panel">
+            <h2>Glossário Rápido</h2>
+            <dl class="glossario">
+                <div>
+                    <dt>Asset</dt>
+                    <dd>Qualquer arquivo reutilizável (textura, som, modelo 3D) que pode ser importado no cliente ou no Unreal.
+                    </dd>
+                </div>
+                <div>
+                    <dt>Blueprint</dt>
+                    <dd>Sistema visual da Unreal que permite criar lógica sem programar escrevendo código. Ideal para montar a
+                        primeira versão da interface.</dd>
+                </div>
+                <div>
+                    <dt>Build</dt>
+                    <dd>Processo de compilar o código e gerar um executável. O Visual Studio cuida disso para o cliente e a
+                        Unreal gera <em>packages</em> para o remake.</dd>
+                </div>
+                <div>
+                    <dt>Hot Reload</dt>
+                    <dd>Recurso da Unreal para recompilar código C++ enquanto o editor está aberto, acelerando testes rápidos.</dd>
+                </div>
+                <div>
+                    <dt>Replica&ccedil;&atilde;o</dt>
+                    <dd>Mecânica que sincroniza dados entre cliente e servidor na Unreal. Fundamental para inventário e
+                        movimentação.</dd>
+                </div>
+            </dl>
+        </section>
+
+        <section id="recursos" class="panel">
+            <h2>Recursos &amp; Referências</h2>
+            <ul class="resource-list">
+                <li><strong>Documentação original:</strong> consulte <code>README.md</code> para uma visão geral do pacote.</li>
+                <li><strong>Assets do cliente:</strong> disponíveis em <code>Source Main 5.2/Global Release</code> e
+                    <code>Source Main 5.2/source</code>.</li>
+                <li><strong>Componentes do servidor:</strong> explore <code>Source MuServer Update 15/</code> para entender cada
+                    serviço.</li>
+                <li><strong>Guias complementares:</strong> verifique
+                    <code>unreal_recreation_plan.html</code>, <code>unreal_item_system_guide.html</code> e
+                    <code>inventory_unreal_inventory_system.html</code> para aprofundar sistemas específicos.</li>
+                <li><strong>Aprendizado Unreal Engine 5:</strong> playlist oficial “Unreal Engine 5 Fundamentals” e a
+                    documentação sobre <em>Enhanced Input</em> e <em>Common UI</em>.</li>
+                <li><strong>Comunidade:</strong> participe de fóruns como o Unreal Slackers (Discord) para tirar dúvidas
+                    rápidas.</li>
+            </ul>
+        </section>
+    </main>
+
+    <footer>
+        <p>Projeto educativo criado para orientar o remake completo usando os assets originais.</p>
+    </footer>
+
+    <template id="timeline-item">
+        <article class="timeline__item">
+            <header>
+                <h3 class="timeline__title"></h3>
+                <p class="timeline__duration"></p>
+            </header>
+            <p class="timeline__description"></p>
+            <button class="timeline__toggle" type="button">Ver pré-requisitos</button>
+            <ul class="timeline__prereqs" hidden></ul>
+        </article>
+    </template>
+
+    <script src="script.js"></script>
+</body>
+</html>
