@@ -21,6 +21,7 @@
 
     <nav class="quick-nav" aria-label="Navegação rápida">
         <button data-target="introducao">Visão Geral</button>
+        <button data-target="tutorial-completo">Tutorial Passo a Passo</button>
         <button data-target="modulos">Módulos Essenciais</button>
         <button data-target="mapa-codigo">Mapa do Código</button>
         <button data-target="cliente-detalhado">Cliente em Detalhes</button>
@@ -76,6 +77,421 @@
                         então sincronizar cliente, Unreal Engine e servidor por meio de passos incrementais.
                     </p>
                 </article>
+            </div>
+        </section>
+
+        <section id="tutorial-completo" class="panel panel--stepper">
+            <h2>Tutorial passo a passo completo</h2>
+            <p>
+                Siga estes dez passos como se estivesse montando um móvel com instruções ilustradas. Cada item traduz o
+                que acontece nos arquivos originais (<code>Source Main 5.2</code> e <code>Source MuServer Update 15</code>)
+                para ações concretas dentro da <strong>Unreal Engine 5</strong>, sempre reutilizando os assets do cliente
+                clássico.
+            </p>
+            <div class="callouts">
+                <p class="callout callout--tip"><strong>Como ler:</strong> execute os passos em ordem. Ao terminar um
+                    bloco, marque a checklist antes de seguir adiante.</p>
+                <p class="callout callout--warning"><strong>Priorize a documentação:</strong> use o diário de bordo para
+                    anotar qualquer termo novo. A meta é não depender de outra fonte além deste guia.</p>
+            </div>
+            <ol class="stepper">
+                <li>
+                    <h3>Passo 1 — Preparar o ambiente sem medo de código</h3>
+                    <p class="stepper__goal">Instale e organize as ferramentas que abrirão os arquivos originais e a
+                        Unreal Engine 5.</p>
+                    <div class="stepper__details">
+                        <h4>Faça assim</h4>
+                        <ul>
+                            <li>Baixe e instale o <strong>Visual Studio 2019</strong>. No instalador, marque “Desktop
+                                development with C++”, “MSVC v142” e “Windows 10 SDK”.</li>
+                            <li>No <strong>Epic Games Launcher</strong>, instale a <strong>Unreal Engine 5.3</strong> (ou
+                                mais recente) com suporte a C++.</li>
+                            <li>Crie a pasta <code>C:\EnsinoRemake</code> e as subpastas <code>MainOriginal</code>,
+                                <code>MuServer</code>, <code>UnrealProjeto</code> e <code>Documentos</code>.</li>
+                            <li>Copie o conteúdo de <code>Source Main 5.2/</code> para <code>MainOriginal</code> e de
+                                <code>Source MuServer Update 15/</code> para <code>MuServer</code>.</li>
+                            <li>Abra um documento em branco (Google Docs, Notion ou caderno) chamado “Diário Ensino
+                                Remake” com seções Cliente, Unreal e Servidor.</li>
+                        </ul>
+                    </div>
+                    <div class="stepper__details stepper__details--explain">
+                        <h4>Como isso aparece no projeto original</h4>
+                        <p>Os arquivos <code>Main.sln</code>, <code>ConnectServer.sln</code>, <code>JoinServer.sln</code>
+                            e <code>GameServer.sln</code> foram pensados para o Visual Studio. Sem esse ambiente os
+                            passos seguintes não carregam. A Unreal precisa da pasta organizada para gerar builds na
+                            etapa 10.</p>
+                    </div>
+                    <div class="stepper__details stepper__details--checklist">
+                        <h4>Você termina quando...</h4>
+                        <ul>
+                            <li>O Visual Studio abre <code>MainOriginal/Main.sln</code> sem pedir componentes extras.</li>
+                            <li>A Unreal Engine 5 abre com o template “Third Person” salvo em
+                                <code>UnrealProjeto</code>.</li>
+                            <li>Seu diário possui a primeira anotação listando ferramentas instaladas.</li>
+                        </ul>
+                    </div>
+                </li>
+                <li>
+                    <h3>Passo 2 — Separar e catalogar os assets originais</h3>
+                    <p class="stepper__goal">Reaproveite texturas, fontes, sons e modelos do cliente clássico para
+                        importar na Unreal.</p>
+                    <div class="stepper__details">
+                        <h4>Faça assim</h4>
+                        <ul>
+                            <li>Abra <code>MainOriginal/source/Global Release/Data</code> e copie as pastas
+                                <code>Interface</code>, <code>World</code>, <code>Sound</code> e <code>Local</code> para
+                                <code>C:\EnsinoRemake\Documentos\AssetsOriginais</code>.</li>
+                            <li>No projeto Unreal, crie em <code>Content</code> as pastas <code>UI</code>,
+                                <code>Characters</code>, <code>Effects</code>, <code>Audio</code> e <code>Maps</code>.</li>
+                            <li>Importe um exemplo de cada categoria (por exemplo
+                                <code>Interface\Layout.tga</code>) apenas para validar a organização.</li>
+                            <li>Monte uma planilha com colunas “Asset”, “Local original” e “Onde usar na Unreal”.</li>
+                        </ul>
+                    </div>
+                    <div class="stepper__details stepper__details--explain">
+                        <h4>Como isso aparece no projeto original</h4>
+                        <p><code>ZzzTexture.cpp</code> e <code>NewUIManager.cpp</code> carregam essas imagens através de
+                            caminhos como <code>Data/Interface</code>. Quando você importar para a Unreal, usará os
+                            mesmos arquivos para montar os Widgets descritos nos próximos passos.</p>
+                    </div>
+                    <div class="stepper__details stepper__details--checklist">
+                        <h4>Você termina quando...</h4>
+                        <ul>
+                            <li>Consegue localizar qualquer textura pelo nome na planilha.</li>
+                            <li>O Content Browser da Unreal mostra pastas organizadas com ícones importados.</li>
+                            <li>Os assets originais estão duplicados em um local seguro (backup).</li>
+                        </ul>
+                    </div>
+                </li>
+                <li>
+                    <h3>Passo 3 — Fazer o tour guiado pelo cliente Main 5.2</h3>
+                    <p class="stepper__goal">Ler os arquivos principais apenas para entender o que cada um controla.</p>
+                    <div class="stepper__details">
+                        <h4>Faça assim</h4>
+                        <ul>
+                            <li>No Visual Studio, abra <code>Main.sln</code> e clique duas vezes em
+                                <code>Winmain.cpp</code>. Use <kbd>Ctrl</kbd>+<kbd>F</kbd> para procurar
+                                <code>g_pUIManager</code>.</li>
+                            <li>Abra <code>NewUIManager.cpp</code>, <code>NewUIMainFrameWindow.cpp</code> e
+                                <code>LoginWin.cpp</code> para observar como as janelas são criadas.</li>
+                            <li>Leia <code>ProtocolSend.cpp</code> e marque onde aparece
+                                <code>SendRequestLogInNew</code>. Essa função é a base do login.</li>
+                            <li>Anote no diário qual arquivo controla música (dica: <code>PlayMp3</code> em
+                                <code>Winmain.cpp</code>).</li>
+                        </ul>
+                    </div>
+                    <div class="stepper__details stepper__details--explain">
+                        <h4>Tradução do código original</h4>
+                        <ul>
+                            <li><code>Winmain.cpp</code> inicia o jogo, cria <code>g_pTimer</code>, configura janelas e
+                                chama <code>GameLoop</code>.</li>
+                            <li><code>NewUIManager.cpp</code> adiciona e mostra interfaces como inventário e opções.</li>
+                            <li><code>ProtocolSend::SendRequestLogInNew</code> prepara a mensagem de login com
+                                <code>BuxConvert</code>, versão e serial.</li>
+                        </ul>
+                    </div>
+                    <div class="stepper__details stepper__details--checklist">
+                        <h4>Você termina quando...</h4>
+                        <ul>
+                            <li>Consegue explicar em voz alta para que serve cada arquivo visitado.</li>
+                            <li>Fez capturas de tela dos trechos citados e colou no diário com legendas simples.</li>
+                            <li>Sabe onde buscar o fluxo de login, HUD e música no código.</li>
+                        </ul>
+                    </div>
+                </li>
+                <li>
+                    <h3>Passo 4 — Traduzir janelas e HUD para um roteiro visual</h3>
+                    <p class="stepper__goal">Converter o comportamento das telas do cliente clássico em instruções que
+                        qualquer pessoa consiga seguir.</p>
+                    <div class="stepper__details">
+                        <h4>Faça assim</h4>
+                        <ul>
+                            <li>No Visual Studio, abra <code>NewUIMainFrameWindow.cpp</code> e liste quais barras,
+                                minimapas e botões aparecem.</li>
+                            <li>Leia <code>NewUIInventoryCtrl.cpp</code> para saber o tamanho da grade e como os itens são
+                                arrastados.</li>
+                            <li>No cliente original (se compilado) ou em vídeos, capture imagens de cada janela e cole na
+                                seção “Cliente” do diário com comentários.</li>
+                            <li>Crie um checklist com a sequência: Login &rarr; Seleção &rarr; HUD &rarr; Inventário &rarr;
+                                Loja.</li>
+                        </ul>
+                    </div>
+                    <div class="stepper__details stepper__details--explain">
+                        <h4>Tradução do código original</h4>
+                        <ul>
+                            <li><code>NewUIMainFrameWindow::CreateSubControl</code> monta as barras de HP/MP usando as
+                                texturas de <code>Data/Interface</code>.</li>
+                            <li><code>CNewUIInventoryCtrl::LoadImages</code> carrega cada célula do inventário com base em
+                                <code>ZzzInventory.h</code>.</li>
+                            <li><code>LoginWin.cpp</code> habilita botões e toca sons com <code>DSPlaySound</code>.</li>
+                        </ul>
+                    </div>
+                    <div class="stepper__details stepper__details--checklist">
+                        <h4>Você termina quando...</h4>
+                        <ul>
+                            <li>Possui uma página do diário com fotos ou desenhos de cada tela.</li>
+                            <li>Tem uma legenda simples explicando o que acontece quando o jogador clica em cada botão.</li>
+                            <li>Consegue apontar quais texturas serão importadas para cada tela.</li>
+                        </ul>
+                    </div>
+                </li>
+                <li>
+                    <h3>Passo 5 — Configurar o projeto base na Unreal Engine 5</h3>
+                    <p class="stepper__goal">Criar a estrutura que substituirá o loop e os gerenciadores do cliente
+                        clássico.</p>
+                    <div class="stepper__details">
+                        <h4>Faça assim</h4>
+                        <ul>
+                            <li>Abra a Unreal e crie o projeto C++ “EnsinoRemake” dentro de
+                                <code>C:\EnsinoRemake\UnrealProjeto</code>.</li>
+                            <li>No menu <strong>Tools &gt; New C++ Class</strong>, gere:
+                                <ul>
+                                    <li><code>UEnsinoRemakeGameInstance</code> (herda de <code>UGameInstance</code>) para
+                                        iniciar serviços.</li>
+                                    <li><code>UUIFlowSubsystem</code> (GameInstance Subsystem) para trocar telas.</li>
+                                    <li><code>UNetworkBridgeSubsystem</code> para lidar com rede.</li>
+                                </ul>
+                            </li>
+                            <li>Ative os plugins <em>Enhanced Input</em> e <em>Gameplay Tasks</em>.</li>
+                            <li>Crie pastas <code>Blueprints</code>, <code>UI</code>, <code>Systems</code> e
+                                <code>Network</code> dentro de <code>Content</code>.</li>
+                        </ul>
+                    </div>
+                    <div class="stepper__details stepper__details--explain">
+                        <h4>Tradução do código original</h4>
+                        <ul>
+                            <li><code>Winmain.cpp</code> &rarr; <code>UEnsinoRemakeGameInstance</code> controla o ciclo de
+                                vida.</li>
+                            <li><code>g_pUIManager</code> &rarr; <code>UUIFlowSubsystem</code> decide quais Widgets ficam na
+                                tela.</li>
+                            <li><code>ProtocolSend.cpp</code> &rarr; <code>UNetworkBridgeSubsystem</code> envia e recebe
+                                pacotes.</li>
+                        </ul>
+                    </div>
+                    <div class="stepper__details stepper__details--checklist">
+                        <h4>Você termina quando...</h4>
+                        <ul>
+                            <li>O projeto compila com sucesso (menu <strong>Build</strong> da Unreal ou Visual Studio).</li>
+                            <li>Os Subsystems aparecem no <strong>Output Log</strong> ao clicar em <strong>Play</strong>.</li>
+                            <li>Há uma anotação no diário mapeando cada classe nova ao arquivo original.</li>
+                        </ul>
+                    </div>
+                </li>
+                <li>
+                    <h3>Passo 6 — Recriar login e seleção de personagens</h3>
+                    <p class="stepper__goal">Transformar o fluxo clássico de botões em Widgets amigáveis.</p>
+                    <div class="stepper__details">
+                        <h4>Faça assim</h4>
+                        <ul>
+                            <li>No Content Browser, crie os Widgets <code>WB_LoginMenu</code>,
+                                <code>WB_SelectCharacter</code> e <code>WB_ServerStatus</code>.</li>
+                            <li>Arraste as texturas importadas (background, botões) para cada Widget.</li>
+                            <li>No <code>WB_LoginMenu</code>, adicione campos de texto e um botão “Conectar”. No gráfico
+                                de eventos, chame uma função <code>SolicitarLogin</code> do
+                                <code>UNetworkBridgeSubsystem</code>.</li>
+                            <li>No <code>WB_SelectCharacter</code>, use um <em>ListView</em> para listar personagens.
+                                Preencha com dados fictícios (nome, classe) antes de conectar ao servidor.</li>
+                        </ul>
+                    </div>
+                    <div class="stepper__details stepper__details--explain">
+                        <h4>Tradução do código original</h4>
+                        <ul>
+                            <li><code>LoginWin.cpp</code> chama <code>ProtocolSend::SendRequestLogInNew</code> quando o
+                                botão é pressionado.</li>
+                            <li><code>CharSelMainWin.cpp</code> carrega a lista de personagens e destaca o selecionado.</li>
+                            <li><code>GlobalText[472]</code> e <code>GlobalText[473]</code> são mensagens de “aguarde”. Use
+                                o mesmo texto no Widget.</li>
+                        </ul>
+                    </div>
+                    <div class="stepper__details stepper__details--checklist">
+                        <h4>Você termina quando...</h4>
+                        <ul>
+                            <li>Clicar em “Conectar” mostra uma animação ou mensagem de carregamento.</li>
+                            <li>O Widget de seleção troca entre personagens fictícios sem erros.</li>
+                            <li>Existe um botão “Voltar” que retorna ao login (como no cliente clássico).</li>
+                        </ul>
+                    </div>
+                </li>
+                <li>
+                    <h3>Passo 7 — Montar personagem, câmeras e interações</h3>
+                    <p class="stepper__goal">Replicar movimentação, animações e câmera baseados no código clássico.</p>
+                    <div class="stepper__details">
+                        <h4>Faça assim</h4>
+                        <ul>
+                            <li>Crie o Blueprint <code>BP_RemakeCharacter</code> herdando de <code>Character</code> e
+                                substitua o personagem padrão.</li>
+                            <li>No <code>Enhanced Input</code>, crie ações <code>IA_Move</code>, <code>IA_Look</code>,
+                                <code>IA_Attack</code> e <code>IA_Action</code>. Ligue aos eventos do Blueprint.</li>
+                            <li>Importe animações do cliente ou placeholders e configure um <code>Animation Blueprint</code>
+                                para alternar entre idle, corrida e ataque.</li>
+                            <li>Adicione uma câmera principal com <code>SpringArm</code> e ajuste zoom para imitar
+                                <code>CameraMove.cpp</code>.</li>
+                        </ul>
+                    </div>
+                    <div class="stepper__details stepper__details--explain">
+                        <h4>Tradução do código original</h4>
+                        <ul>
+                            <li><code>ZzzCharacter.cpp</code> define velocidades e animações usadas pelo personagem.</li>
+                            <li><code>MouseProc.cpp</code> e <code>CameraMove.cpp</code> controlam zoom e rotação do mouse.</li>
+                            <li><code>ProtocolSend::SendPositionNew</code> envia coordenadas X/Y a cada movimento.</li>
+                        </ul>
+                    </div>
+                    <div class="stepper__details stepper__details--checklist">
+                        <h4>Você termina quando...</h4>
+                        <ul>
+                            <li>O personagem se move, gira e ataca dentro do mapa de teste.</li>
+                            <li>A câmera respeita limites de zoom similares ao cliente clássico.</li>
+                            <li>As ações disparam eventos de log (usando <code>Print String</code>) para futura ligação com a rede.</li>
+                        </ul>
+                    </div>
+                </li>
+                <li>
+                    <h3>Passo 8 — Construir a ponte de rede compatível</h3>
+                    <p class="stepper__goal">Enviar e receber pacotes iguais aos do cliente clássico para conversar com o MuServer.</p>
+                    <div class="stepper__details">
+                        <h4>Faça assim</h4>
+                        <ul>
+                            <li>Adicione uma classe C++ <code>UNetworkBridge</code> (instanciada pelo Subsystem) que usa
+                                <code>FSocket</code> para abrir conexão TCP.</li>
+                            <li>Implemente métodos <code>EnviarLogin</code>, <code>SolicitarListaDePersonagens</code> e
+                                <code>EnviarMovimento</code> copiando o formato de <code>ProtocolSend.cpp</code>.</li>
+                            <li>Crie uma função utilitária <code>ApplyBuxConvert</code> reproduzindo a lógica de
+                                <code>BuxConvert</code> (troca de bytes) antes de mandar usuário e senha.</li>
+                            <li>Use <code>AsyncTask(ENamedThreads::AnyBackgroundThreadNormalTask, ...)</code> para ler
+                                pacotes continuamente e repassar eventos ao <code>UUIFlowSubsystem</code>.</li>
+                        </ul>
+                    </div>
+                    <div class="stepper__details stepper__details--explain">
+                        <h4>Tradução do código original</h4>
+                        <ul>
+                            <li><code>CProtocolSend::SendRequestLogInNew</code> monta o pacote de login (cabeçalho C1,
+                                tamanho, conta, senha, versão).</li>
+                            <li><code>WSclient.cpp</code> mantém a conexão viva e trata desconexões.</li>
+                            <li><code>JoinServer/JoinServerProtocol.cpp</code> (<code>GJConnectAccountRecv</code>) valida os dados.</li>
+                            <li><code>GameServer/GameServer/Protocol.cpp</code> (<code>case 0x1B</code>) processa movimento e deve receber exatamente os mesmos bytes.</li>
+                        </ul>
+                    </div>
+                    <div class="stepper__details stepper__details--checklist">
+                        <h4>Você termina quando...</h4>
+                        <ul>
+                            <li>Os logs da Unreal mostram os pacotes hexadecimais enviados e recebidos.</li>
+                            <li>Um comando <code>Telnet</code> ou <code>Wireshark</code> confirma que o cabeçalho C1 foi enviado.</li>
+                            <li>O Subsystem informa erros amigáveis quando o servidor está offline.</li>
+                        </ul>
+                    </div>
+                </li>
+                <li>
+                    <h3>Passo 9 — Subir o MuServer e validar a comunicação</h3>
+                    <p class="stepper__goal">Executar ConnectServer, JoinServer, GameServer e DataServer aceitando o novo cliente.</p>
+                    <div class="stepper__details">
+                        <h4>Faça assim</h4>
+                        <ul>
+                            <li>No Visual Studio, abra cada solução (<code>ConnectServer.sln</code>, <code>JoinServer.sln</code>, <code>GameServer.sln</code>, <code>DataServer.sln</code>) e compile em <em>Release</em>.</li>
+                            <li>Edite os arquivos <code>*.ini</code> para usar <code>127.0.0.1</code> como endereço IP e portas padrão (44405, 55901, 55960).</li>
+                            <li>Inicie os serviços nessa ordem: ConnectServer &rarr; JoinServer &rarr; GameServer &rarr; DataServer.</li>
+                            <li>Observe os consoles. Mensagens como “Account logged with global password” aparecem em <code>JoinServerProtocol.cpp</code> quando o login é aceito.</li>
+                        </ul>
+                    </div>
+                    <div class="stepper__details stepper__details--explain">
+                        <h4>Tradução do código original</h4>
+                        <ul>
+                            <li><code>GameServer/GameServer/GameMain.cpp</code> cria conexões com JoinServer e DataServer.</li>
+                            <li><code>JoinServerProtocol::GJConnectAccountRecv</code> confirma contas com o banco.</li>
+                            <li><code>DataServer/DataServer/DataServerProtocol.cpp</code> grava inventário e personagens.</li>
+                        </ul>
+                    </div>
+                    <div class="stepper__details stepper__details--checklist">
+                        <h4>Você termina quando...</h4>
+                        <ul>
+                            <li>Todos os serviços mostram “Connected” e “listening” nos consoles.</li>
+                            <li>O log do JoinServer registra a conta de teste criada no banco.</li>
+                            <li>A Unreal tenta logar e recebe resposta (mesmo que mensagem de erro) do JoinServer.</li>
+                        </ul>
+                    </div>
+                </li>
+                <li>
+                    <h3>Passo 10 — Testar, ajustar e documentar</h3>
+                    <p class="stepper__goal">Comparar comportamento entre cliente clássico e remake, registrando melhorias.</p>
+                    <div class="stepper__details">
+                        <h4>Faça assim</h4>
+                        <ul>
+                            <li>Execute os quatro serviços do MuServer e abra o cliente Unreal. Faça login com a conta de teste.</li>
+                            <li>Movimente o personagem e verifique no console do GameServer se <code>case 0x1B</code> registra as posições.</li>
+                            <li>Abra o inventário e confirme no DataServer se a tabela <code>Warehouse</code> recebe atualizações.</li>
+                            <li>Anote no diário erros encontrados e como reproduzi-los.</li>
+                        </ul>
+                    </div>
+                    <div class="stepper__details stepper__details--explain">
+                        <h4>Tradução do código original</h4>
+                        <ul>
+                            <li><code>Protocol.cpp</code> envia atualizações para <code>gGameServerLogOut</code> quando a conexão cai.</li>
+                            <li><code>DataServerProtocol::GDCharacterListRecv</code> devolve a lista de personagens.</li>
+                            <li><code>NewUIInventoryCtrl.cpp</code> define como itens aparecem; compare com o Widget Unreal.</li>
+                        </ul>
+                    </div>
+                    <div class="stepper__details stepper__details--checklist">
+                        <h4>Você termina quando...</h4>
+                        <ul>
+                            <li>Existe um registro completo de testes no diário (data, ação, resultado).</li>
+                            <li>Você consegue repetir o login, seleção e entrada no mapa sem consultar outras fontes.</li>
+                            <li>Tem uma lista de próximas melhorias (efeitos, eventos) priorizada.</li>
+                        </ul>
+                    </div>
+                </li>
+            </ol>
+            <div class="table-wrapper table-wrapper--compact">
+                <table class="data-table data-table--mapping">
+                    <caption>Mapa rápido entre arquivos clássicos e componentes da Unreal</caption>
+                    <thead>
+                        <tr>
+                            <th>Elemento original</th>
+                            <th>Onde encontrar</th>
+                            <th>Como refazer na Unreal 5</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td>Loop principal do cliente</td>
+                            <td><code>Source Main 5.2/source/Winmain.cpp</code></td>
+                            <td><code>UEnsinoRemakeGameInstance</code> + <code>GameInstanceSubsystems</code> que inicializam serviços.</td>
+                        </tr>
+                        <tr>
+                            <td>Gerenciador de janelas</td>
+                            <td><code>Source Main 5.2/source/NewUIManager.cpp</code></td>
+                            <td><code>UUIFlowSubsystem</code> controlando <em>Widget Blueprints</em> (login, HUD, inventário).</td>
+                        </tr>
+                        <tr>
+                            <td>HUD principal</td>
+                            <td><code>Source Main 5.2/source/NewUIMainFrameWindow.cpp</code></td>
+                            <td>Widgets <code>WB_HUDMain</code> + <code>AHUD</code> customizado com barras, minimapa e mensagens.</td>
+                        </tr>
+                        <tr>
+                            <td>Inventário e slots</td>
+                            <td><code>Source Main 5.2/source/NewUIInventoryCtrl.cpp</code></td>
+                            <td><code>UInventoryComponent</code> replicado + <code>WB_Inventory</code> com grade e drag &amp; drop.</td>
+                        </tr>
+                        <tr>
+                            <td>Envio de pacotes</td>
+                            <td><code>Source Main 5.2/source/ProtocolSend.cpp</code></td>
+                            <td><code>UNetworkBridgeSubsystem</code> + funções <code>EnviarLogin</code>, <code>EnviarMovimento</code> com <code>FSocket</code>.</td>
+                        </tr>
+                        <tr>
+                            <td>Tratamento de login no servidor</td>
+                            <td><code>Source MuServer Update 15/JoinServer/JoinServer/JoinServerProtocol.cpp</code></td>
+                            <td>Método <code>OnLoginResponse</code> no Subsystem validando códigos de retorno 0x01/0x02.</td>
+                        </tr>
+                        <tr>
+                            <td>Movimento e ações do servidor</td>
+                            <td><code>Source MuServer Update 15/GameServer/GameServer/Protocol.cpp</code></td>
+                            <td>Handlers no <code>UNetworkBridgeSubsystem</code> convertendo bytes em eventos (andar, atacar).</td>
+                        </tr>
+                        <tr>
+                            <td>Salvamento no banco de dados</td>
+                            <td><code>Source MuServer Update 15/DataServer/DataServer/DataServerProtocol.cpp</code></td>
+                            <td>Chamadas a stored procedures via DataServer + scripts SQL documentados no diário.</td>
+                        </tr>
+                    </tbody>
+                </table>
             </div>
         </section>
 

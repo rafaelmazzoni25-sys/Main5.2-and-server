@@ -392,6 +392,108 @@ main {
     color: var(--text-muted);
 }
 
+.panel--stepper {
+    border-left: 4px solid var(--accent);
+}
+
+.stepper {
+    list-style: none;
+    margin: 2rem 0 0;
+    padding: 0;
+    display: grid;
+    gap: 1.75rem;
+    counter-reset: passo;
+}
+
+.stepper li {
+    position: relative;
+    padding: 2rem;
+    background: var(--bg-card);
+    border-radius: 22px;
+    border: 1px solid rgba(148, 163, 184, 0.2);
+    box-shadow: 0 18px 40px -32px var(--shadow);
+}
+
+.stepper li::before {
+    counter-increment: passo;
+    content: counter(passo);
+    position: absolute;
+    top: -1.2rem;
+    left: 1.75rem;
+    width: 2.75rem;
+    height: 2.75rem;
+    border-radius: 999px;
+    background: var(--accent);
+    color: #0f172a;
+    display: grid;
+    place-items: center;
+    font-weight: 700;
+    font-size: 1.25rem;
+    box-shadow: 0 12px 24px -18px var(--shadow);
+}
+
+.stepper h3 {
+    margin: 0 0 0.75rem;
+    font-size: 1.4rem;
+}
+
+.stepper__goal {
+    margin: 0;
+    color: var(--text-muted);
+}
+
+.stepper__details {
+    margin-top: 1.25rem;
+    padding: 1.25rem 1.5rem;
+    border-radius: 16px;
+    background: rgba(15, 23, 42, 0.65);
+    border: 1px solid rgba(148, 163, 184, 0.18);
+}
+
+.stepper__details h4 {
+    margin: 0;
+    font-size: 1.05rem;
+}
+
+.stepper__details ul {
+    margin: 0.75rem 0 0;
+    padding-left: 1.25rem;
+}
+
+.stepper__details--explain {
+    border-style: dotted;
+}
+
+.stepper__details--checklist {
+    border-style: dashed;
+    background: rgba(15, 23, 42, 0.8);
+}
+
+.table-wrapper--compact {
+    margin-top: 2.5rem;
+}
+
+.data-table--mapping {
+    font-size: 0.95rem;
+}
+
+.data-table--mapping caption {
+    caption-side: bottom;
+    margin-top: 0.75rem;
+    color: var(--text-muted);
+    text-align: left;
+}
+
+.data-table--mapping th,
+.data-table--mapping td {
+    text-align: left;
+    vertical-align: top;
+}
+
+.data-table--mapping code {
+    white-space: nowrap;
+}
+
 .glossario {
     display: grid;
     gap: 1.25rem;
@@ -444,5 +546,20 @@ footer {
 
     .timeline__item {
         padding: 1.25rem;
+    }
+
+    .stepper li {
+        padding: 1.5rem 1.25rem;
+    }
+
+    .stepper li::before {
+        left: 1.25rem;
+        width: 2.4rem;
+        height: 2.4rem;
+        font-size: 1.1rem;
+    }
+
+    .stepper__details {
+        padding: 1rem 1.25rem;
     }
 }
