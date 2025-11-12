@@ -794,29 +794,32 @@ const noviceRecipes = {
         ]
     },
     "receita-4": {
-        "intro": "Objetivo: fazer o personagem andar, atacar e usar poções replicando pacotes do cliente original.",
+        "intro": "Objetivo: reconstruir o combate completo — movimento confirmado, combos, habilidades e poções — sem pular nenhuma validação do servidor.",
         "preparation": [
-            "Abra o Character original (BP_PlayerRemake ou similar) e confirme que inputs WASD e mouse estão configurados.",
-            "Observe ProtocolSend.cpp para mapear pacotes 0xD7 (movimento), 0x1F (ataque) e 0x26 (uso de poção).",
-            "Separe animações básicas (Idle, Walk, Run, Attack) importadas para Content/Characters.",
-            "Ative o plugin Enhanced Input se ainda não estiver em uso para mapear ações."
+            "Abra o BP_PlayerRemake e confirme que o projeto usa Enhanced Input com ações para mover, atacar, usar habilidades 1-0 e consumir poções.",
+            "Revise ProtocolSend.cpp destacando pacotes 0xD7 (movimento), 0x1F (ataque físico), 0x19/0x1E (skills alvo/posição) e 0x26 (uso rápido).",
+            "Separe animações Idle/Walk/Run e três montagens de combo (Golpe1/Golpe2/Final) além de montagens das principais skills.",
+            "Converta SkillList.txt, SkillTree.txt e Item.txt em planilhas ou Data Tables auxiliares para consultar custos de mana, delays e itens consumíveis."
         ],
         "steps": [
-            "No Content Drawer abra o BP_PlayerRemake e confirme que o componente CharacterMovement usa valores de velocidade próximos aos do Main 5.2 (Walk 200, Run 350).",
-            "Configure ações de input (IA_Move, IA_Attack, IA_UsePotion) no Input Mapping Context e associe teclas.",
-            "No Event Graph, trate IA_Move para atualizar um vetor de movimento replicado (Add Movement Input) e enviar pacote 0xD7 através do NetworkBridge.",
-            "Crie um componente UActionSyncComponent responsável por agrupar chamadas de rede e evitar spam (envio a cada 100 ms).",
-            "Para ataque, reproduza animação usando Montage Play e envie pacote 0x1F com target selecionado.",
-            "Conecte o uso de poção (tecla Q/W/E) à função ConsumirItem, que busca no inventário e dispara 0x26 com o slot correto.",
-            "Utilize GameplayTags para impedir ações enquanto outra animação crítica estiver em andamento (evita spam de ataques).",
-            "No servidor fake/local, replique resposta 0x1F confirmando dano e atualize a HUD chamando AplicarStatusDoServidor.",
-            "Para feedback sonoro, reproduza efeitos clássicos (sword.wav, potion.wav) ao mesmo tempo da animação.",
-            "Documente no blueprint com comentários coloridos indicando \"Entrada\", \"Envio de Rede\" e \"Feedback Visual\"."
+            "No Content Drawer crie Data Tables DT_Skills (Id, Nome, Tipo, ConsumoMana, Cooldown, Efeito), DT_Combos (Classe, SequenciaMontage, Pacote) e DT_QuickItems (Slot, ItemId, Pacote).",
+            "Crie um Blueprint Component chamado BP_CombatBridge (tipo Actor Component) com eventos Custom EnviarMovimento, EnviarComboBasico, EnviarSkillAlvo, EnviarSkillArea e EnviarUsoRapido; dentro deles, chame funções correspondentes do UNetworkBridgeSubsystem.",
+            "Anexe o BP_CombatBridge ao BP_PlayerRemake e armazene referência do subsistema com GetGameInstance -> GetSubsystem.",
+            "Implemente IA_Move usando Add Movement Input e, ao finalizar cada tick (Event Tick), peça ao componente que envie 0xD7 apenas se a posição mudou ≥30 unidades desde o último pacote (previne flood).",
+            "Monte um state machine de animação com estado Combat; nele, crie Montages para ComboLeve com três seções. Nas notificações (AnimNotify), chame BP_CombatBridge->EnviarComboBasico passando índice da seção atual.",
+            "Crie Widget ou componente BP_SkillLoadout responsável pelos slots 1-10: carregue DT_Skills, permita arrastar ícones e expose função SolicitarUsoSkill(Id).",
+            "No Player Controller, mapeie as teclas 1-0 para chamar BP_SkillLoadout->SolicitarUsoSkill; essa função consulta DT_Skills, verifica mana e dispara EnviarSkillAlvo ou EnviarSkillArea conforme Tipo.",
+            "Implemente retorno no subsistema: ao receber ReceiveMagicAttack/ReceiveAttack/ReceiveDamage, dispare eventos em BP_CombatBridge (OnAtaqueConfirmado, OnSkillConfirmada, OnDanoRecebido) para sincronizar efeitos.",
+            "Construa um QuickSlotManager (pode ser componente ou parte do HUD) que lê DT_QuickItems, atualiza ícones do HUD e, quando o jogador pressiona Q/W/E/R, chama EnviarUsoRapido e bloqueia novo uso até receber confirmação.",
+            "Crie um BuffTimelineComponent (Blueprint Actor Component) que recebe eventos OnBuffAtualizado do subsistema, ativa Timer para cada buff e comunica o HUD para exibir ícones e contagem regressiva.",
+            "Para feedback visual, instancie Niagara ou partículas clássicas nos eventos OnSkillConfirmada/OnDanoRecebido e gere números flutuantes (WidgetComponent) alinhados com dano retornado.",
+            "No HUD principal, conecte-se aos eventos do BP_CombatBridge e BuffTimelineComponent para atualizar barras de HP/MP, cooldowns dos slots e ícones de buff, garantindo que tudo dependa das confirmações do servidor."
         ],
         "validation": [
-            "Inicie dois clientes em Play-in-Editor (Session Multiplayer) e mova um personagem: o outro deve ver deslocamento suave.",
-            "Use uma poção: verifique se o HP aumenta no HUD e se a mensagem de confirmação aparece no log.",
-            "Ataque um manequim de treino e confira se a animação corresponde ao tempo enviado ao servidor (sem atrasos visíveis)."
+            "Execute dois clientes em PIE (New Editor Window): mova um personagem em zigue-zague e confira se ambos enxergam o mesmo caminho sem teleporte.",
+            "Acione o combo básico completo (clique, clique rápido, manter pressionado): as três montagens devem tocar em sequência apenas quando o servidor confirma cada 0x1F.",
+            "Use uma habilidade em área: verifique se mana e cooldown só são descontados após o ReceiveMagicAttack e se o efeito Niagara surge na posição confirmada.",
+            "Consuma uma poção ou scroll de buff: estoque diminui, buff aparece na HUD com contador e some exatamente quando o tempo do BuffTimeline expira."
         ]
     },
     "receita-5": {
@@ -1214,6 +1217,33 @@ const noviceRecipes = {
             "Adicione itens diferentes ao carrinho e confirme que total e saldo são recalculados corretamente.",
             "Realize compra e verifique se resposta 0xD3 atualiza saldo e entrega itens no inventário.",
             "Resgate presente no mailbox e confirme se desaparece da lista e aparece na bolsa."
+        ]
+    },
+    "receita-21": {
+        "intro": "Objetivo: guiar a construção de todas as interfaces do NewUI na Unreal, com texturas originais e atalhos iguais ao cliente clássico.",
+        "preparation": [
+            "Liste todas as janelas em NewUIManager.cpp (Inventory, Character, Quest, Guild, Trade, Cash Shop, Options, Event, MessageBox).",
+            "Converta texturas da pasta Interface/ para PNG/TGA e organize em subpastas por janela dentro de Content/UI/Legacy.",
+            "Separe áudios de clique/confirmação (Data/Sounds) para importar em Content/Audio/UI.",
+            "Abra GlobalText.txt em editor de planilhas para filtrar as mensagens usadas por cada janela."
+        ],
+        "steps": [
+            "Crie um Blueprint Function Library BP_UIAudioLibrary registrando sons de abrir, fechar, confirmar e erro.",
+            "Crie um Blueprint Object BP_WindowRegistry contendo um Map (Name -> EstruturaJanela) com dados: WidgetClasse, TexturaFundo, Atalho, PacotesNecessarios.",
+            "Implemente o widget base WB_WindowBase com slots para Título, Conteúdo (NamedSlot), botões padrões, moldura usando material legado e eventos OnAbrir/OnFechar.",
+            "Para cada janela clássica, crie Widget específico herdando de WB_WindowBase (ex.: WB_InventoryWindow, WB_TradeWindow, WB_GuildWindow) copiando layout do guia: use Grids, ScrollBoxes e TextBlocks alinhados com as imagens originais.",
+            "No PlayerController, adicione componente BP_UIRouter (Actor Component) com função AlternarJanela(NomeJanela) que consulta o Registry, cria/fecha widgets e toca áudio correspondente.",
+            "Implemente carregamento automático de textos: crie Data Table DT_GlobalText (Chave, Texto) e, em cada widget, use Bindings para buscar strings apropriadas (ex.: UI_INVENTORY_TITLE).",
+            "Para janelas dependentes de rede (Trade, Guild, Quest, Cash Shop), conecte eventos do UNetworkBridgeSubsystem: ao receber pacotes, preencha listas, atualize estados e exiba modais de confirmação usando o mesmo widget base.",
+            "Configure atalho para cada janela no Input Mapping Context (I inventário, C personagem, V quest, G guild, P party, O opções, K habilidades) chamando BP_UIRouter->AlternarJanela com a chave correta.",
+            "Crie um Overlay Global (WB_UIGlobalOverlay) que exibe notificações, mensagens do sistema e tooltips centralizados quando janelas abrirem/fecharem.",
+            "Documente cada widget adicionando comentários no Designer indicando quais arquivos originais foram a referência (NewUI*.cpp correspondente)."
+        ],
+        "validation": [
+            "Abra o jogo e pressione todos os atalhos (I, C, V, G, K, O, P): cada janela deve abrir com textura correta, sons e foco automático no primeiro botão.",
+            "Inicie uma troca de itens: a janela de Trade precisa alinhar slots exatamente como no cliente clássico e bloquear itens quando aguardando confirmação.",
+            "Abra opções e altere volume/sensibilidade: valores devem ser aplicados imediatamente e persistidos no SaveGame.",
+            "Teste fluxos de mensagens (MessageBox, diálogos de evento) confirmando que textos vêm do DT_GlobalText e que o overlay mostra notificações sem sobreposição."
         ]
     }
 };

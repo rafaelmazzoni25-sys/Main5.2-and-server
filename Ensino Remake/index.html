@@ -1337,50 +1337,80 @@
                     </div>
                 </article>
                 <article class="recipe-card" data-recipe="receita-4">
-                    <h3>Receita 4 — Ações do personagem e rede</h3>
-                    <p class="recipe-intro">Conecta movimento, ataque básico e confirmação do servidor respeitando os mesmos
-                        pacotes.</p>
+                    <h3>Receita 4 — Combate completo, rede e confirmações</h3>
+                    <p class="recipe-intro">Reproduz o ciclo inteiro de combate: movimento confirmado pelo servidor,
+                        combos de armas, disparo de habilidades, consumo de itens rápidos e atualização de efeitos/buffs
+                        em tempo real.</p>
                     <h4>Copie do projeto original</h4>
                     <ul>
-                        <li><code>Source Main 5.2/source/ProtocolSend.cpp</code> — funções <code>SendRequestLogInNew</code>,
-                            <code>SendCharacterMoveNew</code> e <code>SendPositionNew</code>.</li>
-                        <li><code>Source Main 5.2/source/WSclient.cpp</code> — tratamento de respostas
-                            (<code>ReceiveMoveCharacter</code>, <code>ReceiveMovePosition</code>).</li>
-                        <li><code>Source MuServer Update 15/GameServer/GameServer/Protocol.cpp</code> — casos 0x1D/0xD7 que
-                            interpretam movimento e ataque.</li>
+                        <li><code>Source Main 5.2/source/ProtocolSend.cpp</code> — funções
+                            <code>SendCharacterMoveNew</code>, <code>SendRequestMagic</code>, <code>SendRequestPosMagic</code>
+                            e <code>SendUseItem</code> que o cliente clássico usa para movimentação, skills e poções.</li>
+                        <li><code>Source Main 5.2/source/WSclient.cpp</code> — respostas <code>ReceiveMoveCharacter</code>,
+                            <code>ReceiveAttack</code>, <code>ReceiveMagicAttack</code> e <code>ReceiveDamage</code> que
+                            confirmam animações e números de dano.</li>
+                        <li><code>Source Main 5.2/source/SkillManager.cpp</code> e
+                            <code>CSkillManager::SkillUseProc</code> — definem alvos, consumo de mana, tempo de conjuração e
+                            combos.</li>
+                        <li><code>Source Main 5.2/source/NewUISkillList.cpp</code> — controla barras de habilidades,
+                            cooldown visual e troca de conjuntos (Set 1/Set 2).</li>
+                        <li><code>Source Main 5.2/source/GMEffectSlot.cpp</code> e <code>BuffEffectSlot.cpp</code> — registram
+                            buffs, tempo restante e ícones exibidos junto ao HUD.</li>
                     </ul>
                     <h4>Monte na Unreal</h4>
                     <ol>
-                        <li>No <code>UNetworkBridgeSubsystem</code>, implemente <code>Conectar</code>,
-                            <code>EnviarLogin</code>, <code>EnviarMovimento</code> e <code>EnviarAtaque</code> serializando
-                            cabeçalho (C1/C3) e corpo igual ao cliente clássico.</li>
-                        <li>Crie um <code>FQueuedPacket</code> para armazenar mensagens recebidas e processe-as no
-                            <code>Tick</code> do GameInstance, chamando <code>ReceiveMoveCharacter</code> equivalente para
-                            atualizar atores.</li>
-                        <li>Conecte eventos de <code>BP_RemakeCharacter</code> (clique de movimento, ataque) às funções do
-                            <code>NetworkBridge</code> e aguarde confirmação antes de reproduzir animações.</li>
-                        <li>Implemente logs formatados no estilo <code>g_ConsoleDebug-&gt;Write</code> para comparar pacotes.</li>
+                        <li>Amplie o <code>UNetworkBridgeSubsystem</code> adicionando métodos
+                            <code>EnviarComboBasico</code>, <code>EnviarSkillAlvo</code>, <code>EnviarSkillArea</code> e
+                            <code>EnviarUsoRapido</code>, garantindo cabeçalhos C1/C3 idênticos (0xD7, 0x1F, 0x19, 0x26).
+                        </li>
+                        <li>Crie um <code>UCombatBridgeComponent</code> anexado ao personagem que mantenha uma fila de ações
+                            pendentes; só libere a próxima animação depois de receber confirmação do servidor via eventos do
+                            subsistema.</li>
+                        <li>Converta <code>SkillList.txt</code>, <code>SkillTree.txt</code> e <code>Item.txt</code> em
+                            <code>Data Tables</code> (<code>DT_Skills</code>, <code>DT_Combos</code>,
+                            <code>DT_ItemsRapidos</code>) para alimentar dano base, custo de mana, delay e efeitos.</li>
+                        <li>Implemente um <code>USkillLoadoutComponent</code> que gerencia slots 1–10, alternância de set e
+                            limitações por classe; exponha <code>Eventos</code> para atualizar a HUD conforme
+                            <code>NewUISkillList</code>.</li>
+                        <li>No personagem, configure <code>Montages</code> separados para combo leve, forte e finalizador;
+                            use <em>Montage Sections</em> para sincronizar com os pacotes 0x1F sequenciais enviados pelo
+                            cliente clássico.</li>
+                        <li>Monte um <code>DamageRouter</code> Blueprint (ou componente C++) responsável por receber eventos
+                            <code>ReceiveDamage</code>: reproduza partículas, números flutuantes e aplique knockback apenas
+                            quando autorizado.</li>
+                        <li>Implemente consumo de poções e buffs rápidos em um <code>QuickSlotManager</code> que envia 0x26,
+                            atualiza inventário e dispara efeitos Niagara de cura/mana.</li>
+                        <li>Crie um <code>BuffTimelineComponent</code> que, ao receber 0x07/0x2A, ativa ícones, aplica efeitos
+                            (<code>GameplayEffect</code> ou multiplicadores manuais) e remove quando o tempo expira.</li>
                     </ol>
                     <h4>Fluxo Blueprint</h4>
                     <ol class="blueprint-list">
-                        <li>No <code>BP_RemakeCharacter</code>, capture <em>InputAxis MoveForward/MoveRight</em> &rarr;
-                            <em>Add Movement Input</em> e, ao liberar a tecla, chame
-                            <code>UNetworkBridgeSubsystem::EnviarMovimento</code> com posição arredondada.</li>
-                        <li>No evento de clique direito no chão (<em>Player Controller</em>), trace <em>Hit Result</em>,
-                            converta para coordenadas de grade e envie pelo subsistema.</li>
-                        <li>Quando o subsistema emitir <code>OnPacoteMovimentoConfirmado</code>, atualize a posição real do
-                            personagem com <em>SetActorLocation</em> para evitar discrepância.</li>
-                        <li>No ataque básico, use <em>InputAction Attack</em> &rarr; <em>Play Montage</em> &rarr;
-                            <code>EnviarAtaque</code> e aguarde retorno para aplicar dano.</li>
-                        <li>Registre erros em um <em>Widget Debug</em> chamando <em>Add String</em> sempre que um pacote
-                            inesperado chegar, igual ao <code>g_ConsoleDebug</code> do cliente clássico.</li>
+                        <li>No <code>BP_RemakeCharacter</code>, use <em>InputAction Move</em> para enviar 0xD7 apenas quando o
+                            personagem estiver livre; a resposta 0xD7 do servidor chama <em>SetActorLocation</em> e dispara
+                            <code>OnMovimentoConfirmado</code> no componente de combate.</li>
+                        <li>Para combos de arma, utilize <em>InputAction Attack</em> com <em>Enhanced Input</em> configurado
+                            para <em>Triggers</em> (Tap, Hold). Cada trigger chama <code>EnviarComboBasico</code> com índice
+                            da seção; o retorno 0x1F reposiciona o combo.</li>
+                        <li>Em habilidades direcionadas, trace <em>Hit Result</em> no <em>Player Controller</em>, converta a
+                            posição para grid e invoque <code>EnviarSkillAlvo</code>; guarde o <code>TransactionId</code> do
+                            pacote para reconciliar com a confirmação.</li>
+                        <li>Quando <code>ReceiveMagicAttack</code> chegar, recupere dados de <code>DT_Skills</code>, execute
+                            <em>SpawnEmitterAtLocation</em>, aplique dano via <em>Apply Damage</em> e atualize cooldown com
+                            <em>Timeline</em> animando o overlay do slot.</li>
+                        <li>Vincule botões das poções do HUD ao <code>QuickSlotManager</code>; ao clicar, dispare
+                            <code>EnviarUsoRapido</code>, reproduza efeito de cura e atualize o inventário via evento do
+                            servidor.</li>
+                        <li>Atualize ícones de buff no <code>WB_HUDMain</code> assinando o <em>Event Dispatcher</em>
+                            <code>OnBuffAtualizado</code> do <code>BuffTimelineComponent</code>.</li>
                     </ol>
                     <h4>Checklist final</h4>
                     <ul>
-                        <li>O pacote enviado pela Unreal tem o mesmo cabeçalho/bytes do cliente clássico (confira com a
-                            ferramenta do Laboratório 4).</li>
-                        <li>O personagem só se move após o servidor confirmar <code>ReceiveMoveCharacter</code>.</li>
-                        <li>Erro de login mostra a mesma mensagem do arquivo <code>GlobalText</code>.</li>
+                        <li>Sequência de combo (clique simples &rarr; clique rápido &rarr; hold) replica os mesmos sons e
+                            tempos do cliente clássico.</li>
+                        <li>Habilidades em área só causam dano após a confirmação 0x1F/0x19 do servidor — nada acontece se o
+                            pacote não chega.</li>
+                        <li>Consumo de poções reduz estoque no inventário, aplica cura e exibe o buff com contagem regressiva
+                            sincronizada.</li>
                     </ul>
                     <div class="recipe-mapping">
                         <h4>Arquivos de referência</h4>
@@ -1394,19 +1424,19 @@
                             </thead>
                             <tbody>
                                 <tr>
-                                    <td>Login</td>
-                                    <td><code>EnviarLogin</code></td>
-                                    <td><code>ProtocolSend::SendRequestLogInNew</code></td>
+                                    <td>Movimento confirmado</td>
+                                    <td><code>UCombatBridgeComponent</code> + <code>UNetworkBridgeSubsystem</code></td>
+                                    <td><code>SendCharacterMoveNew</code> / <code>ReceiveMoveCharacter</code></td>
                                 </tr>
                                 <tr>
-                                    <td>Movimento</td>
-                                    <td><code>EnviarMovimento</code></td>
-                                    <td><code>SendCharacterMoveNew</code></td>
+                                    <td>Skills e combos</td>
+                                    <td><code>USkillLoadoutComponent</code> + montages</td>
+                                    <td><code>SkillManager::SkillUseProc</code></td>
                                 </tr>
                                 <tr>
-                                    <td>Confirmação</td>
-                                    <td>Processamento no <code>GameInstance</code></td>
-                                    <td><code>WSclient::ReceiveMoveCharacter</code></td>
+                                    <td>Buffs e efeitos</td>
+                                    <td><code>BuffTimelineComponent</code> + HUD</td>
+                                    <td><code>BuffEffectSlot.cpp</code></td>
                                 </tr>
                             </tbody>
                         </table>
@@ -2080,6 +2110,98 @@
                         <li>Compras atualizam saldo e entregam itens sem inconsistências.</li>
                         <li>Logs registram todas as transações para auditoria educativa.</li>
                     </ul>
+                </article>
+                <article class="recipe-card" data-recipe="receita-21">
+                    <h3>Receita 21 — Interfaces completas 1:1</h3>
+                    <p class="recipe-intro">Replica todas as janelas do <em>NewUI</em> (NPCs, eventos, opções e mensagens) com
+                        navegação idêntica, texturas originais e conectores com o servidor.</p>
+                    <h4>Copie do projeto original</h4>
+                    <ul>
+                        <li><code>Source Main 5.2/source/NewUIManager.cpp</code> — registra todas as janelas, atalhos e
+                            dependências compartilhadas.</li>
+                        <li><code>Source Main 5.2/source/NewUICommonMessageBox.cpp</code>,
+                            <code>NewUIOptionWindow.cpp</code>, <code>NewUIGuildWindow.cpp</code>,
+                            <code>NewUITrade.cpp</code>, <code>NewUIQuestProgress.cpp</code> e demais arquivos do diretório
+                            <code>source/NewUI*</code>.</li>
+                        <li>Pastas <code>Data/Interface</code>, <code>Data/Local/GlobalText.txt</code> e scripts de som em
+                            <code>Data/Sounds</code> (cliques, confirmações, alertas).</li>
+                        <li><code>Source MuServer Update 15/GameServer/GameServer/Protocol.cpp</code> — verifique subcódigos
+                            de cada janela (lojas, trade, guild, personal store, opções).</li>
+                    </ul>
+                    <h4>Monte na Unreal</h4>
+                    <ol>
+                        <li>Crie um módulo/folder <code>UIFramework</code> contendo <code>UWindowRegistry</code>,
+                            <code>UUIAudioLibrary</code> e material padrão para bordas (usa texturas convertidas do cliente).
+                        </li>
+                        <li>Converta todas as imagens da pasta <code>Interface/</code> usando o conversor BMD/FBX quando
+                            necessário e organize em <code>Content/UI/Legacy</code> separados por janela.</li>
+                        <li>Implemente o widget base <code>WB_WindowBase</code> com molduras, título, botão fechar, sons e
+                            slots configuráveis; exponha eventos <code>OnAbrir</code>, <code>OnFechar</code> e
+                            <code>OnSolicitarPacote</code>.</li>
+                        <li>No <code>UWindowRegistry</code>, registre uma estrutura para cada janela (Inventário, Trade,
+                            Guilda, Cash Shop, Quest, Eventos, Options, Mensagens). Inclua atalhos de teclado, textura de
+                            fundo, sons e pacotes necessários.</li>
+                        <li>Para interfaces compartilhadas, crie widgets especializados: <code>WB_MessageBox</code>,
+                            <code>WB_OptionPanel</code>, <code>WB_EventBoard</code>, <code>WB_NpcShop</code>,
+                            <code>WB_PartySearch</code>, <code>WB_PersonalStore</code>, <code>WB_GuildPanel</code> e outros
+                            equivalentes ao catálogo original.</li>
+                        <li>Implemente um <code>UIRouterComponent</code> no <code>PlayerController</code> que abre/fecha janelas
+                            via <code>UWindowRegistry</code>, evita sobreposição indevida e toca os sons corretos.</li>
+                        <li>Integre <code>GlobalText.txt</code> em uma <code>Data Table</code> e use <em>Bindings</em> para
+                            preencher textos e tooltips automaticamente, incluindo traduções para botões.</li>
+                        <li>Conecte cada janela ao subsistema de rede (ex.: trade usa 0x3F/0x3C, guild usa 0x6D, options salva
+                            em SaveGame) e atualize o HUD principal quando alterações ocorrerem.</li>
+                    </ol>
+                    <h4>Fluxo Blueprint</h4>
+                    <ol class="blueprint-list">
+                        <li>No <code>PlayerController</code>, configure <em>InputAction ToggleInventory</em>,
+                            <em>ToggleCharacter</em>, <em>ToggleOptions</em> etc., chamando
+                            <code>UIRouterComponent-&gt;AlternarJanela</code> com a chave cadastrada.</li>
+                        <li>Dentro do <code>WB_WindowBase</code>, associe o botão fechar ao evento <code>OnFechar</code> e
+                            reproduza áudio da <code>UUIAudioLibrary</code>.</li>
+                        <li>Para janelas que precisam de abas (Guilda, Quest, Eventos), use <em>Widget Switcher</em> e preencha
+                            com dados vindos de <code>Data Tables</code>; marque cada aba com ícones originais.</li>
+                        <li>Implemente animação de entrada/saída com <em>Timeline</em> e <em>Render Transform</em> para simular o
+                            movimento suave presente no cliente clássico.</li>
+                        <li>Crie um <code>Widget</code> “Overlay Global” que recebe notificações do <code>UIRouter</code> e exibe
+                            balões/falas quando janelas importantes abrem (trade, mensagens do sistema).</li>
+                    </ol>
+                    <h4>Checklist final</h4>
+                    <ul>
+                        <li>Todas as janelas podem ser abertas com atalhos idênticos ao Main 5.2 e mantêm a mesma hierarquia de
+                            abas.</li>
+                        <li>Texturas e sons são exatamente os originais convertidos, sem distorções ou escalas incorretas.</li>
+                        <li>Eventos de rede disparam mensagens e atualizações correspondentes em cada interface.</li>
+                    </ul>
+                    <div class="recipe-mapping">
+                        <h4>Arquivos de referência</h4>
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Elemento</th>
+                                    <th>Unreal</th>
+                                    <th>Original</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td>Registro de janelas</td>
+                                    <td><code>UWindowRegistry</code> + <code>UIRouterComponent</code></td>
+                                    <td><code>NewUIManager::CreateInterface</code></td>
+                                </tr>
+                                <tr>
+                                    <td>Layout padrão</td>
+                                    <td><code>WB_WindowBase</code> + materiais legados</td>
+                                    <td><code>NewUICommonMessageBox::Create</code></td>
+                                </tr>
+                                <tr>
+                                    <td>Textos e tooltips</td>
+                                    <td><code>Data Table GlobalText</code></td>
+                                    <td><code>GlobalText.txt</code></td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
                 </article>
             </div>
         </section>
@@ -2895,6 +3017,186 @@
                         </div>
                         <div class="asset-visualization__list row row-cols-1 row-cols-lg-3 g-4" id="asset-visualization-list"></div>
                     </div>
+                </div>
+            </div>
+
+            <div class="asset-tool__guide" id="bmd-fbx">
+                <h4>Conversor autom&aacute;tico <code>BMD_FBX</code></h4>
+                <p>
+                    Utilize o conversor C++ <code>BMD_FBX</code> para transformar arquivos <code>.BMD</code> em
+                    <code>.FBX</code> prontos para a Unreal. O utilit&aacute;rio reorganiza a hierarquia de ossos,
+                    gera materiais e localiza texturas legadas automaticamente.
+                </p>
+                <ul class="asset-tool__guide-list">
+                    <li>
+                        <strong>Raiz unificada:</strong> cria um osso <code>root</code> e clusters para cada
+                        <code>Bone_t</code>, corrigindo modelos com v&aacute;rias ra&iacute;zes antes de salvar em
+                        <code>SaveFbx</code>.
+                    </li>
+                    <li>
+                        <strong>Materiais nomeados:</strong> renomeia texturas para <code>Mesh_T_###</code>, conecta
+                        <code>FbxFileTexture</code> aos materiais Phong e usa <code>FindTextureRecursive</code> para
+                        extrair <code>.OZJ/.OZT/.OZB</code> diretamente para a pasta de destino.
+                    </li>
+                    <li>
+                        <strong>Anima&ccedil;&otilde;es consistentes:</strong> converte quadros com
+                        <code>BMD_FBX::FRAME_TIME</code>, inclui poses de bind via <code>StoreBindPose</code> e exporta
+                        normais opcionais quando <code>export_normals</code> est&aacute; habilitado.
+                    </li>
+                </ul>
+                <pre class="asset-tool__guide-code"><code>BMD_FBX converter;
+BMD_FBX::SetRootPath(R"(C:\EnsinoRemake\Data)");
+BMD_FBX::SetFrameTime(1.0 / 30.0);
+converter.Unpack(
+    R"(C:\EnsinoRemake\MainOriginal\Data\Character\Knight01.bmd)",
+    nullptr,
+    true,   // localizar texturas
+    true,   // renomear texturas
+    true    // exportar normais
+);
+</code></pre>
+                <p class="asset-tool__guide-note">
+                    Se alguma textura n&atilde;o for encontrada localmente, defina <code>BMD_FBX::SetRootPath</code>
+                    apontando para uma pasta global de <code>Data</code>. O conversor registra cada arquivo faltante no
+                    console, facilitando o ajuste antes da importa&ccedil;&atilde;o no Unreal.
+                </p>
+            </div>
+
+            <div class="asset-tool__configurator card border-0 shadow-sm" id="bmd-configurator" hidden>
+                <div class="card-body d-flex flex-column gap-4">
+                    <div class="d-flex flex-column flex-lg-row align-items-lg-center justify-content-between gap-3">
+                        <div>
+                            <h5 class="card-title mb-1">Gerador de snippet <code>BMD_FBX</code></h5>
+                            <p class="card-text text-muted mb-0">
+                                Personalize as op&ccedil;&otilde;es do conversor C++ e copie um bloco pronto para
+                                compilar junto ao utilit&aacute;rio. As configura&ccedil;&otilde;es abaixo usam os
+                                mesmos par&acirc;metros de <code>Unpack</code> presentes no c&oacute;digo legado.
+                            </p>
+                        </div>
+                        <span
+                            class="asset-tool__configurator-count badge rounded-pill text-uppercase small fw-semibold"
+                            id="bmd-configurator-count"
+                        ></span>
+                    </div>
+
+                    <form class="asset-tool__configurator-form row g-3" autocomplete="off">
+                        <div class="col-12 col-lg-6">
+                            <label for="bmd-root-path" class="form-label text-uppercase small fw-semibold"
+                                >Pasta raiz para texturas (<code>SetRootPath</code>)</label
+                            >
+                            <input
+                                type="text"
+                                class="form-control"
+                                id="bmd-root-path"
+                                name="bmd-root-path"
+                                value="C:\\EnsinoRemake\\Data"
+                                placeholder="C:\\EnsinoRemake\\Data"
+                            />
+                            <div class="form-text">
+                                Defina onde <code>FindTextureRecursive</code> procurar&aacute; texturas adicionais caso o
+                                diret&oacute;rio local n&atilde;o contenha todos os arquivos.
+                            </div>
+                        </div>
+                        <div class="col-12 col-lg-6">
+                            <label for="bmd-output-dir" class="form-label text-uppercase small fw-semibold"
+                                >Destino opcional para FBX</label
+                            >
+                            <input
+                                type="text"
+                                class="form-control"
+                                id="bmd-output-dir"
+                                name="bmd-output-dir"
+                                placeholder="C:\\EnsinoRemake\\SaidaFBX"
+                            />
+                            <div class="form-text">
+                                Se vazio, <code>Unpack</code> salva ao lado do <code>.BMD</code> original usando o
+                                sufixo <code>_fbx</code> do utilit&aacute;rio.
+                            </div>
+                        </div>
+                        <div class="col-6 col-lg-3">
+                            <label for="bmd-frame-time" class="form-label text-uppercase small fw-semibold"
+                                >Frame time (<code>SetFrameTime</code>)</label
+                            >
+                            <input
+                                type="number"
+                                class="form-control"
+                                id="bmd-frame-time"
+                                name="bmd-frame-time"
+                                value="0.033333"
+                                step="0.001"
+                                min="0.001"
+                            />
+                            <div class="form-text">Equivale a 1 / FPS. O padr&atilde;o de 0,033 gera 30 quadros/s.</div>
+                        </div>
+                        <div class="col-12 col-lg-9">
+                            <div class="asset-tool__configurator-switches d-flex flex-column flex-lg-row gap-2">
+                                <div class="form-check form-switch">
+                                    <input
+                                        class="form-check-input"
+                                        type="checkbox"
+                                        role="switch"
+                                        id="bmd-find-textures"
+                                        name="bmd-find-textures"
+                                        checked
+                                    />
+                                    <label class="form-check-label" for="bmd-find-textures"
+                                        >Localizar texturas adicionais (<code>find_textures</code>)</label
+                                    >
+                                </div>
+                                <div class="form-check form-switch">
+                                    <input
+                                        class="form-check-input"
+                                        type="checkbox"
+                                        role="switch"
+                                        id="bmd-rename-textures"
+                                        name="bmd-rename-textures"
+                                        checked
+                                    />
+                                    <label class="form-check-label" for="bmd-rename-textures"
+                                        >Renomear texturas (<code>rename_textures</code>)</label
+                                    >
+                                </div>
+                                <div class="form-check form-switch">
+                                    <input
+                                        class="form-check-input"
+                                        type="checkbox"
+                                        role="switch"
+                                        id="bmd-export-normals"
+                                        name="bmd-export-normals"
+                                        checked
+                                    />
+                                    <label class="form-check-label" for="bmd-export-normals"
+                                        >Exportar normais (<code>export_normals</code>)</label
+                                    >
+                                </div>
+                            </div>
+                        </div>
+                    </form>
+
+                    <div class="asset-tool__configurator-files">
+                        <h6 class="text-uppercase small fw-semibold mb-2">Arquivos detectados</h6>
+                        <ul
+                            class="asset-tool__configurator-files-list list-group list-group-flush"
+                            id="bmd-configurator-files"
+                        ></ul>
+                    </div>
+
+                    <div class="asset-tool__configurator-code">
+                        <div class="d-flex align-items-center justify-content-between gap-3">
+                            <h6 class="text-uppercase small fw-semibold mb-0">C&oacute;digo pronto para uso</h6>
+                            <button
+                                type="button"
+                                class="btn btn-outline-light btn-sm asset-tool__configurator-copy"
+                                id="bmd-copy-button"
+                                disabled
+                            >
+                                Copiar
+                            </button>
+                        </div>
+                        <pre class="asset-tool__configurator-pre"><code id="bmd-configurator-code"></code></pre>
+                    </div>
+
+                    <p class="asset-tool__configurator-options text-muted small mb-0" id="bmd-configurator-options"></p>
                 </div>
             </div>
 
