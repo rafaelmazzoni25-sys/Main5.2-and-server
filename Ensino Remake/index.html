@@ -85,6 +85,295 @@
             </div>
         </section>
 
+        <section id="rede-unreal" class="panel panel--highlight">
+            <h2>Camada de rede adaptada para a Unreal Engine 5</h2>
+            <p>
+                O cliente e o servidor do Ensino Remake são reescritos dentro da Unreal Engine 5, portanto a
+                comunicação não depende mais dos códigos hexadecimais crus do Main 5.2. Toda a documentação, a
+                começar pelas receitas, usa os identificadores <code>ERemakeMessage</code> e os enumeradores auxiliares
+                (<code>EWorldChannelEvent</code>, <code>EInstanceEvent</code>, <code>EFactionEvent</code>, <code>EChaosCastleEvent</code>,
+                <code>EDuelEvent</code>) para que você implemente RPCs, replicação e filas de mensagens tipadas. Os valores
+                legados aparecem apenas entre parênteses para consulta histórica.
+            </p>
+            <div class="grid">
+                <article class="card">
+                    <h3>Estruture como código Unreal</h3>
+                    <p>Declare os contratos em cabeçalhos C++ e exponha-os a Blueprints. O mesmo catálogo é utilizado pelo
+                        cliente jogável, pelos serviços dedicados e pelos testes automatizados.</p>
+                    <pre class="code-block"><code class="language-cpp">UENUM(BlueprintType)
+enum class ERemakeMessage : uint8 {
+    MovementCommit,
+    MovementAck,
+    WorldSnapshot,
+    QuickSlotUse,
+    SkillCastSingle,
+    SkillImpact,
+    InventoryTransaction,
+    PartyInvite,
+    CashShopPurchase
+};
+
+UENUM(BlueprintType)
+enum class EWorldChannelEvent : uint8 {
+    EnterWorld,
+    CreateCharacter,
+    DeleteCharacter,
+    HarmonyRequest,
+    HarmonyResult
+};
+
+UENUM(BlueprintType)
+enum class EInstanceEvent : uint8 {
+    LobbyOpened,
+    StageLoaded,
+    RewardsGranted,
+    DoppelLobby,
+    TimerUpdate,
+    SpawnWave
+};
+
+UENUM(BlueprintType)
+enum class EFactionEvent : uint8 {
+    JoinRequest,
+    ScoreUpdate,
+    RankingSync,
+    QuestUpdate
+};
+
+UENUM(BlueprintType)
+enum class EChaosCastleEvent : uint8 {
+    StatusSync,
+    SurvivorCount
+};
+
+UENUM(BlueprintType)
+enum class EDuelEvent : uint8 {
+    Request,
+    ScoreTick,
+    Result
+};
+
+USTRUCT(BlueprintType)
+struct FRemakePacket {
+    GENERATED_BODY()
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite)
+    ERemakeMessage Message;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite)
+    uint8 ChannelPayloadId = 0;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite)
+    TArray&lt;uint8&gt; Payload;
+};</code></pre>
+                </article>
+                <article class="card">
+                    <h3>Fluxo recomendado</h3>
+                    <ol>
+                        <li>Mapeie cada pacote do cliente clássico para um identificador <code>ERemakeMessage</code>.</li>
+                        <li>Implemente serialização/deserialização em <code>UNetworkBridgeSubsystem</code>, usando <code>FRemakePacket</code>
+                            para trafegar dados entre cliente e servidor.</li>
+                        <li>Crie despachantes que convertem mensagens em <em>Gameplay Events</em>, <em>Delegates</em> ou RPCs dedicados.</li>
+                        <li>Atualize testes e ferramentas (como o assistente de assets) para exibir os novos identificadores.</li>
+                    </ol>
+                </article>
+            </div>
+            <div class="callouts">
+                <p class="callout callout--tip"><strong>Dica:</strong> mantenha um <em>Data Asset</em> centralizado
+                    (<code>DA_RemakeMessageCatalog</code>) com a descrição de cada mensagem. As receitas e checklists fazem
+                    referência direta a esse catálogo.</p>
+                <p class="callout callout--warning"><strong>Importante:</strong> sempre que um trecho deste guia citar
+                    um código legado (ex.: <code>legado 0x1B</code>), entenda-o como um marcador histórico. A implementação
+                    final na Unreal deve usar apenas os enums mostrados abaixo.</p>
+            </div>
+            <table class="table table--compact">
+                <thead>
+                    <tr>
+                        <th>Mensagem UE5</th>
+                        <th>Equivalente legado</th>
+                        <th>Uso no remake</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td><code>ERemakeMessage::MovementCommit</code></td>
+                        <td><code>0x1B</code></td>
+                        <td>Confirmação de deslocamento autoritativo antes de aplicar <code>AddMovementInput</code>.</td>
+                    </tr>
+                    <tr>
+                        <td><code>ERemakeMessage::WorldSnapshot</code></td>
+                        <td><code>0x1D</code></td>
+                        <td>Entrega inicial de estado (HUD, inventário, posição) logo após o login.</td>
+                    </tr>
+                    <tr>
+                        <td><code>ERemakeMessage::QuickSlotUse</code></td>
+                        <td><code>0x26</code></td>
+                        <td>Uso de poções e itens rápidos com bloqueio da UI até a resposta do servidor.</td>
+                    </tr>
+                    <tr>
+                        <td><code>ERemakeMessage::PartyInvite</code> + <code>EPartyEvent</code></td>
+                        <td><code>0x40</code> / subcódigos</td>
+                        <td>Envio e aceitação de convites de party com feedback visual imediato.</td>
+                    </tr>
+                    <tr>
+                        <td><code>ERemakeMessage::InstanceChannel</code> + <code>EInstanceEvent</code></td>
+                        <td><code>0xF7</code> / subcódigos</td>
+                        <td>Transições de Empire Guardian, Doppelganger e demais instâncias cooperativas.</td>
+                    </tr>
+                    <tr>
+                        <td><code>ERemakeMessage::FactionChannel</code> + <code>EFactionEvent</code></td>
+                        <td><code>0xF8</code> / subcódigos</td>
+                        <td>Entradas, pontuações e missões do sistema Gens.</td>
+                    </tr>
+                </tbody>
+            </table>
+        </section>
+
+        <section id="rede-unreal" class="panel panel--highlight">
+            <h2>Camada de rede adaptada para a Unreal Engine 5</h2>
+            <p>
+                O cliente e o servidor do Ensino Remake são reescritos dentro da Unreal Engine 5, portanto a
+                comunicação não depende mais dos códigos hexadecimais crus do Main 5.2. Toda a documentação, a
+                começar pelas receitas, usa os identificadores <code>ERemakeMessage</code> e os enumeradores auxiliares
+                (<code>EWorldChannelEvent</code>, <code>EInstanceEvent</code>, <code>EFactionEvent</code>, <code>EChaosCastleEvent</code>,
+                <code>EDuelEvent</code>) para que você implemente RPCs, replicação e filas de mensagens tipadas. Os valores
+                legados aparecem apenas entre parênteses para consulta histórica.
+            </p>
+            <div class="grid">
+                <article class="card">
+                    <h3>Estruture como código Unreal</h3>
+                    <p>Declare os contratos em cabeçalhos C++ e exponha-os a Blueprints. O mesmo catálogo é utilizado pelo
+                        cliente jogável, pelos serviços dedicados e pelos testes automatizados.</p>
+                    <pre class="code-block"><code class="language-cpp">UENUM(BlueprintType)
+enum class ERemakeMessage : uint8 {
+    MovementCommit,
+    MovementAck,
+    WorldSnapshot,
+    QuickSlotUse,
+    SkillCastSingle,
+    SkillImpact,
+    InventoryTransaction,
+    PartyInvite,
+    CashShopPurchase
+};
+
+UENUM(BlueprintType)
+enum class EWorldChannelEvent : uint8 {
+    EnterWorld,
+    CreateCharacter,
+    DeleteCharacter,
+    HarmonyRequest,
+    HarmonyResult
+};
+
+UENUM(BlueprintType)
+enum class EInstanceEvent : uint8 {
+    LobbyOpened,
+    StageLoaded,
+    RewardsGranted,
+    DoppelLobby,
+    TimerUpdate,
+    SpawnWave
+};
+
+UENUM(BlueprintType)
+enum class EFactionEvent : uint8 {
+    JoinRequest,
+    ScoreUpdate,
+    RankingSync,
+    QuestUpdate
+};
+
+UENUM(BlueprintType)
+enum class EChaosCastleEvent : uint8 {
+    StatusSync,
+    SurvivorCount
+};
+
+UENUM(BlueprintType)
+enum class EDuelEvent : uint8 {
+    Request,
+    ScoreTick,
+    Result
+};
+
+USTRUCT(BlueprintType)
+struct FRemakePacket {
+    GENERATED_BODY()
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite)
+    ERemakeMessage Message;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite)
+    uint8 ChannelPayloadId = 0;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite)
+    TArray&lt;uint8&gt; Payload;
+};</code></pre>
+                </article>
+                <article class="card">
+                    <h3>Fluxo recomendado</h3>
+                    <ol>
+                        <li>Mapeie cada pacote do cliente clássico para um identificador <code>ERemakeMessage</code>.</li>
+                        <li>Implemente serialização/deserialização em <code>UNetworkBridgeSubsystem</code>, usando <code>FRemakePacket</code>
+                            para trafegar dados entre cliente e servidor.</li>
+                        <li>Crie despachantes que convertem mensagens em <em>Gameplay Events</em>, <em>Delegates</em> ou RPCs dedicados.</li>
+                        <li>Atualize testes e ferramentas (como o assistente de assets) para exibir os novos identificadores.</li>
+                    </ol>
+                </article>
+            </div>
+            <div class="callouts">
+                <p class="callout callout--tip"><strong>Dica:</strong> mantenha um <em>Data Asset</em> centralizado
+                    (<code>DA_RemakeMessageCatalog</code>) com a descrição de cada mensagem. As receitas e checklists fazem
+                    referência direta a esse catálogo.</p>
+                <p class="callout callout--warning"><strong>Importante:</strong> sempre que um trecho deste guia citar
+                    um código legado (ex.: <code>legado 0x1B</code>), entenda-o como um marcador histórico. A implementação
+                    final na Unreal deve usar apenas os enums mostrados abaixo.</p>
+            </div>
+            <table class="table table--compact">
+                <thead>
+                    <tr>
+                        <th>Mensagem UE5</th>
+                        <th>Equivalente legado</th>
+                        <th>Uso no remake</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td><code>ERemakeMessage::MovementCommit</code></td>
+                        <td><code>0x1B</code></td>
+                        <td>Confirmação de deslocamento autoritativo antes de aplicar <code>AddMovementInput</code>.</td>
+                    </tr>
+                    <tr>
+                        <td><code>ERemakeMessage::WorldSnapshot</code></td>
+                        <td><code>0x1D</code></td>
+                        <td>Entrega inicial de estado (HUD, inventário, posição) logo após o login.</td>
+                    </tr>
+                    <tr>
+                        <td><code>ERemakeMessage::QuickSlotUse</code></td>
+                        <td><code>0x26</code></td>
+                        <td>Uso de poções e itens rápidos com bloqueio da UI até a resposta do servidor.</td>
+                    </tr>
+                    <tr>
+                        <td><code>ERemakeMessage::PartyInvite</code> + <code>EPartyEvent</code></td>
+                        <td><code>0x40</code> / subcódigos</td>
+                        <td>Envio e aceitação de convites de party com feedback visual imediato.</td>
+                    </tr>
+                    <tr>
+                        <td><code>ERemakeMessage::InstanceChannel</code> + <code>EInstanceEvent</code></td>
+                        <td><code>0xF7</code> / subcódigos</td>
+                        <td>Transições de Empire Guardian, Doppelganger e demais instâncias cooperativas.</td>
+                    </tr>
+                    <tr>
+                        <td><code>ERemakeMessage::FactionChannel</code> + <code>EFactionEvent</code></td>
+                        <td><code>0xF8</code> / subcódigos</td>
+                        <td>Entradas, pontuações e missões do sistema Gens.</td>
+                    </tr>
+                </tbody>
+            </table>
+        </section>
+
+
         <section id="tutorial-completo" class="panel panel--stepper">
             <h2>Tutorial passo a passo completo</h2>
             <p>
@@ -390,35 +679,40 @@
                 </li>
                 <li>
                     <h3>Passo 8 — Construir a ponte de rede compatível</h3>
-                    <p class="stepper__goal">Enviar e receber pacotes iguais aos do cliente clássico para conversar com o MuServer.</p>
+                    <p class="stepper__goal">Enviar e receber mensagens <code>FRemakeMessage</code> para conversar com o MuServer
+                        enquanto o remake não substitui totalmente os serviços.</p>
                     <div class="stepper__details">
                         <h4>Faça assim</h4>
                         <ul>
-                            <li>Adicione uma classe C++ <code>UNetworkBridge</code> (instanciada pelo Subsystem) que usa
-                                <code>FSocket</code> para abrir conexão TCP.</li>
-                            <li>Implemente métodos <code>EnviarLogin</code>, <code>SolicitarListaDePersonagens</code> e
-                                <code>EnviarMovimento</code> copiando o formato de <code>ProtocolSend.cpp</code>.</li>
-                            <li>Crie uma função utilitária <code>ApplyBuxConvert</code> reproduzindo a lógica de
-                                <code>BuxConvert</code> (troca de bytes) antes de mandar usuário e senha.</li>
-                            <li>Use <code>AsyncTask(ENamedThreads::AnyBackgroundThreadNormalTask, ...)</code> para ler
-                                pacotes continuamente e repassar eventos ao <code>UUIFlowSubsystem</code>.</li>
+                            <li>Crie uma classe C++ <code>URemakeSessionChannel</code> instanciada pelo <code>UNetworkBridgeSubsystem</code>
+                                para abrir conexões TCP ou WebSocket.</li>
+                            <li>Implemente métodos <code>EnviarHandshake</code>, <code>SolicitarListaDePersonagens</code> e
+                                <code>SolicitarMovimento</code> montando <code>FRemakeMessage</code> com o enumerador adequado
+                                (<code>ERemakeMessage::Handshake</code>, <code>::CharacterRoster</code>, <code>::MovementCommit</code>).</li>
+                            <li>Converta as estruturas antigas (<code>PMSG_*</code>) para <code>UStruct</code> alinhados antes de serializar
+                                no <code>Payload</code> do <code>FRemakeMessage</code>.</li>
+                            <li>Use <code>AsyncTask(ENamedThreads::AnyBackgroundThreadNormalTask, …)</code> para ler mensagens
+                                continuamente e colocá-las em uma fila processada no <code>Tick</code> do Subsystem.</li>
                         </ul>
                     </div>
                     <div class="stepper__details stepper__details--explain">
                         <h4>Tradução do código original</h4>
                         <ul>
-                            <li><code>CProtocolSend::SendRequestLogInNew</code> monta o pacote de login (cabeçalho C1,
-                                tamanho, conta, senha, versão).</li>
-                            <li><code>WSclient.cpp</code> mantém a conexão viva e trata desconexões.</li>
-                            <li><code>JoinServer/JoinServerProtocol.cpp</code> (<code>GJConnectAccountRecv</code>) valida os dados.</li>
-                            <li><code>GameServer/GameServer/Protocol.cpp</code> (<code>case 0x1B</code>) processa movimento e deve receber exatamente os mesmos bytes.</li>
+                            <li><code>CProtocolSend::SendRequestLogInNew</code> mostra quais campos precisam estar presentes no
+                                <code>Payload</code> do <code>FRemakeMessage::Handshake</code>.</li>
+                            <li><code>WSclient.cpp</code> inspira a rotina de heartbeat e reconexão automática do canal.</li>
+                            <li><code>JoinServer/JoinServerProtocol.cpp</code> (<code>GJConnectAccountRecv</code>) indica as respostas que
+                                você deve mapear para <code>ERemakeMessage::HandshakeAccepted</code>/<code>::HandshakeRefused</code>.</li>
+                            <li><code>GameServer/GameServer/Protocol.cpp</code> (<code>case ERemakeMessage::MovementCommit</code>)
+                                continua válido como referência de regras enquanto o servidor clássico estiver ativo.</li>
                         </ul>
                     </div>
                     <div class="stepper__details stepper__details--checklist">
                         <h4>Você termina quando...</h4>
                         <ul>
-                            <li>Os logs da Unreal mostram os pacotes hexadecimais enviados e recebidos.</li>
-                            <li>Um comando <code>Telnet</code> ou <code>Wireshark</code> confirma que o cabeçalho C1 foi enviado.</li>
+                            <li>Os logs da Unreal exibem <code>FRemakeMessage</code> enviados e recebidos com identificadores corretos.</li>
+                            <li>Um sniff com <code>Wireshark</code> confirma que o cabeçalho do seu canal contém o identificador
+                                <code>ERemakeMessage</code> esperado.</li>
                             <li>O Subsystem informa erros amigáveis quando o servidor está offline.</li>
                         </ul>
                     </div>
@@ -459,7 +753,7 @@
                         <h4>Faça assim</h4>
                         <ul>
                             <li>Execute os quatro serviços do MuServer e abra o cliente Unreal. Faça login com a conta de teste.</li>
-                            <li>Movimente o personagem e verifique no console do GameServer se <code>case 0x1B</code> registra as posições.</li>
+                            <li>Movimente o personagem e verifique no console do GameServer se <code>case ERemakeMessage::MovementCommit</code> registra as posições.</li>
                             <li>Abra o inventário e confirme no DataServer se a tabela <code>Warehouse</code> recebe atualizações.</li>
                             <li>Anote no diário erros encontrados e como reproduzi-los.</li>
                         </ul>
@@ -489,7 +783,7 @@
                         <ul>
                             <li>No Unreal, ajuste o <code>CharacterMovement</code> para <code>Max Walk Speed = 550</code> e <code>Rotation Rate = 720</code>, igual aos valores observados em <code>gObjCalCharacter</code>.</li>
                             <li>Implemente um <code>UMovementCommandComponent</code> que converta entradas WASD em direções de grade (8 direções) como <code>MoveCommand.cpp</code> faz com <code>PathFindMoveMsg</code>.</li>
-                            <li>Ao pressionar uma direção, chame <code>UNetworkBridgeSubsystem::EnviarMovimento</code> (código 0x1B) e aguarde a confirmação 0x1C antes de mover definitivamente o personagem.</li>
+                            <li>Ao pressionar uma direção, chame <code>UNetworkBridgeSubsystem::EnviarMovimento</code> (código ERemakeMessage::MovementCommit) e aguarde a confirmação ERemakeMessage::MovementAck antes de mover definitivamente o personagem.</li>
                             <li>Sincronize a câmera com um <code>SpringArm</code> com <code>Lag</code> configurado para 0.15 e altura 420 replicando o offset definido em <code>ZzzCharacter.cpp</code>.</li>
                         </ul>
                     </div>
@@ -498,13 +792,13 @@
                         <ul>
                             <li><code>Source Main 5.2/source/MoveCommand.cpp</code> limita direções válidas e calcula passos.</li>
                             <li><code>Source Main 5.2/source/ProtocolSend.cpp</code> envia <code>SendRequestMove</code> com direção.</li>
-                            <li><code>Source MuServer Update 15/GameServer/GameServer/Protocol.cpp</code> trata <code>case 0x1B/0x1C</code> confirmando posição e corrige desvios.</li>
+                            <li><code>Source MuServer Update 15/GameServer/GameServer/Protocol.cpp</code> trata <code>case ERemakeMessage::MovementCommit/ERemakeMessage::MovementAck</code> confirmando posição e corrige desvios.</li>
                         </ul>
                     </div>
                     <div class="stepper__details stepper__details--checklist">
                         <h4>Você termina quando...</h4>
                         <ul>
-                            <li>O personagem só conclui o passo após receber 0x1C e corrige automaticamente se houver diferença.</li>
+                            <li>O personagem só conclui o passo após receber ERemakeMessage::MovementAck e corrige automaticamente se houver diferença.</li>
                             <li>A câmera acompanha suavemente sem tremores tanto no cliente clássico quanto no remake.</li>
                             <li>O console do GameServer mostra as mesmas direções registradas em <code>MoveCommand.cpp</code>.</li>
                         </ul>
@@ -516,10 +810,10 @@
                     <div class="stepper__details">
                         <h4>Faça assim</h4>
                         <ul>
-                            <li>Crie um <code>UCombatComponent</code> com funções <code>SolicitarAtaqueBasico</code> e <code>SolicitarHabilidade</code> chamando códigos 0x11 e 0x19, como em <code>ProtocolSend.cpp</code>.</li>
+                            <li>Crie um <code>UCombatComponent</code> com funções <code>SolicitarAtaqueBasico</code> e <code>SolicitarHabilidade</code> chamando códigos ERemakeMessage::BasicAttackRequest e ERemakeMessage::SkillCastSingle, como em <code>ProtocolSend.cpp</code>.</li>
                             <li>Monte animações no Unreal usando <em>Montages</em> iguais aos estados listados em <code>NewCharacterModel.cpp</code> (Idle, Walk, Attack1, Attack2).</li>
                             <li>Registre tabelas <code>DT_Skills</code> com dano, custo e efeitos copiando de <code>SkillAttribute.cpp</code>.</li>
-                            <li>Quando o GameServer responder com 0x1A/0x1B (confirmação de dano), atualize HUD, efeitos e números flutuantes.</li>
+                            <li>Quando o GameServer responder com ERemakeMessage::DamageResolved/ERemakeMessage::MovementCommit (confirmação de dano), atualize HUD, efeitos e números flutuantes.</li>
                         </ul>
                     </div>
                     <div class="stepper__details stepper__details--explain">
@@ -527,7 +821,7 @@
                         <ul>
                             <li><code>Source Main 5.2/source/SkillManager.cpp</code> valida mana, alcance e tempo de recarga.</li>
                             <li><code>Source MuServer Update 15/GameServer/GameServer/Attack.cpp</code> calcula o dano real.</li>
-                            <li><code>Protocol.cpp</code> reenvia 0x11/0x19 confirmando acertos para todos os jogadores.</li>
+                            <li><code>Protocol.cpp</code> reenvia ERemakeMessage::BasicAttackRequest/ERemakeMessage::SkillCastSingle confirmando acertos para todos os jogadores.</li>
                         </ul>
                     </div>
                     <div class="stepper__details stepper__details--checklist">
@@ -547,7 +841,7 @@
                         <ul>
                             <li>Cadastre NPCs em <code>DT_NPCs</code> com ID, nome, diálogo e itens usando <code>Data/NPC.txt</code> como referência.</li>
                             <li>Implemente <code>WB_Dialogue</code> exibindo as frases mapeadas em <code>NewNPCDialog.cpp</code> com botões “Comprar”, “Quest”, “Fechar”.</li>
-                            <li>Replique o fluxo de quests lendo <code>QuestInfo.cpp</code> e criando um <code>UQuestComponent</code> que sincroniza progresso com pacotes 0x7A/0x7B.</li>
+                            <li>Replique o fluxo de quests lendo <code>QuestInfo.cpp</code> e criando um <code>UQuestComponent</code> que sincroniza progresso com pacotes ERemakeMessage::QuestAccept/ERemakeMessage::QuestProgress.</li>
                             <li>Integre com o DataServer chamando procedures equivalentes a <code>GDSaveQuestProgress</code> e atualizando Zen via <code>GDShopLogSave</code>.</li>
                         </ul>
                     </div>
@@ -666,7 +960,7 @@
                         <tr>
                             <td>Tratamento de login no servidor</td>
                             <td><code>Source MuServer Update 15/JoinServer/JoinServer/JoinServerProtocol.cpp</code></td>
-                            <td>Método <code>OnLoginResponse</code> no Subsystem validando códigos de retorno 0x01/0x02.</td>
+                            <td>Método <code>OnLoginResponse</code> no Subsystem validando códigos de retorno ERemakeMessage::HandshakeAccepted/ERemakeMessage::HandshakeRefused.</td>
                         </tr>
                         <tr>
                             <td>Movimento e ações do servidor</td>
@@ -953,8 +1247,7 @@
                     <ul>
                         <li>Monte uma tabela com cada <code>case</code> usado na sua primeira entrega (chat, movimento,
                             ataques básicos, inventário) e ignore temporariamente o restante.</li>
-                        <li>Garanta que a Unreal envie o mesmo formato de pacote (C1/C3 ou C2/C4) antes de implementar novas
-                            funcionalidades.</li>
+                        <li>Garanta que a Unreal envie <code>FRemakeMessage</code> utilizando os enumeradores <code>ERemakeMessage</code>, <code>EInstanceEvent</code> e equivalentes deste guia antes de ativar cada funcionalidade.</li>
                         <li>Ative logs para <code>PacketIN</code> até estabilizar o remake e desative depois para desempenho.</li>
                     </ul>
                 </article>
@@ -1059,8 +1352,9 @@
                 <article class="guide-card">
                     <h3>Rede e serialização</h3>
                     <p>
-                        Crie um módulo <code>NetworkBridge</code> em C++ usando sockets <code>FSocket</code>. Serializa pacotes
-                        respeitando cabeçalhos C1/C3 e converta estruturas antigas para <code>UStruct</code> alinhados.</p>
+                        Implemente o módulo <code>RemakeNet</code> em C++ usando sockets <code>FSocket</code> ou o transporte escolhido.
+                        Estruture todas as mensagens com <code>FRemakeMessage</code> e traduza as estruturas antigas para <code>UStruct</code>
+                        alinhados antes de encaminhá-las aos sistemas da Unreal.</p>
                     <ul>
                         <li>Escreva funções utilitárias para BuxConvert, checksums e compressão conforme o cliente clássico.</li>
                         <li>Implemente threads ou <em>Async Tasks</em> para leitura contínua e filas de processamento.</li>
@@ -1089,7 +1383,7 @@
                 para obter o mesmo resultado. Siga os passos na ordem e marque a checklist antes de continuar.
             </p>
             <div class="recipe-grid">
-                <article class="recipe-card">
+                <article class="recipe-card" data-recipe="receita-1">
                     <h3>Receita 1 — HUD principal idêntica</h3>
                     <p class="recipe-intro">Recompõe a barra inferior com HP/MP/AG/SD, minimapa e ícones exatamente como o
                         cliente clássico exibe.</p>
@@ -1172,7 +1466,7 @@
                         </table>
                     </div>
                 </article>
-                <article class="recipe-card">
+                <article class="recipe-card" data-recipe="receita-2">
                     <h3>Receita 2 — Inventário e arrastar/soltar</h3>
                     <p class="recipe-intro">Recria o inventário 8×8, lógica de tamanho de itens e movimentação com o mouse.</p>
                     <h4>Copie do projeto original</h4>
@@ -1250,7 +1544,7 @@
                         </table>
                     </div>
                 </article>
-                <article class="recipe-card">
+                <article class="recipe-card" data-recipe="receita-3">
                     <h3>Receita 3 — Chat, notificações e mensagens</h3>
                     <p class="recipe-intro">Permite digitar mensagens, exibir log e mostrar alertas como no cliente clássico.</p>
                     <h4>Copie do projeto original</h4>
@@ -1259,7 +1553,7 @@
                         <li><code>Source Main 5.2/source/NewUIChatLogWindow.cpp</code> — rolagem, filtros e exibição.</li>
                         <li><code>Source Main 5.2/source/wsclientinline.h</code> — função <code>SendChat</code> utilizada pelo
                             cliente clássico para enviar mensagens e whispers.</li>
-                        <li><code>Source MuServer Update 15/GameServer/GameServer/Protocol.cpp</code> — casos 0x00/0x02 de
+                        <li><code>Source MuServer Update 15/GameServer/GameServer/Protocol.cpp</code> — casos ERemakeMessage::ChatBroadcast/ERemakeMessage::HandshakeRefused de
                             mensagens recebidas.</li>
                     </ul>
                     <h4>Monte na Unreal</h4>
@@ -1324,132 +1618,191 @@
                         </table>
                     </div>
                 </article>
-                <article class="recipe-card">
-                    <h3>Receita 4 — Ações do personagem e rede</h3>
-                    <p class="recipe-intro">Conecta movimento, ataque básico e confirmação do servidor respeitando os mesmos
-                        pacotes.</p>
-                    <h4>Copie do projeto original</h4>
-                    <ul>
-                        <li><code>Source Main 5.2/source/ProtocolSend.cpp</code> — funções <code>SendRequestLogInNew</code>,
-                            <code>SendCharacterMoveNew</code> e <code>SendPositionNew</code>.</li>
-                        <li><code>Source Main 5.2/source/WSclient.cpp</code> — tratamento de respostas
-                            (<code>ReceiveMoveCharacter</code>, <code>ReceiveMovePosition</code>).</li>
-                        <li><code>Source MuServer Update 15/GameServer/GameServer/Protocol.cpp</code> — casos 0x1D/0xD7 que
-                            interpretam movimento e ataque.</li>
-                    </ul>
-                    <h4>Monte na Unreal</h4>
-                    <ol>
-                        <li>No <code>UNetworkBridgeSubsystem</code>, implemente <code>Conectar</code>,
-                            <code>EnviarLogin</code>, <code>EnviarMovimento</code> e <code>EnviarAtaque</code> serializando
-                            cabeçalho (C1/C3) e corpo igual ao cliente clássico.</li>
-                        <li>Crie um <code>FQueuedPacket</code> para armazenar mensagens recebidas e processe-as no
-                            <code>Tick</code> do GameInstance, chamando <code>ReceiveMoveCharacter</code> equivalente para
-                            atualizar atores.</li>
-                        <li>Conecte eventos de <code>BP_RemakeCharacter</code> (clique de movimento, ataque) às funções do
-                            <code>NetworkBridge</code> e aguarde confirmação antes de reproduzir animações.</li>
-                        <li>Implemente logs formatados no estilo <code>g_ConsoleDebug-&gt;Write</code> para comparar pacotes.</li>
-                    </ol>
-                    <h4>Fluxo Blueprint</h4>
-                    <ol class="blueprint-list">
-                        <li>No <code>BP_RemakeCharacter</code>, capture <em>InputAxis MoveForward/MoveRight</em> &rarr;
-                            <em>Add Movement Input</em> e, ao liberar a tecla, chame
-                            <code>UNetworkBridgeSubsystem::EnviarMovimento</code> com posição arredondada.</li>
-                        <li>No evento de clique direito no chão (<em>Player Controller</em>), trace <em>Hit Result</em>,
-                            converta para coordenadas de grade e envie pelo subsistema.</li>
-                        <li>Quando o subsistema emitir <code>OnPacoteMovimentoConfirmado</code>, atualize a posição real do
-                            personagem com <em>SetActorLocation</em> para evitar discrepância.</li>
-                        <li>No ataque básico, use <em>InputAction Attack</em> &rarr; <em>Play Montage</em> &rarr;
-                            <code>EnviarAtaque</code> e aguarde retorno para aplicar dano.</li>
-                        <li>Registre erros em um <em>Widget Debug</em> chamando <em>Add String</em> sempre que um pacote
-                            inesperado chegar, igual ao <code>g_ConsoleDebug</code> do cliente clássico.</li>
-                    </ol>
-                    <h4>Checklist final</h4>
-                    <ul>
-                        <li>O pacote enviado pela Unreal tem o mesmo cabeçalho/bytes do cliente clássico (confira com a
-                            ferramenta do Laboratório 4).</li>
-                        <li>O personagem só se move após o servidor confirmar <code>ReceiveMoveCharacter</code>.</li>
-                        <li>Erro de login mostra a mesma mensagem do arquivo <code>GlobalText</code>.</li>
-                    </ul>
-                    <div class="recipe-mapping">
-                        <h4>Arquivos de referência</h4>
-                        <table>
-                            <thead>
-                                <tr>
-                                    <th>Elemento</th>
-                                    <th>Unreal</th>
-                                    <th>Original</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                <tr>
-                                    <td>Login</td>
-                                    <td><code>EnviarLogin</code></td>
-                                    <td><code>ProtocolSend::SendRequestLogInNew</code></td>
-                                </tr>
-                                <tr>
-                                    <td>Movimento</td>
-                                    <td><code>EnviarMovimento</code></td>
-                                    <td><code>SendCharacterMoveNew</code></td>
-                                </tr>
-                                <tr>
-                                    <td>Confirmação</td>
-                                    <td>Processamento no <code>GameInstance</code></td>
-                                    <td><code>WSclient::ReceiveMoveCharacter</code></td>
-                                </tr>
-                            </tbody>
-                        </table>
+                <article class="recipe-card" data-recipe="receita-4">
+                    <h3>Receita 4 — Combate completo sincronizado</h3>
+                    <div class="recipe-meta">
+                        <span class="recipe-meta__item"><strong>Tempo de preparo:</strong> 6–8 horas</span>
+                        <span class="recipe-meta__item"><strong>Serve:</strong> 2 desenvolvedores (cliente e servidor)</span>
+                        <span class="recipe-meta__item"><strong>Dificuldade:</strong> Avançada</span>
                     </div>
-                </article>
-                <article class="recipe-card">
-                    <h3>Receita 5 — Tela de login e seleção de personagem</h3>
-                    <p class="recipe-intro">Clona o fluxo de entrada do cliente, desde botões até o handshake com o
-                        JoinServer.</p>
-                    <h4>Copie do projeto original</h4>
+                    <p class="recipe-intro">Recrie movimentação, combos, habilidades, poções e buffs utilizando o pipeline de rede
+                        nativo da Unreal Engine 5+, sem depender dos pacotes legados.</p>
+                    <h4>Ingredientes (pesquise antes)</h4>
                     <ul>
-                        <li><code>Source Main 5.2/source/LoginMainWin.cpp</code> — organização dos botões e sons da tela
-                            inicial.</li>
-                        <li><code>Source Main 5.2/source/ProtocolSend.cpp</code> — respostas de login e exibição de mensagens
-                            ao usuário.</li>
-                        <li><code>Source MuServer Update 15/GameServer/GameServer/JSProtocol.cpp</code> — sequência de validação
-                            de conta e movimentação entre servidores.</li>
-                        <li><code>Source MuServer Update 15/GameServer/GameServer/Protocol.cpp</code> — pacotes 0x00, 0x03 e 0x1D
-                            usados depois da autenticação.</li>
+                        <li><code>Source Main 5.2/source/SkillManager.cpp</code> e <code>ComboSkill.cpp</code> — liste danos,
+                            custos e tempos de recarga que servirão de base para as <em>Data Tables</em> da Unreal.</li>
+                        <li><code>Source Main 5.2/source/WSclient.cpp</code> — observe quando o cliente tradicional confirma
+                            movimentos e ataques para modelar os mesmos estados no novo servidor.</li>
+                        <li><code>Source MuServer Update 15/GameServer/GameServer/SkillSystem.cpp</code> e
+                            <code>GameServer/GameServer/ObjAttack.cpp</code> — entenda critérios de acerto, efeitos em área e
+                            cálculo de dano para portar a lógica para o servidor Unreal.</li>
+                        <li>Arquivos <code>SkillList.txt</code>, <code>SkillTree.txt</code>, <code>Item.txt</code> e
+                            <code>BuffEffect.txt</code> — converta para <code>DataTable</code> em CSV/JSON.</li>
                     </ul>
-                    <h4>Monte na Unreal</h4>
+                    <h4>Utensílios Unreal Engine 5+</h4>
+                    <ul>
+                        <li>Ative os plugins <strong>Gameplay Ability System</strong> e <strong>Enhanced Input</strong> no
+                            projeto.</li>
+                        <li>Crie o módulo compartilhado <code>RemakeNet</code> com a <code>struct FRemakeMessage</code>
+                            (campos <code>ERemakeMessage Tipo</code>, <code>uint8 Canal</code>,
+                            <code>TArray&lt;uint8&gt; Payload</code>) implementando <code>NetSerialize</code> para replicação.</li>
+                        <li>Adicione os módulos <code>RemakeCombat</code> (componentes e habilidades) e
+                            <code>RemakeCombatServer</code> (modo dedicado e validações).</li>
+                        <li>Separe <em>Anim Montages</em> para ataques leves/pesados e estados especiais (stun, dash) com
+                            <em>AnimNotifies</em> claros.</li>
+                        <li>Prepare <code>Niagara Systems</code> para impactos, efeitos de buff e números flutuantes.</li>
+                    </ul>
+                    <h4>Modo de preparo (passo a passo)</h4>
                     <ol>
-                        <li>Crie o Widget <code>WB_Login</code> com três botões (Entrar, Opções, Créditos) e um formulário com
-                            <em>EditableTextBox</em> para ID e senha, replicando a disposição descrita em
-                            <code>LoginMainWin::Create</code>.</li>
-                        <li>Implemente <code>UMenuAudioComponent</code> para tocar os mesmos efeitos de clique listados no arquivo
-                            clássico.</li>
-                        <li>No <code>UNetworkBridgeSubsystem</code>, defina a função <code>EnviarLogin</code> serializando a
-                            estrutura <code>PMSG_CONNECT_ACCOUNT_SEND</code> e aguarde <code>JGConnectAccountRecv</code>.</li>
-                        <li>Construa a tela <code>WB_SelecaoPersonagem</code> com <em>ScrollBox</em> exibindo modelos 3D em
-                            <code>LevelSequence</code>, seguindo a ordem do array <code>CharactersClient</code>.</li>
-                        <li>Adicione botões para criar/apagar personagem que chamam eventos no servidor simulando os mesmos códigos
-                            usados em <code>JSProtocol.cpp</code>.</li>
+                        <li>No módulo <code>RemakeNet</code>, crie <code>URemakeSessionChannel</code> responsável por abrir o
+                            socket (WebSocket, TCP ou <code>FIpConnection</code>) e enviar/receber <code>FRemakeMessage</code>
+                            com identificadores <code>ERemakeMessage</code>.</li>
+                        <li>No cliente, implemente <code>URemakeCombatComponent</code> herdando de
+                            <code>UActorComponent</code> e integrando o <strong>Gameplay Ability System</strong> (GAS).
+                            Mapeie habilidades de <code>DT_Skills</code> para <code>UGameplayAbility</code> e registre eventos
+                            <code>OnMovementValidated</code>, <code>OnSkillResolved</code> e <code>OnBuffStackChanged</code>.</li>
+                        <li>Crie <code>URemakeMovementComponent</code> estendendo <code>UCharacterMovementComponent</code> para
+                            capturar entrada local, enviar <code>ERemakeMessage::MovementRequest</code> e aguardar a resposta
+                            <code>MovementCommit</code> do servidor antes de confirmar o passo.</li>
+                        <li>No servidor Unreal (projeto dedicado), adicione <code>ARemakeCombatCoordinator</code> derivado de
+                            <code>AGameModeBase</code> com um <code>URemakeCombatSystem</code> que consome as mesmas
+                            <code>DataTables</code> e valida posicionamento, hitbox e recursos.</li>
+                        <li>Implemente <code>HandleMovementRequest</code> no servidor calculando destino seguro (navmesh),
+                            atualizando o <code>ACharacter</code> servidor e emitindo <code>MovementCommit</code> para todos os
+                            clientes relevantes.</li>
+                        <li>Converta cada combo do Main 5.2 em uma <code>UDataAsset</code> (sequência de golpes, janelas de
+                            cancelamento, requisitos). Carregue-as no <code>URemakeCombatComponent</code> para orientar os
+                            <em>Montages</em>.</li>
+                        <li>Implemente habilidades como classes GAS (ex.: <code>UGA_RemakeSkillSingleTarget</code>,
+                            <code>UGA_RemakeSkillArea</code>) que enviam <code>ERemakeMessage::SkillCast</code> e aguardam a
+                            resposta <code>SkillImpact</code> do coordenador dedicado.</li>
+                        <li>Para poções e itens rápidos, crie <code>URemakeQuickSlotComponent</code> que dispara
+                            <code>ERemakeMessage::QuickSlotUse</code>, aplica efeitos via GAS e sincroniza o inventário através
+                            do componente de itens.</li>
+                        <li>Gerencie buffs permanentes/temporários com <code>URemakeBuffController</code>, convertendo
+                            <code>BuffEffect.txt</code> em <code>GameplayEffect</code> e replicando stacks.</li>
+                        <li>Conecte o <code>URemakeCombatComponent</code> ao HUD chamando eventos em
+                            <code>URemakeHudPresenter</code> (dano recebido, texto flutuante, ícones de buff, cooldown).</li>
+                        <li>Crie testes funcionais (<code>AutomationSpec</code>) para validar que ataques sem mana são negados,
+                            combos respeitam janelas e que o servidor sempre envia <code>MovementCommit</code> após um
+                            <code>MovementRequest</code>.</li>
                     </ol>
-                    <h4>Fluxo Blueprint</h4>
+                    <h4>Modo Blueprint para iniciantes</h4>
                     <ol class="blueprint-list">
-                        <li>No <code>WB_Login</code>, ligue o botão Entrar ao <em>Custom Event</em> <code>SolicitarLogin</code>
-                            &rarr; valide campos com <em>Is Empty</em> &rarr; chame o subsistema.</li>
-                        <li>Ao receber <code>OnLoginResultado</code>, use <em>Switch on Byte</em> para mapear códigos 0x00 a 0x0C
-                            exibindo <code>WB_Popup</code> com os textos equivalentes.</li>
-                        <li>Crie um <em>Widget Switcher</em> para alternar entre login e seleção de personagem quando o pacote
-                            0xF3/0x03 chegar.</li>
-                        <li>No nível de seleção, instancie <code>BP_PersonagemPreview</code> para cada slot e use <em>Async Load
-                                Asset</em> com os modelos importados.</li>
-                        <li>Confirme escolha chamando <code>EnviarReqEntrarMundo</code> e, ao receber o pacote de mapa, carregue o
-                            nível principal com <em>Open Level (by Name)</em>.</li>
+                        <li>No <code>BP_RemakeCharacter</code>, use <em>Enhanced Input</em> para mapear WASD/Mouse. Cada evento
+                            chama <code>SolicitarMovimento</code> no componente, que dispara a mensagem
+                            <code>ERemakeMessage::MovementRequest</code>.</li>
+                        <li>Crie um <em>Custom Event</em> <code>OnMovementCommit</code> que recebe posição vinda do servidor e
+                            chama <em>SetActorLocation</em> sincronizando animações.</li>
+                        <li>Para combos leves/pesados, crie um <em>InputAction Attack</em> com contexto “pressionado” e
+                            “mantido”. No gráfico, invoque <code>IniciarCombo</code> que toca o <em>Montage</em> correto e envia
+                            <code>ERemakeMessage::SkillCast</code>.</li>
+                        <li>Nos <em>AnimNotifies</em> de impacto, chame <code>ConfirmaHitLocal</code> para acionar efeitos e só
+                            aplicar dano ao receber <code>OnSkillImpact</code> do componente.</li>
+                        <li>Para poções, adicione botões no HUD chamando <code>ConsumirRapido</code>. O componente bloqueia a UI
+                            até o servidor retornar <code>QuickSlotSync</code>.</li>
+                        <li>Mantenha um <em>Widget Debug</em> com <em>ListView</em> registrando mensagens recentes
+                            <code>ERemakeMessage</code> para fins educativos.</li>
                     </ol>
-                    <h4>Checklist final</h4>
+                    <h4>Cobertura e degustação (testes)</h4>
                     <ul>
-                        <li>Mensagens de erro exibem os mesmos textos que o cliente clássico (versão incorreta, conta bloqueada).</li>
-                        <li>A seleção mostra o personagem com rotação contínua até clicar em Entrar.</li>
-                        <li>Ao confirmar, o servidor responde com o mesmo pacote 0x1D tratado pelo cliente original.</li>
+                        <li>Execute dois clientes conectados ao servidor dedicado Unreal e valide que ambos recebem o mesmo
+                            <code>MovementCommit</code> em até 100 ms.</li>
+                        <li>Use habilidades em sequência: combos devem respeitar o tempo configurado em
+                            <code>DT_Combos</code> e reproduzir partículas corretas.</li>
+                        <li>Ative um buff contínuo e verifique se o HUD mostra ícone, duração regressiva e remoção ao fim.</li>
+                        <li>Consuma poções simultaneamente e confirme que o servidor sincroniza estoque com o inventário Unreal.</li>
                     </ul>
                 </article>
-                <article class="recipe-card">
+                                <article class="recipe-card" data-recipe="receita-5">
+                    <h3>Receita 5 — Portal de entrada, seleção de classe e personagens</h3>
+                    <div class="recipe-meta">
+                        <span class="recipe-meta__item"><strong>Tempo de preparo:</strong> 5–6 horas</span>
+                        <span class="recipe-meta__item"><strong>Serve:</strong> 1 desenvolvedor + 1 artista de UI</span>
+                        <span class="recipe-meta__item"><strong>Dificuldade:</strong> Intermediária</span>
+                    </div>
+                    <p class="recipe-intro">Guia “receita de bolo” para reconstruir login, criação de personagem, seleção de classe
+                        e carregamento do mundo usando apenas sistemas nativos da Unreal Engine 5+.</p>
+                    <h4>Ingredientes (referências para estudo)</h4>
+                    <ul>
+                        <li><code>Source Main 5.2/source/LoginMainWin.cpp</code> e <code>CharSelMainWin.cpp</code> — anote textos,
+                            efeitos sonoros e transições para reproduzir o mesmo clima.</li>
+                        <li><code>Source Main 5.2/source/ProtocolSend.cpp</code> — use como catálogo de campos necessários para
+                            autenticar, listar personagens e entrar no mundo.</li>
+                        <li><code>Source MuServer Update 15/GameServer/GameServer/JSProtocol.cpp</code> — identifique regras de
+                            criação/exclusão para portar ao servidor Unreal.</li>
+                        <li><code>CharacterCreate.txt</code> e <code>DefaultClassType.txt</code> — converta em <code>DataTables</code>
+                            com atributos iniciais por classe.</li>
+                    </ul>
+                    <h4>Utensílios Unreal Engine 5+</h4>
+                    <ul>
+                        <li>Módulo <code>RemakeNet</code> já criado na Receita 4 (usa <code>FRemakeMessage</code>).</li>
+                        <li>Módulo <code>RemakeAccounts</code> com <code>URemakeAccountSubsystem</code> (cliente) e
+                            <code>ARemakeAccountCoordinator</code> (servidor dedicado).</li>
+                        <li>Widgets <code>WB_Login</code>, <code>WB_SelecaoPersonagem</code> e <code>WB_CriacaoClasse</code>.</li>
+                        <li>Modelos 3D ou <em>Skeletal Meshes</em> importados das classes do Main 5.2 para exibir na seleção.</li>
+                        <li>Sons clássicos convertidos para <code>SoundCue</code> (cliques, confirmação, erro).</li>
+                    </ul>
+                    <h4>Modo de preparo (passo a passo)</h4>
+                    <ol>
+                        <li>No módulo <code>RemakeAccounts</code>, declare <code>struct FRemakeLoginPayload</code>,
+                            <code>FRemakeCharacterSummary</code> e <code>FRemakeWorldTicket</code> para trafegar dados via
+                            <code>FRemakeMessage</code>.</li>
+                        <li>Implemente <code>URemakeAccountSubsystem</code> com métodos <code>SolicitarLogin</code>,
+                            <code>SolicitarLista</code>, <code>SolicitarCriacao</code>, <code>SolicitarExclusao</code> e
+                            <code>SolicitarEntradaNoMundo</code>. Cada método envia mensagens <code>ERemakeMessage</code> próprias
+                            (<code>Handshake</code>, <code>CharacterRoster</code>, <code>CharacterCreate</code>, etc.).</li>
+                        <li>No servidor dedicado, crie <code>ARemakeAccountCoordinator</code> que valida credenciais (use banco
+                            Unreal <code>DataAsset</code> ou conexão real), aplica regras de limite de slots e responde com
+                            <code>FRemakeCharacterSummary</code>.</li>
+                        <li>Construa o Widget <code>WB_Login</code> com campos de usuário/senha, botões laterais e área para
+                            mensagens. Ligue animações de foco e sons conforme o original.</li>
+                        <li>Ao clicar em Entrar, dispare <code>SolicitarLogin</code>; bloqueie os botões enquanto aguarda retorno
+                            <code>ERemakeMessage::HandshakeAccepted</code> ou <code>::HandshakeRefused</code>.</li>
+                        <li>Recebendo sucesso, peça a lista de personagens. Popule <code>WB_SelecaoPersonagem</code> com
+                            <code>TileView</code> exibindo nome, classe, nível, guild e um preview 3D usando
+                            <code>LevelSequence</code> para animação contínua.</li>
+                        <li>Implemente botão “Criar” abrindo <code>WB_CriacaoClasse</code>. Carregue dados de atributos iniciais e
+                            habilidades iniciais via <code>DataTables</code>, permitindo escolher classe, gênero, visual e nome.</li>
+                        <li>Ao confirmar criação, envie <code>ERemakeMessage::CharacterCreate</code>. O servidor valida regras de
+                            nome/classe, grava registro e retorna lista atualizada.</li>
+                        <li>No botão “Excluir”, apresente confirmação dupla. Envie
+                            <code>ERemakeMessage::CharacterDelete</code> e atualize a lista somente após resposta positiva.</li>
+                        <li>Selecionando um personagem, mostre status detalhado (atributos, equipamentos) usando os dados do resumo.
+                            Em seguida envie <code>ERemakeMessage::WorldTicketRequest</code> e aguarde <code>FRemakeWorldTicket</code>
+                            com IP/porta da instância.</li>
+                        <li>Quando o ticket chegar, carregue o nível de mundo com <code>UGameplayStatics::OpenLevel</code> e passe o
+                            ticket via <code>Options</code>, para que o <code>GameInstance</code> inicialize o personagem no local
+                            correto.</li>
+                        <li>Registre logs pedagógicos (“Login aceito”, “Ticket recebido”) para ajudar quem está aprendendo.</li>
+                    </ol>
+                    <h4>Modo Blueprint para iniciantes</h4>
+                    <ol class="blueprint-list">
+                        <li>No <code>WB_Login</code>, crie o evento <code>OnEntrarClicked</code> &rarr; <em>Get Game Instance</em>
+                            &rarr; <code>Get RemakeAccountSubsystem</code> &rarr; <code>SolicitarLogin</code>.</li>
+                        <li>Ao receber o evento <code>OnLoginResultado</code> (disparado pelo subsistema), alterne para o
+                            <code>Widget Switcher</code> que mostra <code>WB_SelecaoPersonagem</code>.</li>
+                        <li>No <code>WB_SelecaoPersonagem</code>, vincule <code>OnItemSelectionChanged</code> do
+                            <code>TileView</code> para atualizar o preview 3D e habilitar o botão Entrar.</li>
+                        <li>Implemente <code>OnCriarClicked</code> abrindo <code>WB_CriacaoClasse</code> dentro de um
+                            <code>Overlay</code>. Use <em>BindWidget</em> para acessar sliders/campos e montar a requisição.</li>
+                        <li>Para exclusão, exiba <code>WB_DialogoConfirmacao</code> com dois botões. Somente após o retorno positivo
+                            chame <code>SolicitarExclusao</code>.</li>
+                        <li>Quando o subsistema emitir <code>OnTicketRecebido</code>, armazene o ticket em variável e chame
+                            <code>Open Level (by Name)</code> passando <code>Options</code> no formato
+                            <code>?Ticket=...</code>.</li>
+                    </ol>
+                    <h4>Cobertura e degustação (testes)</h4>
+                    <ul>
+                        <li>Teste login com credenciais válidas e inválidas, confirmando mensagens amigáveis para iniciantes.</li>
+                        <li>Crie e exclua personagens consecutivamente: a lista deve atualizar sem reiniciar o cliente.</li>
+                        <li>Verifique se o ticket recebido abre a instância correta e posiciona o personagem com HUD completo (ligação
+                            com a Receita 1).</li>
+                        <li>Execute o mesmo fluxo em build dedicada (servidor separado) para garantir que todo tráfego usa as mensagens
+                            <code>ERemakeMessage</code>.</li>
+                    </ul>
+                </article>
+                <article class="recipe-card" data-recipe="receita-6">
                     <h3>Receita 6 — Barra de habilidades e atalhos</h3>
                     <p class="recipe-intro">Permite arrastar habilidades para teclas rápidas, consumindo mana e respeitando atrasos
                         como no cliente original.</p>
@@ -1459,7 +1812,7 @@
                             teclas como I, V e F.</li>
                         <li><code>Source Main 5.2/source/SkillManager.cpp</code> — consulta a mana, distância e delay de cada
                             habilidade.</li>
-                        <li><code>Source MuServer Update 15/GameServer/GameServer/Protocol.cpp</code> — pacotes 0x19, 0x1B e 0x1E de
+                        <li><code>Source MuServer Update 15/GameServer/GameServer/Protocol.cpp</code> — pacotes ERemakeMessage::SkillCastSingle, ERemakeMessage::MovementCommit e ERemakeMessage::SkillImpact de
                             ataque com habilidades.</li>
                     </ul>
                     <h4>Monte na Unreal</h4>
@@ -1480,9 +1833,9 @@
                             <code>WB_SkillSlot</code> e vincule <em>OnClicked</em> ao evento <code>OnSkillSlotClicado</code>.</li>
                         <li>Ao clicar, chame <code>USkillBarComponent::SolicitarUsoHabilidade</code>, que verifica mana e delay
                             consultando <code>SkillManager</code> via C++ ou Blueprint Function Library.</li>
-                        <li>Se aprovado, envie pacote 0x19 para o servidor e inicie um <em>Timeline</em> que controla o preenchimento
+                        <li>Se aprovado, envie pacote ERemakeMessage::SkillCastSingle para o servidor e inicie um <em>Timeline</em> que controla o preenchimento
                             do cooldown.</li>
-                        <li>Quando o servidor confirmar com pacote 0x1B/0x1E, finalize o <em>Timeline</em> e notifique o HUD com o dano
+                        <li>Quando o servidor confirmar com pacote ERemakeMessage::MovementCommit/ERemakeMessage::SkillImpact, finalize o <em>Timeline</em> e notifique o HUD com o dano
                             aplicado.</li>
                         <li>Se faltar mana, exiba callout vermelho reutilizando a lógica do cliente clássico de mensagens no chat.</li>
                     </ol>
@@ -1493,7 +1846,7 @@
                         <li>O servidor valida cada uso antes de causar dano ou efeitos.</li>
                     </ul>
                 </article>
-                <article class="recipe-card">
+                <article class="recipe-card" data-recipe="receita-7">
                     <h3>Receita 7 — NPC Loja e trocas entre jogadores</h3>
                     <p class="recipe-intro">Recria o atendimento de NPCs comerciantes e a janela de trade usando as mesmas verificações de
                         servidor.</p>
@@ -1502,7 +1855,7 @@
                         <li><code>Source Main 5.2/source/NewUINPCShop.cpp</code> — abertura da janela, bloqueio de slots e envio de
                             compras.</li>
                         <li><code>Source Main 5.2/source/NewUIInventoryCtrl.cpp</code> — cálculo da posição alvo para itens.</li>
-                        <li><code>Source MuServer Update 15/GameServer/GameServer/Protocol.cpp</code> — pacotes 0x30–0x3D para conversar
+                        <li><code>Source MuServer Update 15/GameServer/GameServer/Protocol.cpp</code> — pacotes ERemakeMessage::NpcBuyRequest–ERemakeMessage::TradeFinalize para conversar
                             com NPCs, comprar, vender e confirmar trocas.</li>
                     </ul>
                     <h4>Monte na Unreal</h4>
@@ -1510,10 +1863,10 @@
                         <li>Crie o Widget <code>WB_NPCShop</code> com grade 8×15 para itens do vendedor e botões Comprar, Vender, Reparar.
                         </li>
                         <li>No <code>UNetworkBridgeSubsystem</code>, implemente <code>EnviarAbrirNPC</code>,
-                            <code>EnviarCompraNPC</code> e <code>EnviarVendaNPC</code> espelhando os pacotes 0x30–0x33.</li>
+                            <code>EnviarCompraNPC</code> e <code>EnviarVendaNPC</code> espelhando os pacotes ERemakeMessage::NpcBuyRequest–ERemakeMessage::NpcSellResponse.</li>
                         <li>Para trocas entre jogadores, desenvolva o Widget <code>WB_Trade</code> com duas grades (você e alvo) e campos de
                             zen.</li>
-                        <li>Crie animações de feedback quando o servidor confirmar com 0x3A/0x3C (zen e confirmação final).</li>
+                        <li>Crie animações de feedback quando o servidor confirmar com ERemakeMessage::ShopZenSync/ERemakeMessage::TradeLock (zen e confirmação final).</li>
                         <li>Integre com o componente de inventário para bloquear slots enquanto a janela estiver aberta, tal como
                             <code>CNewUINPCShop::LockInventory</code>.</li>
                     </ol>
@@ -1525,24 +1878,24 @@
                         <li>No botão Comprar, leia slot selecionado, calcule preço e envie <code>EnviarCompraNPC</code>. Desabilite o botão
                             até receber confirmação.</li>
                         <li>Para trade, ao aceitar convite, abra <code>WB_Trade</code>, use <em>Event Dispatcher</em> para bloquear movimentos
-                            e envie 0x36/0x37 conforme resposta.</li>
-                        <li>Ao clicar em OK, envie 0x3C e aguarde 0x3D; apenas quando ambos confirmarem libere itens e feche janelas.</li>
+                            e envie EInstanceEvent::SpawnWave/ERemakeMessage::TradeResponse conforme resposta.</li>
+                        <li>Ao clicar em OK, envie ERemakeMessage::TradeLock e aguarde ERemakeMessage::TradeFinalize; apenas quando ambos confirmarem libere itens e feche janelas.</li>
                         <li>Sincronize o ouro digitado com <code>Binding</code> que chama validação no servidor a cada alteração.</li>
                     </ol>
                     <h4>Checklist final</h4>
                     <ul>
                         <li>Itens do NPC aparecem nas mesmas posições do arquivo original.</li>
                         <li>É impossível mover itens enquanto a janela de compra estiver aberta, evitando bugs.</li>
-                        <li>Trocas só finalizam quando os dois jogadores confirmam, replicando a lógica do pacote 0x3C.</li>
+                        <li>Trocas só finalizam quando os dois jogadores confirmam, replicando a lógica do pacote ERemakeMessage::TradeLock.</li>
                     </ul>
                 </article>
-                <article class="recipe-card">
+                <article class="recipe-card" data-recipe="receita-8">
                     <h3>Receita 8 — Diário de missões e recompensas</h3>
                     <p class="recipe-intro">Configura o sistema de quests, diário e recompensas automáticas igual ao cliente clássico.</p>
                     <h4>Copie do projeto original</h4>
                     <ul>
                         <li><code>Source Main 5.2/source/QuestInfoWindow.cpp</code> e <code>QuestProgress.cpp</code> — fluxo do diário e atualizações visuais.</li>
-                        <li><code>Source MuServer Update 15/GameServer/GameServer/Quest.cpp</code> — validações de requisitos e pacotes 0x7A/0x7B.</li>
+                        <li><code>Source MuServer Update 15/GameServer/GameServer/Quest.cpp</code> — validações de requisitos e pacotes ERemakeMessage::QuestAccept/ERemakeMessage::QuestProgress.</li>
                         <li><code>Data/Quest/QuestList.txt</code> e <code>QuestProgress.txt</code> — dados de objetivos e recompensas.</li>
                     </ul>
                     <h4>Monte na Unreal</h4>
@@ -1550,15 +1903,15 @@
                         <li>Crie a <code>Data Table</code> <code>DT_Quests</code> com campos ID, título, descrição, requisito e recompensa usando os arquivos <code>QuestList</code>.</li>
                         <li>Implemente <code>UQuestComponent</code> com arrays <code>QuestsAtivas</code> e <code>QuestsConcluidas</code>, espelhando <code>QuestProgress.cpp</code>.</li>
                         <li>Monte o Widget <code>WB_QuestLog</code> com duas colunas (ativas/completas) e botões “Rastrear” e “Recompensa”.</li>
-                        <li>Conecte o componente ao <code>UNetworkBridgeSubsystem</code> para enviar 0x7A (aceitar) e receber 0x7B (atualizar progresso).</li>
-                        <li>Implemente função <code>AplicarRecompensa</code> que chama o servidor (0x7D) e atualiza inventário/XP antes de marcar como concluída.</li>
+                        <li>Conecte o componente ao <code>UNetworkBridgeSubsystem</code> para enviar ERemakeMessage::QuestAccept (aceitar) e receber ERemakeMessage::QuestProgress (atualizar progresso).</li>
+                        <li>Implemente função <code>AplicarRecompensa</code> que chama o servidor (ERemakeMessage::QuestReward) e atualiza inventário/XP antes de marcar como concluída.</li>
                     </ol>
                     <h4>Fluxo Blueprint</h4>
                     <ol class="blueprint-list">
                         <li>No <code>WB_QuestLog</code>, use <em>Event Construct</em> &rarr; <em>Populate List</em> com dados do componente.</li>
-                        <li>Ao clicar em “Aceitar”, chame <code>UQuestComponent::SolicitarAceite</code> &rarr; <code>EnviarQuest</code> (0x7A) &rarr; desabilite botão até resposta.</li>
-                        <li>Quando receber 0x7B, atualize barras de progresso via <em>Set Percent</em> e exiba mensagem na HUD.</li>
-                        <li>Acione <code>AplicarRecompensa</code> após confirmar no servidor (0x7D) e reproduza efeitos de brilho.</li>
+                        <li>Ao clicar em “Aceitar”, chame <code>UQuestComponent::SolicitarAceite</code> &rarr; <code>EnviarQuest</code> (ERemakeMessage::QuestAccept) &rarr; desabilite botão até resposta.</li>
+                        <li>Quando receber ERemakeMessage::QuestProgress, atualize barras de progresso via <em>Set Percent</em> e exiba mensagem na HUD.</li>
+                        <li>Acione <code>AplicarRecompensa</code> após confirmar no servidor (ERemakeMessage::QuestReward) e reproduza efeitos de brilho.</li>
                         <li>Atualize o minimapa com marcadores de objetivo usando <code>Add Quest Marker</code> do componente.</li>
                     </ol>
                     <h4>Checklist final</h4>
@@ -1597,7 +1950,7 @@
                         </table>
                     </div>
                 </article>
-                <article class="recipe-card">
+                <article class="recipe-card" data-recipe="receita-9">
                     <h3>Receita 9 — IA de monstros e respawns</h3>
                     <p class="recipe-intro">Constrói respawns, comportamento e sincronização de monstros replicando o servidor.</p>
                     <h4>Copie do projeto original</h4>
@@ -1611,14 +1964,14 @@
                         <li>Converta <code>MonsterSetBase.txt</code> em <code>DT_MonsterSpawns</code> com mapa, coordenadas e intervalo.</li>
                         <li>Crie <code>AMonsterSpawner</code> que lê a tabela e instancia <code>ABaseMonster</code> com Behavior Tree.</li>
                         <li>Configure Behavior Tree com estados Patrulha, Perseguir, Atacar e Retornar, seguindo as condições de <code>MonsterAI.cpp</code>.</li>
-                        <li>Implemente <code>UNetworkBridgeSubsystem::RegistrarSpawn</code> enviando 0x16 (spawn) e recebendo 0x17 (morte).</li>
+                        <li>Implemente <code>UNetworkBridgeSubsystem::RegistrarSpawn</code> enviando ERemakeMessage::CreatureSpawn (spawn) e recebendo ERemakeMessage::CreatureDeath (morte).</li>
                         <li>Adapte partículas de agressão usando Niagara com texturas de <code>Data/Effects</code>.</li>
                     </ol>
                     <h4>Fluxo Blueprint</h4>
                     <ol class="blueprint-list">
                         <li>No <code>AMonsterSpawner</code>, execute <em>BeginPlay</em> &rarr; <em>For Each Spawn</em> &rarr; <em>Spawn Actor</em> com parâmetros.</li>
                         <li>No <code>ABaseMonster</code>, use <em>Event Possessed</em> para iniciar Behavior Tree.</li>
-                        <li>Ao detectar jogador (<em>OnPerceptionUpdated</em>), dispare evento <code>SolicitarAtaqueMonstro</code> (0x17) e aguarde retorno.</li>
+                        <li>Ao detectar jogador (<em>OnPerceptionUpdated</em>), dispare evento <code>SolicitarAtaqueMonstro</code> (ERemakeMessage::CreatureDeath) e aguarde retorno.</li>
                         <li>Quando morrer, chame <code>UNetworkBridgeSubsystem::NotificarMorteMonstro</code> para o DataServer liberar drops.</li>
                         <li>Use <em>Delay</em> baseado no campo <code>RespawnTime</code> antes de chamar <code>Spawn Actor</code> novamente.</li>
                     </ol>
@@ -1652,26 +2005,26 @@
                                 <tr>
                                     <td>Pacote de spawn</td>
                                     <td><code>UNetworkBridgeSubsystem::RegistrarSpawn</code></td>
-                                    <td><code>Protocol.cpp</code> (0x16/0x17)</td>
+                                    <td><code>Protocol.cpp</code> (ERemakeMessage::CreatureSpawn/ERemakeMessage::CreatureDeath)</td>
                                 </tr>
                             </tbody>
                         </table>
                     </div>
                 </article>
-                <article class="recipe-card">
+                <article class="recipe-card" data-recipe="receita-10">
                     <h3>Receita 10 — Party, guild e correio social</h3>
                     <p class="recipe-intro">Permite formar grupos, guilds e enviar mensagens internas com a mesma lógica do clássico.</p>
                     <h4>Copie do projeto original</h4>
                     <ul>
                         <li><code>Source Main 5.2/source/NewUIPartyWindow.cpp</code> e <code>NewUIGuildInfoWindow.cpp</code> — layout e interações.</li>
                         <li><code>Source MuServer Update 15/GameServer/GameServer/Party.cpp</code> e <code>GuildClass.cpp</code> — regras de convite, expulsão e habilidades de guild.</li>
-                        <li><code>ProtocolSend.cpp</code> (0x40–0x43) e <code>Protocol.cpp</code> (respostas de party/guild).</li>
+                        <li><code>ProtocolSend.cpp</code> (ERemakeMessage::PartyInvite–ERemakeMessage::GuildSync) e <code>Protocol.cpp</code> (respostas de party/guild).</li>
                     </ul>
                     <h4>Monte na Unreal</h4>
                     <ol>
                         <li>Crie Widgets <code>WB_Party</code>, <code>WB_Guild</code> e <code>WB_GuildNotice</code> com slots dinâmicos.</li>
                         <li>Implemente <code>USocialComponent</code> com listas de membros, convites pendentes e privilégios.</li>
-                        <li>Conecte convites a pacotes 0x40/0x41 e atualize componentes com respostas 0x42/0x43.</li>
+                        <li>Conecte convites a pacotes ERemakeMessage::PartyInvite/ERemakeMessage::PartyInviteResponse e atualize componentes com respostas ERemakeMessage::PartySync/ERemakeMessage::GuildSync.</li>
                         <li>Implemente sistema de correio interno usando <code>WB_Mailbox</code> e DataServer (procedures <code>GDSaveMail</code>/<code>GDReadMail</code>).</li>
                         <li>Sincronize buffs de guild (por exemplo, HP extra) aplicando <code>Gameplay Effects</code> quando <code>GuildClass.cpp</code> enviar atualização.</li>
                     </ol>
@@ -1679,8 +2032,8 @@
                     <ol class="blueprint-list">
                         <li>No <code>WB_Party</code>, use <em>Event Construct</em> para preencher slots e bindar botões Sair/Kick.</li>
                         <li>Ao clicar “Convidar”, abra <code>WB_SelectPlayer</code>, chame <code>USocialComponent::EnviarConviteParty</code> e aguarde retorno.</li>
-                        <li>Quando receber atualização 0x42, atualize lista e emita notificação sonora via HUD.</li>
-                        <li>No correio, ao enviar mensagem, chame <code>EnviarMail</code> (0x78) e limpe formulário somente após confirmação.</li>
+                        <li>Quando receber atualização ERemakeMessage::PartySync, atualize lista e emita notificação sonora via HUD.</li>
+                        <li>No correio, ao enviar mensagem, chame <code>EnviarMail</code> (ERemakeMessage::MailSend) e limpe formulário somente após confirmação.</li>
                         <li>Atualize buffs de guild usando <em>Gameplay Tags</em> acionadas pelo servidor.</li>
                     </ol>
                     <h4>Checklist final</h4>
@@ -1719,7 +2072,7 @@
                         </table>
                     </div>
                 </article>
-                <article class="recipe-card">
+                <article class="recipe-card" data-recipe="receita-11">
                     <h3>Receita 11 — Eventos instanciados (Blood Castle, Devil Square)</h3>
                     <p class="recipe-intro">Recria os eventos em instâncias com controles de tempo, objetivos e recompensas.</p>
                     <h4>Copie do projeto original</h4>
@@ -1733,8 +2086,8 @@
                         <li>Crie níveis dedicados (<code>LV_BloodCastle</code>, <code>LV_DevilSquare</code>) com Level Streaming carregado quando o evento começar.</li>
                         <li>Implemente <code>AEventController</code> que lê tabelas <code>DT_BloodCastle</code>/<code>DT_DevilSquare</code> derivadas dos arquivos originais.</li>
                         <li>Desenvolva Widgets <code>WB_EventTimer</code> e <code>WB_EventScore</code> replicando a UI clássica.</li>
-                        <li>Sincronize entradas e saídas com pacotes 0x90–0x94, confirmando com o GameServer antes de teleportar jogadores.</li>
-                        <li>Ao finalizar, distribua recompensas chamando <code>UNetworkBridgeSubsystem::EnviarRecompensaEvento</code> (0x95) e atualizando o inventário.</li>
+                        <li>Sincronize entradas e saídas com pacotes ERemakeMessage::EventEntry–ERemakeMessage::EventState, confirmando com o GameServer antes de teleportar jogadores.</li>
+                        <li>Ao finalizar, distribua recompensas chamando <code>UNetworkBridgeSubsystem::EnviarRecompensaEvento</code> (ERemakeMessage::ChaosCastleStatus) e atualizando o inventário.</li>
                     </ol>
                     <h4>Fluxo Blueprint</h4>
                     <ol class="blueprint-list">
@@ -1779,6 +2132,481 @@
                             </tbody>
                         </table>
                     </div>
+                </article>
+                <article class="recipe-card" data-recipe="receita-12">
+                    <h3>Receita 12 — Duelo 1x1 com placar e espectadores</h3>
+                    <div class="recipe-meta">
+                        <span class="recipe-meta__item"><strong>Tempo de preparo:</strong> 4–5 horas</span>
+                        <span class="recipe-meta__item"><strong>Serve:</strong> 1 professor + 1 aluno testador</span>
+                        <span class="recipe-meta__item"><strong>Dificuldade:</strong> Intermediária</span>
+                    </div>
+                    <p class="recipe-intro">Implemente a arena de duelo, HUD dedicada e sincronização via <code>ERemakeMessage::DuelFlow</code> como no cliente clássico.</p>
+                    <h4>Ingredientes essenciais</h4>
+                    <ul>
+                        <li><code>Source Main 5.2/source/CDuelMgr.cpp</code> e <code>NewUIDuelWindow.cpp</code> para regras de estado e layout.</li>
+                        <li><code>Source MuServer Update 15/GameServer/GameServer/Duel.cpp</code> para validação de pontos.</li>
+                        <li>Textos em <code>Data/Local/MsgBox.txt</code> para mensagens de convite e resultado.</li>
+                    </ul>
+                    <h4>Utensílios Unreal Engine 5+</h4>
+                    <ul>
+                        <li>Componente <code>UDuelComponent</code> anexado ao <code>APlayerState</code>.</li>
+                        <li>Widgets <code>WB_DuelInvite</code>, <code>WB_DuelHUD</code> e <code>WB_DuelSpectator</code>.</li>
+                        <li>Enumeradores <code>EDuelEvent</code> e mensagens <code>ERemakeMessage::DuelFlow</code> configuradas no módulo <code>RemakeNet</code>.</li>
+                    </ul>
+                    <h4>Modo de preparo (passo a passo)</h4>
+                    <ol>
+                        <li>Implemente <code>UDuelComponent</code> com estados Solicitação, Aceito, EmAndamento e Finalizado, registrando callbacks de rede.</li>
+                        <li>No <code>UNetworkBridgeSubsystem</code>, adicione manipuladores para enviar <code>DuelFlow</code> (<code>Request</code>, <code>Answer</code>, <code>ScoreTick</code>, <code>Finish</code>).</li>
+                        <li>Construa <code>WB_DuelInvite</code> exibindo nome do desafiante, opções Aceitar/Recusar e tempo limite.</li>
+                        <li>Ao iniciar duelo, exiba <code>WB_DuelHUD</code> com barras de HP, contador regressivo e placar, sincronizando com atualizações do componente.</li>
+                        <li>Permita espectadores registrando jogadores próximos no componente e mostrando <code>WB_DuelSpectator</code> com nome dos duelistas.</li>
+                        <li>Finalize duelo enviando <code>DuelFlow::Finish</code>, desbloqueando movimentação e gravando resultado em log.</li>
+                    </ol>
+                    <h4>Modo Blueprint para iniciantes</h4>
+                    <ol class="blueprint-list">
+                        <li>Em <code>WB_PlayerContextMenu</code>, adicione botão “Desafiar” chamando <code>SolicitarDuelo</code> do componente.</li>
+                        <li>No <code>UDuelComponent</code>, dispare evento <code>OnDueloConviteRecebido</code> para abrir <code>WB_DuelInvite</code>.</li>
+                        <li>Use <em>Set Timer by Event</em> para contagem regressiva e, ao expirar, envie <code>DuelFlow::Cancel</code>.</li>
+                        <li>Atualize HUD usando <code>OnPontuacaoAtualizada</code> com <em>Bind Event</em> para modificar textos e progress bars.</li>
+                    </ol>
+                    <h4>Cobertura e degustação (testes)</h4>
+                    <ul>
+                        <li>Simule convite recusado e aceite: ambos precisam gerar mensagens corretas.</li>
+                        <li>Confirme que a contagem regressiva bloqueia movimentação até “Começar!”.</li>
+                        <li>Valide empate por tempo e vitória por pontos registrando logs educativos.</li>
+                    </ul>
+                </article>
+                <article class="recipe-card" data-recipe="receita-13">
+                    <h3>Receita 13 — Empire Guardian cooperativo</h3>
+                    <div class="recipe-meta">
+                        <span class="recipe-meta__item"><strong>Tempo de preparo:</strong> 5 horas</span>
+                        <span class="recipe-meta__item"><strong>Serve:</strong> 1 time de 3 alunos</span>
+                        <span class="recipe-meta__item"><strong>Dificuldade:</strong> Avançada</span>
+                    </div>
+                    <p class="recipe-intro">Converta o evento Empire Guardian para instância Unreal com waves, cristal compartilhado e recompensas sincronizadas.</p>
+                    <h4>Ingredientes essenciais</h4>
+                    <ul>
+                        <li><code>EmpireGuardian.cpp</code> (GameServer) e <code>NewUIEmpireGuardianNPC.cpp</code> (cliente) para fases e HUD.</li>
+                        <li>Configurações em <code>Data/Event/EmpireGuardian*.txt</code>.</li>
+                        <li>Modelos convertidos do mapa original via pipeline <code>BMD_FBX</code>.</li>
+                    </ul>
+                    <h4>Utensílios Unreal Engine 5+</h4>
+                    <ul>
+                        <li>Nível <code>LV_EmpireGuardian</code> com <em>Level Streaming</em>.</li>
+                        <li><code>AEEmpireGuardianMode</code>, <code>UEGuardianWaveDirector</code> e <code>ACrystalGuardian</code>.</li>
+                        <li>Widget <code>WB_EmpireHUD</code> com barras do cristal, tempo e ranking.</li>
+                    </ul>
+                    <h4>Modo de preparo (passo a passo)</h4>
+                    <ol>
+                        <li>Carregue as waves em <code>UEGuardianWaveDirector</code> a partir de <code>Data Tables</code> convertidas.</li>
+                        <li>Implemente estados Preparação, Defesa, Boss e Conclusão em <code>AEEmpireGuardianMode</code>.</li>
+                        <li>Ao iniciar defesa, ative <code>ACrystalGuardian</code> com vida compartilhada replicada.</li>
+                        <li>Atualize <code>WB_EmpireHUD</code> usando eventos de wave e dano no cristal.</li>
+                        <li>Envie mensagens <code>ERemakeMessage::EventBanner</code> e <code>::BloodCastleSummary</code> com estatísticas.</li>
+                        <li>Distribua recompensas via <code>UNetworkBridgeSubsystem::EnviarRecompensaEvento</code>.</li>
+                    </ol>
+                    <h4>Modo Blueprint para iniciantes</h4>
+                    <ol class="blueprint-list">
+                        <li>Use <em>Load Stream Level</em> para carregar o mapa quando evento iniciar.</li>
+                        <li>Dispare <em>Custom Events</em> <code>OnWaveStart</code>, <code>OnCrystalDamaged</code> e <code>OnEventEnd</code> para atualizar HUD.</li>
+                        <li>Controle spawns com <em>SpawnActor</em> e <em>Delay</em> conforme Data Table.</li>
+                        <li>Ao finalizar, chame <em>Unload Stream Level</em> e abra tela de recompensas.</li>
+                    </ol>
+                    <h4>Cobertura e degustação (testes)</h4>
+                    <ul>
+                        <li>Derrote todas as waves e confirme entrega de prêmios conforme ranking.</li>
+                        <li>Falhe defendendo o cristal e valide mensagens de derrota e expulsão da instância.</li>
+                        <li>Teste reconexão no meio do evento para garantir sincronização do HUD.</li>
+                    </ul>
+                </article>
+                <article class="recipe-card" data-recipe="receita-14">
+                    <h3>Receita 14 — Cursed Temple competitivo</h3>
+                    <div class="recipe-meta">
+                        <span class="recipe-meta__item"><strong>Tempo de preparo:</strong> 5 horas</span>
+                        <span class="recipe-meta__item"><strong>Serve:</strong> 2 equipes de alunos</span>
+                        <span class="recipe-meta__item"><strong>Dificuldade:</strong> Avançada</span>
+                    </div>
+                    <p class="recipe-intro">Recrie Holy x Illusion com captura da relíquia, minimapa dedicado e narrações automáticas.</p>
+                    <h4>Ingredientes essenciais</h4>
+                    <ul>
+                        <li><code>CNewUICursedTempleSystem.cpp</code> e <code>CursedTemple.cpp</code> (GameServer).</li>
+                        <li>Arquivos <code>Data/Event/CursedTempleSetting.txt</code> e texturas do minimapa.</li>
+                        <li>Sons de narração originais e efeitos de captura.</li>
+                    </ul>
+                    <h4>Utensílios Unreal Engine 5+</h4>
+                    <ul>
+                        <li>Nível <code>LV_CursedTemple</code> com volumes Holy/Illusion.</li>
+                        <li><code>ACTempleMode</code>, <code>UCTempleScoreComponent</code> e <code>URelicCarrierComponent</code>.</li>
+                        <li>Widget <code>WB_CursedHUD</code> com placar, barra de tempo e minimapa.</li>
+                    </ul>
+                    <h4>Modo de preparo (passo a passo)</h4>
+                    <ol>
+                        <li>Configure equipes e respawns em <code>ACTempleMode</code> com <code>GameState</code> replicado.</li>
+                        <li>Implemente captura da relíquia anexando <code>URelicCarrierComponent</code> ao jogador portador.</li>
+                        <li>Dispare mensagens <code>ERemakeMessage::EventBanner</code> (<code>RelicUpdate</code>, <code>ScoreUpdate</code>).</li>
+                        <li>Atualize <code>WB_CursedHUD</code> com setas dinâmicas e contagem de pontos.</li>
+                        <li>Crie narrações com <code>UAudioComponent</code> acionado por eventos do modo.</li>
+                        <li>Ao término, envie resumo <code>ERemakeMessage::EventSummary</code> e abra tela de resultados.</li>
+                    </ol>
+                    <h4>Modo Blueprint para iniciantes</h4>
+                    <ol class="blueprint-list">
+                        <li>Use <em>Switch on ETeam</em> para colorir HUD conforme facção.</li>
+                        <li>Controle posse da relíquia com uma variável replicada e <em>OnRep</em> para atualizar efeitos.</li>
+                        <li>Atualize minimapa usando <em>Material Parameter Collection</em> para ícones.</li>
+                        <li>Chame <em>Play Sound 2D</em> para narrações quando a relíquia mudar de mãos.</li>
+                    </ol>
+                    <h4>Cobertura e degustação (testes)</h4>
+                    <ul>
+                        <li>Capture a relíquia e confirme pontuação crescente para a equipe correta.</li>
+                        <li>Teste respawn após morte para garantir retorno à base aliada.</li>
+                        <li>Verifique tela final com ranking individual e recompensas.</li>
+                    </ul>
+                </article>
+                <article class="recipe-card" data-recipe="receita-15">
+                    <h3>Receita 15 — Evento Doppelganger cinematográfico</h3>
+                    <div class="recipe-meta">
+                        <span class="recipe-meta__item"><strong>Tempo de preparo:</strong> 4 horas</span>
+                        <span class="recipe-meta__item"><strong>Serve:</strong> 1 orientador + 2 alunos</span>
+                        <span class="recipe-meta__item"><strong>Dificuldade:</strong> Intermediária</span>
+                    </div>
+                    <p class="recipe-intro">Monte o Doppelganger com timeline, clones e recompensas Lucky Item integradas.</p>
+                    <h4>Ingredientes essenciais</h4>
+                    <ul>
+                        <li><code>NewUIDoppelGangerWindow.cpp</code> e <code>Doppelganger.cpp</code>.</li>
+                        <li><code>Event/DoppelGangerSetting.txt</code> para fases e tempos.</li>
+                        <li>Cutscenes originais ou <em>Level Sequences</em> equivalentes.</li>
+                    </ul>
+                    <h4>Utensílios Unreal Engine 5+</h4>
+                    <ul>
+                        <li>Nível <code>LV_DoppelGanger</code> com rotas de equipes.</li>
+                        <li><code>ADoppelMode</code> e <code>UDoppelTimelineComponent</code>.</li>
+                        <li>Widget <code>WB_DoppelTimeline</code> com marcadores visuais.</li>
+                    </ul>
+                    <h4>Modo de preparo (passo a passo)</h4>
+                    <ol>
+                        <li>Leia passos do arquivo original e preencha <code>Data Table</code> com Estágios e recompensas.</li>
+                        <li>Implemente <code>UDoppelTimelineComponent</code> para avançar fases e disparar efeitos.</li>
+                        <li>Crie clones com materiais translúcidos e IA simplificada espelhando o jogador.</li>
+                        <li>Acione cinematics via <code>Level Sequence</code> ao iniciar e antes do boss.</li>
+                        <li>Envie <code>ERemakeMessage::LuckyItem</code> com pontuação e resultados.</li>
+                        <li>Registre replay opcional para revisão de aula.</li>
+                    </ol>
+                    <h4>Modo Blueprint para iniciantes</h4>
+                    <ol class="blueprint-list">
+                        <li>Use <em>Timeline</em> Blueprint para animar barra de progresso.</li>
+                        <li>Alterne fases com <em>Switch on Name</em> carregando dados da tabela.</li>
+                        <li>Chame <em>SpawnActorFromClass</em> para gerar clones com material translúcido.</li>
+                        <li>Ao terminar, mostre <code>WB_ResultadosDoppel</code> com recompensas.</li>
+                    </ol>
+                    <h4>Cobertura e degustação (testes)</h4>
+                    <ul>
+                        <li>Confirme que cada fase avança ao derrotar o objetivo correspondente.</li>
+                        <li>Verifique se cinematics tocam sem travar jogadores.</li>
+                        <li>Valide recompensas Lucky Item conforme pontuação.</li>
+                    </ul>
+                </article>
+                <article class="recipe-card" data-recipe="receita-16">
+                    <h3>Receita 16 — Economia Lucky Coin e Lucky Item</h3>
+                    <div class="recipe-meta">
+                        <span class="recipe-meta__item"><strong>Tempo de preparo:</strong> 3–4 horas</span>
+                        <span class="recipe-meta__item"><strong>Serve:</strong> Equipe de economia</span>
+                        <span class="recipe-meta__item"><strong>Dificuldade:</strong> Intermediária</span>
+                    </div>
+                    <p class="recipe-intro">Modele trocas de Lucky Coin e forja de Lucky Item usando mensagens dedicadas e feedback audiovisual clássico.</p>
+                    <h4>Ingredientes essenciais</h4>
+                    <ul>
+                        <li><code>LuckyCoin.cpp</code>, <code>NewUIExchangeLuckyCoin.cpp</code> e <code>NewUILuckyItemWnd.cpp</code>.</li>
+                        <li>Arquivos <code>LuckyCoinTrade.txt</code> e <code>LuckyItem.txt</code>.</li>
+                        <li>Modelos brilhantes convertidos pelo <code>BMD_FBX</code>.</li>
+                    </ul>
+                    <h4>Utensílios Unreal Engine 5+</h4>
+                    <ul>
+                        <li>Widgets <code>WB_LuckyCoinExchange</code> e <code>WB_LuckyItemForge</code>.</li>
+                        <li>Componentes <code>ULuckyCoinComponent</code> e <code>ULuckyForgeComponent</code>.</li>
+                        <li>Mensagens <code>ERemakeMessage::LuckyCoin</code> e <code>ERemakeMessage::LuckyItem</code>.</li>
+                    </ul>
+                    <h4>Modo de preparo (passo a passo)</h4>
+                    <ol>
+                        <li>Converta tabelas para <code>Data Tables</code> e carregue-as nos componentes.</li>
+                        <li>Monte <code>WB_LuckyCoinExchange</code> com lista de ofertas e pré-visualização 3D.</li>
+                        <li>Ao trocar, envie <code>LuckyCoin::Exchange</code>, bloqueie UI e mostre barra de progresso.</li>
+                        <li>Implemente <code>WB_LuckyItemForge</code> com slots, pré-visualização e efeitos Niagara.</li>
+                        <li>Registre histórico de trocas em arquivo CSV para estudos.</li>
+                        <li>Atualize saldos e inventário após resposta do servidor.</li>
+                    </ol>
+                    <h4>Modo Blueprint para iniciantes</h4>
+                    <ol class="blueprint-list">
+                        <li>Use <em>Data Table Row Handle</em> para preencher ofertas.</li>
+                        <li>Crie <em>Timeline</em> para animação de troca.</li>
+                        <li>Toque efeitos com <em>Spawn System Attached</em> ao concluir forja.</li>
+                        <li>Apresente mensagens de erro usando <em>Widget Switcher</em> com estados “Faltam moedas”.</li>
+                    </ol>
+                    <h4>Cobertura e degustação (testes)</h4>
+                    <ul>
+                        <li>Troque moedas repetidamente e valide saldo.</li>
+                        <li>Teste combinação incompleta para exibir aviso amigável.</li>
+                        <li>Gere Lucky Item e confirme brilho e atributos extras.</li>
+                    </ul>
+                </article>
+                <article class="recipe-card" data-recipe="receita-17">
+                    <h3>Receita 17 — Refinaria Jewel of Harmony</h3>
+                    <div class="recipe-meta">
+                        <span class="recipe-meta__item"><strong>Tempo de preparo:</strong> 3 horas</span>
+                        <span class="recipe-meta__item"><strong>Serve:</strong> 1 tutor + 1 aluno</span>
+                        <span class="recipe-meta__item"><strong>Dificuldade:</strong> Intermediária</span>
+                    </div>
+                    <p class="recipe-intro">Crie a interface e lógica de refino usando mensagens <code>ERemakeMessage::SkillAreaBroadcast</code> com foco pedagógico.</p>
+                    <h4>Ingredientes essenciais</h4>
+                    <ul>
+                        <li><code>UIJewelHarmony.cpp</code> e texturas convertidas.</li>
+                        <li>Tabelas de combinações de Harmony.</li>
+                        <li>Efeitos visuais e sonoros de sucesso/fracasso.</li>
+                    </ul>
+                    <h4>Utensílios Unreal Engine 5+</h4>
+                    <ul>
+                        <li>Widget <code>WB_HarmonyRefinery</code> e componente <code>UHarmonyRefineComponent</code>.</li>
+                        <li>Mensagens <code>ERemakeMessage::SkillAreaBroadcast</code> (<code>EHarmonyEvent::Forge</code>).</li>
+                        <li>Log educacional persistido (CSV ou Data Asset).</li>
+                    </ul>
+                    <h4>Modo de preparo (passo a passo)</h4>
+                    <ol>
+                        <li>Mapeie combinações em <code>Data Table</code> com item base, opção e custos.</li>
+                        <li>Valide itens arrastados ao widget verificando categoria.</li>
+                        <li>Envie mensagem de forja com dados do item e aguarde resposta.</li>
+                        <li>Atualize atributos do item e exiba efeitos conforme resultado.</li>
+                        <li>Grave tentativa no log com data, hora, item e resultado.</li>
+                        <li>Disponibilize aba “Histórico” para revisão nas aulas.</li>
+                    </ol>
+                    <h4>Modo Blueprint para iniciantes</h4>
+                    <ol class="blueprint-list">
+                        <li>Implemente drag and drop para slots usando <em>OnDrop</em>.</li>
+                        <li>Use <em>Switch on ERefineResultado</em> para decidir efeitos.</li>
+                        <li>Registre histórico com <em>Append to File</em> (plugin) ou <em>SaveGame</em>.</li>
+                        <li>Mostre mensagens com <code>WB_HarmonyToast</code>.</li>
+                    </ol>
+                    <h4>Cobertura e degustação (testes)</h4>
+                    <ul>
+                        <li>Teste item incompatível para garantir bloqueio.</li>
+                        <li>Execute refino de sucesso e falha validando efeitos.</li>
+                        <li>Abra histórico e confirme registro correto.</li>
+                    </ul>
+                </article>
+                <article class="recipe-card" data-recipe="receita-18">
+                    <h3>Receita 18 — Chaos Castle com armadilhas</h3>
+                    <div class="recipe-meta">
+                        <span class="recipe-meta__item"><strong>Tempo de preparo:</strong> 4 horas</span>
+                        <span class="recipe-meta__item"><strong>Serve:</strong> Turma inteira</span>
+                        <span class="recipe-meta__item"><strong>Dificuldade:</strong> Avançada</span>
+                    </div>
+                    <p class="recipe-intro">Represente armadilhas, queda de plataformas e HUD dinâmica sincronizada com o servidor.</p>
+                    <h4>Ingredientes essenciais</h4>
+                    <ul>
+                        <li><code>ChaosCastle.cpp</code> e <code>NewUIChaosCastle.cpp</code>.</li>
+                        <li>Mapas e texturas convertidos via <code>BMD_FBX</code>.</li>
+                        <li>Configurações em <code>Data/Event/ChaosCastle.txt</code>.</li>
+                    </ul>
+                    <h4>Utensílios Unreal Engine 5+</h4>
+                    <ul>
+                        <li>Nível <code>LV_ChaosCastle</code> com volumes de queda.</li>
+                        <li><code>ACChaosCastleMode</code>, <code>UChaosTrapController</code> e <code>UChaosSpectatorComponent</code>.</li>
+                        <li>Widget <code>WB_ChaosHUD</code>.</li>
+                    </ul>
+                    <h4>Modo de preparo (passo a passo)</h4>
+                    <ol>
+                        <li>Implemente fases StandBy, Playing, End replicadas no GameState.</li>
+                        <li>Controle armadilhas com <code>UChaosTrapController</code> lendo Data Table.</li>
+                        <li>Atualize HUD com contagem de sobreviventes e alerta de armadilhas.</li>
+                        <li>Ao eliminar jogador, envie <code>ERemakeMessage::ChaosCastleStatus</code> com novo ranking.</li>
+                        <li>Ative modo espectador automaticamente ao cair.</li>
+                        <li>Finalize partida registrando CSV semanal.</li>
+                    </ol>
+                    <h4>Modo Blueprint para iniciantes</h4>
+                    <ol class="blueprint-list">
+                        <li>Use <em>Matinee/Sequence</em> ou <em>Timeline</em> para mover plataformas.</li>
+                        <li>Dispare câmera aérea com <em>Set View Target with Blend</em>.</li>
+                        <li>Atualize ranking com <em>ForEachLoop</em> e <code>WB_ChaosHUD</code>.</li>
+                        <li>Gere logs usando <em>Print String</em> antes de implementar CSV.</li>
+                    </ol>
+                    <h4>Cobertura e degustação (testes)</h4>
+                    <ul>
+                        <li>Verifique ativação de armadilhas nos tempos configurados.</li>
+                        <li>Confirme transição automática para espectador ao cair.</li>
+                        <li>Cheque ranking final e arquivo de log gerado.</li>
+                    </ul>
+                </article>
+                <article class="recipe-card" data-recipe="receita-19">
+                    <h3>Receita 19 — Facções Gens e missões diárias</h3>
+                    <div class="recipe-meta">
+                        <span class="recipe-meta__item"><strong>Tempo de preparo:</strong> 3 horas</span>
+                        <span class="recipe-meta__item"><strong>Serve:</strong> 1 aluno dedicado</span>
+                        <span class="recipe-meta__item"><strong>Dificuldade:</strong> Intermediária</span>
+                    </div>
+                    <p class="recipe-intro">Implemente Vanert e Dupren com ranking, missões e buffs replicando o comportamento clássico.</p>
+                    <h4>Ingredientes essenciais</h4>
+                    <ul>
+                        <li><code>GensSystem.cpp</code> e <code>NewUIGensWindow.cpp</code>.</li>
+                        <li>Ícones e banners convertidos para as facções.</li>
+                        <li>Tabelas de rank e missões diárias.</li>
+                    </ul>
+                    <h4>Utensílios Unreal Engine 5+</h4>
+                    <ul>
+                        <li>Widget <code>WB_GensLobby</code> e <code>WB_GensRanking</code>.</li>
+                        <li>Componente <code>UGensFactionComponent</code> com buffs via Gameplay Effects.</li>
+                        <li>Mensagens <code>ERemakeMessage::FactionChannel</code>.</li>
+                    </ul>
+                    <h4>Modo de preparo (passo a passo)</h4>
+                    <ol>
+                        <li>Configure facções e ranks lendo tabelas convertidas.</li>
+                        <li>Crie fluxos de entrada/saída enviando <code>FactionChannel::JoinRequest</code>/<code>::Leave</code>.</li>
+                        <li>Monte painel de missões com contadores e recompensas.</li>
+                        <li>Atualize buffs ativando Gameplay Effects conforme rank.</li>
+                        <li>Implemente reset semanal automático com timers.</li>
+                        <li>Registre histórico de pontos para acompanhamento educativo.</li>
+                    </ol>
+                    <h4>Modo Blueprint para iniciantes</h4>
+                    <ol class="blueprint-list">
+                        <li>Use <em>Widget Switcher</em> para alternar entre facções.</li>
+                        <li>Atualize pontuação com <em>Bind</em> direto no <code>UGensFactionComponent</code>.</li>
+                        <li>Reproduza aura com <em>Niagara</em> ativada quando <code>Facção</code> mudar.</li>
+                        <li>Implemente reset chamando <em>Clear and Invalidate Timer</em> e <em>Set Timer</em>.</li>
+                    </ol>
+                    <h4>Cobertura e degustação (testes)</h4>
+                    <ul>
+                        <li>Entrar em cada facção atualizando HUD imediatamente.</li>
+                        <li>Completar missão diária e validar incremento de pontos.</li>
+                        <li>Executar reset semanal manual e conferir histórico.</li>
+                    </ul>
+                </article>
+                <article class="recipe-card" data-recipe="receita-20">
+                    <h3>Receita 20 — Cash Shop, catálogo e entregas</h3>
+                    <div class="recipe-meta">
+                        <span class="recipe-meta__item"><strong>Tempo de preparo:</strong> 3 horas</span>
+                        <span class="recipe-meta__item"><strong>Serve:</strong> 1 dupla (UI + backend)</span>
+                        <span class="recipe-meta__item"><strong>Dificuldade:</strong> Intermediária</span>
+                    </div>
+                    <p class="recipe-intro">Reproduza a loja de cash com carrinho, confirmações e correio de entregas usando Unreal.</p>
+                    <h4>Ingredientes essenciais</h4>
+                    <ul>
+                        <li><code>XShopScript.cpp</code> e <code>NewUICashShop.cpp</code>.</li>
+                        <li>Assets de interface <code>Interface/XShop</code>.</li>
+                        <li>Tabelas <code>CashShopPackage.txt</code> e <code>CashShopItem.txt</code>.</li>
+                    </ul>
+                    <h4>Utensílios Unreal Engine 5+</h4>
+                    <ul>
+                        <li>Widgets <code>WB_CashShop</code> e <code>WB_CashMailbox</code>.</li>
+                        <li>Componentes <code>UCashWalletComponent</code> e <code>UCashDeliveryComponent</code>.</li>
+                        <li>Mensagens <code>ERemakeMessage::CashShopPurchase</code>, <code>::CashShopReceipt</code>, <code>::CashMailbox</code>.</li>
+                    </ul>
+                    <h4>Modo de preparo (passo a passo)</h4>
+                    <ol>
+                        <li>Carregue catálogo nas Data Tables e filtre por categoria no widget.</li>
+                        <li>Implemente carrinho com resumo e saldo.</li>
+                        <li>Ao confirmar compra, envie <code>CashShopPurchase</code> e bloqueie UI até <code>CashShopReceipt</code>.</li>
+                        <li>Atualize saldo e registre compra em log.</li>
+                        <li>Implemente <code>WB_CashMailbox</code> para resgatar presentes recebidos.</li>
+                        <li>Entregue itens ao inventário ao clicar em Resgatar.</li>
+                    </ol>
+                    <h4>Modo Blueprint para iniciantes</h4>
+                    <ol class="blueprint-list">
+                        <li>Use <em>ListView</em> para catálogo e vincule <em>OnItemClicked</em> ao painel de detalhes.</li>
+                        <li>Controle saldo com variáveis <em>float</em> atualizadas a cada compra.</li>
+                        <li>Mostre recibo usando <em>Widget Switcher</em> para estados (Resumo/Confirmação/Sucesso).</li>
+                        <li>Para mailbox, utilize <em>ForEachLoop</em> alimentando <code>TileView</code>.</li>
+                    </ol>
+                    <h4>Cobertura e degustação (testes)</h4>
+                    <ul>
+                        <li>Realize compra e valide descontos corretos.</li>
+                        <li>Teste falta de saldo e exiba aviso amigável.</li>
+                        <li>Resgate presente no mailbox e confirme inclusão no inventário.</li>
+                    </ul>
+                </article>
+                <article class="recipe-card" data-recipe="receita-21">
+                    <h3>Receita 21 — Todas as interfaces do NewUI</h3>
+                    <div class="recipe-meta">
+                        <span class="recipe-meta__item"><strong>Tempo de preparo:</strong> 2 dias de oficina</span>
+                        <span class="recipe-meta__item"><strong>Serve:</strong> Equipe multidisciplinar</span>
+                        <span class="recipe-meta__item"><strong>Dificuldade:</strong> Avançada</span>
+                    </div>
+                    <p class="recipe-intro">Crie uma fábrica de janelas Unreal replicando Inventário, Personagem, Guilda, Trade, Quests, Eventos e Cash Shop.</p>
+                    <h4>Ingredientes essenciais</h4>
+                    <ul>
+                        <li><code>NewUIManager.cpp</code>, <code>NewUICommonMessageBox.cpp</code> e <code>UIControls.h</code>.</li>
+                        <li>Texturas de moldura em <code>Data/Interface</code> e textos em <code>GlobalText.txt</code>.</li>
+                        <li>Planilha com atalhos e sons originais.</li>
+                    </ul>
+                    <h4>Utensílios Unreal Engine 5+</h4>
+                    <ul>
+                        <li>Módulo <code>UIFramework</code> com <code>UWindowRegistry</code> e <code>UUIAudioLibrary</code>.</li>
+                        <li>Widget base <code>WB_WindowBase</code> e derivados (<code>WB_InventoryWindow</code>, <code>WB_QuestJournal</code>, etc.).</li>
+                        <li>Componente <code>BP_UIRouter</code> para atalhos globais e som.</li>
+                    </ul>
+                    <h4>Modo de preparo (passo a passo)</h4>
+                    <ol>
+                        <li>Implemente <code>WB_WindowBase</code> com molduras, barra de título e eventos padrões.</li>
+                        <li>Cadastre cada janela no <code>UWindowRegistry</code> com atalhos, som e pacotes <code>ERemakeMessage</code> correspondentes.</li>
+                        <li>Construa widgets derivados replicando layouts originais e reutilizando componentes (tabs, listas, slots).</li>
+                        <li>Carregue textos através de Data Tables convertidas de <code>GlobalText</code> e <code>ToolTip</code>.</li>
+                        <li>Integre <code>BP_UIRouter</code> ao <code>PlayerController</code> para abrir/fechar janelas via hotkeys.</li>
+                        <li>Implemente persistência de configurações (volume, tooltips) via <code>SaveGame</code>.</li>
+                    </ol>
+                    <h4>Modo Blueprint para iniciantes</h4>
+                    <ol class="blueprint-list">
+                        <li>Crie biblioteca de macros para abrir/fechar janelas.</li>
+                        <li>Use <em>Widget Switcher</em> no <code>WB_WindowBase</code> para estados (Aberto/Minimizado).</li>
+                        <li>Vincule sons com <em>Play Sound 2D</em> ao abrir e fechar.</li>
+                        <li>Preencha textos usando <em>Get Data Table Row</em> baseado na chave GlobalText.</li>
+                    </ol>
+                    <h4>Cobertura e degustação (testes)</h4>
+                    <ul>
+                        <li>Verifique se atalhos (I, C, G, Q, M) abrem as janelas corretas.</li>
+                        <li>Confirme atualização de conteúdo ao receber mensagens da rede.</li>
+                        <li>Teste tema escuro/claro ou ajustes de volume persistindo após reiniciar.</li>
+                    </ul>
+                </article>
+                <article class="recipe-card" data-recipe="receita-22">
+                    <h3>Receita 22 — Núcleo do personagem, movimentação e progressão</h3>
+                    <div class="recipe-meta">
+                        <span class="recipe-meta__item"><strong>Tempo de preparo:</strong> 6 horas</span>
+                        <span class="recipe-meta__item"><strong>Serve:</strong> 1 programador + 1 artista técnico</span>
+                        <span class="recipe-meta__item"><strong>Dificuldade:</strong> Avançada</span>
+                    </div>
+                    <p class="recipe-intro">Construa o personagem jogável completo: seleção de classe, movimentação validada, câmeras, progressão e sincronização com o servidor Unreal.</p>
+                    <h4>Ingredientes essenciais</h4>
+                    <ul>
+                        <li><code>CharSelMainWin.cpp</code>, <code>NewUICharacterInfoWindow.cpp</code> e <code>Player.cpp</code> do cliente clássico.</li>
+                        <li><code>GameServer/GameServer/ObjBaseAttack.cpp</code> e <code>GameServer/GameServer/ObjCalCharacter.cpp</code> para atributos.</li>
+                        <li>Tabelas <code>DefaultClassType.txt</code>, <code>CharacterCreate.txt</code>, <code>LevelExperience.txt</code>.</li>
+                    </ul>
+                    <h4>Utensílios Unreal Engine 5+</h4>
+                    <ul>
+                        <li>Blueprint <code>BP_RemakeCharacter</code> com componentes <code>URemakeMovementComponent</code>, <code>URemakeStatsComponent</code> e <code>URemakeAppearanceComponent</code>.</li>
+                        <li>GameMode <code>ARemakeWorldMode</code> e GameState com replicação de níveis/atributos.</li>
+                        <li>Mensagens <code>ERemakeMessage::MovementRequest</code>, <code>::MovementCommit</code>, <code>::CharacterProgress</code>.</li>
+                    </ul>
+                    <h4>Modo de preparo (passo a passo)</h4>
+                    <ol>
+                        <li>Implemente <code>URemakeMovementComponent</code> estendendo <code>UCharacterMovementComponent</code> com envio de <code>MovementRequest</code> e aplicação de <code>MovementCommit</code>.</li>
+                        <li>Crie <code>URemakeStatsComponent</code> carregando atributos base por classe via Data Table e aplicando crescimento por nível.</li>
+                        <li>Adicione <code>URemakeAppearanceComponent</code> responsável por trocar malhas, materiais e animações conforme classe/sexo.</li>
+                        <li>Monte <code>BP_RemakeCharacter</code> conectando entrada Enhanced Input aos métodos de movimento, dash e salto.</li>
+                        <li>No servidor dedicado, implemente <code>ARemakeWorldMode</code> para validar requests, aplicar XP e enviar <code>ERemakeMessage::CharacterProgress</code>.</li>
+                        <li>Construa fluxo de seleção de classe integrando com Receita 5: ao confirmar personagem, configure appearance e atributos.</li>
+                        <li>Adicione <code>URemakeCameraComponent</code> com opções de câmera fixa/dinâmica e bloqueios de rotação.</li>
+                        <li>Integre progresso (XP, pontos de atributo) com HUD emitindo eventos para barras e painéis de personagem.</li>
+                    </ol>
+                    <h4>Modo Blueprint para iniciantes</h4>
+                    <ol class="blueprint-list">
+                        <li>No <code>BP_RemakeCharacter</code>, vincule Input Actions Move/Look/Jump/Dash a eventos personalizados.</li>
+                        <li>Use <em>Enhanced Input</em> para criar “Contexto Mundo” e ativá-lo após login.</li>
+                        <li>Atualize atributos chamando <em>Set Members in Struct</em> quando mensagem <code>CharacterProgress</code> chegar.</li>
+                        <li>Para personalização visual, utilize <em>Dynamic Material Instances</em> selecionadas por classe.</li>
+                    </ol>
+                    <h4>Cobertura e degustação (testes)</h4>
+                    <ul>
+                        <li>Movimente personagem em dois clientes e verifique latência dos commits (&lt;120 ms).</li>
+                        <li>Up de nível deve atualizar atributos, barras e pontos disponíveis automaticamente.</li>
+                        <li>Troque de classe/sexo na criação e valide que malhas, animações e câmera são atualizadas.</li>
+                    </ul>
                 </article>
             </div>
         </section>
@@ -1826,7 +2654,7 @@
                     <h4>Arquivos clássicos</h4>
                     <ul>
                         <li><code>MoveCommand.cpp</code>, <code>ZzzCharacter.cpp</code>, <code>NewCharacterModel.cpp</code>.</li>
-                        <li><code>ProtocolSend::SendRequestMove</code> e confirmações 0x1C no servidor.</li>
+                        <li><code>ProtocolSend::SendRequestMove</code> e confirmações ERemakeMessage::MovementAck no servidor.</li>
                         <li><code>PetAction.cpp</code> para montarias.</li>
                     </ul>
                     <h4>Na Unreal</h4>
@@ -1834,7 +2662,7 @@
                         <li>Configure <code>Enhanced Input</code> para WASD, Dash (duplo clique) e montaria (tecla <code>A</code>).</li>
                         <li>Use <code>CharacterMovement</code> com <code>Orient Rotation to Movement</code> e <code>Braking Deceleration = 2048</code>.</li>
                         <li>Implemente <code>UMovementCommandComponent</code> para fila de passos e teleporte via <code>Server Corrections</code>.</li>
-                        <li>Adicione animação de montaria usando <em>Montage Slots</em> sincronizados com o servidor (pacote 0x2D).</li>
+                        <li>Adicione animação de montaria usando <em>Montage Slots</em> sincronizados com o servidor (pacote ERemakeMessage::MountState).</li>
                     </ol>
                     <h4>Checklist</h4>
                     <ul>
@@ -1855,7 +2683,7 @@
                     <ol class="atlas-steps">
                         <li>Crie <code>UAbilityDataTable</code> com dano, alcance, animação e efeitos de partículas.</li>
                         <li>Implemente <code>UCombatComponent</code> com <em>Ability Queue</em> e validações de mana/tempo de recarga.</li>
-                        <li>Conecte com <code>UNetworkBridgeSubsystem</code> enviando 0x11/0x19 e recebendo 0x1A/0x1B.</li>
+                        <li>Conecte com <code>UNetworkBridgeSubsystem</code> enviando ERemakeMessage::BasicAttackRequest/ERemakeMessage::SkillCastSingle e recebendo ERemakeMessage::DamageResolved/ERemakeMessage::MovementCommit.</li>
                         <li>Use <em>Niagara</em> para partículas reaproveitando texturas originais de <code>Effects</code>.</li>
                     </ol>
                     <h4>Checklist</h4>
@@ -1876,7 +2704,7 @@
                     <h4>Na Unreal</h4>
                     <ol class="atlas-steps">
                         <li>Monte Widgets <code>WB_NPCShop</code>, <code>WB_Quest</code> e <code>WB_Trade</code> reutilizando componentes do inventário.</li>
-                        <li>Adicione <code>UNPCInteractionComponent</code> com função <code>SolicitarServico</code> para enviar códigos 0x30–0x3D, 0x6F e 0x7A.</li>
+                        <li>Adicione <code>UNPCInteractionComponent</code> com função <code>SolicitarServico</code> para enviar códigos ERemakeMessage::NpcBuyRequest–ERemakeMessage::TradeFinalize, ERemakeMessage::NpcScriptCommand e ERemakeMessage::QuestAccept.</li>
                         <li>Integre com <code>UQuestComponent</code> que salva progresso no DataServer antes de liberar recompensas.</li>
                         <li>Sincronize valores de Zen, Joias e itens com tabelas SQL através de <code>Stored Procedures</code> chamadas pelo GameServer.</li>
                     </ol>
@@ -1900,7 +2728,7 @@
                         <li>Recrie terrenos com <em>Landscape</em> e aplique materiais com <code>Runtime Virtual Texture</code>.</li>
                         <li>Construa <code>Data Layers</code> por mapa para carregar apenas o necessário (Lorencia, Noria, etc.).</li>
                         <li>Implemente <code>AMonsterSpawner</code> lendo <code>DT_MonsterSpawns</code> gerados a partir de <code>MonsterSetBase.txt</code>.</li>
-                        <li>Crie <em>State Machines</em> de IA (Patrulha, Perseguir, Atacar, Retornar) e conecte eventos de servidor (0x18, 0x1E).</li>
+                        <li>Crie <em>State Machines</em> de IA (Patrulha, Perseguir, Atacar, Retornar) e conecte eventos de servidor (ERemakeMessage::CreatureAggro, ERemakeMessage::SkillImpact).</li>
                     </ol>
                     <h4>Checklist</h4>
                     <ul>
@@ -1920,8 +2748,8 @@
                     <h4>Na Unreal</h4>
                     <ol class="atlas-steps">
                         <li>Implemente <code>UNetworkBridgeSubsystem</code> usando <code>FSocket</code> + threads para leitura.</li>
-                        <li>Crie <code>FPacketHeader</code>, <code>FPacketWriter</code> e <code>FPacketReader</code> replicando cabeçalhos C1/C3.</li>
-                        <li>Implemente heartbeat (0x0E) com timers e reconexão automática.</li>
+                        <li>Crie utilitários <code>FRemakeMessageBuilder</code> e <code>FRemakeMessageReader</code> para serializar/deserializar <code>FRemakeMessage</code> respeitando os enumeradores definidos.</li>
+                        <li>Implemente heartbeat (ERemakeMessage::KeepAlivePing) com timers e reconexão automática.</li>
                         <li>Mapeie todas as estruturas persistentes para <code>USTRUCT</code> que serão convertidas em JSON/SQL nos serviços externos.</li>
                     </ol>
                     <h4>Checklist</h4>
@@ -1980,7 +2808,7 @@
                             <td>Cliente</td>
                             <td>JoinServer</td>
                             <td><code>ProtocolSend::SendRequestLogInNew</code></td>
-                            <td>Aplicar <code>BuxConvert</code>, enviar versão/serial corretos e aguardar retorno 0x01.</td>
+                            <td>Aplicar <code>BuxConvert</code>, enviar versão/serial corretos e aguardar retorno ERemakeMessage::HandshakeAccepted.</td>
                         </tr>
                         <tr>
                             <td>Lista de personagens</td>
@@ -1992,15 +2820,15 @@
                         </tr>
                         <tr>
                             <td>Movimento</td>
-                            <td><code>ProtocolHead::BOTH_MOVE</code> / <code>0x1B</code></td>
+                            <td><code>ProtocolHead::BOTH_MOVE</code> / <code>ERemakeMessage::MovementCommit</code></td>
                             <td>Cliente</td>
                             <td>GameServer</td>
-                            <td><code>ClientSendMoveCharacter</code>, <code>ProtocolCore</code> case 0x1B</td>
+                            <td><code>ClientSendMoveCharacter</code>, <code>ProtocolCore</code> case ERemakeMessage::MovementCommit</td>
                             <td>Sincronize passos e caminhos; use <em>Server Authoritative Movement</em> na Unreal.</td>
                         </tr>
                         <tr>
                             <td>Posição</td>
-                            <td><code>ProtocolHead::BOTH_POSITION</code> / <code>0x1C</code></td>
+                            <td><code>ProtocolHead::BOTH_POSITION</code> / <code>ERemakeMessage::MovementAck</code></td>
                             <td>GameServer</td>
                             <td>Cliente</td>
                             <td><code>ReceiveMovePosition</code>, <code>gMove.CGTeleportRecv</code></td>
@@ -2008,7 +2836,7 @@
                         </tr>
                         <tr>
                             <td>Itens no inventário</td>
-                            <td><code>0x24</code> / subcódigos</td>
+                            <td><code>ERemakeMessage::InventoryTransaction</code> / subcódigos</td>
                             <td>Cliente &amp; GameServer</td>
                             <td>Cliente &amp; DataServer</td>
                             <td><code>gItemManager.CGItemMoveRecv</code>, <code>GDWarehouseItemRecv</code></td>
@@ -2016,7 +2844,7 @@
                         </tr>
                         <tr>
                             <td>Chat</td>
-                            <td><code>0x00</code></td>
+                            <td><code>ERemakeMessage::ChatBroadcast</code></td>
                             <td>Cliente</td>
                             <td>GameServer</td>
                             <td><code>CGChatRecv</code>, <code>ProtocolCore</code></td>
@@ -2032,7 +2860,7 @@
                         </tr>
                         <tr>
                             <td>Keep alive</td>
-                            <td><code>ProtocolHead::SERVER_CONNECT</code> / <code>0x0E</code></td>
+                            <td><code>ProtocolHead::SERVER_CONNECT</code> / <code>ERemakeMessage::KeepAlivePing</code></td>
                             <td>Cliente &amp; GameServer</td>
                             <td>Ambos</td>
                             <td><code>SendPingTest</code>, <code>CGLiveClientRecv</code></td>
@@ -2505,7 +3333,7 @@
                         <li>Criar <code>CameraBoom</code> com ajuste de zoom baseado no valor padrão em
                             <code>Options.ini</code> do Main (campo <code>CameraDistance</code>).</li>
                         <li>Testar com <em>Play in Editor</em> em modo <em>New Editor Window</em> e validar que o pacote
-                            <code>0x10</code> (movimento) chega ao <code>GameServer</code> sem divergência.</li>
+                            <code>EInstanceEvent::LobbyOpened</code> (movimento) chega ao <code>GameServer</code> sem divergência.</li>
                     </ol>
                 </article>
                 <article class="card">
@@ -2533,7 +3361,7 @@
                         <li>Implementar <code>BP_InventoryComponent</code> com replicação <code>COND_OwnerOnly</code>.</li>
                         <li>Ligar <code>WB_Inventory</code> ao componente via <code>Event OnRep_Items</code> e arrastar itens
                             com <code>DragDropOperation</code>.</li>
-                        <li>Sincronizar com o servidor usando o pacote <code>0x79</code> seguindo estrutura de
+                        <li>Sincronizar com o servidor usando o pacote <code>ERemakeMessage::PortalUse</code> seguindo estrutura de
                             <code>DataServerProtocol.cpp::WarehouseItemsSend</code>.</li>
                     </ol>
                 </article>
@@ -2561,7 +3389,7 @@
                             <em>MuTerrain Tool</em>.</li>
                         <li>Criar <code>LevelInstance</code> para eventos (Blood Castle, Devil Square) e conectar ao
                             <code>EventManager</code> inspirado em <code>GameServer/Event/*.cpp</code>.</li>
-                        <li>Configurar <code>BP_Portal</code> com colisão e pacote <code>0x1C</code> para sincronizar
+                        <li>Configurar <code>BP_Portal</code> com colisão e pacote <code>ERemakeMessage::MovementAck</code> para sincronizar
                             transições com o servidor.</li>
                         <li>Testar spawn de monstros usando dados de <code>MonsterSetBase.txt</code> convertidos para
                             <code>DataTable</code> <code>DT_SpawnGroups</code>.</li>
@@ -2601,8 +3429,8 @@
                         <li>Verificar latência exibida no HUD (<code>TelemetrySubsystem</code>) e comparar com ping real.</li>
                         <li>Conferir sincronização de inventário, chat e movimentação usando logs do <code>GameServer</code>.
                         </li>
-                        <li>Testar negociações (trade) e partilha de party replicando pacotes <code>0xCB</code> e
-                            <code>0xF3</code>.</li>
+                        <li>Testar negociações (trade) e partilha de party replicando pacotes <code>ERemakeMessage::PartyShare</code> e
+                            <code>ERemakeMessage::WorldChannel</code>.</li>
                         <li>Registrar bugs em planilha com status (Novo, Investigando, Resolvido).</li>
                     </ol>
                 </article>
