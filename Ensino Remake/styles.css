@@ -112,6 +112,12 @@ main {
     box-shadow: 0 20px 45px -30px var(--shadow);
 }
 
+.panel--highlight {
+    border: 1px solid rgba(56, 189, 248, 0.35);
+    background: linear-gradient(160deg, rgba(15, 23, 42, 0.75), rgba(56, 189, 248, 0.08));
+    box-shadow: 0 25px 60px -35px rgba(56, 189, 248, 0.35);
+}
+
 .panel h2 {
     margin-top: 0;
     font-size: 2rem;
@@ -142,6 +148,46 @@ main {
 
 .callout strong {
     color: var(--text);
+}
+
+.code-block {
+    background: rgba(2, 6, 23, 0.85);
+    border-radius: 16px;
+    padding: 1.25rem 1.5rem;
+    margin: 1.5rem 0;
+    font-size: 0.9rem;
+    line-height: 1.55;
+    box-shadow: inset 0 0 0 1px rgba(148, 163, 184, 0.12);
+    overflow-x: auto;
+}
+
+.code-block code {
+    font-family: "JetBrains Mono", "Fira Code", monospace;
+    color: #bae6fd;
+}
+
+.table--compact {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 2rem;
+    font-size: 0.95rem;
+}
+
+.table--compact th,
+.table--compact td {
+    padding: 0.75rem 1rem;
+    text-align: left;
+    border-bottom: 1px solid rgba(148, 163, 184, 0.2);
+}
+
+.table--compact th {
+    color: var(--accent);
+    font-weight: 600;
+    letter-spacing: 0.02em;
+}
+
+.table--compact tr:last-child td {
+    border-bottom: none;
 }
 
 .callout--tip {
@@ -217,6 +263,40 @@ main {
     padding-bottom: 3rem;
 }
 
+.novice-toggle {
+    margin-top: 1.5rem;
+    padding: 1rem 1.25rem;
+    border: 1px solid rgba(148, 163, 184, 0.25);
+    border-radius: 14px;
+    background: rgba(30, 41, 59, 0.6);
+    display: grid;
+    gap: 0.5rem;
+}
+
+.novice-toggle__header {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.6rem;
+    font-weight: 600;
+}
+
+.novice-toggle input[type="checkbox"] {
+    width: 1.25rem;
+    height: 1.25rem;
+    accent-color: var(--accent);
+    cursor: pointer;
+}
+
+.novice-toggle label {
+    cursor: pointer;
+}
+
+.novice-toggle p {
+    margin: 0;
+    color: var(--text-muted);
+    line-height: 1.4;
+}
+
 .recipe-grid {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
@@ -238,6 +318,28 @@ main {
 .recipe-card h3 {
     margin: 0;
     font-size: 1.35rem;
+}
+
+.recipe-meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    font-size: 0.9rem;
+    color: var(--text-muted);
+}
+
+.recipe-meta__item {
+    padding: 0.35rem 0.75rem;
+    border-radius: 999px;
+    background: rgba(148, 163, 184, 0.16);
+    border: 1px solid rgba(148, 163, 184, 0.2);
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    line-height: 1.1;
 }
 
 .recipe-card h4 {
@@ -303,6 +405,224 @@ main {
 
 .recipe-mapping td {
     color: var(--text-muted);
+}
+
+.panel--recipes-novice .recipe-card {
+    border-color: rgba(148, 163, 184, 0.35);
+    box-shadow: inset 0 0 0 1px rgba(148, 163, 184, 0.12);
+}
+
+.panel--planner {
+    background: linear-gradient(160deg, rgba(15, 23, 42, 0.92), rgba(15, 23, 42, 0.75));
+    border-radius: 1.5rem;
+    border: 1px solid rgba(56, 189, 248, 0.2);
+    box-shadow: 0 30px 60px rgba(2, 6, 23, 0.45);
+}
+
+.planner-progress {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: 1.5rem 1.75rem;
+    background: rgba(15, 23, 42, 0.6);
+    border-radius: 1rem;
+    margin-bottom: 2rem;
+    border: 1px solid rgba(148, 163, 184, 0.25);
+}
+
+.planner-progress__summary {
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+}
+
+.planner-progress__label {
+    font-size: 0.85rem;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--text-muted);
+}
+
+.planner-progress__value {
+    font-size: 1.75rem;
+    font-weight: 700;
+    color: var(--accent);
+}
+
+.planner-progress__reset {
+    background: transparent;
+    border: 1px solid rgba(56, 189, 248, 0.4);
+    color: var(--text);
+    padding: 0.65rem 1rem;
+    border-radius: 0.75rem;
+    font-weight: 600;
+    letter-spacing: 0.05em;
+    cursor: pointer;
+    transition: background 0.2s ease, color 0.2s ease;
+}
+
+.planner-progress__reset:hover,
+.planner-progress__reset:focus {
+    background: rgba(56, 189, 248, 0.15);
+    color: var(--accent);
+    outline: none;
+}
+
+.planner-grid {
+    display: grid;
+    gap: 2rem;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+}
+
+.planner-card {
+    background: rgba(15, 23, 42, 0.7);
+    border-radius: 1.25rem;
+    border: 1px solid rgba(148, 163, 184, 0.2);
+    padding: 1.75rem;
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+    position: relative;
+    transition: border-color 0.2s ease, transform 0.2s ease;
+}
+
+.planner-card--complete {
+    border-color: rgba(34, 197, 94, 0.45);
+    box-shadow: 0 20px 45px rgba(22, 163, 74, 0.25);
+}
+
+.planner-card__header {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+}
+
+.planner-card__status {
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+    align-items: flex-start;
+}
+
+.planner-card__progress {
+    font-size: 0.9rem;
+    color: var(--text-muted);
+}
+
+.planner-card__bar {
+    width: 100%;
+    height: 0.5rem;
+    border-radius: 999px;
+    background: rgba(148, 163, 184, 0.2);
+    overflow: hidden;
+}
+
+.planner-card__bar-fill {
+    display: block;
+    width: 0%;
+    height: 100%;
+    background: linear-gradient(90deg, var(--accent), var(--accent-strong));
+    transition: width 0.3s ease;
+}
+
+.planner-card__list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+}
+
+.planner-step__label {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: 1rem;
+    align-items: flex-start;
+    cursor: pointer;
+}
+
+.planner-step__label input[type="checkbox"] {
+    width: 1.15rem;
+    height: 1.15rem;
+    margin-top: 0.35rem;
+    accent-color: var(--accent);
+}
+
+.planner-step__content {
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+}
+
+.planner-step__content strong {
+    font-size: 1.05rem;
+}
+
+.planner-step__details {
+    font-size: 0.95rem;
+    color: var(--text-muted);
+    line-height: 1.5;
+}
+
+@media (max-width: 768px) {
+    .planner-progress {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .planner-progress__summary {
+        align-items: flex-start;
+    }
+
+    .planner-step__label {
+        grid-template-columns: 1.4rem 1fr;
+    }
+}
+
+.recipe-novice {
+    margin-top: 1.25rem;
+    padding: 1.25rem 1.5rem;
+    border-radius: 16px;
+    border: 1px solid rgba(56, 189, 248, 0.25);
+    background: rgba(56, 189, 248, 0.08);
+    display: flex;
+    flex-direction: column;
+    gap: 0.85rem;
+}
+
+.recipe-novice__title {
+    margin: 0;
+    font-size: 1.1rem;
+    color: var(--text);
+}
+
+.recipe-novice__intro {
+    margin: 0;
+    color: var(--text);
+    line-height: 1.5;
+}
+
+.recipe-novice__subtitle {
+    margin: 0.25rem 0 0.35rem;
+    font-size: 0.95rem;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: rgba(56, 189, 248, 0.9);
+}
+
+.recipe-novice__list {
+    margin: 0;
+    padding-left: 1.25rem;
+    color: var(--text);
+    display: grid;
+    gap: 0.4rem;
+}
+
+.recipe-novice__list li {
+    line-height: 1.45;
 }
 
 .guide-grid {
@@ -719,16 +1039,23 @@ main {
 }
 
 .asset-tool__totals {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
-    gap: 1rem;
+    margin-top: 0.5rem;
 }
 
-.asset-tool__totals div {
-    padding: 1rem 1.25rem;
-    border-radius: 16px;
-    background: rgba(15, 23, 42, 0.75);
+.asset-tool__totals-card {
+    background: linear-gradient(180deg, rgba(15, 23, 42, 0.85) 0%, rgba(15, 23, 42, 0.65) 100%);
     border: 1px solid rgba(148, 163, 184, 0.18);
+    border-radius: 1rem;
+    color: var(--text);
+    box-shadow: 0 18px 40px -32px var(--shadow);
+}
+
+.asset-tool__totals-card .card-body {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.35rem;
+    padding: 1.25rem 1.5rem;
     text-align: center;
 }
 
@@ -750,6 +1077,249 @@ main {
 .asset-tool__categories {
     display: grid;
     gap: 1.75rem;
+}
+
+.asset-tool__visualization {
+    border-top: 1px solid rgba(148, 163, 184, 0.18);
+    padding-top: 1.5rem;
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+}
+
+.asset-tool__visualization h4 {
+    margin: 0;
+    font-size: 1.25rem;
+}
+
+.asset-tool__guide {
+    margin-top: 1.75rem;
+    padding: 1.75rem;
+    border-radius: 20px;
+    background: linear-gradient(180deg, rgba(15, 23, 42, 0.82) 0%, rgba(15, 23, 42, 0.62) 100%);
+    border: 1px solid rgba(148, 163, 184, 0.2);
+    box-shadow: 0 20px 48px -34px var(--shadow);
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+}
+
+.asset-tool__guide h4 {
+    margin: 0;
+    font-size: 1.35rem;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.asset-tool__guide-list {
+    margin: 0;
+    padding-left: 1.25rem;
+    color: var(--text-muted);
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.asset-tool__guide-code {
+    margin: 0;
+    padding: 1rem 1.25rem;
+    border-radius: 14px;
+    background: rgba(15, 23, 42, 0.92);
+    border: 1px solid rgba(148, 163, 184, 0.25);
+    color: var(--accent);
+    font-family: "JetBrains Mono", "Fira Code", "Consolas", monospace;
+    font-size: 0.92rem;
+    overflow-x: auto;
+    line-height: 1.6;
+}
+
+.asset-tool__guide-note {
+    margin: 0;
+    color: var(--text-muted);
+    font-size: 0.95rem;
+}
+
+.asset-tool__configurator {
+    margin-top: 1.75rem;
+    background: linear-gradient(180deg, rgba(15, 23, 42, 0.88) 0%, rgba(15, 23, 42, 0.68) 100%);
+    border: 1px solid rgba(148, 163, 184, 0.22);
+    border-radius: 20px;
+    box-shadow: 0 20px 48px -34px var(--shadow);
+    color: var(--text);
+}
+
+.asset-tool__configurator .card-body {
+    padding: 1.75rem;
+}
+
+.asset-tool__configurator-count {
+    background: rgba(56, 189, 248, 0.18);
+    color: var(--accent);
+    padding: 0.45rem 0.9rem;
+    letter-spacing: 0.08em;
+}
+
+.asset-tool__configurator-form .form-label {
+    color: var(--text-muted);
+    letter-spacing: 0.04em;
+}
+
+.asset-tool__configurator-form .form-control {
+    background: rgba(15, 23, 42, 0.78);
+    border: 1px solid rgba(148, 163, 184, 0.28);
+    border-radius: 0.75rem;
+    color: var(--text);
+    padding: 0.65rem 0.9rem;
+}
+
+.asset-tool__configurator-form .form-control:focus {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 0.2rem rgba(56, 189, 248, 0.15);
+    background: rgba(15, 23, 42, 0.92);
+    color: var(--text);
+}
+
+.asset-tool__configurator-form .form-text {
+    margin-top: 0.45rem;
+    color: var(--text-muted);
+    font-size: 0.78rem;
+}
+
+.asset-tool__configurator-switches .form-check {
+    padding: 0.6rem 0.9rem;
+    background: rgba(15, 23, 42, 0.55);
+    border: 1px solid rgba(148, 163, 184, 0.2);
+    border-radius: 0.75rem;
+    display: flex;
+    align-items: center;
+    gap: 0.65rem;
+}
+
+.asset-tool__configurator-switches .form-check-input {
+    width: 2.5rem;
+    height: 1.3rem;
+    cursor: pointer;
+}
+
+.asset-tool__configurator-switches .form-check-input:checked {
+    background-color: rgba(56, 189, 248, 0.6);
+    border-color: rgba(56, 189, 248, 0.6);
+}
+
+.asset-tool__configurator-switches .form-check-label {
+    color: var(--text-muted);
+    cursor: pointer;
+}
+
+.asset-tool__configurator-files-list {
+    margin: 0;
+    border-radius: 0.75rem;
+    border: 1px solid rgba(148, 163, 184, 0.2);
+    overflow: hidden;
+    background: rgba(15, 23, 42, 0.55);
+}
+
+.asset-tool__configurator-files-list .list-group-item {
+    background: transparent;
+    color: var(--text);
+    border-color: rgba(148, 163, 184, 0.16);
+    padding: 0.6rem 0.9rem;
+}
+
+.asset-tool__configurator-files-list code {
+    font-family: "JetBrains Mono", "Fira Code", "Consolas", monospace;
+    font-size: 0.85rem;
+    word-break: break-all;
+}
+
+.asset-tool__configurator-code {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+}
+
+.asset-tool__configurator-pre {
+    margin: 0;
+    padding: 1rem 1.25rem;
+    border-radius: 14px;
+    background: rgba(15, 23, 42, 0.92);
+    border: 1px solid rgba(148, 163, 184, 0.25);
+    color: var(--accent);
+    font-family: "JetBrains Mono", "Fira Code", "Consolas", monospace;
+    font-size: 0.9rem;
+    line-height: 1.55;
+    overflow-x: auto;
+}
+
+.asset-tool__configurator-options {
+    color: var(--text-muted);
+}
+
+.asset-visualization__summary {
+    margin: 0;
+    color: var(--text-muted);
+}
+
+.asset-visualization__card {
+    background: linear-gradient(180deg, rgba(15, 23, 42, 0.85) 0%, rgba(15, 23, 42, 0.6) 100%);
+    border: 1px solid rgba(148, 163, 184, 0.18);
+    border-radius: 1rem;
+    box-shadow: 0 18px 40px -32px var(--shadow);
+}
+
+.asset-visualization__card .card-body {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+}
+
+.asset-visualization__count {
+    font-weight: 600;
+    background: linear-gradient(135deg, rgba(14, 165, 233, 0.85), rgba(56, 189, 248, 0.85));
+    color: #0f172a;
+    padding: 0.4rem 0.85rem;
+    letter-spacing: 0.04em;
+}
+
+.asset-visualization__description {
+    color: var(--text-muted);
+    margin: 0;
+}
+
+.asset-visualization__samples-label {
+    font-weight: 600;
+    margin: 0;
+    color: var(--accent);
+}
+
+.asset-visualization__samples {
+    background: transparent;
+}
+
+.asset-visualization__samples .list-group-item {
+    background: transparent;
+    border: 0;
+    padding-left: 0;
+    padding-right: 0;
+}
+
+.asset-visualization__samples code {
+    display: inline-block;
+    padding: 0.35rem 0.6rem;
+    border-radius: 0.75rem;
+    background: rgba(15, 23, 42, 0.65);
+    border: 1px solid rgba(148, 163, 184, 0.18);
+}
+
+.asset-visualization__empty {
+    border-radius: 1rem;
+}
+
+.asset-visualization__summary.alert {
+    background: rgba(56, 189, 248, 0.15);
+    border: 1px solid rgba(56, 189, 248, 0.35);
+    color: var(--text);
 }
 
 .asset-tool__category {
@@ -960,5 +1530,13 @@ footer {
 
     .asset-tool__category {
         padding: 1.5rem;
+    }
+
+    .asset-visualization__list {
+        grid-template-columns: 1fr;
+    }
+
+    .asset-visualization__card {
+        padding: 1rem 1.25rem;
     }
 }
