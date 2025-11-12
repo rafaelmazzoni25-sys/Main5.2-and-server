@@ -385,7 +385,7 @@ const curriculum = {
                 "Implemente sockets TCP/UDP na Unreal para enviar pacotes compatíveis com ProtocolSend.cpp e consumir respostas tratadas por JSProtocol.cpp/Protocol.cpp.",
             prereqs: [
                 "Criar módulo C++ NetworkBridge com classes de conexão e filas",
-                "Serializar pacotes seguindo formato C1/C3 e estrutura do cliente clássico",
+                "Estruturar mensagens usando FRemakeMessage e os enums definidos (ERemakeMessage, EInstanceEvent, etc.)",
                 "Registrar pacotes recebidos comparando com WSclient.cpp",
                 "Implementar reconexão, heartbeat e feedback visual no HUD"
             ]
@@ -779,7 +779,7 @@ const noviceRecipes = {
             "Crie uma Data Table DT_ChatChannels com campos Canal, Prefixo, CorTexto e SomNotificacao.",
             "No Graph do WB_ChatWindow, crie a função RegistrarMensagem (Entrada: Canal, Autor, Texto) e dentro instancie um Widget linha (WB_ChatLine) com RichTextBlock.",
             "Configure o EditableTextBox para capturar OnTextCommitted: ao pressionar Enter, leia o texto, determine canal (ex.: comandos /p, /g) e chame uma função do GameInstance para enviar ao servidor.",
-            "No GameInstance, implemente EnviarChat que chama o NetworkBridge (ou stub) com o pacote ERemakeMessage::ChatBroadcast (legado 0x00) + subcódigo correto.",
+            "No GameInstance, implemente EnviarChat que chama o NetworkBridge (ou stub) com o pacote ERemakeMessage::ChatBroadcast + subcódigo correto.",
             "Crie um componente UChatHistoryComponent armazenando últimas 100 mensagens para permitir rolagem após reconexão.",
             "Para notificações rápidas, adicione um Widget WB_ToastQueue com animação fade in/out e crie função MostrarToast recebendo título e descrição.",
             "Dentro do ScrollBox, use CreateWidget (WB_ChatLine) para cada mensagem, defina cor com base na Data Table e chame ScrollBox->ScrollToEnd.",
@@ -794,61 +794,58 @@ const noviceRecipes = {
         ]
     },
     "receita-4": {
-        "intro": "Objetivo: montar o ciclo completo de combate com movimento confirmado, combos, habilidades, poções e buffs sincronizados com o servidor.",
+        "intro": "Objetivo: dominar o combate completo com mensagens ERemakeMessage, sem depender do protocolo legado.",
         "preparation": [
-            "Converta SkillList.txt, SkillTree.txt, Item.txt e BuffEffect.txt em Data Tables (DT_Skills, DT_Combos, DT_ItensRapidos, DT_Buffs).",
-            "Separe montagens Idle/Walk/Run e três seções de combo leve/pesado/finalizador com notifies claros.",
-            "Revise ProtocolSend.cpp e WSclient.cpp listando pacotes ERemakeMessage::MovementSync (legado 0xD7), ERemakeMessage::SkillAreaBroadcast (legado 0x1F), ERemakeMessage::SkillCastSingle (legado 0x19), ERemakeMessage::SkillImpact (legado 0x1E), ERemakeMessage::SkillStateSync (legado 0x4E), ERemakeMessage::QuickSlotUse (legado 0x26) e eventos de retorno.",
-            "Habilite Enhanced Input no projeto e confirme que existe InputAction para movimento, ataque, habilidades 1-0 e uso rápido (QWER)."
+            "Ative os plugins Gameplay Ability System e Enhanced Input nas Project Settings > Plugins.",
+            "Separe SkillList.txt, SkillTree.txt, Item.txt e BuffEffect.txt convertendo-os para CSV para uso em Data Tables.",
+            "Separe montagens de animação (Idle, Walk, Run, Combo1, Combo2, Finisher) e as partículas Niagara de impacto.",
+            "Crie uma pasta C++ RemakeCombat com classes vazias (componentes, abilities, coordenador de servidor)."
         ],
         "steps": [
-            "Crie Data Tables DT_Skills, DT_Combos, DT_ItensRapidos e DT_Buffs com campos de custo, delays, efeitos visuais e pacotes associados.",
-            "Expanda o UNetworkBridgeSubsystem adicionando funções EnviarMovimentoConfirmado, EnviarComboBasico, EnviarSkillAlvo, EnviarSkillArea, EnviarSkillMultipla e EnviarUsoRapido.",
-            "Implemente um componente BP_CombatBridge (ou C++) que mantém fila de ações, estados (Livre/Atacando/AguardandoConfirmação) e eventos OnComboLiberado/OnSkillConfirmada/OnDanoRecebido.",
-            "No BP_PlayerRemake, use Enhanced Input para enviar ERemakeMessage::MovementSync (legado 0xD7) apenas quando a posição prevista mudar e aguarde a resposta do servidor antes de aplicar AddMovementInput.",
-            "Configure o CharacterMovementComponent para suportar Root Motion opcional e velocidades extraídas de MoveReq.txt (walk/run).",
-            "Monte a state machine de animação com Montages de combo; nas AnimNotifies chame EnviarComboBasico passando a seção atual.",
-            "Crie BP_SkillLoadoutComponent que lê DT_Skills, gerencia os 10 slots (Set1/Set2) e dispara o pacote correto ao pressionar 1-0.",
-            "Construa um DamageRouter (Blueprint ou componente) que recebe confirmações ReceiveAttack/ReceiveMagicAttack, reproduz Niagara e gera números flutuantes.",
-            "Implemente QuickSlotManager integrado ao inventário: ao ativar Q/W/E/R envia ERemakeMessage::QuickSlotUse (legado 0x26), bloqueia UI e libera novamente quando a confirmação retorna.",
-            "Adicione BuffTimelineComponent que registra buffs de EWorldChannelEvent::FinalStep (legado 0x07)/ERemakeMessage::BuffToggle (legado 0x2A), inicia timers e emite eventos para o HUD atualizar ícones e contagens.",
-            "Conecte o HUD principal aos eventos do BP_CombatBridge e BuffTimelineComponent para atualizar barras, cooldowns e ícones sempre após confirmação do servidor.",
-            "Teste em PIE com dois jogadores simulados garantindo que combos, habilidades e poções sincronizem antes de avançar."
+            "No módulo RemakeNet, adicione struct FRemakeMessage com enum ERemakeMessage, canal (uint8) e payload (TArray<uint8>) implementando NetSerialize.",
+            "Crie o componente C++ URemakeCombatComponent herdado de UActorComponent, anexe ao personagem jogador e registre eventos OnMovementValidated, OnSkillImpact e OnQuickSlotSync.",
+            "Dentro do componente, inicialize o Ability System (UAbilitySystemComponent) e carregue DT_Skills/DT_Combos usando DataTableRowHandle.",
+            "Implemente função SolicitarMovimento que envia mensagem ERemakeMessage::MovementRequest via URemakeSessionChannel, passando vetor objetivo.",
+            "Implemente função AplicarMovementCommit que recebe posição autorizada do servidor e chama SetActorLocation/ServerSetControlRotation.",
+            "Crie classes UGA_RemakeAttack e UGA_RemakeSkillArea herdando de UGameplayAbility. Na ativação, envie mensagem ERemakeMessage::SkillCast e aguarde callback OnSkillImpact.",
+            "Monte URemakeQuickSlotComponent para poções. Ao clicar na UI, chame ConsumirItemRapido -> envia ERemakeMessage::QuickSlotUse e só libera novamente após QuickSlotSync.",
+            "No servidor dedicado, implemente ARemakeCombatCoordinator (AGameModeBase) com URemakeCombatSystem que processa MovementRequest, SkillCast e QuickSlotUse validando recursos/tempo.",
+            "No personagem blueprint, conecte Enhanced Input: InputAction Move chama SolicitarMovimento; InputAction Attack chama AtivarAbility (leve/pesado) conforme estado do combo.",
+            "Integre com o HUD: crie evento OnCombateAtualizado no componente e, dentro de WB_CombatHUD, atualize barras, cooldowns e lista de buffs sempre que o evento disparar.",
+            "Adicione testes funcionais (AutomationSpec ou Gauntlet) simulando dois personagens se enfrentando e verificando se ambos recebem MovementCommit e SkillImpact em ordem."
         ],
         "validation": [
-            "Execute dois clientes em janelas separadas: caminhe em diagonal e verifique se ambos enxergam deslocamentos idênticos após cada ERemakeMessage::MovementSync (legado 0xD7).",
-            "Dispare o combo completo (clique, clique rápido, segurar): as três seções só devem seguir quando o servidor enviar cada ERemakeMessage::SkillAreaBroadcast (legado 0x1F).",
-            "Use habilidade de área e direcional: mana/cooldown só reduzem quando ReceiveMagicAttack chegar e o efeito aparece na posição confirmada.",
-            "Ative poções/buffs rápidos: estoque diminui, HUD mostra ícone com contagem e o BuffTimeline encerra exatamente no tempo informado pelo servidor."
+            "Inicie dois clientes conectados ao servidor Unreal: caminhe com ambos e confirme no Output Log que MovementRequest/MovementCommit aparecem pareados.",
+            "Execute um combo completo: cada golpe deve reproduzir Montage, emitir partículas e só aplicar dano após OnSkillImpact.",
+            "Use uma poção rápida e confira se o item sai do inventário apenas quando QuickSlotSync chega do servidor.",
+            "Ative um buff temporário e observe o HUD marcar duração e remover o ícone automaticamente ao terminar."
         ]
     },
     "receita-5": {
-        "intro": "Objetivo: guiar a criação do fluxo de login, seleção de personagem, classes e movimentação básica para quem nunca programou.",
+        "intro": "Objetivo: reconstruir login, criação e seleção de personagem usando apenas o pipeline da Unreal Engine 5+.",
         "preparation": [
-            "Separe texturas de login e seleção (Interface/Login, Interface/CharacterSelect) e sons clássicos de clique.",
-            "Prepare contas/slots fictícios no banco (ou Data Table) para testar lista de personagens.",
-            "Liste pacotes ERemakeMessage::AuthChannel (legado 0xF1), ERemakeMessage::WorldChannel (legado 0xF3), ERemakeMessage::WorldSnapshot (legado 0x1D), ERemakeMessage::MovementSync (legado 0xD7) e regras de criação/exclusão em JSProtocol.cpp.",
-            "Confirme que o projeto usa Enhanced Input com ações para mover, correr, girar câmera e saltar."
+            "Ative o plugin Online Subsystem (ou o transporte escolhido) e confirme que o projeto compila em modo servidor dedicado.",
+            "Separe sons clássicos (clique, erro, confirmação) e converta para SoundCue.",
+            "Prepare Data Tables com classes iniciais (CharacterCreate.txt) e atributos base por classe.",
+            "Crie widgets vazios WB_Login, WB_SelecaoPersonagem e WB_CriacaoClasse no Content/UI/Login."
         ],
         "steps": [
-            "Crie o Widget WB_Login com campos para usuário/senha, checkbox Lembrar e botões Entrar/Opções/Créditos usando texturas originais.",
-            "Implemente ValidarCampos: bloqueie envio vazio, mostre mensagens amigáveis e chame UNetworkBridgeSubsystem->EnviarLogin (pacote ERemakeMessage::AuthChannel (legado 0xF1)).",
-            "Ao receber resposta ERemakeMessage::AuthChannel (legado 0xF1) bem-sucedida, carregue nível LV_Selecao e inicialize BP_CharacterCarousel com pedestais e rotação suave.",
-            "Monte WB_SelecaoPersonagem com ListView lateral; preencha com dados vindos dos pacotes ERemakeMessage::WorldChannel (legado 0xF3) ou de uma Data Table de teste.",
-            "Adicione modal WB_CriarPersonagem com validação de nome/classe e envie requisição ERemakeMessage::WorldChannel (legado 0xF3) evento <code>EWorldChannelEvent::CreateCharacter</code> (legado 0x01) simulando regras do servidor.",
-            "Implemente exclusão solicitando senha e chamando ERemakeMessage::WorldChannel (legado 0xF3) evento <code>EWorldChannelEvent::DeleteCharacter</code> (legado 0x02); atualize a lista ao receber confirmação.",
-            "Ao confirmar personagem, envie ERemakeMessage::WorldChannel (legado 0xF3) evento <code>EWorldChannelEvent::EnterWorld</code> (legado 0x03), aguarde pacote ERemakeMessage::WorldSnapshot (legado 0x1D) com mapa e use OpenLevel para o mundo principal.",
-            "No GameMode do mundo, instancie BP_RemakeCharacter selecionando SkeletalMesh, armas e stats conforme a classe escolhida.",
-            "Configure CharacterMovementComponent com velocidades de MoveReq.txt e state machine Idle/Walk/Run no AnimBlueprint.",
-            "Mapeie Enhanced Input (WASD, Shift, Space, Mouse) para chamar EnviarMovimentoConfirmado e aguarde retorno ERemakeMessage::MovementSync (legado 0xD7) antes de aplicar movimento.",
-            "Salve preferências (última conta/personagem, câmera invertida) em SaveGame para facilitar novas sessões.",
-            "Carregue o HUD principal logo após o pacote ERemakeMessage::WorldSnapshot (legado 0x1D) preenchendo barras de HP/MP/SD e slots rápidos antes de permitir entrada do jogador."
+            "No módulo RemakeAccounts, declare structs FRemakeLoginPayload, FRemakeCharacterSummary e FRemakeWorldTicket compartilhadas entre cliente e servidor.",
+            "Implemente o URemakeAccountSubsystem com funções SolicitarLogin, SolicitarLista, SolicitarCriacao, SolicitarExclusao e SolicitarEntradaNoMundo enviando mensagens ERemakeMessage apropriadas.",
+            "No servidor, crie ARemakeAccountCoordinator (AGameModeBase) que valida credenciais, lê a tabela de personagens e devolve um array de FRemakeCharacterSummary.",
+            "Monte o widget WB_Login com campos de usuário e senha, botões laterais e área de mensagens. Vincule o botão Entrar a SolicitarLogin e desabilite entradas até o retorno chegar.",
+            "Construa WB_SelecaoPersonagem com TileView para slots, painel de detalhes e botão Criar. Quando OnListaAtualizada disparar, atualize a TileView e selecione o primeiro personagem.",
+            "Ao clicar em Criar, abra WB_CriacaoClasse dentro de um Overlay, carregue dados da Data Table e monte o payload CharacterCreate. Envie e aguarde confirmação para atualizar a lista.",
+            "Implemente exclusão com um diálogo modal solicitando confirmação antes de chamar SolicitarExclusao.",
+            "Quando o jogador escolher um personagem, envie SolicitarEntradaNoMundo e aguarde o ticket. Ao receber, armazene a estrutura e carregue o nível principal com OpenLevel passando Options com o ticket.",
+            "No GameInstance (BeginPlay do mundo principal), consuma o ticket recebido para spawnar o personagem e inicializar HUD/combate.",
+            "Adicione logs educativos (UE_LOG) sinalizando cada etapa: login aceito, lista carregada, ticket recebido, mundo aberto."
         ],
         "validation": [
-            "Envie login vazio/intencionalmente errado e verifique se mensagens amigáveis aparecem sem travar o fluxo.",
-            "Crie/exclua personagens e confirme que a lista e o carrossel atualizam na hora com modelos corretos.",
-            "Ao entrar no mundo, cheque no Output Log os pacotes ERemakeMessage::WorldSnapshot (legado 0x1D)/ERemakeMessage::MovementSync (legado 0xD7) e confirme que o personagem caminha/corre com velocidades da tabela sem teleporte.",
-            "Verifique se o HUD carrega instantaneamente com barras e atalhos preenchidos e se os sons clássicos tocam ao abrir."
+            "Teste três cenários de login: sucesso, senha errada e conta bloqueada. Em todos, a UI precisa mostrar mensagens amigáveis.",
+            "Crie e exclua personagens em sequência; a lista deve atualizar imediatamente sem reiniciar o cliente.",
+            "Após receber o ticket, confirme que o personagem entra no mapa correto com HUD carregado e que o servidor registrou a sessão.",
+            "Repita o fluxo em dois clientes simultâneos garantindo que os tickets direcionem cada jogador para a instância correta."
         ]
     },
     "receita-6": {
@@ -866,7 +863,7 @@ const noviceRecipes = {
             "No Event Construct, inicialize array de slots lendo Data Table de habilidades padrão.",
             "Implemente drag and drop permitindo arrastar ícones do painel de habilidades para a barra.",
             "Quando o jogador pressiona uma tecla, chame TentarAtivarSkill: verifique se cooldown está zero e se requisitos (mana, flechas) são atendidos.",
-            "Se aprovado, envie pacote ERemakeMessage::SkillCastSingle (legado 0x19) (uso de skill) ou ERemakeMessage::QuickSlotUse (legado 0x26) (item) ao servidor e inicie contagem regressiva animando o overlay.",
+            "Se aprovado, envie pacote ERemakeMessage::SkillCastSingle (uso de skill) ou ERemakeMessage::QuickSlotUse (item) ao servidor e inicie contagem regressiva animando o overlay.",
             "Reproduza efeito Niagara/áudio e mostre mensagem no chat \"Skill usada\" para reforçar feedback.",
             "Crie função AtualizarCooldowns chamada a cada Tick do HUD usando Delta Seconds.",
             "Armazene preferências do jogador (layout da barra) em SaveGame para restaurar quando ele voltar."
@@ -882,7 +879,7 @@ const noviceRecipes = {
         "preparation": [
             "Liste os NPCs comerciantes relevantes no arquivo Shop0X.txt e separe seus ícones.",
             "Prepare tabela de itens vendidos com preço, nível e moeda (Zen, WCoin, Pontos).",
-            "No servidor de testes, ative pacotes ERemakeMessage::NpcBuyRequest (legado 0x30) (abrir loja) e ERemakeMessage::TradeCancel (legado 0x3F) (troca) para simular respostas.",
+            "No servidor de testes, ative pacotes ERemakeMessage::NpcBuyRequest (abrir loja) e ERemakeMessage::TradeCancel (troca) para simular respostas.",
             "Configure duas contas no banco para validar troca entre jogadores."
         ],
         "steps": [
@@ -890,7 +887,7 @@ const noviceRecipes = {
             "Preencha a Grid lendo Data Table DT_NpcShops criada a partir dos arquivos Shop0X.txt.",
             "Ao clicar em um item, abra painel lateral com descrição, preço e botão Comprar.",
             "Integre com o inventário chamando UInventoryComponent->TemEspacoAntesDeComprar.",
-            "Ao confirmar compra, envie pacote ERemakeMessage::NpcBuyConfirm (legado 0x31) para o servidor e aguarde resposta ERemakeMessage::NpcBuyFinalize (legado 0x32) para finalizar.",
+            "Ao confirmar compra, envie pacote ERemakeMessage::NpcBuyConfirm para o servidor e aguarde resposta ERemakeMessage::NpcBuyFinalize para finalizar.",
             "Para lojas pessoais, crie Widget WB_PersonalStore que permite arrastar itens do inventário e definir preço.",
             "Ao abrir troca com outro jogador, use Widget WB_TradeWindow com dois quadros (você e outro) e botão Confirmar.",
             "Implemente travas: enquanto a troca não estiver confirmada pelos dois, impedir movimentação de itens.",
@@ -909,7 +906,7 @@ const noviceRecipes = {
             "Extraia arquivos QuestInfo.dat e QuestProgress.txt para montar Data Tables.",
             "Separe ícones de missões e retratos de NPCs para Content/UI/Quests.",
             "Certifique-se de ter o plugin DataTable Editor habilitado para edição rápida.",
-            "Verifique os pacotes ERemakeMessage::EventNotice (legado 0xF6) no Protocol.cpp para entender como o servidor envia progresso de missão."
+            "Verifique os pacotes ERemakeMessage::EventNotice no Protocol.cpp para entender como o servidor envia progresso de missão."
         ],
         "steps": [
             "Crie uma Data Table DT_Quests com campos Id, Nome, NPC, Objetivo, Recompensa, TextoResumo.",
@@ -917,7 +914,7 @@ const noviceRecipes = {
             "Adicione um SearchBox para filtrar missões por nome ou categoria (Main, Sub, Evento).",
             "Implemente função AtualizarLista que percorre DT_Quests e marca quais estão concluídas conforme dados recebidos do servidor.",
             "Crie o Widget WB_QuestTracker (mini painel) para mostrar até três objetivos ativos na HUD.",
-            "Ao aceitar missão, envie pacote ERemakeMessage::EventNotice (legado 0xF6) evento <code>EQuestEvent::Accept</code> (legado 0x01) e aguarde resposta confirmando estados.",
+            "Ao aceitar missão, envie pacote ERemakeMessage::EventNotice evento <code>EQuestEvent::Accept</code> e aguarde resposta confirmando estados.",
             "Quando o servidor enviar progresso, atualize a barra de objetivo e toque som de checkpoint.",
             "Permita que o usuário fixe uma missão no topo clicando no botão \"Fixar\" ao lado do nome.",
             "Salve progresso local em SaveGame caso esteja rodando offline para aulas.",
@@ -944,7 +941,7 @@ const noviceRecipes = {
             "No Blackboard, mantenha chaves TargetActor, SpawnPoint, TempoSemAlvo.",
             "Crie um SpawnManager que lê MonsterSetBase e instancia monstros conforme índice do mapa.",
             "Implemente respawn usando Delay com tempo configurado em Data Table.",
-            "Ao morrer, gere drops consultando tabela de loot convertida (ItemDropRate.txt) e chame função do GameServer via pacote ERemakeMessage::WorldSnapshot (legado 0x1D).",
+            "Ao morrer, gere drops consultando tabela de loot convertida (ItemDropRate.txt) e chame função do GameServer via pacote ERemakeMessage::WorldSnapshot.",
             "Para efeitos visuais, reproduza partículas clássicas (morte, drop) e sons.",
             "Registre estatísticas em HUD (quantos monstros restam) para facilitar exercícios de IA.",
             "Documente no Blueprint com comentários indicando trechos equivalentes em MonsterAI.cpp."
@@ -959,17 +956,17 @@ const noviceRecipes = {
         "intro": "Objetivo: estruturar party, guild e correio social com painéis fáceis de operar por iniciantes.",
         "preparation": [
             "Extraia arquivos GuildList.txt e FriendList para montar dados fictícios.",
-            "Garanta que pacotes ERemakeMessage::PartyInvite (legado 0x40) (party) e ERemakeMessage::GuildCommand (legado 0x6D) (guild) estejam documentados na planilha de rede.",
+            "Garanta que pacotes ERemakeMessage::PartyInvite (party) e ERemakeMessage::GuildCommand (guild) estejam documentados na planilha de rede.",
             "Separe ícones de guilda e brasões para Content/UI/Social.",
             "Configure duas contas adicionais para testar convites e mensagens."
         ],
         "steps": [
             "Crie o Widget WB_PartyPanel com lista de membros, barra de HP/MP compartilhada e botões Convidar/Sair.",
-            "Implemente função EnviarConviteParty chamando pacote ERemakeMessage::PartyInvite (legado 0x40) evento <code>EPartyEvent::Invite</code> (legado 0x01) com nome do jogador.",
-            "Ao receber atualização ERemakeMessage::PartyInvite (legado 0x40) evento <code>EPartyEvent::Update</code> (legado 0x02), atualize lista e notifique com som discreto.",
+            "Implemente função EnviarConviteParty chamando pacote ERemakeMessage::PartyInvite evento <code>EPartyEvent::Invite</code> com nome do jogador.",
+            "Ao receber atualização ERemakeMessage::PartyInvite evento <code>EPartyEvent::Update</code>, atualize lista e notifique com som discreto.",
             "Para guild, crie Widget WB_GuildWindow com abas (Informações, Membros, Alianças, Armazém).",
             "Monte Data Table DT_GuildRanks com permissões (convidar, expulsar, abrir baú) e use para habilitar botões.",
-            "Implemente sistema de brasão permitindo importar imagem 24x24 (convertida) e enviar ao servidor via ERemakeMessage::GuildCommand (legado 0x6D) evento <code>EGuildEvent::UploadCrest</code> (legado 0x03).",
+            "Implemente sistema de brasão permitindo importar imagem 24x24 (convertida) e enviar ao servidor via ERemakeMessage::GuildCommand evento <code>EGuildEvent::UploadCrest</code>.",
             "Crie Widget WB_Mailbox com lista de mensagens, anexos e botão Coletar Tudo.",
             "Armazene mensagens em SaveGame para uso offline durante aulas.",
             "Adicione log informando quem convidou quem e quando, útil para monitorar treinos."
@@ -995,7 +992,7 @@ const noviceRecipes = {
             "Desenvolva Widget WB_EventHUD exibindo tempo restante, objetivos e ranking de contribuição.",
             "Ao iniciar evento, teletransporte jogadores usando ServerTravel e atribua times conforme nível.",
             "Controle portões e obstáculos com Sequencer (Level Sequence) acionado pelo Director.",
-            "Ao finalizar, calcule pontos e envie pacote ERemakeMessage::BloodCastleScore (legado 0x9C) (Blood Castle) ou ERemakeMessage::DevilSquareSummary (legado 0x9B) (Devil Square) ao servidor com resultados.",
+            "Ao finalizar, calcule pontos e envie pacote ERemakeMessage::BloodCastleScore (Blood Castle) ou ERemakeMessage::DevilSquareSummary (Devil Square) ao servidor com resultados.",
             "Retorne jogadores ao mapa principal e conceda recompensas baseadas no ranking.",
             "Documente no guia como resetar o evento para a próxima aula."
         ],
@@ -1011,15 +1008,15 @@ const noviceRecipes = {
             "Analise CDuelMgr.cpp e NewUIDuelWindow.cpp para entender estados (Solicitado, Aceito, Em Andamento).",
             "Separe efeitos de contagem regressiva e trilha sonora curta para início de duelo.",
             "Configure área plana no mapa principal para servir de arena teste.",
-            "Ative pacotes ERemakeMessage::DuelFlow (legado 0xAA) no servidor de treino (pedidos de duelo e atualizações)."
+            "Ative pacotes ERemakeMessage::DuelFlow no servidor de treino (pedidos de duelo e atualizações)."
         ],
         "steps": [
             "Crie componente UDuelComponent anexado ao PlayerState armazenando estado atual do duelo, adversário e pontuação.",
             "Construa Widget WB_DuelInvite com texto claro e botões Aceitar/Recusar.",
-            "Ao desafiar (clique direito no jogador -> opção Duelo), envie pacote ERemakeMessage::DuelFlow (legado 0xAA) evento <code>EDuelEvent::Request</code> (legado 0x01) e aguarde resposta.",
+            "Ao desafiar (clique direito no jogador -> opção Duelo), envie pacote ERemakeMessage::DuelFlow evento <code>EDuelEvent::Request</code> e aguarde resposta.",
             "Se aceito, ative contagem regressiva exibindo Widget WB_DuelCountdown e bloqueando movimentação até zero.",
             "Durante o duelo, atualize Widget WB_DuelHUD com barras de HP, pontuação e tempo restante (3 minutos padrão).",
-            "Registre hits em UDuelComponent e envie atualização ERemakeMessage::DuelFlow (legado 0xAA) evento <code>EDuelEvent::ScoreTick</code> (legado 0x04) para sincronizar com servidor.",
+            "Registre hits em UDuelComponent e envie atualização ERemakeMessage::DuelFlow evento <code>EDuelEvent::ScoreTick</code> para sincronizar com servidor.",
             "Permita espectadores: jogadores próximos recebem Widget com barra \"Assistindo\" e podem deixar comentários no chat.",
             "Ao finalizar, reproduza animação de vitória e libere movimentação após 3 segundos.",
             "Gravar resultado em arquivo CSV para revisão posterior em aula."
@@ -1044,7 +1041,7 @@ const noviceRecipes = {
             "Crie Widget WB_EmpireHUD mostrando tempo, vida do cristal, wave atual e barra de progresso.",
             "Implemente Actor CrystalGuardian com componente Vida compartilhada e evento OnDestroyed que encerra partida.",
             "Carregue waves lendo Data Table e, para cada entrada, agende SpawnActor de monstros com Delay.",
-            "Ao completar wave, envie pacote ERemakeMessage::BloodCastleSummary (legado 0x7F) ao servidor com estatísticas e toque fanfarra curta.",
+            "Ao completar wave, envie pacote ERemakeMessage::BloodCastleSummary ao servidor com estatísticas e toque fanfarra curta.",
             "Ofereça dicas visuais (setas) indicando onde próxima wave aparecerá.",
             "Após vitória, abra Widget de recompensas listando itens com botão \"Coletar\".",
             "Documente no UI a origem dos dados (linhas específicas dos arquivos originais) para estudo."
@@ -1060,7 +1057,7 @@ const noviceRecipes = {
         "preparation": [
             "Analise CNewUICursedTempleSystem.cpp e dados em Event/CursedTempleSetting.txt.",
             "Converta minimapas e ícones das equipes para Content/UI/CursedTemple.",
-            "Configure GameServer para enviar pacotes ERemakeMessage::EventBanner (legado 0x2B) evento <code>EEventBanner::OpenStage</code> (legado 0x30) relacionados ao evento.",
+            "Configure GameServer para enviar pacotes ERemakeMessage::EventBanner evento <code>EEventBanner::OpenStage</code> relacionados ao evento.",
             "Separe efeitos Niagara para capturar selo e distribuir pontos."
         ],
         "steps": [
@@ -1068,7 +1065,7 @@ const noviceRecipes = {
             "Desenvolva GameMode ACTempleMode com times Holy e Illusion, usando GameState para replicar pontuação.",
             "Implemente Widget WB_CursedHUD com placar, tempo, contagem de selos e indicador do portador atual.",
             "Adicione minimapa dedicado com ícones coloridos para cada equipe e para a Relic.",
-            "Ao capturar Relic, toque efeito, atribua pontos por segundo e envie pacote ERemakeMessage::EventBanner (legado 0x2B) evento <code>EEventBanner::RelicUpdate</code> (legado 0x32) ao servidor.",
+            "Ao capturar Relic, toque efeito, atribua pontos por segundo e envie pacote ERemakeMessage::EventBanner evento <code>EEventBanner::RelicUpdate</code> ao servidor.",
             "Gere mensagens de narração (\"Equipe Holy recuperou a relíquia!\") usando Data Table de frases.",
             "Ao final, mostre tela de resultados com ranking individual, pontos e recompensas.",
             "Salve replay opcional (Sequence Recorder) para análise em sala de aula."
@@ -1085,7 +1082,7 @@ const noviceRecipes = {
             "Examine NewUIDoppelGangerWindow.cpp e dados em Event/DoppelGangerSetting.txt.",
             "Converta cutscenes curtas ou crie Level Sequences para abertura e encerramento.",
             "Prepare Data Table com passos (Estágio 1, Estágio 2, Boss) e recompensas.",
-            "Configure servidor de testes para enviar pacotes ERemakeMessage::LuckyItem (legado 0xBF) durante o evento."
+            "Configure servidor de testes para enviar pacotes ERemakeMessage::LuckyItem durante o evento."
         ],
         "steps": [
             "Crie nível LV_DoppelGanger com rotas separadas para equipe do jogador e clones.",
@@ -1094,7 +1091,7 @@ const noviceRecipes = {
             "Implemente spawn de clones usando versões esmaecidas dos personagens (material com opacity controlada).",
             "Ao derrotar clone, atualize pontuação e avance timeline com animação.",
             "Acione cinematic de transição usando Level Sequence quando Boss surgir.",
-            "Envie pacote ERemakeMessage::LuckyItem (legado 0xBF) evento <code>ELuckyItemEvent::Result</code> (legado 0x05) com pontuação final e compare com tabela de recompensas.",
+            "Envie pacote ERemakeMessage::LuckyItem evento <code>ELuckyItemEvent::Result</code> com pontuação final e compare com tabela de recompensas.",
             "Permita que professores acionem modo Replay para discutir decisões com os alunos."
         ],
         "validation": [
@@ -1109,12 +1106,12 @@ const noviceRecipes = {
             "Reúna LuckyCoinTrade.txt, LuckyItem.txt e recursos de interface correspondentes.",
             "Prepare banco com tabelas de moedas para contas teste.",
             "Certifique-se de que o conversor BMD_FBX exportou modelos necessários para itens brilhantes.",
-            "Configure o servidor para enviar pacotes ERemakeMessage::LuckyCoin (legado 0x3A) (Lucky Coin) e ERemakeMessage::LuckyItem (legado 0xBF) (Lucky Item)."
+            "Configure o servidor para enviar pacotes ERemakeMessage::LuckyCoin (Lucky Coin) e ERemakeMessage::LuckyItem (Lucky Item)."
         ],
         "steps": [
             "Crie Data Table DT_LuckyCoin com itens oferecidos, custo em moedas e requisitos.",
             "Monte Widget WB_LuckyCoinExchange com lista de ofertas, pré-visualização e botão Trocar.",
-            "Ao confirmar, envie pacote ERemakeMessage::LuckyCoin (legado 0x3A) evento <code>ELuckyCoinEvent::Exchange</code> (legado 0x01) e exiba barra de progresso simulando animação de troca.",
+            "Ao confirmar, envie pacote ERemakeMessage::LuckyCoin evento <code>ELuckyCoinEvent::Exchange</code> e exiba barra de progresso simulando animação de troca.",
             "Para Lucky Item, crie Widget WB_LuckyItemForge com slots para materiais, botão Combinar e visualização 3D do item.",
             "Importe partículas azuis e aplique ao item ao completar combinação.",
             "Registre histórico de trocas em arquivo local (CSV) para consulta.",
@@ -1133,13 +1130,13 @@ const noviceRecipes = {
             "Converta UIJewelHarmony.bmd para obter imagens e leia UIJewelHarmony.cpp para entender regras.",
             "Prepare Data Table com combinações permitidas (item base, opção, custo em Gemstone).",
             "Separe efeitos visuais para sucesso e falha.",
-            "Configure servidor para aceitar pacotes ERemakeMessage::SkillAreaBroadcast (legado 0x1F) evento <code>EHarmonyEvent::Forge</code> (legado 0x04) (Harmony)."
+            "Configure servidor para aceitar pacotes ERemakeMessage::SkillAreaBroadcast evento <code>EHarmonyEvent::Forge</code> (Harmony)."
         ],
         "steps": [
             "Crie Widget WB_HarmonyRefinery com slots para Item Base, Jewel of Harmony e Gemstone.",
             "Ao colocar item, valide se pertence às categorias suportadas consultando Data Table.",
             "Exiba lista de opções possíveis com descrição traduzida do arquivo original.",
-            "Ao clicar em Combinar, envie pacote ERemakeMessage::SkillAreaBroadcast (legado 0x1F) evento <code>EHarmonyEvent::Forge</code> (legado 0x04) com dados do item e aguarde resposta.",
+            "Ao clicar em Combinar, envie pacote ERemakeMessage::SkillAreaBroadcast evento <code>EHarmonyEvent::Forge</code> com dados do item e aguarde resposta.",
             "Em caso de sucesso, reproduza efeito brilhante e atualize atributos do item na Data Table do inventário.",
             "Se falhar, toque som específico e registre tentativa no log educacional (CSV).",
             "Forneça botão \"Histórico\" mostrando últimas combinações feitas pelo jogador."
@@ -1163,7 +1160,7 @@ const noviceRecipes = {
             "Crie GameMode ACChaosCastleMode gerenciando fases StandBy, Playing e End.",
             "Adicione Widget WB_ChaosHUD com contador de sobreviventes, ranking e alertas de armadilha.",
             "Implemente Actor TrapController lendo Data Table e ativando volumes com Timeline.",
-            "Ao eliminar jogador, chame função que envia pacote ERemakeMessage::ChaosCastleStatus (legado 0x95) evento <code>EChaosCastleEvent::SurvivorCount</code> (legado 0x06) e atualiza ranking.",
+            "Ao eliminar jogador, chame função que envia pacote ERemakeMessage::ChaosCastleStatus evento <code>EChaosCastleEvent::SurvivorCount</code> e atualiza ranking.",
             "Crie espectador automático: quando cair, mudar para câmera aérea explicativa.",
             "Ao final, gere CSV com classificação semanal para acompanhamento."
         ],
@@ -1179,14 +1176,14 @@ const noviceRecipes = {
             "Leia GensSystem.cpp e NewUIGensWindow.cpp para entender estrutura.",
             "Converta ícones das facções (Vanert, Dupren) para Content/UI/Gens.",
             "Monte Data Table com recompensas por rank e missões diárias.",
-            "Configure servidor para responder pacotes ERemakeMessage::FactionChannel (legado 0xF8)."
+            "Configure servidor para responder pacotes ERemakeMessage::FactionChannel."
         ],
         "steps": [
             "Crie Widget WB_GensLobby com botões Entrar Vanert/Dupren e descrição simples de cada facção.",
             "Implemente componente UGensFactionComponent armazenando pontos, rank, facção e buffs ativos.",
-            "Ao entrar, envie pacote ERemakeMessage::FactionChannel (legado 0xF8) evento <code>EFactionEvent::JoinRequest</code> (legado 0x00) e aguarde confirmação para atualizar HUD.",
+            "Ao entrar, envie pacote ERemakeMessage::FactionChannel evento <code>EFactionEvent::JoinRequest</code> e aguarde confirmação para atualizar HUD.",
             "Crie Widget WB_GensRanking exibindo lista ordenada dos jogadores com pontuação.",
-            "Adicione painel de missões diárias carregando Data Table e marcando concluídas quando pacote ERemakeMessage::FactionChannel (legado 0xF8) evento <code>EFactionEvent::QuestUpdate</code> (legado 0x05) chegar.",
+            "Adicione painel de missões diárias carregando Data Table e marcando concluídas quando pacote ERemakeMessage::FactionChannel evento <code>EFactionEvent::QuestUpdate</code> chegar.",
             "Aplique buffs utilizando GameplayEffects configurados conforme rank retornado.",
             "Exiba aura Niagara diferenciada por facção.",
             "Programe reset semanal com Timer lendo configuração ResetDay na Data Table."
@@ -1202,7 +1199,7 @@ const noviceRecipes = {
         "preparation": [
             "Converta recursos da Cash Shop (Interface/XShop) para Content/UI/CashShop.",
             "Prepare Data Tables DT_CashCatalog e DT_CashPackages com dados dos arquivos originais.",
-            "Configure servidor para aceitar pacotes ERemakeMessage::CashShopPurchase (legado 0xD2), ERemakeMessage::CashShopReceipt (legado 0xD3) e ERemakeMessage::CashMailbox (legado 0xD6).",
+            "Configure servidor para aceitar pacotes ERemakeMessage::CashShopPurchase, ERemakeMessage::CashShopReceipt e ERemakeMessage::CashMailbox.",
             "Separe sons e animações para compras e presentes."
         ],
         "steps": [
@@ -1210,14 +1207,14 @@ const noviceRecipes = {
             "Carregue Data Tables no Event Construct e filtre itens por categoria quando abas forem clicadas.",
             "Permita adicionar ao carrinho com botão destacado e exiba quantidade no canto superior.",
             "Ao clicar em Comprar, abra modal com resumo, saldo disponível e botão Confirmar.",
-            "Envie pacote ERemakeMessage::CashShopPurchase (legado 0xD2) com itens do carrinho e aguarde resposta ERemakeMessage::CashShopReceipt (legado 0xD3).",
+            "Envie pacote ERemakeMessage::CashShopPurchase com itens do carrinho e aguarde resposta ERemakeMessage::CashShopReceipt.",
             "Atualize saldo mostrado na HUD e registre compra em log.",
-            "Crie Widget WB_CashMailbox listando presentes (pacote ERemakeMessage::CashMailbox (legado 0xD6)) com botão Resgatar.",
+            "Crie Widget WB_CashMailbox listando presentes (pacote ERemakeMessage::CashMailbox) com botão Resgatar.",
             "Ao resgatar, mova item para inventário e toque efeito de luz."
         ],
         "validation": [
             "Adicione itens diferentes ao carrinho e confirme que total e saldo são recalculados corretamente.",
-            "Realize compra e verifique se resposta ERemakeMessage::CashShopReceipt (legado 0xD3) atualiza saldo e entrega itens no inventário.",
+            "Realize compra e verifique se resposta ERemakeMessage::CashShopReceipt atualiza saldo e entrega itens no inventário.",
             "Resgate presente no mailbox e confirme se desaparece da lista e aparece na bolsa."
         ]
     },
@@ -1237,7 +1234,7 @@ const noviceRecipes = {
             "Implemente componentes reutilizáveis (WB_TabButton, WB_ListHeader, WB_ItemSlot, WB_AmountSpinner) reproduzindo comportamentos de UIControls.h.",
             "Adicione BP_UIRouter (Actor Component) ao PlayerController com funções AlternarJanela/FecharJanela e integração com sons do UUIAudioLibrary.",
             "Converta GlobalText.txt, MsgBox.txt, ToolTip.txt e EventMsg.txt em Data Tables; crie função GetTextoGlobal e use bindings para preencher textos automaticamente.",
-            "Conecte cada janela aos pacotes equivalentes (trade ERemakeMessage::TradeCancel (legado 0x3F)/ERemakeMessage::TradeLock (legado 0x3C), guild ERemakeMessage::GuildCommand (legado 0x6D), quest ERemakeMessage::QuestHubUpdate (legado 0x2F), eventos ERemakeMessage::EventNotice (legado 0xF6), cash shop ERemakeMessage::CashShopPurchase (legado 0xD2)) via UNetworkBridgeSubsystem.",
+            "Conecte cada janela aos pacotes equivalentes (trade ERemakeMessage::TradeCancel/ERemakeMessage::TradeLock, guild ERemakeMessage::GuildCommand, quest ERemakeMessage::QuestHubUpdate, eventos ERemakeMessage::EventNotice, cash shop ERemakeMessage::CashShopPurchase) via UNetworkBridgeSubsystem.",
             "Implemente persistência para janelas de opções/som em SaveGame replicando comportamento de NewUIOption.",
             "Crie WB_GlobalOverlay para notificações, tooltips e mensagens de sistema disparadas pelo UIRouter.",
             "Documente no Designer de cada widget qual arquivo original serviu de referência (comentários visíveis aos alunos)."
