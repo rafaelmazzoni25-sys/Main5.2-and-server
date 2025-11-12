@@ -1782,6 +1782,199 @@
                         </table>
                     </div>
                 </article>
+                <article class="recipe-card">
+                    <h3>Receita 12 — Sistema de duelo, placar e espectadores</h3>
+                    <p class="recipe-intro">Ativa a arena de duelos com feedback visual, convites, ranking temporário e mensagens do servidor.</p>
+                    <h4>Copie do projeto original</h4>
+                    <ul>
+                        <li><code>Source Main 5.2/source/NewUIDuelWindow.cpp</code> e <code>NewUIDuelWindow.h</code> — layout do placar e lógica de aceitação.</li>
+                        <li><code>Source Main 5.2/source/CDuelMgr.cpp</code> — estados do duelo, lista de espectadores e timers.</li>
+                        <li><code>Source MuServer Update 15/GameServer/GameServer/DuelSystem.cpp</code> — validações, limites de tempo e broadcast.</li>
+                        <li><code>Source Main 5.2/source/ProtocolSend.cpp</code> — pacotes 0xAA (subcódigos 0x01–0x07) usados em cada etapa.</li>
+                    </ul>
+                    <h4>Monte na Unreal</h4>
+                    <ol>
+                        <li>Converta texturas <code>Interface/duel/*.jpg</code> para <code>.png</code> e importe para <code>Content/UI/Duel</code>.</li>
+                        <li>Crie <code>WB_DuelHUD</code> com barras de HP, nomes, contador de vitórias e lista de espectadores em <em>ScrollBox</em>.</li>
+                        <li>Implemente <code>UDuelComponent</code> em C++ contendo estados (<code>Idle</code>, <code>Requesting</code>, <code>Fighting</code>, <code>Result</code>) e replicando dados.</li>
+                        <li>No <code>UNetworkBridgeSubsystem</code>, serialize requisições/respostas de duelo copiando estruturas <code>PMSG_DUEL_*</code> e valide com logs do servidor.</li>
+                        <li>Adicione animação de brilho (azul/vermelho) usando <em>UMG Animations</em> + <em>Material Instances</em> quando um ponto é marcado.</li>
+                    </ol>
+                    <h4>Fluxo Blueprint</h4>
+                    <ol class="blueprint-list">
+                        <li>No <code>WB_DuelHUD</code>, crie eventos <code>AtualizarPlacar</code> e <code>AtualizarEspectadores</code> disparados pelo componente.</li>
+                        <li>Use <em>Timeline</em> para animar o cronômetro (escala radial) e <em>Play Animation</em> quando um jogador vence.</li>
+                        <li>No <code>BP_PlayerController</code>, capture interação “Solicitar Duelo” e chame <code>UDuelComponent::SolicitarDuelo</code>.</li>
+                        <li>Quando o servidor enviar “DuelStart”, faça <code>Show Mouse Cursor = false</code>, bloqueie inventário e exiba o HUD.</li>
+                        <li>Ao terminar, toque sons de vitória/derrota reutilizando <code>DSPlaySound</code> convertidos para <code>.wav</code>.</li>
+                    </ol>
+                    <h4>Checklist final</h4>
+                    <ul>
+                        <li>Solicitar duelo dispara pop-up para o alvo com opções Aceitar/Recusar e timer regressivo.</li>
+                        <li>Placar, cronômetro e espectadores atualizam instantaneamente conforme os pacotes 0xAA recebidos.</li>
+                        <li>Logs do GameServer mostram <code>[Duel] Start</code>/<code>[Duel] End</code> sincronizados com a UI.</li>
+                    </ul>
+                </article>
+                <article class="recipe-card">
+                    <h3>Receita 13 — Empire Guardian com waves e HUD</h3>
+                    <p class="recipe-intro">Constrói lobby, instância e painel de progresso do evento cooperativo Imperial Guardian.</p>
+                    <h4>Copie do projeto original</h4>
+                    <ul>
+                        <li><code>Source Main 5.2/source/NewUIEmpireGuardianNPC.cpp</code> e <code>NewUIEmpireGuardianResult.cpp</code> — lobby, HUD e mensagens.</li>
+                        <li><code>Source MuServer Update 15/GameServer/GameServer/ImperialGuardian.cpp</code> — fases, portais e timers.</li>
+                        <li>Arquivos <code>Data/Event/ImperialGuardian.txt</code> e texturas em <code>Interface/EmpireGuardian</code>.</li>
+                    </ul>
+                    <h4>Monte na Unreal</h4>
+                    <ol>
+                        <li>Modele <code>WB_EmpireGuardianLobby</code> com slots de party, requisitos de nível e contador de tempo.</li>
+                        <li>Crie nível instanciado <code>LV_EmpireGuardian</code> com <code>LevelInstance</code> para cada wave (1–4) e portais animados.</li>
+                        <li>Implemente <code>AEmpireGuardianManager</code> que consome tabelas <code>DT_EmpireGuardianWaves</code> (convertidas do arquivo .txt) e ativa Level Streaming.</li>
+                        <li>Construa <code>WB_EmpireGuardianHUD</code> com barras de progresso, contagem de monstros restantes e objetivo atual.</li>
+                        <li>Adicione efeitos Niagara para abertura de portais e <em>Spotlights</em> dinâmicos sincronizados com os timers.</li>
+                    </ol>
+                    <h4>Fluxo Blueprint</h4>
+                    <ol class="blueprint-list">
+                        <li>No <code>AEmpireGuardianManager</code>, use <em>OnRep_CurrentWave</em> para atualizar HUD e spawnar inimigos.</li>
+                        <li>Ao receber pacote 0xF7:0x10, abra o lobby; quando 0xF7:0x11 chegar, carregue a instância via <em>Open Level</em>.</li>
+                        <li>Para cada wave concluída, dispare <em>Multicast</em> com efeito Niagara e mensagem usando textos originais.</li>
+                        <li>Ao finalizar, toque cutscene curta com <em>Level Sequence</em> e exiba <code>WB_EmpireGuardianResult</code>.</li>
+                        <li>Registre logs em arquivo local <code>Saved/Logs/empire_guardian.log</code> comparando com o servidor.</li>
+                    </ol>
+                    <h4>Checklist final</h4>
+                    <ul>
+                        <li>Lobby bloqueia jogadores sem requisitos e fecha quando o timer expira.</li>
+                        <li>Portais e HUD atualizam a cada wave exatamente como o cliente clássico.</li>
+                        <li>Recompensas são atribuídas após o pacote 0xF7:0x12 e aparecem na tela de resultado.</li>
+                    </ul>
+                </article>
+                <article class="recipe-card">
+                    <h3>Receita 14 — Cursed Temple com equipes Holy/Illusion</h3>
+                    <p class="recipe-intro">Recria o modo competitivo com minimapa dedicado, placar por equipe e feed de kills.</p>
+                    <h4>Copie do projeto original</h4>
+                    <ul>
+                        <li><code>Source Main 5.2/source/CNewUICursedTempleSystem.cpp</code> e <code>NewUICursedTempleWindow.cpp</code>.</li>
+                        <li><code>Source MuServer Update 15/GameServer/GameServer/CursedTempleEvent.cpp</code> — regras de pontuação.</li>
+                        <li>Texturas em <code>Interface/CursedTemple</code> e scripts <code>Data/Event/CursedTemple.txt</code>.</li>
+                    </ul>
+                    <h4>Monte na Unreal</h4>
+                    <ol>
+                        <li>Crie <code>WB_CursedTempleHUD</code> com indicadores de pontos, barra de energia da relíquia e ícones dos líderes.</li>
+                        <li>Implemente <code>UCursedTempleComponent</code> replicando estrutura do pacote 0xF8 (match info) e registrando kills.</li>
+                        <li>Monte minimapa circular com <code>SceneCapture2D</code> e <em>Material</em> que destaca santuários ocupados.</li>
+                        <li>Adicione <code>ACursedTempleObjective</code> que dispara efeitos Niagara quando capturado.</li>
+                        <li>Construa tabela <code>DT_CursedRewards</code> com recompensas e bonificações usando dados do arquivo .txt.</li>
+                    </ol>
+                    <h4>Fluxo Blueprint</h4>
+                    <ol class="blueprint-list">
+                        <li>No <code>UCursedTempleComponent</code>, use <em>OnRep_MatchState</em> para alternar widgets Preparação/Combate/Resultado.</li>
+                        <li>Atualize feed de kills com <em>AddChildToVerticalBox</em> e efeitos sonoros importados do cliente.</li>
+                        <li>Ao capturar objetivo, chame <code>Multicast_PlayCaptureFX</code> e ajuste placar usando dados do servidor.</li>
+                        <li>Quando restarem 30 segundos, toque animação de alerta utilizando <em>Widget Animation</em>.</li>
+                        <li>Finalize exibindo <code>WB_CursedTempleSummary</code> com ranking individual e recompensas.</li>
+                    </ol>
+                    <h4>Checklist final</h4>
+                    <ul>
+                        <li>Pontuação e mensagens coincidem com os logs do GameServer.</li>
+                        <li>Feed de kills exibe nome, classe e ícone conforme o cliente clássico.</li>
+                        <li>Time vencedor recebe bônus aplicados pelo servidor (exp/zen) e visual highlight na HUD.</li>
+                    </ul>
+                </article>
+                <article class="recipe-card">
+                    <h3>Receita 15 — Doppelganger com linha do tempo e cinematics</h3>
+                    <p class="recipe-intro">Implementa o evento Doppelganger com lobby, portais sincronizados e cutscenes.</p>
+                    <h4>Copie do projeto original</h4>
+                    <ul>
+                        <li><code>Source Main 5.2/source/NewUIDoppelGangerWindow.cpp</code> e <code>DoppelGangerInfo.cpp</code>.</li>
+                        <li><code>Source MuServer Update 15/GameServer/GameServer/Doppelganger.cpp</code> — fases e spawn da estátua.</li>
+                        <li>Arquivos <code>Data/Event/DoppelGanger/*.txt</code> e texturas em <code>Interface/DoppelGanger</code>.</li>
+                    </ul>
+                    <h4>Monte na Unreal</h4>
+                    <ol>
+                        <li>Crie <code>WB_DoppelLobby</code> com slots de party, requisitos de nível e custo de convite.</li>
+                        <li>Implemente <code>ADoppelgangerDirector</code> que controla transições de fase (Pré-entrada, Defesa, Batalha Final) usando <code>Timeline</code>.</li>
+                        <li>Construa HUD <code>WB_DoppelHUD</code> com barra de tempo, estado da estátua e lista de mobs restantes.</li>
+                        <li>Configure cutscene inicial/final com <em>Level Sequence</em> e triggers enviados pelo GameServer.</li>
+                        <li>Adicione efeitos roxos/escuros usando Niagara reaproveitando texturas do cliente.</li>
+                    </ol>
+                    <h4>Fluxo Blueprint</h4>
+                    <ol class="blueprint-list">
+                        <li>Ao receber pacote 0xF7:0x30, abra o lobby e inicie contagem regressiva.</li>
+                        <li>Quando a partida iniciar, <em>Open Level</em> e execute <code>ADoppelgangerDirector::StartMatch</code> (replicado).</li>
+                        <li>Use <em>Multicast</em> para disparar cutscenes e efeitos quando a estátua sofrer dano.</li>
+                        <li>Atualize HUD a cada pacote 0xF7:0x34 (tempo) e 0xF7:0x36 (spawn de mobs).</li>
+                        <li>Ao finalizar, toque cutscene final, distribua recompensas e retorne jogadores via <code>ServerTravel</code>.</li>
+                    </ol>
+                    <h4>Checklist final</h4>
+                    <ul>
+                        <li>Lobby bloqueia jogadores fora do horário ou sem convite.</li>
+                        <li>Cutscenes e efeitos reproduzem sincronizados para todos os participantes.</li>
+                        <li>Recompensas correspondem aos valores definidos em <code>Doppelganger.cpp</code>.</li>
+                    </ul>
+                </article>
+                <article class="recipe-card">
+                    <h3>Receita 16 — Economia Lucky Coin &amp; Lucky Item</h3>
+                    <p class="recipe-intro">Implementa troca de moedas, roleta de itens e feedback visual dourado.</p>
+                    <h4>Copie do projeto original</h4>
+                    <ul>
+                        <li><code>Source Main 5.2/source/NewUIExchangeLuckyCoin.cpp</code> e <code>NewUILuckyItemWnd.cpp</code>.</li>
+                        <li><code>Source MuServer Update 15/GameServer/GameServer/LuckyCoinSystem.cpp</code> e <code>ItemAddOption.cpp</code>.</li>
+                        <li>Arquivos <code>Data/LuckyItemOption.txt</code>, <code>Data/Item.txt</code> e texturas <code>Interface/LuckyCoin</code>.</li>
+                    </ul>
+                    <h4>Monte na Unreal</h4>
+                    <ol>
+                        <li>Converta <code>LuckyItemOption.txt</code> para <code>DT_LuckyRewards</code> (CSV &rarr; Data Table) com categorias, custos e bônus.</li>
+                        <li>Crie <code>WB_LuckyExchange</code> com abas Trocar, Comprar e Histórico. Utilize <em>Widget Switcher</em> para alternar.</li>
+                        <li>Implemente <code>ULuckyEconomyComponent</code> com saldo replicado, fila de requisições e integração com DataServer.</li>
+                        <li>Adicione roleta visual usando <em>Widget Animation</em> + <em>Dynamic Material Instance</em> para brilho dourado.</li>
+                        <li>Registre transações em <code>Saved/Logs/lucky_coin.csv</code> para auditoria educativa.</li>
+                    </ol>
+                    <h4>Fluxo Blueprint</h4>
+                    <ol class="blueprint-list">
+                        <li>No <code>WB_LuckyExchange</code>, conecte botões aos eventos <code>SolicitarTroca</code>/<code>SolicitarResgate</code>.</li>
+                        <li>Mostre animação de roleta enquanto aguarda resposta do servidor (pacote 0xF3:0x03).</li>
+                        <li>Ao receber resultado, atualize saldo, aplique item no inventário e toque som reutilizado do cliente.</li>
+                        <li>Permita consultar histórico carregando dados salvos localmente em <em>Data Table</em> auxiliar.</li>
+                        <li>Implemente mensagens de erro baseadas nas strings originais (saldo insuficiente, limite diário).</li>
+                    </ol>
+                    <h4>Checklist final</h4>
+                    <ul>
+                        <li>Saldo sincroniza com DataServer sem divergências.</li>
+                        <li>Animações e brilho aparecem com a mesma intensidade do cliente clássico.</li>
+                        <li>Log registra todas as operações com timestamp e resultado.</li>
+                    </ul>
+                </article>
+                <article class="recipe-card">
+                    <h3>Receita 17 — Refinaria Jewel of Harmony</h3>
+                    <p class="recipe-intro">Permite aplicar e remover opções Harmony com efeitos visuais idênticos.</p>
+                    <h4>Copie do projeto original</h4>
+                    <ul>
+                        <li><code>Source Main 5.2/source/UIJewelHarmony.cpp</code> — interface e regras de composição.</li>
+                        <li><code>Source MuServer Update 15/GameServer/GameServer/JewelOfHarmonySystem.cpp</code> — cálculos e respostas.</li>
+                        <li>Arquivos <code>Data/JewelOfHarmonyOption.bmd</code> e <code>Data/JewelOfHarmonyMix.bmd</code>.</li>
+                    </ul>
+                    <h4>Monte na Unreal</h4>
+                    <ol>
+                        <li>Converta <code>.bmd</code> para JSON com o utilitário <code>BMD_FBX</code> ou scripts fornecidos e gere <code>DT_HarmonyOptions</code>.</li>
+                        <li>Crie <code>WB_HarmonyForge</code> com slots para item base, Jewel of Harmony, Jewel of Harmony Smelt e botões Aplicar/Remover.</li>
+                        <li>Implemente <code>UHarmonyForgeComponent</code> validando requisitos e enviando pacotes 0xF3:0x50/0x51.</li>
+                        <li>Adicione efeito visual com material emissivo azul/roxo aplicado ao item na vitrine, sincronizado com <em>Timeline</em>.</li>
+                        <li>Mostre pré-visualização dos atributos usando dados da Data Table antes de confirmar.</li>
+                    </ol>
+                    <h4>Fluxo Blueprint</h4>
+                    <ol class="blueprint-list">
+                        <li>No <code>WB_HarmonyForge</code>, reaja a <code>OnItemDropped</code> preenchendo slots e atualizando descrições.</li>
+                        <li>Bloqueie botão Aplicar se requisitos não forem atendidos (nível do item, tipo permitido) replicando validações do cliente clássico.</li>
+                        <li>Quando receber resposta positiva, atualize item no inventário e reproduza animação de partículas.</li>
+                        <li>Em caso de falha, toque som de erro e mostre mensagem derivada do <code>GlobalText</code>.</li>
+                        <li>Registre alterações no diário (arquivo <code>Saved/Logs/harmony.log</code>) para auditoria.</li>
+                    </ol>
+                    <h4>Checklist final</h4>
+                    <ul>
+                        <li>Opções exibidas na UI combinam com os valores convertidos dos arquivos <code>.bmd</code>.</li>
+                        <li>Pacotes enviados/recebidos correspondem aos logs do GameServer sem divergências.</li>
+                        <li>Efeitos de brilho e partículas replicam o visual azul característico do cliente clássico.</li>
+                    </ul>
+                </article>
             </div>
         </section>
 
@@ -1886,6 +2079,138 @@
                     <ul>
                         <li>Compras e vendas refletem imediatamente no inventário e no Zen.</li>
                         <li>Quests mostram objetivos, contadores e recompensas idênticos ao original.</li>
+                    </ul>
+                </article>
+                <article class="atlas-card">
+                    <h3>Duelo 1x1 &amp; Arena</h3>
+                    <p><strong>Objetivo:</strong> recriar o sistema de duelos, placar em tempo real e lista de espectadores.</p>
+                    <h4>Arquivos clássicos</h4>
+                    <ul>
+                        <li><code>Source Main 5.2/source/NewUIDuelWindow.cpp</code>, <code>NewUIDuelWindow.h</code> e <code>CDuelMgr.cpp</code>.</li>
+                        <li><code>Source Main 5.2/source/ProtocolSend.cpp</code> &mdash; funções <code>SendDuelRequest</code>, <code>SendDuelAnswer</code>, <code>SendDuelQuit</code>.</li>
+                        <li><code>Source MuServer Update 15/GameServer/GameServer/DuelSystem.cpp</code> e <code>DuelSystem.h</code>.</li>
+                    </ul>
+                    <h4>Na Unreal</h4>
+                    <ol class="atlas-steps">
+                        <li>Crie <code>WB_DuelHUD</code> com barras de HP dos dois jogadores, cronômetro e lista de espectadores usando dados de <code>CDuelMgr::m_mapDuelUser</code>.</li>
+                        <li>Implemente <code>UDuelComponent</code> (Actor Component) no personagem, expondo eventos <code>SolicitarDuel</code>, <code>ResponderDuel</code> e <code>AtualizarPlacar</code>.</li>
+                        <li>Na camada de rede, serialize pacotes 0xAA subcódigos 0x01–0x07 espelhando <code>ProtocolSend::SendDuel*</code> e valide respostas com <code>DuelSystem::GDuelRequestRecv</code>.</li>
+                        <li>Para o visual, importe texturas <code>Interface\\newui_duel*.jpg</code> e utilize <em>UMG Progress Bars</em> com cores originais.</li>
+                    </ol>
+                    <h4>Checklist</h4>
+                    <ul>
+                        <li>Solicitar duelo abre janela modal com tempos idênticos ao clássico.</li>
+                        <li>O placar pisca em vermelho quando um jogador atinge zero HP e o GameServer encerra a sessão corretamente.</li>
+                    </ul>
+                </article>
+                <article class="atlas-card">
+                    <h3>Empire Guardian (Imperial Guardian)</h3>
+                    <p><strong>Objetivo:</strong> suportar filas, HUD progressiva e fechamento automático das waves cooperativas.</p>
+                    <h4>Arquivos clássicos</h4>
+                    <ul>
+                        <li><code>Source Main 5.2/source/NewUIEmpireGuardianNPC.cpp</code> e <code>NewUIEmpireGuardianResult.cpp</code>.</li>
+                        <li><code>Source Main 5.2/Global Release/Data/Interface/EmpireGuardian</code> &mdash; molduras e ícones.</li>
+                        <li><code>Source MuServer Update 15/GameServer/GameServer/ImperialGuardian.cpp</code> e <code>ImperialGuardian.h</code>.</li>
+                    </ul>
+                    <h4>Na Unreal</h4>
+                    <ol class="atlas-steps">
+                        <li>Crie <code>WB_EmpireGuardianLobby</code> com slots de party e cronômetro usando dados do pacote 0xF7 subcódigo 0x10.</li>
+                        <li>Implemente <code>AEmpireGuardianManager</code> que ativa <code>LevelStream</code> por wave, posiciona portais e aplica restrições de tempo conforme <code>ImperialGuardian.cpp</code>.</li>
+                        <li>Construa HUD in-game <code>WB_EmpireGuardianHUD</code> exibindo etapa atual, contagem de monstros e objetivos convertendo textos de <code>GlobalText.lua</code>.</li>
+                        <li>Reproduza efeitos luminosos das portas com <em>Niagara</em> reaproveitando texturas <code>Effects\\glow_guardian.tga</code>.</li>
+                    </ol>
+                    <h4>Checklist</h4>
+                    <ul>
+                        <li>O lobby impede entrada após o limite de jogadores/tempo enviado pelo GameServer.</li>
+                        <li>Cada wave conclui quando o servidor envia <code>F7:0x11</code> e os objetivos visuais são atualizados instantaneamente.</li>
+                    </ul>
+                </article>
+                <article class="atlas-card">
+                    <h3>Cursed Temple (Battle)</h3>
+                    <p><strong>Objetivo:</strong> recriar o modo competitivo com times Holy/Illusion, HUD, minimapa e lógica de rounds.</p>
+                    <h4>Arquivos clássicos</h4>
+                    <ul>
+                        <li><code>Source Main 5.2/source/CNewUICursedTempleSystem.cpp</code> e <code>NewUICursedTempleWindow.cpp</code>.</li>
+                        <li>Texturas em <code>Global Release/Data/Interface/CursedTemple</code> (barras, ícones de equipes).</li>
+                        <li><code>Source MuServer Update 15/GameServer/GameServer/CursedTempleEvent.cpp</code> e <code>CursedTempleEvent.h</code>.</li>
+                    </ul>
+                    <h4>Na Unreal</h4>
+                    <ol class="atlas-steps">
+                        <li>Desenvolva <code>WC_CursedTempleHUD</code> com barra de pontos por equipe, contagem de relíquias e feed de kills.</li>
+                        <li>Implemente <code>UCursedTempleComponent</code> para personagens, tratando pacotes 0xF8 (match info) e 0xF6 (pontuação).</li>
+                        <li>Construa minimapa dedicado com <code>SceneCapture2D</code> e materiais mascarados usando as texturas originais.</li>
+                        <li>Crie efeitos de captura com <em>Niagara</em> (auras roxas/azuis) sincronizados com o estado do objetivo enviado pelo servidor.</li>
+                    </ol>
+                    <h4>Checklist</h4>
+                    <ul>
+                        <li>HUD alterna automaticamente entre fases Preparação &rarr; Combate &rarr; Resultado conforme os pacotes.</li>
+                        <li>A pontuação bate com os logs de <code>CursedTempleEvent.cpp</code> e a câmera espectador ativa após derrota.</li>
+                    </ul>
+                </article>
+                <article class="atlas-card">
+                    <h3>Doppelganger</h3>
+                    <p><strong>Objetivo:</strong> implementar filas, portais, avisos visuais e lógica de progressão do evento.</p>
+                    <h4>Arquivos clássicos</h4>
+                    <ul>
+                        <li><code>Source Main 5.2/source/NewUIDoppelGangerWindow.cpp</code> e <code>DoppelGangerInfo.cpp</code>.</li>
+                        <li>Textos em <code>Data/Local/doppelganger.txt</code> e texturas em <code>Interface/DoppelGanger</code>.</li>
+                        <li><code>Source MuServer Update 15/GameServer/GameServer/Doppelganger.cpp</code> e scripts <code>Event/DoppelGanger/*.txt</code>.</li>
+                    </ul>
+                    <h4>Na Unreal</h4>
+                    <ol class="atlas-steps">
+                        <li>Modele <code>WB_DoppelgangerLobby</code> com requisitos de nível, consumo de convite e horário consultando <code>DoppelGangerInfo::CheckEnterCondition</code>.</li>
+                        <li>Implemente <code>ADoppelgangerTimeline</code> que controla spawn de monstros, NPC guia e fase final conforme <code>Doppelganger.cpp</code>.</li>
+                        <li>Adicione HUD com barra de tempo restante, objetivos e indicador da estátua usando ícones originais convertidos.</li>
+                        <li>Use <em>Sequencer</em> para animar a abertura do portal e o colapso final conforme scripts de evento.</li>
+                    </ol>
+                    <h4>Checklist</h4>
+                    <ul>
+                        <li>O lobby bloqueia jogadores sem convite ou fora do horário configurado pelo servidor.</li>
+                        <li>O evento encerra com recompensas e mensagens iguais às do cliente clássico.</li>
+                    </ul>
+                </article>
+                <article class="atlas-card">
+                    <h3>Lucky Coin &amp; Lucky Item</h3>
+                    <p><strong>Objetivo:</strong> replicar a economia de moedas e criação de itens sorteados com feedback visual.</p>
+                    <h4>Arquivos clássicos</h4>
+                    <ul>
+                        <li><code>Source Main 5.2/source/NewUIExchangeLuckyCoin.cpp</code> e <code>NewUILuckyItemWnd.cpp</code>.</li>
+                        <li>Dados de itens em <code>Data/LuckyItemOption.txt</code> e <code>Data/Item.txt</code>.</li>
+                        <li><code>Source MuServer Update 15/GameServer/GameServer/LuckyCoinSystem.cpp</code> e <code>ItemAddOption.cpp</code>.</li>
+                    </ul>
+                    <h4>Na Unreal</h4>
+                    <ol class="atlas-steps">
+                        <li>Crie <code>WB_LuckyCoinExchange</code> com abas (Trocar, Recompensas, Histórico) e animações de brilho importando texturas <code>Interface\\LuckyCoin</code>.</li>
+                        <li>Implemente <code>ULuckyEconomyComponent</code> responsável por saldo, requisições de troca (pacotes 0xF3 subcódigo 0x03) e salvamento via DataServer.</li>
+                        <li>Monte tabela <code>DT_LuckyRewards</code> convertendo <code>LuckyItemOption.txt</code> para CSV &rarr; Data Table.</li>
+                        <li>Adicione efeitos <em>Niagara</em> e <em>Timeline</em> para revelar itens raros, espelhando o brilho dourado do cliente original.</li>
+                    </ol>
+                    <h4>Checklist</h4>
+                    <ul>
+                        <li>Trocas atualizam saldo local e no servidor sem atraso perceptível.</li>
+                        <li>Itens criados carregam opções extras idênticas às enviadas pelo <code>LuckyCoinSystem.cpp</code>.</li>
+                    </ul>
+                </article>
+                <article class="atlas-card">
+                    <h3>Refinaria Jewel of Harmony</h3>
+                    <p><strong>Objetivo:</strong> converter o fluxo de refinaria com interface, tabelas e feedback luminoso.</p>
+                    <h4>Arquivos clássicos</h4>
+                    <ul>
+                        <li><code>Source Main 5.2/source/UIJewelHarmony.cpp</code>, <code>UIJewelHarmony.h</code>.</li>
+                        <li>Arquivos <code>Data/JewelOfHarmonyOption.bmd</code> e <code>Data/JewelOfHarmonyMix.bmd</code>.</li>
+                        <li><code>Source MuServer Update 15/GameServer/GameServer/JewelOfHarmonySystem.cpp</code>.</li>
+                    </ul>
+                    <h4>Na Unreal</h4>
+                    <ol class="atlas-steps">
+                        <li>Converta os arquivos <code>.bmd</code> para JSON utilizando o utilitário <code>BMD_FBX</code> adaptado ou ferramentas externas e importe como <code>DataTable</code>.</li>
+                        <li>Modele <code>WB_JewelHarmony</code> com slots Arrastar/Soltar para item base, Jewel of Harmony e Jewel of Harmony Smelt.</li>
+                        <li>Implemente <code>UHarmonyForgeComponent</code> que valida requisitos, envia pacote 0xF3 subcódigo 0x50 e aguarda resposta 0xF3:0x51.</li>
+                        <li>Crie material instanciado com <em>panner</em> e <em>emissive</em> para iluminar o item resultante replicando o efeito azul do cliente clássico.</li>
+                    </ol>
+                    <h4>Checklist</h4>
+                    <ul>
+                        <li>A UI bloqueia combinações inválidas e mostra mensagens do servidor traduzidas do <code>GlobalText</code>.</li>
+                        <li>O item refinado exibe opções extras idênticas aos registros convertidos dos arquivos <code>.bmd</code>.</li>
                     </ul>
                 </article>
                 <article class="atlas-card">
@@ -2811,6 +3136,26 @@ converter.Unpack(
                             transições com o servidor.</li>
                         <li>Testar spawn de monstros usando dados de <code>MonsterSetBase.txt</code> convertidos para
                             <code>DataTable</code> <code>DT_SpawnGroups</code>.</li>
+                    </ol>
+                </article>
+                <article class="card">
+                    <h3>Duelo, rankings e HUD competitiva</h3>
+                    <ol class="step-list">
+                        <li>Estudar <code>NewUIDuelWindow.cpp</code> e <code>CDuelMgr.cpp</code> para mapear estados e timers do duelo.</li>
+                        <li>Implementar <code>UDuelComponent</code> na Unreal com estados replicados e pacotes 0xAA convertidos.</li>
+                        <li>Construir <code>WB_DuelHUD</code> com barras de HP, cronômetro circular e lista de espectadores usando texturas originais.</li>
+                        <li>Sincronizar confirmações com o GameServer (<code>DuelSystem.cpp</code>) e registrar logs comparativos.</li>
+                        <li>Adicionar scoreboard pós-partida exibindo vitórias acumuladas e recompensas.</li>
+                    </ol>
+                </article>
+                <article class="card">
+                    <h3>Economia avançada &amp; refinaria</h3>
+                    <ol class="step-list">
+                        <li>Ler <code>NewUIExchangeLuckyCoin.cpp</code>, <code>NewUILuckyItemWnd.cpp</code> e <code>UIJewelHarmony.cpp</code> para entender fluxos completos.</li>
+                        <li>Converter arquivos <code>LuckyItemOption.txt</code> e <code>JewelOfHarmonyOption.bmd</code> em <em>Data Tables</em> para uso na Unreal.</li>
+                        <li>Criar componentes <code>ULuckyEconomyComponent</code> e <code>UHarmonyForgeComponent</code> com integração ao DataServer.</li>
+                        <li>Desenvolver Widgets <code>WB_LuckyExchange</code> e <code>WB_HarmonyForge</code> com animações de brilho e feedback visual.</li>
+                        <li>Executar testes end-to-end verificando saldo, resultados e mensagens de erro alinhadas ao cliente clássico.</li>
                     </ol>
                 </article>
             </div>
