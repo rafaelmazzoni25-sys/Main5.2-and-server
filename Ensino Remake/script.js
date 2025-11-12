@@ -544,14 +544,14 @@ const assetConversionRules = [
         id: "character-models",
         label: "Modelos 3D (.BMD/.SMD)",
         description:
-            "Meshes e animações usadas por personagens, monstros e objetos interativos definidos em ZzzBMD.",
+            "Meshes e animações usadas por personagens, monstros e objetos interativos definidos em ZzzBMD com conversão assistida pelo utilitário BMD_FBX.",
         extensions: [".bmd", ".smd"],
-        target: "<code>.FBX</code> com esqueleto compartilhado",
+        target: "<code>.FBX</code> com esqueleto e texturas automatizadas",
         destination: "<code>Content/Characters</code> e <code>Content/Monsters</code>",
         steps: [
-            "Abrir o modelo no MuModel Viewer (ou ferramenta equivalente) e exportar FBX incluindo animações chave.",
-            "Validar hierarquia de ossos conforme a estrutura documentada em ZzzBMD.cpp antes de importar no Unreal.",
-            "Ativar \"Use T0 As Ref Pose\" no importador do Unreal e retargetar para o esqueleto player/monster."
+            "Compile o utilitário <code>BMD_FBX</code> com o FBX SDK e defina <code>BMD_FBX::SetRootPath</code> para apontar para <code>Data</code>, permitindo que o buscador localize texturas adicionais.",
+            "Ajuste <code>BMD_FBX::SetFrameTime</code> conforme a velocidade desejada e execute <code>converter.Unpack(bmdPath, nullptr, true, true, true)</code> para gerar <code>SKM_/SM_*.fbx</code> com materiais, pesos e animações normalizadas.",
+            "Revise a pasta gerada: as texturas são extraídas com nomes únicos e o esqueleto já possui raiz compatível com retargeting. Importe no Unreal ativando <em>Use T0 As Ref Pose</em> e associe as texturas renomeadas."
         ],
         references: [
             {
@@ -561,6 +561,10 @@ const assetConversionRules = [
             {
                 path: "Source Main 5.2/bin/Data/Character",
                 note: "Modelos originais do cliente"
+            },
+            {
+                path: "Ensino Remake/index.html#bmd-fbx",
+                note: "Guia de uso do conversor BMD_FBX"
             }
         ]
     },
@@ -651,6 +655,30 @@ const assetResults = document.getElementById("asset-results");
 const assetTotalEl = document.getElementById("asset-total-files");
 const assetConvertibleEl = document.getElementById("asset-convertible-files");
 const assetCompatibleEl = document.getElementById("asset-compatible-files");
+const assetVisualization = document.getElementById("asset-visualization");
+const assetVisualizationStatus = document.getElementById("asset-visualization-status");
+const assetVisualizationList = document.getElementById("asset-visualization-list");
+
+const visualizationCategories = [
+    {
+        id: "hud",
+        label: "HUD",
+        description: "Texturas e layouts da interface clássica.",
+        keywords: ["/interface/", "/hud", "/ui/"]
+    },
+    {
+        id: "inventory",
+        label: "Inventário",
+        description: "Ícones, slots e tabelas usados no inventário do jogo.",
+        keywords: ["/item", "/inventory", "/equip"]
+    },
+    {
+        id: "characters",
+        label: "Personagens",
+        description: "Modelos, animações e dados de personagens e monstros.",
+        keywords: ["/character", "/monster", "/npc"]
+    }
+];
 
 function normaliseExtension(path) {
     const lastDot = path.lastIndexOf(".");
@@ -658,6 +686,10 @@ function normaliseExtension(path) {
         return "";
     }
     return path.slice(lastDot).toLowerCase();
+}
+
+function normalisePath(path) {
+    return path.replace(/\\/g, "/");
 }
 
 function createList(items, className, ordered = false) {
@@ -755,11 +787,24 @@ function renderAssetGroups(groups, totals) {
         sampleLabel.textContent = "Exemplos encontrados:";
         category.appendChild(sampleLabel);
 
-        const sampleFiles = files.slice(0, 6).map((file) => ({ __html: `<code>${file}</code>` }));
+        const samplesList = document.createElement("ul");
+        samplesList.className = "asset-tool__samples";
+
+        files.slice(0, 6).forEach((file) => {
+            const item = document.createElement("li");
+            const code = document.createElement("code");
+            code.textContent = file;
+            item.appendChild(code);
+            samplesList.appendChild(item);
+        });
+
         if (files.length > 6) {
-            sampleFiles.push({ __html: `… +${numberFormatter.format(files.length - 6)} outros` });
+            const remainingItem = document.createElement("li");
+            remainingItem.textContent = `… +${numberFormatter.format(files.length - 6)} outros`;
+            samplesList.appendChild(remainingItem);
         }
-        category.appendChild(createList(sampleFiles, "asset-tool__samples"));
+
+        category.appendChild(samplesList);
 
         const details = document.createElement("details");
         details.className = "asset-tool__details";
@@ -797,6 +842,140 @@ function renderAssetGroups(groups, totals) {
     }
 }
 
+function resetAssetVisualization() {
+    if (!assetVisualization || !assetVisualizationList) {
+        return;
+    }
+
+    assetVisualization.setAttribute("hidden", "");
+    assetVisualizationList.innerHTML = "";
+    if (assetVisualizationStatus) {
+        assetVisualizationStatus.textContent =
+            "Selecione a pasta Data para localizar rapidamente arquivos de HUD, Inventário e Personagens.";
+    }
+}
+
+function renderAssetVisualization(paths) {
+    if (!assetVisualization || !assetVisualizationList) {
+        return;
+    }
+
+    if (!paths || paths.length === 0) {
+        resetAssetVisualization();
+        return;
+    }
+
+    assetVisualizationList.innerHTML = "";
+
+    const results = visualizationCategories.map((category) => {
+        const files = paths
+            .filter((entry) =>
+                category.keywords.some((keyword) => entry.lower.includes(keyword))
+            )
+            .map((entry) => entry.display);
+
+        return { ...category, files };
+    });
+
+    const totalMatches = results.reduce((sum, category) => sum + category.files.length, 0);
+
+    assetVisualization.removeAttribute("hidden");
+
+    if (assetVisualizationStatus) {
+        if (totalMatches === 0) {
+            assetVisualizationStatus.textContent =
+                "Nenhum arquivo característico de HUD, Inventário ou Personagens foi encontrado automaticamente.";
+        } else {
+            assetVisualizationStatus.textContent = `Encontrados ${numberFormatter.format(
+                totalMatches
+            )} arquivo(s) ligados à HUD, Inventário e Personagens. Veja amostras abaixo.`;
+        }
+    }
+
+    if (totalMatches === 0) {
+        const emptyCol = document.createElement("div");
+        emptyCol.className = "col-12";
+        const empty = document.createElement("div");
+        empty.className = "asset-visualization__empty alert alert-warning shadow-sm mb-0";
+        empty.textContent =
+            "Confirme se a pasta Data contém Interface, Item e Character para visualizar este resumo.";
+        emptyCol.appendChild(empty);
+        assetVisualizationList.appendChild(emptyCol);
+        return;
+    }
+
+    results.forEach((category) => {
+        if (category.files.length === 0) {
+            return;
+        }
+
+        const col = document.createElement("div");
+        col.className = "col";
+
+        const card = document.createElement("div");
+        card.className = "asset-visualization__card card h-100 border-0 shadow-sm";
+
+        const cardBody = document.createElement("div");
+        cardBody.className = "card-body d-flex flex-column gap-3";
+
+        const header = document.createElement("div");
+        header.className = "d-flex align-items-center justify-content-between gap-2";
+
+        const title = document.createElement("h5");
+        title.className = "card-title mb-0";
+        title.textContent = category.label;
+        header.appendChild(title);
+
+        const count = document.createElement("span");
+        count.className = "asset-visualization__count badge rounded-pill";
+        count.textContent = `${numberFormatter.format(category.files.length)} arquivo(s)`;
+        header.appendChild(count);
+
+        cardBody.appendChild(header);
+
+        const description = document.createElement("p");
+        description.className = "asset-visualization__description card-text";
+        description.textContent = category.description;
+        cardBody.appendChild(description);
+
+        const sampleFiles = category.files.slice(0, 5);
+        if (sampleFiles.length > 0) {
+            const samplesLabel = document.createElement("p");
+            samplesLabel.className = "asset-visualization__samples-label text-uppercase small mb-1";
+            samplesLabel.textContent = "Exemplos:";
+            cardBody.appendChild(samplesLabel);
+
+            const list = document.createElement("ul");
+            list.className = "asset-visualization__samples list-group list-group-flush small";
+
+            sampleFiles.forEach((filePath) => {
+                const item = document.createElement("li");
+                item.className = "list-group-item px-0 bg-transparent";
+                const code = document.createElement("code");
+                code.className = "text-break";
+                code.textContent = filePath;
+                item.appendChild(code);
+                list.appendChild(item);
+            });
+
+            if (category.files.length > sampleFiles.length) {
+                const more = document.createElement("li");
+                more.className = "list-group-item px-0 bg-transparent text-muted fst-italic";
+                more.textContent = `… +${numberFormatter.format(
+                    category.files.length - sampleFiles.length
+                )} outros`;
+                list.appendChild(more);
+            }
+
+            cardBody.appendChild(list);
+        }
+
+        card.appendChild(cardBody);
+        col.appendChild(card);
+        assetVisualizationList.appendChild(col);
+    });
+}
+
 function handleAssetSelection(event) {
     if (!assetStatus || !assetTotalEl || !assetConvertibleEl || !assetCompatibleEl) {
         return;
@@ -809,6 +988,7 @@ function handleAssetSelection(event) {
         assetStatus.textContent =
             "Nenhum diretório analisado ainda. Assim que você apontar a pasta Data, os resultados aparecem aqui.";
         assetResults && (assetResults.innerHTML = "");
+        resetAssetVisualization();
         return;
     }
 
@@ -816,9 +996,12 @@ function handleAssetSelection(event) {
     let convertible = 0;
     let compatible = 0;
     let unknown = 0;
+    const analysedPaths = [];
 
     files.forEach((file) => {
-        const relativePath = file.webkitRelativePath || file.name;
+        const rawPath = file.webkitRelativePath || file.name;
+        const relativePath = normalisePath(rawPath);
+        analysedPaths.push({ display: relativePath, lower: relativePath.toLowerCase() });
         const extension = normaliseExtension(relativePath);
 
         if (extensionRuleMap.has(extension)) {
@@ -861,6 +1044,7 @@ function handleAssetSelection(event) {
 
     const groups = Array.from(grouped.values()).sort((a, b) => b.files.length - a.files.length);
     renderAssetGroups(groups, { unknown });
+    renderAssetVisualization(analysedPaths);
 }
 
 if (assetInput) {
