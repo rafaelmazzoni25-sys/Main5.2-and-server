@@ -2042,6 +2042,128 @@ renderTimeline("unreal");
 renderTimeline("backend");
 
 renderNoviceGuides();
+
+const PLANNER_STORAGE_KEY = "ensino-remake-planner";
+const plannerCheckboxes = Array.from(document.querySelectorAll("input[data-progress-key]"));
+const plannerOverallLabel = document.querySelector("[data-planner-overall]");
+const plannerResetButton = document.getElementById("planner-reset");
+
+function loadPlannerState() {
+    try {
+        const raw = localStorage.getItem(PLANNER_STORAGE_KEY);
+        if (!raw) {
+            return {};
+        }
+        const parsed = JSON.parse(raw);
+        if (parsed && typeof parsed === "object") {
+            return parsed;
+        }
+        return {};
+    } catch (error) {
+        return {};
+    }
+}
+
+function persistPlannerState(state) {
+    try {
+        localStorage.setItem(PLANNER_STORAGE_KEY, JSON.stringify(state));
+    } catch (error) {
+        // Ignorar erros de armazenamento (navegador restrito ou modo privado)
+    }
+}
+
+function updatePlannerProgress(state) {
+    if (!plannerCheckboxes.length) {
+        return;
+    }
+
+    const phaseTotals = new Map();
+    let overallCompleted = 0;
+    let overallTotal = 0;
+
+    plannerCheckboxes.forEach((checkbox) => {
+        const phase = checkbox.dataset.phase || "default";
+        if (!phaseTotals.has(phase)) {
+            phaseTotals.set(phase, { completed: 0, total: 0 });
+        }
+
+        const bucket = phaseTotals.get(phase);
+        bucket.total += 1;
+        overallTotal += 1;
+
+        if (checkbox.checked) {
+            bucket.completed += 1;
+            overallCompleted += 1;
+        }
+    });
+
+    phaseTotals.forEach((bucket, phase) => {
+        const label = document.querySelector(`[data-phase-progress="${phase}"]`);
+        if (label) {
+            label.textContent = `${bucket.completed}/${bucket.total} passos concluídos`;
+        }
+
+        const bar = document.querySelector(`[data-phase-bar="${phase}"]`);
+        if (bar) {
+            const percent = bucket.total ? Math.round((bucket.completed / bucket.total) * 100) : 0;
+            bar.style.width = `${percent}%`;
+            bar.setAttribute("aria-valuenow", String(percent));
+            bar.setAttribute("aria-valuemax", "100");
+            bar.setAttribute("aria-valuemin", "0");
+        }
+
+        const card = document.querySelector(`.planner-card[data-phase="${phase}"]`);
+        if (card) {
+            card.classList.toggle("planner-card--complete", bucket.total > 0 && bucket.completed === bucket.total);
+        }
+    });
+
+    if (plannerOverallLabel) {
+        const overallPercent = overallTotal ? Math.round((overallCompleted / overallTotal) * 100) : 0;
+        plannerOverallLabel.textContent = `${overallPercent}%`;
+    }
+}
+
+if (plannerCheckboxes.length) {
+    const plannerState = loadPlannerState();
+
+    plannerCheckboxes.forEach((checkbox) => {
+        const key = checkbox.dataset.progressKey;
+        if (plannerState[key]) {
+            checkbox.checked = true;
+        }
+
+        checkbox.addEventListener("change", () => {
+            plannerState[key] = checkbox.checked;
+            if (!checkbox.checked) {
+                delete plannerState[key];
+            }
+            persistPlannerState(plannerState);
+            updatePlannerProgress(plannerState);
+        });
+    });
+
+    if (plannerResetButton) {
+        plannerResetButton.addEventListener("click", () => {
+            const confirmed = window.confirm(
+                "Deseja realmente limpar o progresso salvo? Esta ação afeta apenas este navegador."
+            );
+            if (!confirmed) {
+                return;
+            }
+
+            plannerCheckboxes.forEach((checkbox) => {
+                checkbox.checked = false;
+            });
+
+            persistPlannerState({});
+            updatePlannerProgress({});
+        });
+    }
+
+    updatePlannerProgress(plannerState);
+}
+
 let initialNoviceState = false;
 
 if (noviceModeToggle) {

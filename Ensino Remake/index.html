@@ -979,6 +979,378 @@ struct FRemakePacket {
             </div>
         </section>
 
+        <section id="plano-mestre" class="panel panel--planner">
+            <h2>Plano mestre UE5+ com checklist interativo</h2>
+            <p>
+                Use este quadro para transformar as receitas em um cronograma executável. Marque cada passo à medida que
+                concluir as tarefas e compartilhe o progresso com o seu time ou alunos. Os dados ficam salvos neste
+                computador para que iniciantes possam retomar de onde pararam.
+            </p>
+            <div class="planner-progress">
+                <div class="planner-progress__summary">
+                    <span class="planner-progress__label">Progresso geral</span>
+                    <span class="planner-progress__value" data-planner-overall>0%</span>
+                </div>
+                <button type="button" class="planner-progress__reset" id="planner-reset">
+                    Limpar progresso salvo
+                </button>
+            </div>
+            <div class="planner-grid">
+                <article class="planner-card" data-phase="fase1">
+                    <header class="planner-card__header">
+                        <h3>Fase 1 — Fundamentos e preparação</h3>
+                        <div class="planner-card__status">
+                            <span class="planner-card__progress" data-phase-progress="fase1">0/4 passos concluídos</span>
+                            <div class="planner-card__bar">
+                                <span class="planner-card__bar-fill" data-phase-bar="fase1"></span>
+                            </div>
+                        </div>
+                    </header>
+                    <p>
+                        Configure tudo que sustenta o remake: ferramentas, assets e documentação inicial. Esta fase garante
+                        que qualquer aluno possa abrir o projeto UE5+ sem erros antes de atacar módulos avançados.
+                    </p>
+                    <ol class="planner-card__list">
+                        <li class="planner-step">
+                            <label class="planner-step__label">
+                                <input type="checkbox" data-progress-key="fase1-ambiente" data-phase="fase1">
+                                <span class="planner-step__content">
+                                    <strong>Prepare o ambiente Unreal 5.3+</strong>
+                                    <span class="planner-step__details">
+                                        Instale Visual Studio 2019 com toolset C++, Unreal Engine 5.3 ou superior e valide o
+                                        <code>EnsinoRemake.uproject</code> abrindo o mapa <code>Test_Level</code>. Documente
+                                        versões, plugins habilitados (GAS, Enhanced Input, Online Subsystem) e paths usados
+                                        pelo time.
+                                    </span>
+                                </span>
+                            </label>
+                        </li>
+                        <li class="planner-step">
+                            <label class="planner-step__label">
+                                <input type="checkbox" data-progress-key="fase1-assets" data-phase="fase1">
+                                <span class="planner-step__content">
+                                    <strong>Catalogar assets essenciais</strong>
+                                    <span class="planner-step__details">
+                                        Use o conversor <code>BMD_FBX</code> e o scanner automático para separar HUDs, modelos e
+                                        sons do Main 5.2. Registre na planilha qual textura vai para cada widget Unreal e qual
+                                        modelo depende de normal map ou animações adicionais.
+                                    </span>
+                                </span>
+                            </label>
+                        </li>
+                        <li class="planner-step">
+                            <label class="planner-step__label">
+                                <input type="checkbox" data-progress-key="fase1-documentacao" data-phase="fase1">
+                                <span class="planner-step__content">
+                                    <strong>Documentar referências do código original</strong>
+                                    <span class="planner-step__details">
+                                        Monte um mapa com arquivos críticos (por exemplo, <code>Winmain.cpp</code>,
+                                        <code>ProtocolSend.cpp</code>, <code>GameServer/GameServer/SkillSystem.cpp</code>) e
+                                        descreva como cada um será traduzido nos módulos Unreal (RemakeNet, RemakeCombat,
+                                        RemakeAccounts). Inclua links rápidos para consulta em aula.
+                                    </span>
+                                </span>
+                            </label>
+                        </li>
+                        <li class="planner-step">
+                            <label class="planner-step__label">
+                                <input type="checkbox" data-progress-key="fase1-validacao" data-phase="fase1">
+                                <span class="planner-step__content">
+                                    <strong>Validar build base e versionamento</strong>
+                                    <span class="planner-step__details">
+                                        Configure o Git com README inicial, confirme que o projeto Unreal gera <em>build</em>
+                                        Development sem erros e salve um snapshot com scripts SQL e assets listados. Essa
+                                        versão é o ponto de partida oficial das receitas.
+                                    </span>
+                                </span>
+                            </label>
+                        </li>
+                    </ol>
+                </article>
+
+                <article class="planner-card" data-phase="fase2">
+                    <header class="planner-card__header">
+                        <h3>Fase 2 — Login, seleção e personagem jogável</h3>
+                        <div class="planner-card__status">
+                            <span class="planner-card__progress" data-phase-progress="fase2">0/4 passos concluídos</span>
+                            <div class="planner-card__bar">
+                                <span class="planner-card__bar-fill" data-phase-bar="fase2"></span>
+                            </div>
+                        </div>
+                    </header>
+                    <p>
+                        Transforme as referências clássicas em fluxo completo de entrada no jogo. Os passos abaixo conectam
+                        as Receitas 5 e 22 a widgets, subsistemas e mensagens <code>ERemakeMessage</code> em UE5.
+                    </p>
+                    <ol class="planner-card__list">
+                        <li class="planner-step">
+                            <label class="planner-step__label">
+                                <input type="checkbox" data-progress-key="fase2-login" data-phase="fase2">
+                                <span class="planner-step__content">
+                                    <strong>Implementar RemakeAccounts</strong>
+                                    <span class="planner-step__details">
+                                        Crie o <code>URemakeAccountSubsystem</code> com métodos para login, lista, criação e
+                                        exclusão. Conecte cada chamada ao <code>URemakeSessionChannel</code> e aos enums
+                                        <code>ERemakeMessage::Handshake</code>, <code>::CharacterRoster</code> e
+                                        <code>::WorldTicket</code> usando payloads fortemente tipados.
+                                    </span>
+                                </span>
+                            </label>
+                        </li>
+                        <li class="planner-step">
+                            <label class="planner-step__label">
+                                <input type="checkbox" data-progress-key="fase2-widgets" data-phase="fase2">
+                                <span class="planner-step__content">
+                                    <strong>Montar widgets de login e seleção</strong>
+                                    <span class="planner-step__details">
+                                        Construa <code>WB_Login</code>, <code>WB_SelecaoPersonagem</code> e
+                                        <code>WB_CriacaoClasse</code> reutilizando texturas convertidas. Configure animações de
+                                        foco, preview 3D via <code>LevelSequence</code> e chamadas de Blueprint que acionam o
+                                        subsistema de contas.
+                                    </span>
+                                </span>
+                            </label>
+                        </li>
+                        <li class="planner-step">
+                            <label class="planner-step__label">
+                                <input type="checkbox" data-progress-key="fase2-spawn" data-phase="fase2">
+                                <span class="planner-step__content">
+                                    <strong>Sincronizar spawn no mundo Unreal</strong>
+                                    <span class="planner-step__details">
+                                        Crie o <code>ARemakeWorldMode</code> e configure o <code>BP_RemakeCharacter</code> para
+                                        consumir <code>FRemakeWorldTicket</code>. Garanta que movimento inicial, HUD e câmera
+                                        são configurados logo após a mensagem <code>::MovementCommit</code> do servidor Unreal.
+                                    </span>
+                                </span>
+                            </label>
+                        </li>
+                        <li class="planner-step">
+                            <label class="planner-step__label">
+                                <input type="checkbox" data-progress-key="fase2-documentar" data-phase="fase2">
+                                <span class="planner-step__content">
+                                    <strong>Preparar guia de testes para iniciantes</strong>
+                                    <span class="planner-step__details">
+                                        Escreva um roteiro com capturas explicando como logar, criar e entrar no mundo dentro do
+                                        remake. Inclua erros comuns e soluções (credenciais inválidas, ticket expirado,
+                                        personagem sem malha) para o time de ensino.
+                                    </span>
+                                </span>
+                            </label>
+                        </li>
+                    </ol>
+                </article>
+
+                <article class="planner-card" data-phase="fase3">
+                    <header class="planner-card__header">
+                        <h3>Fase 3 — Combate completo e HUD responsiva</h3>
+                        <div class="planner-card__status">
+                            <span class="planner-card__progress" data-phase-progress="fase3">0/4 passos concluídos</span>
+                            <div class="planner-card__bar">
+                                <span class="planner-card__bar-fill" data-phase-bar="fase3"></span>
+                            </div>
+                        </div>
+                    </header>
+                    <p>
+                        Aplique as Receitas 1, 4, 6 e 22 para entregar uma experiência de combate e interface idêntica ao
+                        cliente clássico, agora com arquitetura UE5+.
+                    </p>
+                    <ol class="planner-card__list">
+                        <li class="planner-step">
+                            <label class="planner-step__label">
+                                <input type="checkbox" data-progress-key="fase3-modulos" data-phase="fase3">
+                                <span class="planner-step__content">
+                                    <strong>Ativar RemakeCombat e RemakeMovement</strong>
+                                    <span class="planner-step__details">
+                                        Finalize <code>URemakeCombatComponent</code>, <code>URemakeMovementComponent</code> e o
+                                        coordenador de servidor dedicados. Garanta serialização customizada de
+                                        <code>FRemakeMessage</code> e replicação de atributos base usando GAS.
+                                    </span>
+                                </span>
+                            </label>
+                        </li>
+                        <li class="planner-step">
+                            <label class="planner-step__label">
+                                <input type="checkbox" data-progress-key="fase3-hud" data-phase="fase3">
+                                <span class="planner-step__content">
+                                    <strong>Sincronizar HUD com feedback clássico</strong>
+                                    <span class="planner-step__details">
+                                        Conecte <code>WB_HUDMain</code>, <code>WB_SkillBar</code> e <code>WB_DuelHUD</code> aos
+                                        eventos do HUD presenter. Inclua sons, toasts, ícones de buff e minimapa reagindo às
+                                        mensagens <code>CharacterProgress</code>, <code>SkillImpact</code> e
+                                        <code>DuelFlow</code>.
+                                    </span>
+                                </span>
+                            </label>
+                        </li>
+                        <li class="planner-step">
+                            <label class="planner-step__label">
+                                <input type="checkbox" data-progress-key="fase3-abilities" data-phase="fase3">
+                                <span class="planner-step__content">
+                                    <strong>Converter combos e habilidades</strong>
+                                    <span class="planner-step__details">
+                                        Gere <code>DataTables</code> para combos, poções e buffs, crie <code>UGameplayAbility</code>
+                                        específicas e implemente confirmações via <code>ERemakeMessage::SkillCast</code> e
+                                        <code>::SkillImpact</code>. Ajuste montagens, anim notifies e partículas Niagara para
+                                        cada etapa.
+                                    </span>
+                                </span>
+                            </label>
+                        </li>
+                        <li class="planner-step">
+                            <label class="planner-step__label">
+                                <input type="checkbox" data-progress-key="fase3-testes" data-phase="fase3">
+                                <span class="planner-step__content">
+                                    <strong>Criar testes e debug pedagógico</strong>
+                                    <span class="planner-step__details">
+                                        Configure <code>AutomationSpec</code> para validar consumo de mana, cooldown e latência de
+                                        commits. Adicione overlay de debug mostrando mensagens recebidas, útil para aulas e
+                                        análises pós-combate.
+                                    </span>
+                                </span>
+                            </label>
+                        </li>
+                    </ol>
+                </article>
+
+                <article class="planner-card" data-phase="fase4">
+                    <header class="planner-card__header">
+                        <h3>Fase 4 — Eventos, economias e interfaces completas</h3>
+                        <div class="planner-card__status">
+                            <span class="planner-card__progress" data-phase-progress="fase4">0/4 passos concluídos</span>
+                            <div class="planner-card__bar">
+                                <span class="planner-card__bar-fill" data-phase-bar="fase4"></span>
+                            </div>
+                        </div>
+                    </header>
+                    <p>
+                        Execute as Receitas 7 a 21 para reconstruir janelas, eventos instanciados e sistemas econômicos já
+                        adaptados para UE5+, mantendo linguagem acessível aos alunos.
+                    </p>
+                    <ol class="planner-card__list">
+                        <li class="planner-step">
+                            <label class="planner-step__label">
+                                <input type="checkbox" data-progress-key="fase4-ui" data-phase="fase4">
+                                <span class="planner-step__content">
+                                    <strong>Replicar fábrica de interfaces</strong>
+                                    <span class="planner-step__details">
+                                        Conclua a Receita 21 criando <code>UWindowRegistry</code>, widgets derivados e roteador de
+                                        atalhos. Garanta que cada janela aciona o pacote correto (<code>InventorySync</code>,
+                                        <code>QuestJournal</code>, <code>CashShop</code>) e usa textos do atlas.
+                                    </span>
+                                </span>
+                            </label>
+                        </li>
+                        <li class="planner-step">
+                            <label class="planner-step__label">
+                                <input type="checkbox" data-progress-key="fase4-eventos" data-phase="fase4">
+                                <span class="planner-step__content">
+                                    <strong>Recriar eventos competitivos e cooperativos</strong>
+                                    <span class="planner-step__details">
+                                        Siga as Receitas 11, 12, 13 e 14 para Blood Castle, Devil Square, Empire Guardian e Duel.
+                                        Construa GameModes dedicados, cronômetros, placares e mensagens
+                                        <code>ERemakeMessage::EventNotice</code> correspondentes.
+                                    </span>
+                                </span>
+                            </label>
+                        </li>
+                        <li class="planner-step">
+                            <label class="planner-step__label">
+                                <input type="checkbox" data-progress-key="fase4-economias" data-phase="fase4">
+                                <span class="planner-step__content">
+                                    <strong>Implementar economias e progressões especiais</strong>
+                                    <span class="planner-step__details">
+                                        Configure Lucky Coin, Jewel of Harmony, Sistema Gens e Cash Shop usando Data Tables,
+                                        widgets dedicados e mensagens <code>EconomyLedger</code>. Garanta integração com inventário
+                                        e logs de auditoria para professores.
+                                    </span>
+                                </span>
+                            </label>
+                        </li>
+                        <li class="planner-step">
+                            <label class="planner-step__label">
+                                <input type="checkbox" data-progress-key="fase4-material" data-phase="fase4">
+                                <span class="planner-step__content">
+                                    <strong>Produzir material didático complementar</strong>
+                                    <span class="planner-step__details">
+                                        Grave vídeos curtos ou capture GIFs mostrando cada interface, duelo e evento funcionando.
+                                        Anexe aos cartões da enciclopédia para que alunos revisem sem depender do professor em
+                                        tempo real.
+                                    </span>
+                                </span>
+                            </label>
+                        </li>
+                    </ol>
+                </article>
+
+                <article class="planner-card" data-phase="fase5">
+                    <header class="planner-card__header">
+                        <h3>Fase 5 — Testes finais e publicação</h3>
+                        <div class="planner-card__status">
+                            <span class="planner-card__progress" data-phase-progress="fase5">0/4 passos concluídos</span>
+                            <div class="planner-card__bar">
+                                <span class="planner-card__bar-fill" data-phase-bar="fase5"></span>
+                            </div>
+                        </div>
+                    </header>
+                    <p>
+                        Consolide o projeto pronto para demonstrações: builds, monitoramento e documentação para facilitar o
+                        repasse a novos times ou turmas.
+                    </p>
+                    <ol class="planner-card__list">
+                        <li class="planner-step">
+                            <label class="planner-step__label">
+                                <input type="checkbox" data-progress-key="fase5-build" data-phase="fase5">
+                                <span class="planner-step__content">
+                                    <strong>Montar pipeline de build e deploy</strong>
+                                    <span class="planner-step__details">
+                                        Configure <em>Build Cook Run</em> para cliente e servidor dedicados, scripts PowerShell/Bash
+                                        para empacotar assets convertidos e copie dependências do MuServer para a pasta de
+                                        distribuição.
+                                    </span>
+                                </span>
+                            </label>
+                        </li>
+                        <li class="planner-step">
+                            <label class="planner-step__label">
+                                <input type="checkbox" data-progress-key="fase5-testes" data-phase="fase5">
+                                <span class="planner-step__content">
+                                    <strong>Executar bateria de testes guiada</strong>
+                                    <span class="planner-step__details">
+                                        Rode missões de fumaça (login, duelo, evento, cash shop) preenchendo a planilha de testes.
+                                        Documente prints e resultados para que qualquer iniciante consiga repetir o processo.
+                                    </span>
+                                </span>
+                            </label>
+                        </li>
+                        <li class="planner-step">
+                            <label class="planner-step__label">
+                                <input type="checkbox" data-progress-key="fase5-monitoramento" data-phase="fase5">
+                                <span class="planner-step__content">
+                                    <strong>Preparar monitoramento e suporte</strong>
+                                    <span class="planner-step__details">
+                                        Configure logging estruturado (arquivo e Unreal Insights), dashboards simples e scripts de
+                                        coleta de logs para o time de suporte, alinhados à documentação do MuServer.
+                                    </span>
+                                </span>
+                            </label>
+                        </li>
+                        <li class="planner-step">
+                            <label class="planner-step__label">
+                                <input type="checkbox" data-progress-key="fase5-entrega" data-phase="fase5">
+                                <span class="planner-step__content">
+                                    <strong>Organizar pacote final para ensino</strong>
+                                    <span class="planner-step__details">
+                                        Gere um pacote com executáveis, scripts, manual em PDF e links para vídeos. Inclua também o
+                                        backup do banco e uma seção “Problemas conhecidos” para orientar os próximos alunos.
+                                    </span>
+                                </span>
+                            </label>
+                        </li>
+                    </ol>
+                </article>
+            </div>
+        </section>
+
         <section id="modulos" class="panel">
             <h2>Módulos Essenciais para Iniciantes</h2>
             <p>Use estes módulos como base para montar uma rotina de estudos e prática.</p>
