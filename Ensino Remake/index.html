@@ -1632,6 +1632,11 @@ struct FRemakePacket {
                 </article>
                 <article class="recipe-card" data-recipe="receita-4">
                     <h3>Receita 4 — Combate completo sincronizado</h3>
+                    <div class="recipe-meta">
+                        <span class="recipe-meta__item"><strong>Tempo de preparo:</strong> 6–8 horas</span>
+                        <span class="recipe-meta__item"><strong>Serve:</strong> 2 desenvolvedores (cliente e servidor)</span>
+                        <span class="recipe-meta__item"><strong>Dificuldade:</strong> Avançada</span>
+                    </div>
                     <p class="recipe-intro">Recrie movimentação, combos, habilidades, poções e buffs utilizando o pipeline de rede
                         nativo da Unreal Engine 5+, sem depender dos pacotes legados.</p>
                     <h4>Ingredientes (pesquise antes)</h4>
@@ -1723,6 +1728,11 @@ struct FRemakePacket {
                 </article>
                                 <article class="recipe-card" data-recipe="receita-5">
                     <h3>Receita 5 — Portal de entrada, seleção de classe e personagens</h3>
+                    <div class="recipe-meta">
+                        <span class="recipe-meta__item"><strong>Tempo de preparo:</strong> 5–6 horas</span>
+                        <span class="recipe-meta__item"><strong>Serve:</strong> 1 desenvolvedor + 1 artista de UI</span>
+                        <span class="recipe-meta__item"><strong>Dificuldade:</strong> Intermediária</span>
+                    </div>
                     <p class="recipe-intro">Guia “receita de bolo” para reconstruir login, criação de personagem, seleção de classe
                         e carregamento do mundo usando apenas sistemas nativos da Unreal Engine 5+.</p>
                     <h4>Ingredientes (referências para estudo)</h4>
@@ -2136,414 +2146,479 @@ struct FRemakePacket {
                     </div>
                 </article>
                 <article class="recipe-card" data-recipe="receita-12">
-                    <h3>Receita 12 — Sistema de duelo, placar e espectadores</h3>
-                    <p class="recipe-intro">Ativa a arena de duelos com feedback visual, convites, ranking temporário e mensagens do servidor.</p>
-                    <h4>Copie do projeto original</h4>
+                    <h3>Receita 12 — Duelo 1x1 com placar e espectadores</h3>
+                    <div class="recipe-meta">
+                        <span class="recipe-meta__item"><strong>Tempo de preparo:</strong> 4–5 horas</span>
+                        <span class="recipe-meta__item"><strong>Serve:</strong> 1 professor + 1 aluno testador</span>
+                        <span class="recipe-meta__item"><strong>Dificuldade:</strong> Intermediária</span>
+                    </div>
+                    <p class="recipe-intro">Implemente a arena de duelo, HUD dedicada e sincronização via <code>ERemakeMessage::DuelFlow</code> como no cliente clássico.</p>
+                    <h4>Ingredientes essenciais</h4>
                     <ul>
-                        <li><code>Source Main 5.2/source/NewUIDuelWindow.cpp</code> e <code>NewUIDuelWindow.h</code> — layout do placar e lógica de aceitação.</li>
-                        <li><code>Source Main 5.2/source/CDuelMgr.cpp</code> — estados do duelo, lista de espectadores e timers.</li>
-                        <li><code>Source MuServer Update 15/GameServer/GameServer/DuelSystem.cpp</code> — validações, limites de tempo e broadcast.</li>
-                        <li><code>Source Main 5.2/source/ProtocolSend.cpp</code> — pacotes 0xAA (subcódigos 0x01–0x07) usados em cada etapa.</li>
+                        <li><code>Source Main 5.2/source/CDuelMgr.cpp</code> e <code>NewUIDuelWindow.cpp</code> para regras de estado e layout.</li>
+                        <li><code>Source MuServer Update 15/GameServer/GameServer/Duel.cpp</code> para validação de pontos.</li>
+                        <li>Textos em <code>Data/Local/MsgBox.txt</code> para mensagens de convite e resultado.</li>
                     </ul>
-                    <h4>Monte na Unreal</h4>
-                    <ol>
-                        <li>Converta texturas <code>Interface/duel/*.jpg</code> para <code>.png</code> e importe para <code>Content/UI/Duel</code>.</li>
-                        <li>Crie <code>WB_DuelHUD</code> com barras de HP, nomes, contador de vitórias e lista de espectadores em <em>ScrollBox</em>.</li>
-                        <li>Implemente <code>UDuelComponent</code> em C++ contendo estados (<code>Idle</code>, <code>Requesting</code>, <code>Fighting</code>, <code>Result</code>) e replicando dados.</li>
-                        <li>No <code>UNetworkBridgeSubsystem</code>, serialize requisições/respostas de duelo copiando estruturas <code>PMSG_DUEL_*</code> e valide com logs do servidor.</li>
-                        <li>Adicione animação de brilho (azul/vermelho) usando <em>UMG Animations</em> + <em>Material Instances</em> quando um ponto é marcado.</li>
-                    </ol>
-                    <h4>Fluxo Blueprint</h4>
-                    <ol class="blueprint-list">
-                        <li>No <code>WB_DuelHUD</code>, crie eventos <code>AtualizarPlacar</code> e <code>AtualizarEspectadores</code> disparados pelo componente.</li>
-                        <li>Use <em>Timeline</em> para animar o cronômetro (escala radial) e <em>Play Animation</em> quando um jogador vence.</li>
-                        <li>No <code>BP_PlayerController</code>, capture interação “Solicitar Duelo” e chame <code>UDuelComponent::SolicitarDuelo</code>.</li>
-                        <li>Quando o servidor enviar “DuelStart”, faça <code>Show Mouse Cursor = false</code>, bloqueie inventário e exiba o HUD.</li>
-                        <li>Ao terminar, toque sons de vitória/derrota reutilizando <code>DSPlaySound</code> convertidos para <code>.wav</code>.</li>
-                    </ol>
-                    <h4>Checklist final</h4>
+                    <h4>Utensílios Unreal Engine 5+</h4>
                     <ul>
-                        <li>Solicitar duelo dispara pop-up para o alvo com opções Aceitar/Recusar e timer regressivo.</li>
-                        <li>Placar, cronômetro e espectadores atualizam instantaneamente conforme os pacotes 0xAA recebidos.</li>
-                        <li>Logs do GameServer mostram <code>[Duel] Start</code>/<code>[Duel] End</code> sincronizados com a UI.</li>
+                        <li>Componente <code>UDuelComponent</code> anexado ao <code>APlayerState</code>.</li>
+                        <li>Widgets <code>WB_DuelInvite</code>, <code>WB_DuelHUD</code> e <code>WB_DuelSpectator</code>.</li>
+                        <li>Enumeradores <code>EDuelEvent</code> e mensagens <code>ERemakeMessage::DuelFlow</code> configuradas no módulo <code>RemakeNet</code>.</li>
+                    </ul>
+                    <h4>Modo de preparo (passo a passo)</h4>
+                    <ol>
+                        <li>Implemente <code>UDuelComponent</code> com estados Solicitação, Aceito, EmAndamento e Finalizado, registrando callbacks de rede.</li>
+                        <li>No <code>UNetworkBridgeSubsystem</code>, adicione manipuladores para enviar <code>DuelFlow</code> (<code>Request</code>, <code>Answer</code>, <code>ScoreTick</code>, <code>Finish</code>).</li>
+                        <li>Construa <code>WB_DuelInvite</code> exibindo nome do desafiante, opções Aceitar/Recusar e tempo limite.</li>
+                        <li>Ao iniciar duelo, exiba <code>WB_DuelHUD</code> com barras de HP, contador regressivo e placar, sincronizando com atualizações do componente.</li>
+                        <li>Permita espectadores registrando jogadores próximos no componente e mostrando <code>WB_DuelSpectator</code> com nome dos duelistas.</li>
+                        <li>Finalize duelo enviando <code>DuelFlow::Finish</code>, desbloqueando movimentação e gravando resultado em log.</li>
+                    </ol>
+                    <h4>Modo Blueprint para iniciantes</h4>
+                    <ol class="blueprint-list">
+                        <li>Em <code>WB_PlayerContextMenu</code>, adicione botão “Desafiar” chamando <code>SolicitarDuelo</code> do componente.</li>
+                        <li>No <code>UDuelComponent</code>, dispare evento <code>OnDueloConviteRecebido</code> para abrir <code>WB_DuelInvite</code>.</li>
+                        <li>Use <em>Set Timer by Event</em> para contagem regressiva e, ao expirar, envie <code>DuelFlow::Cancel</code>.</li>
+                        <li>Atualize HUD usando <code>OnPontuacaoAtualizada</code> com <em>Bind Event</em> para modificar textos e progress bars.</li>
+                    </ol>
+                    <h4>Cobertura e degustação (testes)</h4>
+                    <ul>
+                        <li>Simule convite recusado e aceite: ambos precisam gerar mensagens corretas.</li>
+                        <li>Confirme que a contagem regressiva bloqueia movimentação até “Começar!”.</li>
+                        <li>Valide empate por tempo e vitória por pontos registrando logs educativos.</li>
                     </ul>
                 </article>
                 <article class="recipe-card" data-recipe="receita-13">
-                    <h3>Receita 13 — Empire Guardian com waves e HUD</h3>
-                    <p class="recipe-intro">Constrói lobby, instância e painel de progresso do evento cooperativo Imperial Guardian.</p>
-                    <h4>Copie do projeto original</h4>
+                    <h3>Receita 13 — Empire Guardian cooperativo</h3>
+                    <div class="recipe-meta">
+                        <span class="recipe-meta__item"><strong>Tempo de preparo:</strong> 5 horas</span>
+                        <span class="recipe-meta__item"><strong>Serve:</strong> 1 time de 3 alunos</span>
+                        <span class="recipe-meta__item"><strong>Dificuldade:</strong> Avançada</span>
+                    </div>
+                    <p class="recipe-intro">Converta o evento Empire Guardian para instância Unreal com waves, cristal compartilhado e recompensas sincronizadas.</p>
+                    <h4>Ingredientes essenciais</h4>
                     <ul>
-                        <li><code>Source Main 5.2/source/NewUIEmpireGuardianNPC.cpp</code> e <code>NewUIEmpireGuardianResult.cpp</code> — lobby, HUD e mensagens.</li>
-                        <li><code>Source MuServer Update 15/GameServer/GameServer/ImperialGuardian.cpp</code> — fases, portais e timers.</li>
-                        <li>Arquivos <code>Data/Event/ImperialGuardian.txt</code> e texturas em <code>Interface/EmpireGuardian</code>.</li>
+                        <li><code>EmpireGuardian.cpp</code> (GameServer) e <code>NewUIEmpireGuardianNPC.cpp</code> (cliente) para fases e HUD.</li>
+                        <li>Configurações em <code>Data/Event/EmpireGuardian*.txt</code>.</li>
+                        <li>Modelos convertidos do mapa original via pipeline <code>BMD_FBX</code>.</li>
                     </ul>
-                    <h4>Monte na Unreal</h4>
-                    <ol>
-                        <li>Modele <code>WB_EmpireGuardianLobby</code> com slots de party, requisitos de nível e contador de tempo.</li>
-                        <li>Crie nível instanciado <code>LV_EmpireGuardian</code> com <code>LevelInstance</code> para cada wave (1–4) e portais animados.</li>
-                        <li>Implemente <code>AEmpireGuardianManager</code> que consome tabelas <code>DT_EmpireGuardianWaves</code> (convertidas do arquivo .txt) e ativa Level Streaming.</li>
-                        <li>Construa <code>WB_EmpireGuardianHUD</code> com barras de progresso, contagem de monstros restantes e objetivo atual.</li>
-                        <li>Adicione efeitos Niagara para abertura de portais e <em>Spotlights</em> dinâmicos sincronizados com os timers.</li>
-                    </ol>
-                    <h4>Fluxo Blueprint</h4>
-                    <ol class="blueprint-list">
-                        <li>No <code>AEmpireGuardianManager</code>, use <em>OnRep_CurrentWave</em> para atualizar HUD e spawnar inimigos.</li>
-                        <li>Ao receber pacote 0xF7:0x10, abra o lobby; quando 0xF7:0x11 chegar, carregue a instância via <em>Open Level</em>.</li>
-                        <li>Para cada wave concluída, dispare <em>Multicast</em> com efeito Niagara e mensagem usando textos originais.</li>
-                        <li>Ao finalizar, toque cutscene curta com <em>Level Sequence</em> e exiba <code>WB_EmpireGuardianResult</code>.</li>
-                        <li>Registre logs em arquivo local <code>Saved/Logs/empire_guardian.log</code> comparando com o servidor.</li>
-                    </ol>
-                    <h4>Checklist final</h4>
+                    <h4>Utensílios Unreal Engine 5+</h4>
                     <ul>
-                        <li>Lobby bloqueia jogadores sem requisitos e fecha quando o timer expira.</li>
-                        <li>Portais e HUD atualizam a cada wave exatamente como o cliente clássico.</li>
-                        <li>Recompensas são atribuídas após o pacote 0xF7:0x12 e aparecem na tela de resultado.</li>
+                        <li>Nível <code>LV_EmpireGuardian</code> com <em>Level Streaming</em>.</li>
+                        <li><code>AEEmpireGuardianMode</code>, <code>UEGuardianWaveDirector</code> e <code>ACrystalGuardian</code>.</li>
+                        <li>Widget <code>WB_EmpireHUD</code> com barras do cristal, tempo e ranking.</li>
+                    </ul>
+                    <h4>Modo de preparo (passo a passo)</h4>
+                    <ol>
+                        <li>Carregue as waves em <code>UEGuardianWaveDirector</code> a partir de <code>Data Tables</code> convertidas.</li>
+                        <li>Implemente estados Preparação, Defesa, Boss e Conclusão em <code>AEEmpireGuardianMode</code>.</li>
+                        <li>Ao iniciar defesa, ative <code>ACrystalGuardian</code> com vida compartilhada replicada.</li>
+                        <li>Atualize <code>WB_EmpireHUD</code> usando eventos de wave e dano no cristal.</li>
+                        <li>Envie mensagens <code>ERemakeMessage::EventBanner</code> e <code>::BloodCastleSummary</code> com estatísticas.</li>
+                        <li>Distribua recompensas via <code>UNetworkBridgeSubsystem::EnviarRecompensaEvento</code>.</li>
+                    </ol>
+                    <h4>Modo Blueprint para iniciantes</h4>
+                    <ol class="blueprint-list">
+                        <li>Use <em>Load Stream Level</em> para carregar o mapa quando evento iniciar.</li>
+                        <li>Dispare <em>Custom Events</em> <code>OnWaveStart</code>, <code>OnCrystalDamaged</code> e <code>OnEventEnd</code> para atualizar HUD.</li>
+                        <li>Controle spawns com <em>SpawnActor</em> e <em>Delay</em> conforme Data Table.</li>
+                        <li>Ao finalizar, chame <em>Unload Stream Level</em> e abra tela de recompensas.</li>
+                    </ol>
+                    <h4>Cobertura e degustação (testes)</h4>
+                    <ul>
+                        <li>Derrote todas as waves e confirme entrega de prêmios conforme ranking.</li>
+                        <li>Falhe defendendo o cristal e valide mensagens de derrota e expulsão da instância.</li>
+                        <li>Teste reconexão no meio do evento para garantir sincronização do HUD.</li>
                     </ul>
                 </article>
                 <article class="recipe-card" data-recipe="receita-14">
-                    <h3>Receita 14 — Cursed Temple com equipes Holy/Illusion</h3>
-                    <p class="recipe-intro">Recria o modo competitivo com minimapa dedicado, placar por equipe e feed de kills.</p>
-                    <h4>Copie do projeto original</h4>
+                    <h3>Receita 14 — Cursed Temple competitivo</h3>
+                    <div class="recipe-meta">
+                        <span class="recipe-meta__item"><strong>Tempo de preparo:</strong> 5 horas</span>
+                        <span class="recipe-meta__item"><strong>Serve:</strong> 2 equipes de alunos</span>
+                        <span class="recipe-meta__item"><strong>Dificuldade:</strong> Avançada</span>
+                    </div>
+                    <p class="recipe-intro">Recrie Holy x Illusion com captura da relíquia, minimapa dedicado e narrações automáticas.</p>
+                    <h4>Ingredientes essenciais</h4>
                     <ul>
-                        <li><code>Source Main 5.2/source/CNewUICursedTempleSystem.cpp</code> e <code>NewUICursedTempleWindow.cpp</code>.</li>
-                        <li><code>Source MuServer Update 15/GameServer/GameServer/CursedTempleEvent.cpp</code> — regras de pontuação.</li>
-                        <li>Texturas em <code>Interface/CursedTemple</code> e scripts <code>Data/Event/CursedTemple.txt</code>.</li>
+                        <li><code>CNewUICursedTempleSystem.cpp</code> e <code>CursedTemple.cpp</code> (GameServer).</li>
+                        <li>Arquivos <code>Data/Event/CursedTempleSetting.txt</code> e texturas do minimapa.</li>
+                        <li>Sons de narração originais e efeitos de captura.</li>
                     </ul>
-                    <h4>Monte na Unreal</h4>
-                    <ol>
-                        <li>Crie <code>WB_CursedTempleHUD</code> com indicadores de pontos, barra de energia da relíquia e ícones dos líderes.</li>
-                        <li>Implemente <code>UCursedTempleComponent</code> replicando estrutura do pacote 0xF8 (match info) e registrando kills.</li>
-                        <li>Monte minimapa circular com <code>SceneCapture2D</code> e <em>Material</em> que destaca santuários ocupados.</li>
-                        <li>Adicione <code>ACursedTempleObjective</code> que dispara efeitos Niagara quando capturado.</li>
-                        <li>Construa tabela <code>DT_CursedRewards</code> com recompensas e bonificações usando dados do arquivo .txt.</li>
-                    </ol>
-                    <h4>Fluxo Blueprint</h4>
-                    <ol class="blueprint-list">
-                        <li>No <code>UCursedTempleComponent</code>, use <em>OnRep_MatchState</em> para alternar widgets Preparação/Combate/Resultado.</li>
-                        <li>Atualize feed de kills com <em>AddChildToVerticalBox</em> e efeitos sonoros importados do cliente.</li>
-                        <li>Ao capturar objetivo, chame <code>Multicast_PlayCaptureFX</code> e ajuste placar usando dados do servidor.</li>
-                        <li>Quando restarem 30 segundos, toque animação de alerta utilizando <em>Widget Animation</em>.</li>
-                        <li>Finalize exibindo <code>WB_CursedTempleSummary</code> com ranking individual e recompensas.</li>
-                    </ol>
-                    <h4>Checklist final</h4>
+                    <h4>Utensílios Unreal Engine 5+</h4>
                     <ul>
-                        <li>Pontuação e mensagens coincidem com os logs do GameServer.</li>
-                        <li>Feed de kills exibe nome, classe e ícone conforme o cliente clássico.</li>
-                        <li>Time vencedor recebe bônus aplicados pelo servidor (exp/zen) e visual highlight na HUD.</li>
+                        <li>Nível <code>LV_CursedTemple</code> com volumes Holy/Illusion.</li>
+                        <li><code>ACTempleMode</code>, <code>UCTempleScoreComponent</code> e <code>URelicCarrierComponent</code>.</li>
+                        <li>Widget <code>WB_CursedHUD</code> com placar, barra de tempo e minimapa.</li>
+                    </ul>
+                    <h4>Modo de preparo (passo a passo)</h4>
+                    <ol>
+                        <li>Configure equipes e respawns em <code>ACTempleMode</code> com <code>GameState</code> replicado.</li>
+                        <li>Implemente captura da relíquia anexando <code>URelicCarrierComponent</code> ao jogador portador.</li>
+                        <li>Dispare mensagens <code>ERemakeMessage::EventBanner</code> (<code>RelicUpdate</code>, <code>ScoreUpdate</code>).</li>
+                        <li>Atualize <code>WB_CursedHUD</code> com setas dinâmicas e contagem de pontos.</li>
+                        <li>Crie narrações com <code>UAudioComponent</code> acionado por eventos do modo.</li>
+                        <li>Ao término, envie resumo <code>ERemakeMessage::EventSummary</code> e abra tela de resultados.</li>
+                    </ol>
+                    <h4>Modo Blueprint para iniciantes</h4>
+                    <ol class="blueprint-list">
+                        <li>Use <em>Switch on ETeam</em> para colorir HUD conforme facção.</li>
+                        <li>Controle posse da relíquia com uma variável replicada e <em>OnRep</em> para atualizar efeitos.</li>
+                        <li>Atualize minimapa usando <em>Material Parameter Collection</em> para ícones.</li>
+                        <li>Chame <em>Play Sound 2D</em> para narrações quando a relíquia mudar de mãos.</li>
+                    </ol>
+                    <h4>Cobertura e degustação (testes)</h4>
+                    <ul>
+                        <li>Capture a relíquia e confirme pontuação crescente para a equipe correta.</li>
+                        <li>Teste respawn após morte para garantir retorno à base aliada.</li>
+                        <li>Verifique tela final com ranking individual e recompensas.</li>
                     </ul>
                 </article>
                 <article class="recipe-card" data-recipe="receita-15">
-                    <h3>Receita 15 — Doppelganger com linha do tempo e cinematics</h3>
-                    <p class="recipe-intro">Implementa o evento Doppelganger com lobby, portais sincronizados e cutscenes.</p>
-                    <h4>Copie do projeto original</h4>
+                    <h3>Receita 15 — Evento Doppelganger cinematográfico</h3>
+                    <div class="recipe-meta">
+                        <span class="recipe-meta__item"><strong>Tempo de preparo:</strong> 4 horas</span>
+                        <span class="recipe-meta__item"><strong>Serve:</strong> 1 orientador + 2 alunos</span>
+                        <span class="recipe-meta__item"><strong>Dificuldade:</strong> Intermediária</span>
+                    </div>
+                    <p class="recipe-intro">Monte o Doppelganger com timeline, clones e recompensas Lucky Item integradas.</p>
+                    <h4>Ingredientes essenciais</h4>
                     <ul>
-                        <li><code>Source Main 5.2/source/NewUIDoppelGangerWindow.cpp</code> e <code>DoppelGangerInfo.cpp</code>.</li>
-                        <li><code>Source MuServer Update 15/GameServer/GameServer/Doppelganger.cpp</code> — fases e spawn da estátua.</li>
-                        <li>Arquivos <code>Data/Event/DoppelGanger/*.txt</code> e texturas em <code>Interface/DoppelGanger</code>.</li>
+                        <li><code>NewUIDoppelGangerWindow.cpp</code> e <code>Doppelganger.cpp</code>.</li>
+                        <li><code>Event/DoppelGangerSetting.txt</code> para fases e tempos.</li>
+                        <li>Cutscenes originais ou <em>Level Sequences</em> equivalentes.</li>
                     </ul>
-                    <h4>Monte na Unreal</h4>
-                    <ol>
-                        <li>Crie <code>WB_DoppelLobby</code> com slots de party, requisitos de nível e custo de convite.</li>
-                        <li>Implemente <code>ADoppelgangerDirector</code> que controla transições de fase (Pré-entrada, Defesa, Batalha Final) usando <code>Timeline</code>.</li>
-                        <li>Construa HUD <code>WB_DoppelHUD</code> com barra de tempo, estado da estátua e lista de mobs restantes.</li>
-                        <li>Configure cutscene inicial/final com <em>Level Sequence</em> e triggers enviados pelo GameServer.</li>
-                        <li>Adicione efeitos roxos/escuros usando Niagara reaproveitando texturas do cliente.</li>
-                    </ol>
-                    <h4>Fluxo Blueprint</h4>
-                    <ol class="blueprint-list">
-                        <li>Ao receber pacote 0xF7:0x30, abra o lobby e inicie contagem regressiva.</li>
-                        <li>Quando a partida iniciar, <em>Open Level</em> e execute <code>ADoppelgangerDirector::StartMatch</code> (replicado).</li>
-                        <li>Use <em>Multicast</em> para disparar cutscenes e efeitos quando a estátua sofrer dano.</li>
-                        <li>Atualize HUD a cada pacote 0xF7:0x34 (tempo) e 0xF7:0x36 (spawn de mobs).</li>
-                        <li>Ao finalizar, toque cutscene final, distribua recompensas e retorne jogadores via <code>ServerTravel</code>.</li>
-                    </ol>
-                    <h4>Checklist final</h4>
+                    <h4>Utensílios Unreal Engine 5+</h4>
                     <ul>
-                        <li>Lobby bloqueia jogadores fora do horário ou sem convite.</li>
-                        <li>Cutscenes e efeitos reproduzem sincronizados para todos os participantes.</li>
-                        <li>Recompensas correspondem aos valores definidos em <code>Doppelganger.cpp</code>.</li>
+                        <li>Nível <code>LV_DoppelGanger</code> com rotas de equipes.</li>
+                        <li><code>ADoppelMode</code> e <code>UDoppelTimelineComponent</code>.</li>
+                        <li>Widget <code>WB_DoppelTimeline</code> com marcadores visuais.</li>
+                    </ul>
+                    <h4>Modo de preparo (passo a passo)</h4>
+                    <ol>
+                        <li>Leia passos do arquivo original e preencha <code>Data Table</code> com Estágios e recompensas.</li>
+                        <li>Implemente <code>UDoppelTimelineComponent</code> para avançar fases e disparar efeitos.</li>
+                        <li>Crie clones com materiais translúcidos e IA simplificada espelhando o jogador.</li>
+                        <li>Acione cinematics via <code>Level Sequence</code> ao iniciar e antes do boss.</li>
+                        <li>Envie <code>ERemakeMessage::LuckyItem</code> com pontuação e resultados.</li>
+                        <li>Registre replay opcional para revisão de aula.</li>
+                    </ol>
+                    <h4>Modo Blueprint para iniciantes</h4>
+                    <ol class="blueprint-list">
+                        <li>Use <em>Timeline</em> Blueprint para animar barra de progresso.</li>
+                        <li>Alterne fases com <em>Switch on Name</em> carregando dados da tabela.</li>
+                        <li>Chame <em>SpawnActorFromClass</em> para gerar clones com material translúcido.</li>
+                        <li>Ao terminar, mostre <code>WB_ResultadosDoppel</code> com recompensas.</li>
+                    </ol>
+                    <h4>Cobertura e degustação (testes)</h4>
+                    <ul>
+                        <li>Confirme que cada fase avança ao derrotar o objetivo correspondente.</li>
+                        <li>Verifique se cinematics tocam sem travar jogadores.</li>
+                        <li>Valide recompensas Lucky Item conforme pontuação.</li>
                     </ul>
                 </article>
                 <article class="recipe-card" data-recipe="receita-16">
-                    <h3>Receita 16 — Economia Lucky Coin &amp; Lucky Item</h3>
-                    <p class="recipe-intro">Implementa troca de moedas, roleta de itens e feedback visual dourado.</p>
-                    <h4>Copie do projeto original</h4>
+                    <h3>Receita 16 — Economia Lucky Coin e Lucky Item</h3>
+                    <div class="recipe-meta">
+                        <span class="recipe-meta__item"><strong>Tempo de preparo:</strong> 3–4 horas</span>
+                        <span class="recipe-meta__item"><strong>Serve:</strong> Equipe de economia</span>
+                        <span class="recipe-meta__item"><strong>Dificuldade:</strong> Intermediária</span>
+                    </div>
+                    <p class="recipe-intro">Modele trocas de Lucky Coin e forja de Lucky Item usando mensagens dedicadas e feedback audiovisual clássico.</p>
+                    <h4>Ingredientes essenciais</h4>
                     <ul>
-                        <li><code>Source Main 5.2/source/NewUIExchangeLuckyCoin.cpp</code> e <code>NewUILuckyItemWnd.cpp</code>.</li>
-                        <li><code>Source MuServer Update 15/GameServer/GameServer/LuckyCoinSystem.cpp</code> e <code>ItemAddOption.cpp</code>.</li>
-                        <li>Arquivos <code>Data/LuckyItemOption.txt</code>, <code>Data/Item.txt</code> e texturas <code>Interface/LuckyCoin</code>.</li>
+                        <li><code>LuckyCoin.cpp</code>, <code>NewUIExchangeLuckyCoin.cpp</code> e <code>NewUILuckyItemWnd.cpp</code>.</li>
+                        <li>Arquivos <code>LuckyCoinTrade.txt</code> e <code>LuckyItem.txt</code>.</li>
+                        <li>Modelos brilhantes convertidos pelo <code>BMD_FBX</code>.</li>
                     </ul>
-                    <h4>Monte na Unreal</h4>
-                    <ol>
-                        <li>Converta <code>LuckyItemOption.txt</code> para <code>DT_LuckyRewards</code> (CSV &rarr; Data Table) com categorias, custos e bônus.</li>
-                        <li>Crie <code>WB_LuckyExchange</code> com abas Trocar, Comprar e Histórico. Utilize <em>Widget Switcher</em> para alternar.</li>
-                        <li>Implemente <code>ULuckyEconomyComponent</code> com saldo replicado, fila de requisições e integração com DataServer.</li>
-                        <li>Adicione roleta visual usando <em>Widget Animation</em> + <em>Dynamic Material Instance</em> para brilho dourado.</li>
-                        <li>Registre transações em <code>Saved/Logs/lucky_coin.csv</code> para auditoria educativa.</li>
-                    </ol>
-                    <h4>Fluxo Blueprint</h4>
-                    <ol class="blueprint-list">
-                        <li>No <code>WB_LuckyExchange</code>, conecte botões aos eventos <code>SolicitarTroca</code>/<code>SolicitarResgate</code>.</li>
-                        <li>Mostre animação de roleta enquanto aguarda resposta do servidor (pacote 0xF3:0x03).</li>
-                        <li>Ao receber resultado, atualize saldo, aplique item no inventário e toque som reutilizado do cliente.</li>
-                        <li>Permita consultar histórico carregando dados salvos localmente em <em>Data Table</em> auxiliar.</li>
-                        <li>Implemente mensagens de erro baseadas nas strings originais (saldo insuficiente, limite diário).</li>
-                    </ol>
-                    <h4>Checklist final</h4>
+                    <h4>Utensílios Unreal Engine 5+</h4>
                     <ul>
-                        <li>Saldo sincroniza com DataServer sem divergências.</li>
-                        <li>Animações e brilho aparecem com a mesma intensidade do cliente clássico.</li>
-                        <li>Log registra todas as operações com timestamp e resultado.</li>
+                        <li>Widgets <code>WB_LuckyCoinExchange</code> e <code>WB_LuckyItemForge</code>.</li>
+                        <li>Componentes <code>ULuckyCoinComponent</code> e <code>ULuckyForgeComponent</code>.</li>
+                        <li>Mensagens <code>ERemakeMessage::LuckyCoin</code> e <code>ERemakeMessage::LuckyItem</code>.</li>
+                    </ul>
+                    <h4>Modo de preparo (passo a passo)</h4>
+                    <ol>
+                        <li>Converta tabelas para <code>Data Tables</code> e carregue-as nos componentes.</li>
+                        <li>Monte <code>WB_LuckyCoinExchange</code> com lista de ofertas e pré-visualização 3D.</li>
+                        <li>Ao trocar, envie <code>LuckyCoin::Exchange</code>, bloqueie UI e mostre barra de progresso.</li>
+                        <li>Implemente <code>WB_LuckyItemForge</code> com slots, pré-visualização e efeitos Niagara.</li>
+                        <li>Registre histórico de trocas em arquivo CSV para estudos.</li>
+                        <li>Atualize saldos e inventário após resposta do servidor.</li>
+                    </ol>
+                    <h4>Modo Blueprint para iniciantes</h4>
+                    <ol class="blueprint-list">
+                        <li>Use <em>Data Table Row Handle</em> para preencher ofertas.</li>
+                        <li>Crie <em>Timeline</em> para animação de troca.</li>
+                        <li>Toque efeitos com <em>Spawn System Attached</em> ao concluir forja.</li>
+                        <li>Apresente mensagens de erro usando <em>Widget Switcher</em> com estados “Faltam moedas”.</li>
+                    </ol>
+                    <h4>Cobertura e degustação (testes)</h4>
+                    <ul>
+                        <li>Troque moedas repetidamente e valide saldo.</li>
+                        <li>Teste combinação incompleta para exibir aviso amigável.</li>
+                        <li>Gere Lucky Item e confirme brilho e atributos extras.</li>
                     </ul>
                 </article>
                 <article class="recipe-card" data-recipe="receita-17">
                     <h3>Receita 17 — Refinaria Jewel of Harmony</h3>
-                    <p class="recipe-intro">Permite aplicar e remover opções Harmony com efeitos visuais idênticos.</p>
-                    <h4>Copie do projeto original</h4>
+                    <div class="recipe-meta">
+                        <span class="recipe-meta__item"><strong>Tempo de preparo:</strong> 3 horas</span>
+                        <span class="recipe-meta__item"><strong>Serve:</strong> 1 tutor + 1 aluno</span>
+                        <span class="recipe-meta__item"><strong>Dificuldade:</strong> Intermediária</span>
+                    </div>
+                    <p class="recipe-intro">Crie a interface e lógica de refino usando mensagens <code>ERemakeMessage::SkillAreaBroadcast</code> com foco pedagógico.</p>
+                    <h4>Ingredientes essenciais</h4>
                     <ul>
-                        <li><code>Source Main 5.2/source/UIJewelHarmony.cpp</code> — interface e regras de composição.</li>
-                        <li><code>Source MuServer Update 15/GameServer/GameServer/JewelOfHarmonySystem.cpp</code> — cálculos e respostas.</li>
-                        <li>Arquivos <code>Data/JewelOfHarmonyOption.bmd</code> e <code>Data/JewelOfHarmonyMix.bmd</code>.</li>
+                        <li><code>UIJewelHarmony.cpp</code> e texturas convertidas.</li>
+                        <li>Tabelas de combinações de Harmony.</li>
+                        <li>Efeitos visuais e sonoros de sucesso/fracasso.</li>
                     </ul>
-                    <h4>Monte na Unreal</h4>
-                    <ol>
-                        <li>Converta <code>.bmd</code> para JSON com o utilitário <code>BMD_FBX</code> ou scripts fornecidos e gere <code>DT_HarmonyOptions</code>.</li>
-                        <li>Crie <code>WB_HarmonyForge</code> com slots para item base, Jewel of Harmony, Jewel of Harmony Smelt e botões Aplicar/Remover.</li>
-                        <li>Implemente <code>UHarmonyForgeComponent</code> validando requisitos e enviando pacotes 0xF3:0x50/0x51.</li>
-                        <li>Adicione efeito visual com material emissivo azul/roxo aplicado ao item na vitrine, sincronizado com <em>Timeline</em>.</li>
-                        <li>Mostre pré-visualização dos atributos usando dados da Data Table antes de confirmar.</li>
-                    </ol>
-                    <h4>Fluxo Blueprint</h4>
-                    <ol class="blueprint-list">
-                        <li>No <code>WB_HarmonyForge</code>, reaja a <code>OnItemDropped</code> preenchendo slots e atualizando descrições.</li>
-                        <li>Bloqueie botão Aplicar se requisitos não forem atendidos (nível do item, tipo permitido) replicando validações do cliente clássico.</li>
-                        <li>Quando receber resposta positiva, atualize item no inventário e reproduza animação de partículas.</li>
-                        <li>Em caso de falha, toque som de erro e mostre mensagem derivada do <code>GlobalText</code>.</li>
-                        <li>Registre alterações no diário (arquivo <code>Saved/Logs/harmony.log</code>) para auditoria.</li>
-                    </ol>
-                    <h4>Checklist final</h4>
+                    <h4>Utensílios Unreal Engine 5+</h4>
                     <ul>
-                        <li>Opções exibidas na UI combinam com os valores convertidos dos arquivos <code>.bmd</code>.</li>
-                        <li>Pacotes enviados/recebidos correspondem aos logs do GameServer sem divergências.</li>
-                        <li>Efeitos de brilho e partículas replicam o visual azul característico do cliente clássico.</li>
+                        <li>Widget <code>WB_HarmonyRefinery</code> e componente <code>UHarmonyRefineComponent</code>.</li>
+                        <li>Mensagens <code>ERemakeMessage::SkillAreaBroadcast</code> (<code>EHarmonyEvent::Forge</code>).</li>
+                        <li>Log educacional persistido (CSV ou Data Asset).</li>
+                    </ul>
+                    <h4>Modo de preparo (passo a passo)</h4>
+                    <ol>
+                        <li>Mapeie combinações em <code>Data Table</code> com item base, opção e custos.</li>
+                        <li>Valide itens arrastados ao widget verificando categoria.</li>
+                        <li>Envie mensagem de forja com dados do item e aguarde resposta.</li>
+                        <li>Atualize atributos do item e exiba efeitos conforme resultado.</li>
+                        <li>Grave tentativa no log com data, hora, item e resultado.</li>
+                        <li>Disponibilize aba “Histórico” para revisão nas aulas.</li>
+                    </ol>
+                    <h4>Modo Blueprint para iniciantes</h4>
+                    <ol class="blueprint-list">
+                        <li>Implemente drag and drop para slots usando <em>OnDrop</em>.</li>
+                        <li>Use <em>Switch on ERefineResultado</em> para decidir efeitos.</li>
+                        <li>Registre histórico com <em>Append to File</em> (plugin) ou <em>SaveGame</em>.</li>
+                        <li>Mostre mensagens com <code>WB_HarmonyToast</code>.</li>
+                    </ol>
+                    <h4>Cobertura e degustação (testes)</h4>
+                    <ul>
+                        <li>Teste item incompatível para garantir bloqueio.</li>
+                        <li>Execute refino de sucesso e falha validando efeitos.</li>
+                        <li>Abra histórico e confirme registro correto.</li>
                     </ul>
                 </article>
                 <article class="recipe-card" data-recipe="receita-18">
-                    <h3>Receita 18 — Chaos Castle completo</h3>
-                    <p class="recipe-intro">Transforma o blueprint do evento em um modo jogável com armadilhas, HUD e ranking.</p>
-                    <h4>Copie do projeto original</h4>
+                    <h3>Receita 18 — Chaos Castle com armadilhas</h3>
+                    <div class="recipe-meta">
+                        <span class="recipe-meta__item"><strong>Tempo de preparo:</strong> 4 horas</span>
+                        <span class="recipe-meta__item"><strong>Serve:</strong> Turma inteira</span>
+                        <span class="recipe-meta__item"><strong>Dificuldade:</strong> Avançada</span>
+                    </div>
+                    <p class="recipe-intro">Represente armadilhas, queda de plataformas e HUD dinâmica sincronizada com o servidor.</p>
+                    <h4>Ingredientes essenciais</h4>
                     <ul>
-                        <li><code>Source Main 5.2/source/NewUIChaosCastle.cpp</code> — lógica de UI, timers e indicações visuais.</li>
-                        <li><code>Source MuServer Update 15/GameServer/GameServer/ChaosCastle.cpp</code> — estados (StandBy, Playing, End) e armadilhas.</li>
-                        <li>Arquivos <code>Data/Event/ChaosCastleSetting.txt</code>, <code>Data/Item/ChaosCastleReward.txt</code>.</li>
+                        <li><code>ChaosCastle.cpp</code> e <code>NewUIChaosCastle.cpp</code>.</li>
+                        <li>Mapas e texturas convertidos via <code>BMD_FBX</code>.</li>
+                        <li>Configurações em <code>Data/Event/ChaosCastle.txt</code>.</li>
                     </ul>
-                    <h4>Monte na Unreal</h4>
-                    <ol>
-                        <li>Crie o nível <code>LV_ChaosCastle</code> replicando plataformas e zonas de queda com <em>Destructible Meshes</em>.</li>
-                        <li>Implemente <code>AChaosCastleDirector</code> que consulta <code>DT_ChaosCastleConfig</code> (derivado dos <code>.txt</code>) e controla fases, armadilhas e tempo.</li>
-                        <li>Monte <code>WB_ChaosCastleHUD</code> com contadores de sobreviventes, ranking em tempo real e avisos de armadilha.</li>
-                        <li>Sincronize com o servidor enviando 0x95 (entrada), 0x95:0x03 (status) e recebendo 0xB0 (pontuação).</li>
-                        <li>Registre resultado semanal escrevendo CSV educativo em <code>Saved/Logs/chaos_castle.csv</code> antes de entregar recompensas.</li>
-                    </ol>
-                    <h4>Fluxo Blueprint</h4>
-                    <ol class="blueprint-list">
-                        <li>No <code>AChaosCastleDirector</code>, use <em>Event BeginPlay</em> &rarr; <em>Load Data Table Row</em> &rarr; configurar timers para StandBy &rarr; Playing &rarr; End.</li>
-                        <li>Quando um jogador cair, detecte com <em>OnComponentEndOverlap</em> e notifique o servidor via <code>ServerReportElimination</code>.</li>
-                        <li>Atualize o HUD usando <em>Event Dispatcher</em> disparado ao receber pacotes 0x95:0x06 com contagem de sobreviventes.</li>
-                        <li>Ative armadilhas com <em>Timeline</em> acionando <code>Enable Collision</code> em volumes configurados no Data Table.</li>
-                        <li>Ao finalizar, toque <em>Level Sequence</em> de encerramento, distribua recompensas e retorne jogadores usando <code>ServerTravel</code>.</li>
-                    </ol>
-                    <h4>Checklist final</h4>
+                    <h4>Utensílios Unreal Engine 5+</h4>
                     <ul>
-                        <li>Timers e mensagens coincidem com os mostrados no cliente clássico.</li>
-                        <li>Recompensas são atribuídas conforme posição e tabela de <code>ChaosCastleReward.txt</code>.</li>
-                        <li>Ranking semanal reinicia automaticamente conforme configurado.</li>
+                        <li>Nível <code>LV_ChaosCastle</code> com volumes de queda.</li>
+                        <li><code>ACChaosCastleMode</code>, <code>UChaosTrapController</code> e <code>UChaosSpectatorComponent</code>.</li>
+                        <li>Widget <code>WB_ChaosHUD</code>.</li>
+                    </ul>
+                    <h4>Modo de preparo (passo a passo)</h4>
+                    <ol>
+                        <li>Implemente fases StandBy, Playing, End replicadas no GameState.</li>
+                        <li>Controle armadilhas com <code>UChaosTrapController</code> lendo Data Table.</li>
+                        <li>Atualize HUD com contagem de sobreviventes e alerta de armadilhas.</li>
+                        <li>Ao eliminar jogador, envie <code>ERemakeMessage::ChaosCastleStatus</code> com novo ranking.</li>
+                        <li>Ative modo espectador automaticamente ao cair.</li>
+                        <li>Finalize partida registrando CSV semanal.</li>
+                    </ol>
+                    <h4>Modo Blueprint para iniciantes</h4>
+                    <ol class="blueprint-list">
+                        <li>Use <em>Matinee/Sequence</em> ou <em>Timeline</em> para mover plataformas.</li>
+                        <li>Dispare câmera aérea com <em>Set View Target with Blend</em>.</li>
+                        <li>Atualize ranking com <em>ForEachLoop</em> e <code>WB_ChaosHUD</code>.</li>
+                        <li>Gere logs usando <em>Print String</em> antes de implementar CSV.</li>
+                    </ol>
+                    <h4>Cobertura e degustação (testes)</h4>
+                    <ul>
+                        <li>Verifique ativação de armadilhas nos tempos configurados.</li>
+                        <li>Confirme transição automática para espectador ao cair.</li>
+                        <li>Cheque ranking final e arquivo de log gerado.</li>
                     </ul>
                 </article>
                 <article class="recipe-card" data-recipe="receita-19">
-                    <h3>Receita 19 — Facções Gens Vanert/Dupren</h3>
-                    <p class="recipe-intro">Entrega facções, missões diárias e buffs de rank integrados ao servidor.</p>
-                    <h4>Copie do projeto original</h4>
+                    <h3>Receita 19 — Facções Gens e missões diárias</h3>
+                    <div class="recipe-meta">
+                        <span class="recipe-meta__item"><strong>Tempo de preparo:</strong> 3 horas</span>
+                        <span class="recipe-meta__item"><strong>Serve:</strong> 1 aluno dedicado</span>
+                        <span class="recipe-meta__item"><strong>Dificuldade:</strong> Intermediária</span>
+                    </div>
+                    <p class="recipe-intro">Implemente Vanert e Dupren com ranking, missões e buffs replicando o comportamento clássico.</p>
+                    <h4>Ingredientes essenciais</h4>
                     <ul>
-                        <li><code>Source Main 5.2/source/NewUIGensWindow.cpp</code> e <code>NewUIGensRanking.cpp</code>.</li>
-                        <li><code>Source MuServer Update 15/GameServer/GameServer/GensSystem.cpp</code> — regras de contribuição, buffs e recompensas.</li>
-                        <li>Arquivos <code>Data/GensSystem.txt</code>, <code>Data/Quest/GensQuest.txt</code>, <code>Data/Local/GensText.txt</code>.</li>
+                        <li><code>GensSystem.cpp</code> e <code>NewUIGensWindow.cpp</code>.</li>
+                        <li>Ícones e banners convertidos para as facções.</li>
+                        <li>Tabelas de rank e missões diárias.</li>
                     </ul>
-                    <h4>Monte na Unreal</h4>
-                    <ol>
-                        <li>Crie Widgets <code>WB_GensLobby</code>, <code>WB_GensRanking</code>, <code>WB_GensQuestCard</code> respeitando layout e ícones originais.</li>
-                        <li>Implemente <code>UGensFactionComponent</code> no <code>PlayerState</code> para armazenar facção, pontos, rank e buffs ativos.</li>
-                        <li>Converta as tabelas <code>.txt</code> para <code>DT_GensRewards</code>, <code>DT_GensQuests</code> e <code>DT_GensBuffs</code> com chaves idênticas às do servidor.</li>
-                        <li>Sincronize pacotes 0xF8 subcódigos 0x03 (atualização de pontos) e 0x04 (ranking) disparando eventos visuais no HUD.</li>
-                        <li>Implemente buffs aplicando <code>GameplayEffects</code> conforme rank retornado pelo servidor, exibindo aura Niagara correspondente.</li>
-                    </ol>
-                    <h4>Fluxo Blueprint</h4>
-                    <ol class="blueprint-list">
-                        <li>No <code>WB_GensLobby</code>, conecte botões “Entrar Vanert/Dupren” a chamadas <code>SolicitarInscricao</code> que enviam 0xF8:0x00.</li>
-                        <li>Atualize a lista de missões preenchendo <code>ListView</code> com dados da Data Table e marcando concluídas ao receber 0xF8:0x05.</li>
-                        <li>Mostre rank atual em <code>WB_GensRanking</code> com <em>Sort Custom</em> usando a pontuação recebida.</li>
-                        <li>Ao aplicar buff, chame <em>Apply Gameplay Effect to Self</em> com os valores carregados de <code>DT_GensBuffs</code>.</li>
-                        <li>Agende reset semanal com <em>Timer by Event</em> lendo configuração <code>ResetDay</code> no Data Table.</li>
-                    </ol>
-                    <h4>Checklist final</h4>
+                    <h4>Utensílios Unreal Engine 5+</h4>
                     <ul>
-                        <li>Ingressar ou sair de uma facção reflete imediatamente no HUD e nas habilidades.</li>
-                        <li>Missões e pontos diários batem com os registros do servidor.</li>
-                        <li>Buffs corretos são aplicados/removidos em cada faixa de rank.</li>
+                        <li>Widget <code>WB_GensLobby</code> e <code>WB_GensRanking</code>.</li>
+                        <li>Componente <code>UGensFactionComponent</code> com buffs via Gameplay Effects.</li>
+                        <li>Mensagens <code>ERemakeMessage::FactionChannel</code>.</li>
+                    </ul>
+                    <h4>Modo de preparo (passo a passo)</h4>
+                    <ol>
+                        <li>Configure facções e ranks lendo tabelas convertidas.</li>
+                        <li>Crie fluxos de entrada/saída enviando <code>FactionChannel::JoinRequest</code>/<code>::Leave</code>.</li>
+                        <li>Monte painel de missões com contadores e recompensas.</li>
+                        <li>Atualize buffs ativando Gameplay Effects conforme rank.</li>
+                        <li>Implemente reset semanal automático com timers.</li>
+                        <li>Registre histórico de pontos para acompanhamento educativo.</li>
+                    </ol>
+                    <h4>Modo Blueprint para iniciantes</h4>
+                    <ol class="blueprint-list">
+                        <li>Use <em>Widget Switcher</em> para alternar entre facções.</li>
+                        <li>Atualize pontuação com <em>Bind</em> direto no <code>UGensFactionComponent</code>.</li>
+                        <li>Reproduza aura com <em>Niagara</em> ativada quando <code>Facção</code> mudar.</li>
+                        <li>Implemente reset chamando <em>Clear and Invalidate Timer</em> e <em>Set Timer</em>.</li>
+                    </ol>
+                    <h4>Cobertura e degustação (testes)</h4>
+                    <ul>
+                        <li>Entrar em cada facção atualizando HUD imediatamente.</li>
+                        <li>Completar missão diária e validar incremento de pontos.</li>
+                        <li>Executar reset semanal manual e conferir histórico.</li>
                     </ul>
                 </article>
                 <article class="recipe-card" data-recipe="receita-20">
-                    <h3>Receita 20 — Cash Shop e entrega de itens</h3>
-                    <p class="recipe-intro">Porta o XShop com catálogo dinâmico, carrinho e integração com inventário/banco.</p>
-                    <h4>Copie do projeto original</h4>
+                    <h3>Receita 20 — Cash Shop, catálogo e entregas</h3>
+                    <div class="recipe-meta">
+                        <span class="recipe-meta__item"><strong>Tempo de preparo:</strong> 3 horas</span>
+                        <span class="recipe-meta__item"><strong>Serve:</strong> 1 dupla (UI + backend)</span>
+                        <span class="recipe-meta__item"><strong>Dificuldade:</strong> Intermediária</span>
+                    </div>
+                    <p class="recipe-intro">Reproduza a loja de cash com carrinho, confirmações e correio de entregas usando Unreal.</p>
+                    <h4>Ingredientes essenciais</h4>
                     <ul>
-                        <li><code>Source Main 5.2/source/NewUIInGameShop.cpp</code>, <code>NewUIInGameShop.h</code> e recursos em <code>Interface/XShop</code>.</li>
-                        <li><code>Source MuServer Update 15/GameServer/GameServer/CashShop.cpp</code>, <code>CashShopDBSet.cpp</code> e <code>CashShopSocket.cpp</code>.</li>
-                        <li>Arquivos <code>Data/ShopItemList.txt</code>, <code>Data/CashShopPackage.txt</code>, <code>Data/CashItemList.txt</code>.</li>
+                        <li><code>XShopScript.cpp</code> e <code>NewUICashShop.cpp</code>.</li>
+                        <li>Assets de interface <code>Interface/XShop</code>.</li>
+                        <li>Tabelas <code>CashShopPackage.txt</code> e <code>CashShopItem.txt</code>.</li>
                     </ul>
-                    <h4>Monte na Unreal</h4>
-                    <ol>
-                        <li>Construa <code>WB_CashShop</code> com abas, vitrine <code>TileView</code> e painel de detalhes com pré-visualização do item.</li>
-                        <li>Implemente <code>UCashShopComponent</code> gerenciando saldo (WCoin, GoblinPoint), carrinho e pedidos pendentes.</li>
-                        <li>Converta tabelas do XShop em <code>DT_CashCatalog</code> e <code>DT_CashPackages</code>, incluindo caminhos das texturas originais.</li>
-                        <li>Ao confirmar compra, envie pacote 0xD2 com itens do carrinho; processe resposta 0xD3 atualizando saldo e disparando feedback visual.</li>
-                        <li>Implemente caixa de presentes <code>WB_CashMailbox</code> que lista entregas (pacote 0xD6) e permite resgatar direto para o inventário.</li>
-                    </ol>
-                    <h4>Fluxo Blueprint</h4>
-                    <ol class="blueprint-list">
-                        <li>No <code>WB_CashShop</code>, use <em>Event Construct</em> para carregar Data Table e preencher abas com <em>Filter by Tag</em>.</li>
-                        <li>Adicione animação de destaque quando um item for adicionado ao carrinho e reproduza áudio importado do cliente clássico.</li>
-                        <li>Implemente confirmação com <em>Modal</em> exibindo custos e saldo restante antes de enviar o pacote 0xD2.</li>
-                        <li>Ao receber 0xD3, atualize saldo e chame <code>AtualizarHUDMoedasPremium</code> no HUD principal.</li>
-                        <li>Quando o jogador abrir o baú de presentes, chame <code>SolicitarEntrega</code> enviando 0xD6:0x02 para mover item ao inventário.</li>
-                    </ol>
-                    <h4>Checklist final</h4>
+                    <h4>Utensílios Unreal Engine 5+</h4>
                     <ul>
-                        <li>Catalogo reflete descrições, ícones e preços originais.</li>
-                        <li>Compras atualizam saldo e entregam itens sem inconsistências.</li>
-                        <li>Logs registram todas as transações para auditoria educativa.</li>
+                        <li>Widgets <code>WB_CashShop</code> e <code>WB_CashMailbox</code>.</li>
+                        <li>Componentes <code>UCashWalletComponent</code> e <code>UCashDeliveryComponent</code>.</li>
+                        <li>Mensagens <code>ERemakeMessage::CashShopPurchase</code>, <code>::CashShopReceipt</code>, <code>::CashMailbox</code>.</li>
+                    </ul>
+                    <h4>Modo de preparo (passo a passo)</h4>
+                    <ol>
+                        <li>Carregue catálogo nas Data Tables e filtre por categoria no widget.</li>
+                        <li>Implemente carrinho com resumo e saldo.</li>
+                        <li>Ao confirmar compra, envie <code>CashShopPurchase</code> e bloqueie UI até <code>CashShopReceipt</code>.</li>
+                        <li>Atualize saldo e registre compra em log.</li>
+                        <li>Implemente <code>WB_CashMailbox</code> para resgatar presentes recebidos.</li>
+                        <li>Entregue itens ao inventário ao clicar em Resgatar.</li>
+                    </ol>
+                    <h4>Modo Blueprint para iniciantes</h4>
+                    <ol class="blueprint-list">
+                        <li>Use <em>ListView</em> para catálogo e vincule <em>OnItemClicked</em> ao painel de detalhes.</li>
+                        <li>Controle saldo com variáveis <em>float</em> atualizadas a cada compra.</li>
+                        <li>Mostre recibo usando <em>Widget Switcher</em> para estados (Resumo/Confirmação/Sucesso).</li>
+                        <li>Para mailbox, utilize <em>ForEachLoop</em> alimentando <code>TileView</code>.</li>
+                    </ol>
+                    <h4>Cobertura e degustação (testes)</h4>
+                    <ul>
+                        <li>Realize compra e valide descontos corretos.</li>
+                        <li>Teste falta de saldo e exiba aviso amigável.</li>
+                        <li>Resgate presente no mailbox e confirme inclusão no inventário.</li>
                     </ul>
                 </article>
                 <article class="recipe-card" data-recipe="receita-21">
-                    <h3>Receita 21 — Interfaces completas 1:1 (todas as janelas)</h3>
-                    <p class="recipe-intro">Uma receita de bolo para reconstruir <strong>todas</strong> as janelas do
-                        <em>NewUI</em>: NPCs, eventos, opções, mensagens, guilda, comércio e alertas exatamente como o cliente
-                        clássico, com texturas originais e integração de rede.</p>
-                    <h4>Ingredientes do clássico</h4>
-                    <ul>
-                        <li><code>Source Main 5.2/source/NewUIManager.cpp</code> — registra janelas, atalhos e dependências
-                            globais do <em>NewUI</em>.</li>
-                        <li><code>Source Main 5.2/source/NewUICommonMessageBox.cpp</code>,
-                            <code>NewUIOptionWindow.cpp</code>, <code>NewUIInventoryCtrl.cpp</code>,
-                            <code>NewUITrade.cpp</code>, <code>NewUIGuildWindow.cpp</code>,
-                            <code>NewUIPartyWindow.cpp</code>, <code>NewUIQuestProgress.cpp</code>, <code>NewUIEvent.cpp</code>
-                            e todos os arquivos <code>source/NewUI*</code>.</li>
-                        <li><code>Source Main 5.2/source/UIControls.h</code> e <code>NewUIButton.cpp</code> — comportamento
-                            de botões, abas e atalhos especiais (CTRL, ALT, SHIFT).</li>
-                        <li>Pastas <code>Data/Interface</code>, <code>Data/Interface/Custom</code>,
-                            <code>Data/Mark</code>, <code>Data/WorldInterface</code> e sons em <code>Data/Sounds</code>.</li>
-                        <li>Arquivos de texto <code>Data/Local/GlobalText.txt</code>, <code>MsgBox.txt</code>,
-                            <code>ToolTip.txt</code> e <code>EventMsg.txt</code> para legendas e mensagens.</li>
-                        <li><code>Source MuServer Update 15/GameServer/GameServer/Protocol.cpp</code>,
-                            <code>ItemMove.cpp</code> e <code>DataServerProtocol.cpp</code> — subcódigos de cada janela
-                            (trade, guild, cash shop, personal store, eventos, opções).</li>
-                    </ul>
-                    <h4>Modo de preparo na Unreal (passos detalhados)</h4>
-                    <ol>
-                        <li><strong>Passo 1 — Mise en place dos assets:</strong> use o conversor BMD/FBX para transformar as
-                            texturas da pasta <code>Data/Interface</code>, ícones de <code>Data/Mark</code> e molduras em PNG.
-                            Importe para <code>Content/UI/Legacy</code> mantendo subpastas por janela.</li>
-                        <li><strong>Passo 2 — Defina a base:</strong> crie o módulo/folder <code>UIFramework</code> contendo
-                            <code>UWindowRegistry</code>, <code>UUIAudioLibrary</code> e material padrão de borda replicando
-                            <code>newui_frame_*</code>.</li>
-                        <li><strong>Passo 3 — Widget mestre:</strong> implemente <code>WB_WindowBase</code> com molduras,
-                            barra de título, botões fechar/minimizar, atalhos (ESC, Enter) e eventos <code>OnAbrir</code>,
-                            <code>OnFechar</code>, <code>OnSolicitarPacote</code>.</li>
-                        <li><strong>Passo 4 — Cadastro das janelas:</strong> no <code>UWindowRegistry</code>, registre cada
-                            janela (Inventário, Personagem, Guilda, Trade, Quest, Eventos, Cash Shop, Opções, Mensagens,
-                            Duelo, Mini-mapa) com classe do widget, textura base, sons, atalhos e pacotes necessários.</li>
-                        <li><strong>Passo 5 — Widgets especializados:</strong> crie derivados de <code>WB_WindowBase</code>
-                            como <code>WB_InventoryWindow</code>, <code>WB_CharacterWindow</code>, <code>WB_QuestJournal</code>,
-                            <code>WB_NpcShop</code>, <code>WB_GuildPanel</code>, <code>WB_PartySearch</code>,
-                            <code>WB_EventBoard</code>, <code>WB_MessageBox</code>, <code>WB_OptionsWindow</code> e
-                            <code>WB_PersonalStore</code>.</li>
-                        <li><strong>Passo 6 — Componentes reutilizáveis:</strong> construa <code>WB_TabButton</code>,
-                            <code>WB_ListHeader</code>, <code>WB_ItemSlot</code> e <code>WB_AmountSpinner</code> replicando os
-                            controles descritos em <code>UIControls.h</code>.</li>
-                        <li><strong>Passo 7 — Sons e feedback:</strong> preencha <code>UUIAudioLibrary</code> com os cliques e
-                            alertas originais. Garanta que cada janela registre qual som usar ao abrir, confirmar e fechar.</li>
-                        <li><strong>Passo 8 — Roteador central:</strong> implemente <code>UIRouterComponent</code> no
-                            <code>PlayerController</code> para abrir/fechar janelas via <code>UWindowRegistry</code>, evitar
-                            sobreposição, controlar foco e emitir eventos globais.</li>
-                        <li><strong>Passo 9 — Textos e tooltips:</strong> converta <code>GlobalText.txt</code>,
-                            <code>MsgBox.txt</code>, <code>ToolTip.txt</code> e <code>EventMsg.txt</code> em Data Tables;
-                            crie função <code>GetTextoGlobal</code> e use <em>Bindings</em> para preencher rótulos, botões e
-                            mensagens automaticamente.</li>
-                        <li><strong>Passo 10 — Integração de rede:</strong> conecte cada janela aos pacotes equivalentes
-                            (<code>0x3F/0x3C</code> trade, <code>0x6D</code> guild, <code>0x2F</code> quest, <code>0xF6</code>
-                            eventos, <code>0xD2</code> cash shop). Use <code>UNetworkBridgeSubsystem</code> para atualizar UI
-                            quando respostas chegarem.</li>
-                        <li><strong>Passo 11 — Persistência local:</strong> para janelas com configurações (Options, Interface,
-                            atalhos), salve valores em <code>SaveGame</code> e replique comportamento de <code>NewUIOption</code>.</li>
-                        <li><strong>Passo 12 — Documentação visual:</strong> adicione comentários e capturas no Designer
-                            indicando qual arquivo original inspirou cada widget, ajudando iniciantes a revisar depois.</li>
-                    </ol>
-                    <h4>Cobertura Blueprint & automações</h4>
-                    <ol class="blueprint-list">
-                        <li>No <code>PlayerController</code>, configure <em>InputAction</em> (I, C, V, G, P, O, K, B)
-                            chamando <code>UIRouterComponent-&gt;AlternarJanela</code> com a chave cadastrada no
-                            <code>UWindowRegistry</code>.</li>
-                        <li>Dentro do <code>WB_WindowBase</code>, associe o botão fechar ao evento <code>OnFechar</code>,
-                            reproduza áudio da <code>UUIAudioLibrary</code> e chame
-                            <code>UIRouterComponent-&gt;FecharJanela</code> para manter o estado sincronizado.</li>
-                        <li>Crie <code>WB_WindowAnimator</code> (Blueprint Function Library) com funções
-                            <code>AbrirComFade</code> e <code>FecharComSlide</code> usando <em>Timeline</em> para replicar o
-                            movimento suave do cliente clássico.</li>
-                        <li>Para janelas com abas (Guilda, Quest, Eventos), utilize <em>Widget Switcher</em> preenchido com
-                            dados da Data Table e destaque a aba ativa alterando material da borda.</li>
-                        <li>Implemente <code>WB_GlobalOverlay</code> que recebe notificações do <code>UIRouter</code> e exibe
-                            balões, tooltips e mensagens de sistema (trade, convite de party, alertas de evento).</li>
-                        <li>Adicione <code>UIAutomationComponent</code> que percorre janelas registradas, valida widgets
-                            obrigatórios e registra no log itens ausentes para alunos corrigirem.</li>
-                    </ol>
-                    <h4>Teste de forno e apresentação</h4>
-                    <ul>
-                        <li>Todos os atalhos abrem a janela correta com textura e som originais, e o <code>UIRouter</code>
-                            impede janelas duplicadas.</li>
-                        <li>Textos e tooltips são carregados das Data Tables sem strings vazias ou fora do idioma.</li>
-                        <li>Pacotes de rede atualizam conteúdo imediatamente (trade, guild, quest, cash shop) e registram logs
-                            para auditoria didática.</li>
-                        <li>Fechar e reabrir qualquer janela preserva posição, abas e animações de entrada/saída.</li>
-                    </ul>
-                    <div class="recipe-mapping">
-                        <h4>Arquivos de referência</h4>
-                        <table>
-                            <thead>
-                                <tr>
-                                    <th>Elemento</th>
-                                    <th>Unreal</th>
-                                    <th>Original</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                <tr>
-                                    <td>Registro de janelas</td>
-                                    <td><code>UWindowRegistry</code> + <code>UIRouterComponent</code></td>
-                                    <td><code>NewUIManager::CreateInterface</code></td>
-                                </tr>
-                                <tr>
-                                    <td>Layout padrão</td>
-                                    <td><code>WB_WindowBase</code> + materiais legados</td>
-                                    <td><code>NewUICommonMessageBox::Create</code></td>
-                                </tr>
-                                <tr>
-                                    <td>Textos e tooltips</td>
-                                    <td><code>Data Table GlobalText</code></td>
-                                    <td><code>GlobalText.txt</code></td>
-                                </tr>
-                            </tbody>
-                        </table>
+                    <h3>Receita 21 — Todas as interfaces do NewUI</h3>
+                    <div class="recipe-meta">
+                        <span class="recipe-meta__item"><strong>Tempo de preparo:</strong> 2 dias de oficina</span>
+                        <span class="recipe-meta__item"><strong>Serve:</strong> Equipe multidisciplinar</span>
+                        <span class="recipe-meta__item"><strong>Dificuldade:</strong> Avançada</span>
                     </div>
+                    <p class="recipe-intro">Crie uma fábrica de janelas Unreal replicando Inventário, Personagem, Guilda, Trade, Quests, Eventos e Cash Shop.</p>
+                    <h4>Ingredientes essenciais</h4>
+                    <ul>
+                        <li><code>NewUIManager.cpp</code>, <code>NewUICommonMessageBox.cpp</code> e <code>UIControls.h</code>.</li>
+                        <li>Texturas de moldura em <code>Data/Interface</code> e textos em <code>GlobalText.txt</code>.</li>
+                        <li>Planilha com atalhos e sons originais.</li>
+                    </ul>
+                    <h4>Utensílios Unreal Engine 5+</h4>
+                    <ul>
+                        <li>Módulo <code>UIFramework</code> com <code>UWindowRegistry</code> e <code>UUIAudioLibrary</code>.</li>
+                        <li>Widget base <code>WB_WindowBase</code> e derivados (<code>WB_InventoryWindow</code>, <code>WB_QuestJournal</code>, etc.).</li>
+                        <li>Componente <code>BP_UIRouter</code> para atalhos globais e som.</li>
+                    </ul>
+                    <h4>Modo de preparo (passo a passo)</h4>
+                    <ol>
+                        <li>Implemente <code>WB_WindowBase</code> com molduras, barra de título e eventos padrões.</li>
+                        <li>Cadastre cada janela no <code>UWindowRegistry</code> com atalhos, som e pacotes <code>ERemakeMessage</code> correspondentes.</li>
+                        <li>Construa widgets derivados replicando layouts originais e reutilizando componentes (tabs, listas, slots).</li>
+                        <li>Carregue textos através de Data Tables convertidas de <code>GlobalText</code> e <code>ToolTip</code>.</li>
+                        <li>Integre <code>BP_UIRouter</code> ao <code>PlayerController</code> para abrir/fechar janelas via hotkeys.</li>
+                        <li>Implemente persistência de configurações (volume, tooltips) via <code>SaveGame</code>.</li>
+                    </ol>
+                    <h4>Modo Blueprint para iniciantes</h4>
+                    <ol class="blueprint-list">
+                        <li>Crie biblioteca de macros para abrir/fechar janelas.</li>
+                        <li>Use <em>Widget Switcher</em> no <code>WB_WindowBase</code> para estados (Aberto/Minimizado).</li>
+                        <li>Vincule sons com <em>Play Sound 2D</em> ao abrir e fechar.</li>
+                        <li>Preencha textos usando <em>Get Data Table Row</em> baseado na chave GlobalText.</li>
+                    </ol>
+                    <h4>Cobertura e degustação (testes)</h4>
+                    <ul>
+                        <li>Verifique se atalhos (I, C, G, Q, M) abrem as janelas corretas.</li>
+                        <li>Confirme atualização de conteúdo ao receber mensagens da rede.</li>
+                        <li>Teste tema escuro/claro ou ajustes de volume persistindo após reiniciar.</li>
+                    </ul>
+                </article>
+                <article class="recipe-card" data-recipe="receita-22">
+                    <h3>Receita 22 — Núcleo do personagem, movimentação e progressão</h3>
+                    <div class="recipe-meta">
+                        <span class="recipe-meta__item"><strong>Tempo de preparo:</strong> 6 horas</span>
+                        <span class="recipe-meta__item"><strong>Serve:</strong> 1 programador + 1 artista técnico</span>
+                        <span class="recipe-meta__item"><strong>Dificuldade:</strong> Avançada</span>
+                    </div>
+                    <p class="recipe-intro">Construa o personagem jogável completo: seleção de classe, movimentação validada, câmeras, progressão e sincronização com o servidor Unreal.</p>
+                    <h4>Ingredientes essenciais</h4>
+                    <ul>
+                        <li><code>CharSelMainWin.cpp</code>, <code>NewUICharacterInfoWindow.cpp</code> e <code>Player.cpp</code> do cliente clássico.</li>
+                        <li><code>GameServer/GameServer/ObjBaseAttack.cpp</code> e <code>GameServer/GameServer/ObjCalCharacter.cpp</code> para atributos.</li>
+                        <li>Tabelas <code>DefaultClassType.txt</code>, <code>CharacterCreate.txt</code>, <code>LevelExperience.txt</code>.</li>
+                    </ul>
+                    <h4>Utensílios Unreal Engine 5+</h4>
+                    <ul>
+                        <li>Blueprint <code>BP_RemakeCharacter</code> com componentes <code>URemakeMovementComponent</code>, <code>URemakeStatsComponent</code> e <code>URemakeAppearanceComponent</code>.</li>
+                        <li>GameMode <code>ARemakeWorldMode</code> e GameState com replicação de níveis/atributos.</li>
+                        <li>Mensagens <code>ERemakeMessage::MovementRequest</code>, <code>::MovementCommit</code>, <code>::CharacterProgress</code>.</li>
+                    </ul>
+                    <h4>Modo de preparo (passo a passo)</h4>
+                    <ol>
+                        <li>Implemente <code>URemakeMovementComponent</code> estendendo <code>UCharacterMovementComponent</code> com envio de <code>MovementRequest</code> e aplicação de <code>MovementCommit</code>.</li>
+                        <li>Crie <code>URemakeStatsComponent</code> carregando atributos base por classe via Data Table e aplicando crescimento por nível.</li>
+                        <li>Adicione <code>URemakeAppearanceComponent</code> responsável por trocar malhas, materiais e animações conforme classe/sexo.</li>
+                        <li>Monte <code>BP_RemakeCharacter</code> conectando entrada Enhanced Input aos métodos de movimento, dash e salto.</li>
+                        <li>No servidor dedicado, implemente <code>ARemakeWorldMode</code> para validar requests, aplicar XP e enviar <code>ERemakeMessage::CharacterProgress</code>.</li>
+                        <li>Construa fluxo de seleção de classe integrando com Receita 5: ao confirmar personagem, configure appearance e atributos.</li>
+                        <li>Adicione <code>URemakeCameraComponent</code> com opções de câmera fixa/dinâmica e bloqueios de rotação.</li>
+                        <li>Integre progresso (XP, pontos de atributo) com HUD emitindo eventos para barras e painéis de personagem.</li>
+                    </ol>
+                    <h4>Modo Blueprint para iniciantes</h4>
+                    <ol class="blueprint-list">
+                        <li>No <code>BP_RemakeCharacter</code>, vincule Input Actions Move/Look/Jump/Dash a eventos personalizados.</li>
+                        <li>Use <em>Enhanced Input</em> para criar “Contexto Mundo” e ativá-lo após login.</li>
+                        <li>Atualize atributos chamando <em>Set Members in Struct</em> quando mensagem <code>CharacterProgress</code> chegar.</li>
+                        <li>Para personalização visual, utilize <em>Dynamic Material Instances</em> selecionadas por classe.</li>
+                    </ol>
+                    <h4>Cobertura e degustação (testes)</h4>
+                    <ul>
+                        <li>Movimente personagem em dois clientes e verifique latência dos commits (&lt;120 ms).</li>
+                        <li>Up de nível deve atualizar atributos, barras e pontos disponíveis automaticamente.</li>
+                        <li>Troque de classe/sexo na criação e valide que malhas, animações e câmera são atualizadas.</li>
+                    </ul>
                 </article>
             </div>
         </section>

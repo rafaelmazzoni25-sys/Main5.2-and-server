@@ -1246,6 +1246,32 @@ const noviceRecipes = {
             "Dispare mensagens globais (MessageBox, eventos): textos devem vir das Data Tables e o overlay mostrar notificações sem sobreposição."
         ]
     },
+    "receita-22": {
+        "intro": "Objetivo: entregar o personagem completo com movimentação validada, progressão de atributos e personalização visual em UE5.",
+        "preparation": [
+            "Importe Skeletal Meshes, animações e materiais de cada classe do cliente clássico para Content/Characters.",
+            "Converta DefaultClassType.txt, CharacterCreate.txt e LevelExperience.txt em Data Tables (DT_ClassBase, DT_ClassGrowth, DT_LevelXP).",
+            "Crie Input Mapping Context para movimentos, dash, salto, interação e câmera na Unreal.",
+            "Revise ObjCalCharacter.cpp e Player.cpp anotando fórmulas de atributos, velocidade e limites de peso."
+        ],
+        "steps": [
+            "Implemente URemakeStatsComponent carregando dados de DT_ClassBase/DT_ClassGrowth e expondo eventos OnStatsUpdated.",
+            "Crie URemakeMovementComponent herdando de UCharacterMovementComponent que envia ERemakeMessage::MovementRequest a cada input processado.",
+            "Ao receber MovementCommit do servidor, aplique SetActorLocation e ajuste rotação mantendo smoothing para o aluno visualizar bem.",
+            "Monte URemakeAppearanceComponent responsável por trocar Skeletal Mesh, materiais e Anim Blueprint conforme classe/sexo definido na criação.",
+            "Crie BP_RemakeCharacter agregando os componentes anteriores, além de câmera boom e URemakeCameraComponent com presets (padrão, zoom combate, zoom comércio).",
+            "No GameInstance, carregue configuração do personagem selecionado (Receita 5) e aplique no BP_RemakeCharacter antes do BeginPlay do mundo.",
+            "Implemente ARemakeWorldMode (servidor dedicado) que valida MovementRequest, calcula XP/nível usando DT_LevelXP e responde com ERemakeMessage::CharacterProgress.",
+            "Sincronize pontos de atributo/perícia com URemakeStatsComponent aplicando eventos para HUD e painel de personagem.",
+            "Adicione suporte a montarias e asas anexando componentes adicionais que alteram velocidade e aparências quando mensagens apropriadas chegarem.",
+            "Crie testes funcionais (AutomationSpec) garantindo que aumento de nível atualiza atributos e envia mensagens corretas."
+        ],
+        "validation": [
+            "Mover-se em dois clientes conectados deve registrar pares MovementRequest/MovementCommit sem divergências de posição.",
+            "Ao ganhar XP suficiente, o nível deve subir, atributos recalculados e HUD atualizado em tempo real.",
+            "Trocar classe/sexo na criação precisa refletir imediatamente na aparência, animações e câmera ao carregar o mundo."
+        ]
+    }
 };
 
 

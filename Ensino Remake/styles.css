@@ -320,6 +320,28 @@ main {
     font-size: 1.35rem;
 }
 
+.recipe-meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    font-size: 0.9rem;
+    color: var(--text-muted);
+}
+
+.recipe-meta__item {
+    padding: 0.35rem 0.75rem;
+    border-radius: 999px;
+    background: rgba(148, 163, 184, 0.16);
+    border: 1px solid rgba(148, 163, 184, 0.2);
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    line-height: 1.1;
+}
+
 .recipe-card h4 {
     margin: 0;
     font-size: 1.05rem;
