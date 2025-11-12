@@ -4,6 +4,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Ensino Remake - Guia do Projeto</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css"
+        integrity="sha384-QWTKZyjpPEjISv5WaRU9OFeRpok6YctnYmDr5pNlyT2bRjXh0JMhjY6hW+ALEwIH" crossorigin="anonymous">
     <link rel="stylesheet" href="styles.css">
 </head>
 <body>
@@ -1270,7 +1272,7 @@ struct FRemakePacket {
                     <ul>
                         <li>Liste variáveis globais (<code>gObjTotalUser</code>, <code>gObjOffStore</code>) e mantenha um
                             dashboard simples para compará-las com a Unreal.</li>
-                        <li>Documente eventos obrigatórios (Blood Castle, Castle Siege) para planejar adaptações futuras.</li>
+                        <li>Implemente instâncias base para Blood Castle e Castle Siege replicando triggers do GameServer e mantenha-as ativas nos testes de regressão.</li>
                         <li>Garanta que resets de sessão (<code>CloseClient</code>, <code>gObjAllDisconnect</code>) funcionem
                             mesmo quando o cliente for a Unreal.</li>
                     </ul>
@@ -1377,12 +1379,22 @@ struct FRemakePacket {
                 e do servidor observar, quais assets converter e quais ações executar dentro da <strong>Unreal Engine 5</strong>
                 para obter o mesmo resultado. Siga os passos na ordem e marque a checklist antes de continuar.
             </p>
+            <div class="novice-toggle" role="group" aria-labelledby="novice-mode-label">
+                <div class="novice-toggle__header">
+                    <input type="checkbox" id="novice-mode-toggle" aria-describedby="novice-mode-description">
+                    <label for="novice-mode-toggle" id="novice-mode-label">Ativar modo iniciante</label>
+                </div>
+                <p id="novice-mode-description">
+                    Quando ligado, cada receita ganha um tutorial passo a passo explicando os cliques na Unreal, os
+                    arquivos a abrir e como validar cada etapa — pensado para quem nunca programou.
+                </p>
+            </div>
             <div class="recipe-grid">
-                <article class="recipe-card">
+                <article class="recipe-card" data-recipe="receita-1">
                     <h3>Receita 1 — HUD principal idêntica</h3>
                     <p class="recipe-intro">Recompõe a barra inferior com HP/MP/AG/SD, minimapa e ícones exatamente como o
                         cliente clássico exibe.</p>
-                    <h4>Copie do projeto original</h4>
+                    <h4>Ingredientes do clássico</h4>
                     <ul>
                         <li><code>Source Main 5.2/source/NewUIMainFrameWindow.cpp</code> — observe as chamadas
                             <code>LoadBitmap</code> (texturas <code>Interface\newui_menu01.jpg</code>,
@@ -1461,10 +1473,10 @@ struct FRemakePacket {
                         </table>
                     </div>
                 </article>
-                <article class="recipe-card">
+                <article class="recipe-card" data-recipe="receita-2">
                     <h3>Receita 2 — Inventário e arrastar/soltar</h3>
                     <p class="recipe-intro">Recria o inventário 8×8, lógica de tamanho de itens e movimentação com o mouse.</p>
-                    <h4>Copie do projeto original</h4>
+                    <h4>Ingredientes do clássico</h4>
                     <ul>
                         <li><code>Source Main 5.2/source/NewUIInventoryCtrl.cpp</code> — observe <code>LoadImages</code>,
                             <code>SetItem</code>, <code>UpdateMouseEvent</code> e uso de <code>CNewUIPickedItem</code>.</li>
@@ -1539,7 +1551,7 @@ struct FRemakePacket {
                         </table>
                     </div>
                 </article>
-                <article class="recipe-card">
+                <article class="recipe-card" data-recipe="receita-3">
                     <h3>Receita 3 — Chat, notificações e mensagens</h3>
                     <p class="recipe-intro">Permite digitar mensagens, exibir log e mostrar alertas como no cliente clássico.</p>
                     <h4>Copie do projeto original</h4>
@@ -1628,36 +1640,67 @@ struct FRemakePacket {
                     </ul>
                     <h4>Monte na Unreal</h4>
                     <ol>
-                        <li>No <code>UNetworkBridgeSubsystem</code>, implemente <code>Conectar</code>,
-                            <code>EnviarLogin</code>, <code>EnviarMovimento</code> e <code>EnviarAtaque</code> serializando
-                            cabeçalho (C1/C3) e corpo igual ao cliente clássico.</li>
-                        <li>Crie um <code>FQueuedPacket</code> para armazenar mensagens recebidas e processe-as no
-                            <code>Tick</code> do GameInstance, chamando <code>ReceiveMoveCharacter</code> equivalente para
-                            atualizar atores.</li>
-                        <li>Conecte eventos de <code>BP_RemakeCharacter</code> (clique de movimento, ataque) às funções do
-                            <code>NetworkBridge</code> e aguarde confirmação antes de reproduzir animações.</li>
-                        <li>Implemente logs formatados no estilo <code>g_ConsoleDebug-&gt;Write</code> para comparar pacotes.</li>
+                        <li><strong>Passo 1 — Mise en place de dados:</strong> converta <code>SkillList.txt</code>,
+                            <code>SkillTree.txt</code>, <code>Item.txt</code> e <code>BuffEffect.txt</code> em
+                            <code>Data Tables</code> (<code>DT_Skills</code>, <code>DT_Combos</code>,
+                            <code>DT_ItensRapidos</code>, <code>DT_Buffs</code>) usando structs com custos, delays e efeitos.</li>
+                        <li><strong>Passo 2 — Ligue a rede:</strong> expanda o <code>UNetworkBridgeSubsystem</code> com funções
+                            <code>EnviarMovimentoConfirmado</code>, <code>EnviarComboBasico</code>,
+                            <code>EnviarSkillAlvo</code>, <code>EnviarSkillArea</code>,
+                            <code>EnviarSkillMultipla</code> e <code>EnviarUsoRapido</code>, mantendo cabeçalhos C1/C3
+                            idênticos (0xD7, 0x1F, 0x19, 0x1E, 0x4E, 0x26).</li>
+                        <li><strong>Passo 3 — Crie o maestro do personagem:</strong> adicione ao personagem o componente
+                            <code>UCombatBridgeComponent</code> que mantém fila de ações, estados (Livre, Atacando,
+                            AguardandoConfirmação) e eventos <code>OnComboLiberado</code>,
+                            <code>OnSkillConfirmada</code>.</li>
+                        <li><strong>Passo 4 — Confirme movimento:</strong> ajuste o <code>CharacterMovementComponent</code>
+                            para usar <em>Root Motion</em> opcional. Ao pressionar WASD, envie 0xD7 com destino previsto e
+                            só aplique <code>AddMovementInput</code> quando o servidor responder — antes disso mostre
+                            animação de pré-passada.</li>
+                        <li><strong>Passo 5 — Monte os combos:</strong> importe montagens de armas (leve, pesado, finalizador)
+                            e configure <em>Montage Sections</em> para cada golpe. Use <code>DT_Combos</code> para definir
+                            janela de entrada e dano extra do combo triplo.</li>
+                        <li><strong>Passo 6 — Habilidades em camadas:</strong> crie <code>USkillLoadoutComponent</code> com 10
+                            slots, alternância Set 1/Set 2 e suporte a skills canalizadas. Exponha <em>Multicast Delegates</em>
+                            para atualizar HUD e bloquear botões durante cooldown.</li>
+                        <li><strong>Passo 7 — Calculadora de dano:</strong> implemente um <code>UDamageRouterComponent</code>
+                            que recebe confirmações de <code>ReceiveAttack</code>/<code>ReceiveMagicAttack</code>, consulta
+                            <code>DT_Skills</code> e instancia partículas, números flutuantes e <em>Hit Reactions</em>.</li>
+                        <li><strong>Passo 8 — Poções e itens rápidos:</strong> adicione <code>UQuickSlotManager</code> ligado ao
+                            inventário; ao ativar envia 0x26, espera retorno e sincroniza contadores, reproduzindo efeitos
+                            Niagara e sons do Main.</li>
+                        <li><strong>Passo 9 — Buffs e debuffs:</strong> construa <code>UBuffTimelineComponent</code> que cria
+                            entradas animadas na HUD, aplica <code>GameplayEffects</code> (ou multiplicadores próprios) e
+                            remove automaticamente via <em>TimerHandle</em> alinhado ao tempo recebido.</li>
+                        <li><strong>Passo 10 — Teste cooperativo:</strong> instancie dois personagens em editor Multiplayer e
+                            valide combos, projéteis, poções e buffs viajando entre clientes e servidor.</li>
                     </ol>
-                    <h4>Fluxo Blueprint</h4>
+                    <h4>Cobertura Blueprint passo a passo</h4>
                     <ol class="blueprint-list">
-                        <li>No <code>BP_RemakeCharacter</code>, capture <em>InputAxis MoveForward/MoveRight</em> &rarr;
-                            <em>Add Movement Input</em> e, ao liberar a tecla, chame
-                            <code>UNetworkBridgeSubsystem::EnviarMovimento</code> com posição arredondada.</li>
-                        <li>No evento de clique direito no chão (<em>Player Controller</em>), trace <em>Hit Result</em>,
-                            converta para coordenadas de grade e envie pelo subsistema.</li>
-                        <li>Quando o subsistema emitir <code>OnPacoteMovimentoConfirmado</code>, atualize a posição real do
-                            personagem com <em>SetActorLocation</em> para evitar discrepância.</li>
-                        <li>No ataque básico, use <em>InputAction Attack</em> &rarr; <em>Play Montage</em> &rarr;
-                            <code>EnviarAtaque</code> e aguarde retorno para aplicar dano.</li>
-                        <li>Registre erros em um <em>Widget Debug</em> chamando <em>Add String</em> sempre que um pacote
-                            inesperado chegar, igual ao <code>g_ConsoleDebug</code> do cliente clássico.</li>
+                        <li>No <code>BP_RemakeCharacter</code>, use <em>InputAction Move</em> para chamar
+                            <code>EnviarMovimentoConfirmado</code>; receba o pacote 0xD7 no subsistema e execute
+                            <em>SetActorLocation</em> seguido de <code>OnMovimentoConfirmado</code>.</li>
+                        <li>No <em>Enhanced Input</em>, configure <em>Triggers</em> (Tap, DoubleTap, Hold) no
+                            <em>InputAction Attack</em> e mapeie cada resultado para <code>EnviarComboBasico</code> com índice
+                            da seção. Use <em>Montage Notify</em> para disparar o próximo golpe após confirmação.</li>
+                        <li>Para skills de alvo, trace <em>Hit Result</em> no <code>PlayerController</code>, converta para grid
+                            e envie <code>EnviarSkillAlvo</code>; armazene ID do pacote em <code>PendingSkills</code> para
+                            reconciliar quando o servidor responder.</li>
+                        <li>No <code>WB_SkillBar</code>, conecte botões ao <code>USkillLoadoutComponent</code>, bloqueando UI
+                            até receber <code>OnSkillConfirmada</code>. Use <em>Timeline</em> circular para cooldown.</li>
+                        <li>Associe poções da HUD ao <code>UQuickSlotManager</code>; após confirmação, reduza quantidade e
+                            acione <em>SpawnEmitterAtLocation</em> com texturas originais convertidas.</li>
+                        <li>Atualize ícones de buff no <code>WB_HUDMain</code> registrando o evento
+                            <code>OnBuffAtualizado</code> e animando <em>Progress Bars</em> para mostrar tempo restante.</li>
                     </ol>
-                    <h4>Checklist final</h4>
+                    <h4>Teste de forno e apresentação</h4>
                     <ul>
-                        <li>O pacote enviado pela Unreal tem o mesmo cabeçalho/bytes do cliente clássico (confira com a
-                            ferramenta do Laboratório 4).</li>
-                        <li>O personagem só se move após o servidor confirmar <code>ReceiveMoveCharacter</code>.</li>
-                        <li>Erro de login mostra a mesma mensagem do arquivo <code>GlobalText</code>.</li>
+                        <li>Sequência de combo (clique simples → clique rápido → segurar) respeita sons, danos e delays do
+                            cliente clássico — compare com os logs de <code>ComboSkill.cpp</code>.</li>
+                        <li>Habilidades em área só causam dano depois da confirmação 0x1F/0x19; sem resposta, o efeito visual é
+                            cancelado automaticamente.</li>
+                        <li>Poções reduzem estoque, aplicam cura, exibem buff temporário e travam uso até o servidor liberar.</li>
+                        <li>Buffs caducam no mesmo segundo indicado pelo GameServer e removem efeitos do personagem na hora.</li>
                     </ul>
                     <div class="recipe-mapping">
                         <h4>Arquivos de referência</h4>
@@ -1671,19 +1714,19 @@ struct FRemakePacket {
                             </thead>
                             <tbody>
                                 <tr>
-                                    <td>Login</td>
-                                    <td><code>EnviarLogin</code></td>
-                                    <td><code>ProtocolSend::SendRequestLogInNew</code></td>
+                                    <td>Movimento confirmado</td>
+                                    <td><code>UCombatBridgeComponent</code> + <code>UNetworkBridgeSubsystem</code></td>
+                                    <td><code>SendCharacterMoveNew</code> / <code>ReceiveMoveCharacter</code></td>
                                 </tr>
                                 <tr>
-                                    <td>Movimento</td>
-                                    <td><code>EnviarMovimento</code></td>
-                                    <td><code>SendCharacterMoveNew</code></td>
+                                    <td>Skills e combos</td>
+                                    <td><code>USkillLoadoutComponent</code> + montages</td>
+                                    <td><code>SkillManager::SkillUseProc</code></td>
                                 </tr>
                                 <tr>
-                                    <td>Confirmação</td>
-                                    <td>Processamento no <code>GameInstance</code></td>
-                                    <td><code>WSclient::ReceiveMoveCharacter</code></td>
+                                    <td>Buffs e efeitos</td>
+                                    <td><code>BuffTimelineComponent</code> + HUD</td>
+                                    <td><code>BuffEffectSlot.cpp</code></td>
                                 </tr>
                             </tbody>
                         </table>
@@ -1706,19 +1749,47 @@ struct FRemakePacket {
                     </ul>
                     <h4>Monte na Unreal</h4>
                     <ol>
-                        <li>Crie o Widget <code>WB_Login</code> com três botões (Entrar, Opções, Créditos) e um formulário com
-                            <em>EditableTextBox</em> para ID e senha, replicando a disposição descrita em
-                            <code>LoginMainWin::Create</code>.</li>
-                        <li>Implemente <code>UMenuAudioComponent</code> para tocar os mesmos efeitos de clique listados no arquivo
-                            clássico.</li>
-                        <li>No <code>UNetworkBridgeSubsystem</code>, defina a função <code>EnviarLogin</code> serializando a
-                            estrutura <code>PMSG_CONNECT_ACCOUNT_SEND</code> e aguarde <code>JGConnectAccountRecv</code>.</li>
-                        <li>Construa a tela <code>WB_SelecaoPersonagem</code> com <em>ScrollBox</em> exibindo modelos 3D em
-                            <code>LevelSequence</code>, seguindo a ordem do array <code>CharactersClient</code>.</li>
-                        <li>Adicione botões para criar/apagar personagem que chamam eventos no servidor simulando os mesmos códigos
-                            usados em <code>JSProtocol.cpp</code>.</li>
+                        <li><strong>Passo 1 — Pré-aqueça o ambiente:</strong> importe texturas da tela de login e seleção,
+                            separe sons de clique e configure nível <code>LV_Login</code> e <code>LV_Selecao</code> com
+                            iluminação semelhante ao clássico.</li>
+                        <li><strong>Passo 2 — Monte o formulário:</strong> crie <code>WB_Login</code> com campos usuário,
+                            senha, botão Entrar, atalhos para opções e créditos. Adicione mensagens de ajuda para cada campo.</li>
+                        <li><strong>Passo 3 — Ligue à rede:</strong> implemente <code>UNetworkBridgeSubsystem::EnviarLogin</code>
+                            serializando <code>PMSG_CONNECT_ACCOUNT_SEND</code> e trate respostas 0xF1 exibindo pop-ups
+                            idênticos aos do Main.</li>
+                        <li><strong>Passo 4 — Prepare a lista de personagens:</strong> converta
+                            <code>CharacterCreate.txt</code> e <code>DefaultClassType.txt</code> em
+                            <code>DT_ClassTemplates</code> com classe, arma, animações e atributos iniciais.</li>
+                        <li><strong>Passo 5 — Construa o carrossel 3D:</strong> no nível de seleção, crie
+                            <code>BP_PersonagemPreview</code> que instancia <code>SkeletalMesh</code>, arma, partículas e
+                            animação ociosa. Use <em>LevelSequence</em> para rotação contínua.</li>
+                        <li><strong>Passo 6 — Lista navegável:</strong> monte <code>WB_SelecaoPersonagem</code> com
+                            <em>ListView</em> lateral; ao clicar, atualize o carrossel e mostre atributos de
+                            <code>DT_ClassTemplates</code>.</li>
+                        <li><strong>Passo 7 — Criação guiada:</strong> adicione modal <code>WB_CriarPersonagem</code> com
+                            campos nome, classe e aparência. Valide regras de <code>JSProtocol.cpp</code> (tamanho mínimo,
+                            caracteres permitidos) e pré-visualize stats.</li>
+                        <li><strong>Passo 8 — Exclusão segura:</strong> implemente confirmação dupla (senha + checkbox) antes
+                            de enviar <code>JSProtocol::GDCharacterDel</code>, exibindo mensagens traduzidas de
+                            <code>GlobalText.txt</code>.</li>
+                        <li><strong>Passo 9 — Handshake final:</strong> ao escolher personagem, envie 0xF3 subcódigo 0x03,
+                            aguarde 0x1D com mapa e chame <em>OpenLevel</em> para o mundo principal.</li>
+                        <li><strong>Passo 10 — Instancie o personagem jogável:</strong> no <code>GameMode</code>, crie
+                            <code>BP_RemakeCharacter</code> escolhendo <code>SkeletalMesh</code>, animações e armas com base no
+                            template selecionado. Aplique stats iniciais e equipe visualmente.</li>
+                        <li><strong>Passo 11 — Movimentação fiel:</strong> configure <code>CharacterMovementComponent</code>
+                            com velocidades de <code>MoveReq.txt</code> (walk/run) e <em>Acceleration</em> idêntica ao
+                            clássico. Associe animações Idle/Walk/Run e transições em <code>ABP_Remake</code>.</li>
+                        <li><strong>Passo 12 — Rede + câmera:</strong> envie 0xD7 sempre que input mudar; somente após resposta
+                            aplique <code>AddMovementInput</code>. Ajuste câmera terceira pessoa com limites de rotação como em
+                            <code>GameMain.cpp</code>.</li>
+                        <li><strong>Passo 13 — Extras ligados ao personagem:</strong> carregue aparência (skins, asa inicial),
+                            atributos base (Força, Agilidade, Energia), atalhos iniciais e inventário padrão conforme a classe.</li>
+                        <li><strong>Passo 14 — HUD e feedback imediatos:</strong> inicialize <code>WB_HUDMain</code> com barras
+                            de HP/MP/SD, slots rápidos e mini mapa já preenchidos com os dados recebidos em 0x1D. Garanta que o
+                            personagem apareça equipado, com os atributos e atalhos exibidos antes do primeiro movimento.</li>
                     </ol>
-                    <h4>Fluxo Blueprint</h4>
+                    <h4>Cobertura Blueprint & animação</h4>
                     <ol class="blueprint-list">
                         <li>No <code>WB_Login</code>, ligue o botão Entrar ao <em>Custom Event</em> <code>SolicitarLogin</code>
                             &rarr; valide campos com <em>Is Empty</em> &rarr; chame o subsistema.</li>
@@ -1731,14 +1802,14 @@ struct FRemakePacket {
                         <li>Confirme escolha chamando <code>EnviarReqEntrarMundo</code> e, ao receber o pacote de mapa, carregue o
                             nível principal com <em>Open Level (by Name)</em>.</li>
                     </ol>
-                    <h4>Checklist final</h4>
+                    <h4>Teste de forno e apresentação</h4>
                     <ul>
                         <li>Mensagens de erro exibem os mesmos textos que o cliente clássico (versão incorreta, conta bloqueada).</li>
                         <li>A seleção mostra o personagem com rotação contínua até clicar em Entrar.</li>
                         <li>Ao confirmar, o servidor responde com o mesmo pacote ERemakeMessage::WorldSnapshot (legado 0x1D) tratado pelo cliente original.</li>
                     </ul>
                 </article>
-                <article class="recipe-card">
+                <article class="recipe-card" data-recipe="receita-6">
                     <h3>Receita 6 — Barra de habilidades e atalhos</h3>
                     <p class="recipe-intro">Permite arrastar habilidades para teclas rápidas, consumindo mana e respeitando atrasos
                         como no cliente original.</p>
@@ -1782,7 +1853,7 @@ struct FRemakePacket {
                         <li>O servidor valida cada uso antes de causar dano ou efeitos.</li>
                     </ul>
                 </article>
-                <article class="recipe-card">
+                <article class="recipe-card" data-recipe="receita-7">
                     <h3>Receita 7 — NPC Loja e trocas entre jogadores</h3>
                     <p class="recipe-intro">Recria o atendimento de NPCs comerciantes e a janela de trade usando as mesmas verificações de
                         servidor.</p>
@@ -1825,7 +1896,7 @@ struct FRemakePacket {
                         <li>Trocas só finalizam quando os dois jogadores confirmam, replicando a lógica do pacote ERemakeMessage::TradeLock (legado 0x3C).</li>
                     </ul>
                 </article>
-                <article class="recipe-card">
+                <article class="recipe-card" data-recipe="receita-8">
                     <h3>Receita 8 — Diário de missões e recompensas</h3>
                     <p class="recipe-intro">Configura o sistema de quests, diário e recompensas automáticas igual ao cliente clássico.</p>
                     <h4>Copie do projeto original</h4>
@@ -1886,7 +1957,7 @@ struct FRemakePacket {
                         </table>
                     </div>
                 </article>
-                <article class="recipe-card">
+                <article class="recipe-card" data-recipe="receita-9">
                     <h3>Receita 9 — IA de monstros e respawns</h3>
                     <p class="recipe-intro">Constrói respawns, comportamento e sincronização de monstros replicando o servidor.</p>
                     <h4>Copie do projeto original</h4>
@@ -1947,7 +2018,7 @@ struct FRemakePacket {
                         </table>
                     </div>
                 </article>
-                <article class="recipe-card">
+                <article class="recipe-card" data-recipe="receita-10">
                     <h3>Receita 10 — Party, guild e correio social</h3>
                     <p class="recipe-intro">Permite formar grupos, guilds e enviar mensagens internas com a mesma lógica do clássico.</p>
                     <h4>Copie do projeto original</h4>
@@ -2008,7 +2079,7 @@ struct FRemakePacket {
                         </table>
                     </div>
                 </article>
-                <article class="recipe-card">
+                <article class="recipe-card" data-recipe="receita-11">
                     <h3>Receita 11 — Eventos instanciados (Blood Castle, Devil Square)</h3>
                     <p class="recipe-intro">Recria os eventos em instâncias com controles de tempo, objetivos e recompensas.</p>
                     <h4>Copie do projeto original</h4>
@@ -2064,6 +2135,416 @@ struct FRemakePacket {
                                     <td>Recompensas</td>
                                     <td><code>AplicarRecompensaEvento</code></td>
                                     <td><code>Event.cpp</code></td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </article>
+                <article class="recipe-card" data-recipe="receita-12">
+                    <h3>Receita 12 — Sistema de duelo, placar e espectadores</h3>
+                    <p class="recipe-intro">Ativa a arena de duelos com feedback visual, convites, ranking temporário e mensagens do servidor.</p>
+                    <h4>Copie do projeto original</h4>
+                    <ul>
+                        <li><code>Source Main 5.2/source/NewUIDuelWindow.cpp</code> e <code>NewUIDuelWindow.h</code> — layout do placar e lógica de aceitação.</li>
+                        <li><code>Source Main 5.2/source/CDuelMgr.cpp</code> — estados do duelo, lista de espectadores e timers.</li>
+                        <li><code>Source MuServer Update 15/GameServer/GameServer/DuelSystem.cpp</code> — validações, limites de tempo e broadcast.</li>
+                        <li><code>Source Main 5.2/source/ProtocolSend.cpp</code> — pacotes 0xAA (subcódigos 0x01–0x07) usados em cada etapa.</li>
+                    </ul>
+                    <h4>Monte na Unreal</h4>
+                    <ol>
+                        <li>Converta texturas <code>Interface/duel/*.jpg</code> para <code>.png</code> e importe para <code>Content/UI/Duel</code>.</li>
+                        <li>Crie <code>WB_DuelHUD</code> com barras de HP, nomes, contador de vitórias e lista de espectadores em <em>ScrollBox</em>.</li>
+                        <li>Implemente <code>UDuelComponent</code> em C++ contendo estados (<code>Idle</code>, <code>Requesting</code>, <code>Fighting</code>, <code>Result</code>) e replicando dados.</li>
+                        <li>No <code>UNetworkBridgeSubsystem</code>, serialize requisições/respostas de duelo copiando estruturas <code>PMSG_DUEL_*</code> e valide com logs do servidor.</li>
+                        <li>Adicione animação de brilho (azul/vermelho) usando <em>UMG Animations</em> + <em>Material Instances</em> quando um ponto é marcado.</li>
+                    </ol>
+                    <h4>Fluxo Blueprint</h4>
+                    <ol class="blueprint-list">
+                        <li>No <code>WB_DuelHUD</code>, crie eventos <code>AtualizarPlacar</code> e <code>AtualizarEspectadores</code> disparados pelo componente.</li>
+                        <li>Use <em>Timeline</em> para animar o cronômetro (escala radial) e <em>Play Animation</em> quando um jogador vence.</li>
+                        <li>No <code>BP_PlayerController</code>, capture interação “Solicitar Duelo” e chame <code>UDuelComponent::SolicitarDuelo</code>.</li>
+                        <li>Quando o servidor enviar “DuelStart”, faça <code>Show Mouse Cursor = false</code>, bloqueie inventário e exiba o HUD.</li>
+                        <li>Ao terminar, toque sons de vitória/derrota reutilizando <code>DSPlaySound</code> convertidos para <code>.wav</code>.</li>
+                    </ol>
+                    <h4>Checklist final</h4>
+                    <ul>
+                        <li>Solicitar duelo dispara pop-up para o alvo com opções Aceitar/Recusar e timer regressivo.</li>
+                        <li>Placar, cronômetro e espectadores atualizam instantaneamente conforme os pacotes 0xAA recebidos.</li>
+                        <li>Logs do GameServer mostram <code>[Duel] Start</code>/<code>[Duel] End</code> sincronizados com a UI.</li>
+                    </ul>
+                </article>
+                <article class="recipe-card" data-recipe="receita-13">
+                    <h3>Receita 13 — Empire Guardian com waves e HUD</h3>
+                    <p class="recipe-intro">Constrói lobby, instância e painel de progresso do evento cooperativo Imperial Guardian.</p>
+                    <h4>Copie do projeto original</h4>
+                    <ul>
+                        <li><code>Source Main 5.2/source/NewUIEmpireGuardianNPC.cpp</code> e <code>NewUIEmpireGuardianResult.cpp</code> — lobby, HUD e mensagens.</li>
+                        <li><code>Source MuServer Update 15/GameServer/GameServer/ImperialGuardian.cpp</code> — fases, portais e timers.</li>
+                        <li>Arquivos <code>Data/Event/ImperialGuardian.txt</code> e texturas em <code>Interface/EmpireGuardian</code>.</li>
+                    </ul>
+                    <h4>Monte na Unreal</h4>
+                    <ol>
+                        <li>Modele <code>WB_EmpireGuardianLobby</code> com slots de party, requisitos de nível e contador de tempo.</li>
+                        <li>Crie nível instanciado <code>LV_EmpireGuardian</code> com <code>LevelInstance</code> para cada wave (1–4) e portais animados.</li>
+                        <li>Implemente <code>AEmpireGuardianManager</code> que consome tabelas <code>DT_EmpireGuardianWaves</code> (convertidas do arquivo .txt) e ativa Level Streaming.</li>
+                        <li>Construa <code>WB_EmpireGuardianHUD</code> com barras de progresso, contagem de monstros restantes e objetivo atual.</li>
+                        <li>Adicione efeitos Niagara para abertura de portais e <em>Spotlights</em> dinâmicos sincronizados com os timers.</li>
+                    </ol>
+                    <h4>Fluxo Blueprint</h4>
+                    <ol class="blueprint-list">
+                        <li>No <code>AEmpireGuardianManager</code>, use <em>OnRep_CurrentWave</em> para atualizar HUD e spawnar inimigos.</li>
+                        <li>Ao receber pacote 0xF7:0x10, abra o lobby; quando 0xF7:0x11 chegar, carregue a instância via <em>Open Level</em>.</li>
+                        <li>Para cada wave concluída, dispare <em>Multicast</em> com efeito Niagara e mensagem usando textos originais.</li>
+                        <li>Ao finalizar, toque cutscene curta com <em>Level Sequence</em> e exiba <code>WB_EmpireGuardianResult</code>.</li>
+                        <li>Registre logs em arquivo local <code>Saved/Logs/empire_guardian.log</code> comparando com o servidor.</li>
+                    </ol>
+                    <h4>Checklist final</h4>
+                    <ul>
+                        <li>Lobby bloqueia jogadores sem requisitos e fecha quando o timer expira.</li>
+                        <li>Portais e HUD atualizam a cada wave exatamente como o cliente clássico.</li>
+                        <li>Recompensas são atribuídas após o pacote 0xF7:0x12 e aparecem na tela de resultado.</li>
+                    </ul>
+                </article>
+                <article class="recipe-card" data-recipe="receita-14">
+                    <h3>Receita 14 — Cursed Temple com equipes Holy/Illusion</h3>
+                    <p class="recipe-intro">Recria o modo competitivo com minimapa dedicado, placar por equipe e feed de kills.</p>
+                    <h4>Copie do projeto original</h4>
+                    <ul>
+                        <li><code>Source Main 5.2/source/CNewUICursedTempleSystem.cpp</code> e <code>NewUICursedTempleWindow.cpp</code>.</li>
+                        <li><code>Source MuServer Update 15/GameServer/GameServer/CursedTempleEvent.cpp</code> — regras de pontuação.</li>
+                        <li>Texturas em <code>Interface/CursedTemple</code> e scripts <code>Data/Event/CursedTemple.txt</code>.</li>
+                    </ul>
+                    <h4>Monte na Unreal</h4>
+                    <ol>
+                        <li>Crie <code>WB_CursedTempleHUD</code> com indicadores de pontos, barra de energia da relíquia e ícones dos líderes.</li>
+                        <li>Implemente <code>UCursedTempleComponent</code> replicando estrutura do pacote 0xF8 (match info) e registrando kills.</li>
+                        <li>Monte minimapa circular com <code>SceneCapture2D</code> e <em>Material</em> que destaca santuários ocupados.</li>
+                        <li>Adicione <code>ACursedTempleObjective</code> que dispara efeitos Niagara quando capturado.</li>
+                        <li>Construa tabela <code>DT_CursedRewards</code> com recompensas e bonificações usando dados do arquivo .txt.</li>
+                    </ol>
+                    <h4>Fluxo Blueprint</h4>
+                    <ol class="blueprint-list">
+                        <li>No <code>UCursedTempleComponent</code>, use <em>OnRep_MatchState</em> para alternar widgets Preparação/Combate/Resultado.</li>
+                        <li>Atualize feed de kills com <em>AddChildToVerticalBox</em> e efeitos sonoros importados do cliente.</li>
+                        <li>Ao capturar objetivo, chame <code>Multicast_PlayCaptureFX</code> e ajuste placar usando dados do servidor.</li>
+                        <li>Quando restarem 30 segundos, toque animação de alerta utilizando <em>Widget Animation</em>.</li>
+                        <li>Finalize exibindo <code>WB_CursedTempleSummary</code> com ranking individual e recompensas.</li>
+                    </ol>
+                    <h4>Checklist final</h4>
+                    <ul>
+                        <li>Pontuação e mensagens coincidem com os logs do GameServer.</li>
+                        <li>Feed de kills exibe nome, classe e ícone conforme o cliente clássico.</li>
+                        <li>Time vencedor recebe bônus aplicados pelo servidor (exp/zen) e visual highlight na HUD.</li>
+                    </ul>
+                </article>
+                <article class="recipe-card" data-recipe="receita-15">
+                    <h3>Receita 15 — Doppelganger com linha do tempo e cinematics</h3>
+                    <p class="recipe-intro">Implementa o evento Doppelganger com lobby, portais sincronizados e cutscenes.</p>
+                    <h4>Copie do projeto original</h4>
+                    <ul>
+                        <li><code>Source Main 5.2/source/NewUIDoppelGangerWindow.cpp</code> e <code>DoppelGangerInfo.cpp</code>.</li>
+                        <li><code>Source MuServer Update 15/GameServer/GameServer/Doppelganger.cpp</code> — fases e spawn da estátua.</li>
+                        <li>Arquivos <code>Data/Event/DoppelGanger/*.txt</code> e texturas em <code>Interface/DoppelGanger</code>.</li>
+                    </ul>
+                    <h4>Monte na Unreal</h4>
+                    <ol>
+                        <li>Crie <code>WB_DoppelLobby</code> com slots de party, requisitos de nível e custo de convite.</li>
+                        <li>Implemente <code>ADoppelgangerDirector</code> que controla transições de fase (Pré-entrada, Defesa, Batalha Final) usando <code>Timeline</code>.</li>
+                        <li>Construa HUD <code>WB_DoppelHUD</code> com barra de tempo, estado da estátua e lista de mobs restantes.</li>
+                        <li>Configure cutscene inicial/final com <em>Level Sequence</em> e triggers enviados pelo GameServer.</li>
+                        <li>Adicione efeitos roxos/escuros usando Niagara reaproveitando texturas do cliente.</li>
+                    </ol>
+                    <h4>Fluxo Blueprint</h4>
+                    <ol class="blueprint-list">
+                        <li>Ao receber pacote 0xF7:0x30, abra o lobby e inicie contagem regressiva.</li>
+                        <li>Quando a partida iniciar, <em>Open Level</em> e execute <code>ADoppelgangerDirector::StartMatch</code> (replicado).</li>
+                        <li>Use <em>Multicast</em> para disparar cutscenes e efeitos quando a estátua sofrer dano.</li>
+                        <li>Atualize HUD a cada pacote 0xF7:0x34 (tempo) e 0xF7:0x36 (spawn de mobs).</li>
+                        <li>Ao finalizar, toque cutscene final, distribua recompensas e retorne jogadores via <code>ServerTravel</code>.</li>
+                    </ol>
+                    <h4>Checklist final</h4>
+                    <ul>
+                        <li>Lobby bloqueia jogadores fora do horário ou sem convite.</li>
+                        <li>Cutscenes e efeitos reproduzem sincronizados para todos os participantes.</li>
+                        <li>Recompensas correspondem aos valores definidos em <code>Doppelganger.cpp</code>.</li>
+                    </ul>
+                </article>
+                <article class="recipe-card" data-recipe="receita-16">
+                    <h3>Receita 16 — Economia Lucky Coin &amp; Lucky Item</h3>
+                    <p class="recipe-intro">Implementa troca de moedas, roleta de itens e feedback visual dourado.</p>
+                    <h4>Copie do projeto original</h4>
+                    <ul>
+                        <li><code>Source Main 5.2/source/NewUIExchangeLuckyCoin.cpp</code> e <code>NewUILuckyItemWnd.cpp</code>.</li>
+                        <li><code>Source MuServer Update 15/GameServer/GameServer/LuckyCoinSystem.cpp</code> e <code>ItemAddOption.cpp</code>.</li>
+                        <li>Arquivos <code>Data/LuckyItemOption.txt</code>, <code>Data/Item.txt</code> e texturas <code>Interface/LuckyCoin</code>.</li>
+                    </ul>
+                    <h4>Monte na Unreal</h4>
+                    <ol>
+                        <li>Converta <code>LuckyItemOption.txt</code> para <code>DT_LuckyRewards</code> (CSV &rarr; Data Table) com categorias, custos e bônus.</li>
+                        <li>Crie <code>WB_LuckyExchange</code> com abas Trocar, Comprar e Histórico. Utilize <em>Widget Switcher</em> para alternar.</li>
+                        <li>Implemente <code>ULuckyEconomyComponent</code> com saldo replicado, fila de requisições e integração com DataServer.</li>
+                        <li>Adicione roleta visual usando <em>Widget Animation</em> + <em>Dynamic Material Instance</em> para brilho dourado.</li>
+                        <li>Registre transações em <code>Saved/Logs/lucky_coin.csv</code> para auditoria educativa.</li>
+                    </ol>
+                    <h4>Fluxo Blueprint</h4>
+                    <ol class="blueprint-list">
+                        <li>No <code>WB_LuckyExchange</code>, conecte botões aos eventos <code>SolicitarTroca</code>/<code>SolicitarResgate</code>.</li>
+                        <li>Mostre animação de roleta enquanto aguarda resposta do servidor (pacote 0xF3:0x03).</li>
+                        <li>Ao receber resultado, atualize saldo, aplique item no inventário e toque som reutilizado do cliente.</li>
+                        <li>Permita consultar histórico carregando dados salvos localmente em <em>Data Table</em> auxiliar.</li>
+                        <li>Implemente mensagens de erro baseadas nas strings originais (saldo insuficiente, limite diário).</li>
+                    </ol>
+                    <h4>Checklist final</h4>
+                    <ul>
+                        <li>Saldo sincroniza com DataServer sem divergências.</li>
+                        <li>Animações e brilho aparecem com a mesma intensidade do cliente clássico.</li>
+                        <li>Log registra todas as operações com timestamp e resultado.</li>
+                    </ul>
+                </article>
+                <article class="recipe-card" data-recipe="receita-17">
+                    <h3>Receita 17 — Refinaria Jewel of Harmony</h3>
+                    <p class="recipe-intro">Permite aplicar e remover opções Harmony com efeitos visuais idênticos.</p>
+                    <h4>Copie do projeto original</h4>
+                    <ul>
+                        <li><code>Source Main 5.2/source/UIJewelHarmony.cpp</code> — interface e regras de composição.</li>
+                        <li><code>Source MuServer Update 15/GameServer/GameServer/JewelOfHarmonySystem.cpp</code> — cálculos e respostas.</li>
+                        <li>Arquivos <code>Data/JewelOfHarmonyOption.bmd</code> e <code>Data/JewelOfHarmonyMix.bmd</code>.</li>
+                    </ul>
+                    <h4>Monte na Unreal</h4>
+                    <ol>
+                        <li>Converta <code>.bmd</code> para JSON com o utilitário <code>BMD_FBX</code> ou scripts fornecidos e gere <code>DT_HarmonyOptions</code>.</li>
+                        <li>Crie <code>WB_HarmonyForge</code> com slots para item base, Jewel of Harmony, Jewel of Harmony Smelt e botões Aplicar/Remover.</li>
+                        <li>Implemente <code>UHarmonyForgeComponent</code> validando requisitos e enviando pacotes 0xF3:0x50/0x51.</li>
+                        <li>Adicione efeito visual com material emissivo azul/roxo aplicado ao item na vitrine, sincronizado com <em>Timeline</em>.</li>
+                        <li>Mostre pré-visualização dos atributos usando dados da Data Table antes de confirmar.</li>
+                    </ol>
+                    <h4>Fluxo Blueprint</h4>
+                    <ol class="blueprint-list">
+                        <li>No <code>WB_HarmonyForge</code>, reaja a <code>OnItemDropped</code> preenchendo slots e atualizando descrições.</li>
+                        <li>Bloqueie botão Aplicar se requisitos não forem atendidos (nível do item, tipo permitido) replicando validações do cliente clássico.</li>
+                        <li>Quando receber resposta positiva, atualize item no inventário e reproduza animação de partículas.</li>
+                        <li>Em caso de falha, toque som de erro e mostre mensagem derivada do <code>GlobalText</code>.</li>
+                        <li>Registre alterações no diário (arquivo <code>Saved/Logs/harmony.log</code>) para auditoria.</li>
+                    </ol>
+                    <h4>Checklist final</h4>
+                    <ul>
+                        <li>Opções exibidas na UI combinam com os valores convertidos dos arquivos <code>.bmd</code>.</li>
+                        <li>Pacotes enviados/recebidos correspondem aos logs do GameServer sem divergências.</li>
+                        <li>Efeitos de brilho e partículas replicam o visual azul característico do cliente clássico.</li>
+                    </ul>
+                </article>
+                <article class="recipe-card" data-recipe="receita-18">
+                    <h3>Receita 18 — Chaos Castle completo</h3>
+                    <p class="recipe-intro">Transforma o blueprint do evento em um modo jogável com armadilhas, HUD e ranking.</p>
+                    <h4>Copie do projeto original</h4>
+                    <ul>
+                        <li><code>Source Main 5.2/source/NewUIChaosCastle.cpp</code> — lógica de UI, timers e indicações visuais.</li>
+                        <li><code>Source MuServer Update 15/GameServer/GameServer/ChaosCastle.cpp</code> — estados (StandBy, Playing, End) e armadilhas.</li>
+                        <li>Arquivos <code>Data/Event/ChaosCastleSetting.txt</code>, <code>Data/Item/ChaosCastleReward.txt</code>.</li>
+                    </ul>
+                    <h4>Monte na Unreal</h4>
+                    <ol>
+                        <li>Crie o nível <code>LV_ChaosCastle</code> replicando plataformas e zonas de queda com <em>Destructible Meshes</em>.</li>
+                        <li>Implemente <code>AChaosCastleDirector</code> que consulta <code>DT_ChaosCastleConfig</code> (derivado dos <code>.txt</code>) e controla fases, armadilhas e tempo.</li>
+                        <li>Monte <code>WB_ChaosCastleHUD</code> com contadores de sobreviventes, ranking em tempo real e avisos de armadilha.</li>
+                        <li>Sincronize com o servidor enviando 0x95 (entrada), 0x95:0x03 (status) e recebendo 0xB0 (pontuação).</li>
+                        <li>Registre resultado semanal escrevendo CSV educativo em <code>Saved/Logs/chaos_castle.csv</code> antes de entregar recompensas.</li>
+                    </ol>
+                    <h4>Fluxo Blueprint</h4>
+                    <ol class="blueprint-list">
+                        <li>No <code>AChaosCastleDirector</code>, use <em>Event BeginPlay</em> &rarr; <em>Load Data Table Row</em> &rarr; configurar timers para StandBy &rarr; Playing &rarr; End.</li>
+                        <li>Quando um jogador cair, detecte com <em>OnComponentEndOverlap</em> e notifique o servidor via <code>ServerReportElimination</code>.</li>
+                        <li>Atualize o HUD usando <em>Event Dispatcher</em> disparado ao receber pacotes 0x95:0x06 com contagem de sobreviventes.</li>
+                        <li>Ative armadilhas com <em>Timeline</em> acionando <code>Enable Collision</code> em volumes configurados no Data Table.</li>
+                        <li>Ao finalizar, toque <em>Level Sequence</em> de encerramento, distribua recompensas e retorne jogadores usando <code>ServerTravel</code>.</li>
+                    </ol>
+                    <h4>Checklist final</h4>
+                    <ul>
+                        <li>Timers e mensagens coincidem com os mostrados no cliente clássico.</li>
+                        <li>Recompensas são atribuídas conforme posição e tabela de <code>ChaosCastleReward.txt</code>.</li>
+                        <li>Ranking semanal reinicia automaticamente conforme configurado.</li>
+                    </ul>
+                </article>
+                <article class="recipe-card" data-recipe="receita-19">
+                    <h3>Receita 19 — Facções Gens Vanert/Dupren</h3>
+                    <p class="recipe-intro">Entrega facções, missões diárias e buffs de rank integrados ao servidor.</p>
+                    <h4>Copie do projeto original</h4>
+                    <ul>
+                        <li><code>Source Main 5.2/source/NewUIGensWindow.cpp</code> e <code>NewUIGensRanking.cpp</code>.</li>
+                        <li><code>Source MuServer Update 15/GameServer/GameServer/GensSystem.cpp</code> — regras de contribuição, buffs e recompensas.</li>
+                        <li>Arquivos <code>Data/GensSystem.txt</code>, <code>Data/Quest/GensQuest.txt</code>, <code>Data/Local/GensText.txt</code>.</li>
+                    </ul>
+                    <h4>Monte na Unreal</h4>
+                    <ol>
+                        <li>Crie Widgets <code>WB_GensLobby</code>, <code>WB_GensRanking</code>, <code>WB_GensQuestCard</code> respeitando layout e ícones originais.</li>
+                        <li>Implemente <code>UGensFactionComponent</code> no <code>PlayerState</code> para armazenar facção, pontos, rank e buffs ativos.</li>
+                        <li>Converta as tabelas <code>.txt</code> para <code>DT_GensRewards</code>, <code>DT_GensQuests</code> e <code>DT_GensBuffs</code> com chaves idênticas às do servidor.</li>
+                        <li>Sincronize pacotes 0xF8 subcódigos 0x03 (atualização de pontos) e 0x04 (ranking) disparando eventos visuais no HUD.</li>
+                        <li>Implemente buffs aplicando <code>GameplayEffects</code> conforme rank retornado pelo servidor, exibindo aura Niagara correspondente.</li>
+                    </ol>
+                    <h4>Fluxo Blueprint</h4>
+                    <ol class="blueprint-list">
+                        <li>No <code>WB_GensLobby</code>, conecte botões “Entrar Vanert/Dupren” a chamadas <code>SolicitarInscricao</code> que enviam 0xF8:0x00.</li>
+                        <li>Atualize a lista de missões preenchendo <code>ListView</code> com dados da Data Table e marcando concluídas ao receber 0xF8:0x05.</li>
+                        <li>Mostre rank atual em <code>WB_GensRanking</code> com <em>Sort Custom</em> usando a pontuação recebida.</li>
+                        <li>Ao aplicar buff, chame <em>Apply Gameplay Effect to Self</em> com os valores carregados de <code>DT_GensBuffs</code>.</li>
+                        <li>Agende reset semanal com <em>Timer by Event</em> lendo configuração <code>ResetDay</code> no Data Table.</li>
+                    </ol>
+                    <h4>Checklist final</h4>
+                    <ul>
+                        <li>Ingressar ou sair de uma facção reflete imediatamente no HUD e nas habilidades.</li>
+                        <li>Missões e pontos diários batem com os registros do servidor.</li>
+                        <li>Buffs corretos são aplicados/removidos em cada faixa de rank.</li>
+                    </ul>
+                </article>
+                <article class="recipe-card" data-recipe="receita-20">
+                    <h3>Receita 20 — Cash Shop e entrega de itens</h3>
+                    <p class="recipe-intro">Porta o XShop com catálogo dinâmico, carrinho e integração com inventário/banco.</p>
+                    <h4>Copie do projeto original</h4>
+                    <ul>
+                        <li><code>Source Main 5.2/source/NewUIInGameShop.cpp</code>, <code>NewUIInGameShop.h</code> e recursos em <code>Interface/XShop</code>.</li>
+                        <li><code>Source MuServer Update 15/GameServer/GameServer/CashShop.cpp</code>, <code>CashShopDBSet.cpp</code> e <code>CashShopSocket.cpp</code>.</li>
+                        <li>Arquivos <code>Data/ShopItemList.txt</code>, <code>Data/CashShopPackage.txt</code>, <code>Data/CashItemList.txt</code>.</li>
+                    </ul>
+                    <h4>Monte na Unreal</h4>
+                    <ol>
+                        <li>Construa <code>WB_CashShop</code> com abas, vitrine <code>TileView</code> e painel de detalhes com pré-visualização do item.</li>
+                        <li>Implemente <code>UCashShopComponent</code> gerenciando saldo (WCoin, GoblinPoint), carrinho e pedidos pendentes.</li>
+                        <li>Converta tabelas do XShop em <code>DT_CashCatalog</code> e <code>DT_CashPackages</code>, incluindo caminhos das texturas originais.</li>
+                        <li>Ao confirmar compra, envie pacote 0xD2 com itens do carrinho; processe resposta 0xD3 atualizando saldo e disparando feedback visual.</li>
+                        <li>Implemente caixa de presentes <code>WB_CashMailbox</code> que lista entregas (pacote 0xD6) e permite resgatar direto para o inventário.</li>
+                    </ol>
+                    <h4>Fluxo Blueprint</h4>
+                    <ol class="blueprint-list">
+                        <li>No <code>WB_CashShop</code>, use <em>Event Construct</em> para carregar Data Table e preencher abas com <em>Filter by Tag</em>.</li>
+                        <li>Adicione animação de destaque quando um item for adicionado ao carrinho e reproduza áudio importado do cliente clássico.</li>
+                        <li>Implemente confirmação com <em>Modal</em> exibindo custos e saldo restante antes de enviar o pacote 0xD2.</li>
+                        <li>Ao receber 0xD3, atualize saldo e chame <code>AtualizarHUDMoedasPremium</code> no HUD principal.</li>
+                        <li>Quando o jogador abrir o baú de presentes, chame <code>SolicitarEntrega</code> enviando 0xD6:0x02 para mover item ao inventário.</li>
+                    </ol>
+                    <h4>Checklist final</h4>
+                    <ul>
+                        <li>Catalogo reflete descrições, ícones e preços originais.</li>
+                        <li>Compras atualizam saldo e entregam itens sem inconsistências.</li>
+                        <li>Logs registram todas as transações para auditoria educativa.</li>
+                    </ul>
+                </article>
+                <article class="recipe-card" data-recipe="receita-21">
+                    <h3>Receita 21 — Interfaces completas 1:1 (todas as janelas)</h3>
+                    <p class="recipe-intro">Uma receita de bolo para reconstruir <strong>todas</strong> as janelas do
+                        <em>NewUI</em>: NPCs, eventos, opções, mensagens, guilda, comércio e alertas exatamente como o cliente
+                        clássico, com texturas originais e integração de rede.</p>
+                    <h4>Ingredientes do clássico</h4>
+                    <ul>
+                        <li><code>Source Main 5.2/source/NewUIManager.cpp</code> — registra janelas, atalhos e dependências
+                            globais do <em>NewUI</em>.</li>
+                        <li><code>Source Main 5.2/source/NewUICommonMessageBox.cpp</code>,
+                            <code>NewUIOptionWindow.cpp</code>, <code>NewUIInventoryCtrl.cpp</code>,
+                            <code>NewUITrade.cpp</code>, <code>NewUIGuildWindow.cpp</code>,
+                            <code>NewUIPartyWindow.cpp</code>, <code>NewUIQuestProgress.cpp</code>, <code>NewUIEvent.cpp</code>
+                            e todos os arquivos <code>source/NewUI*</code>.</li>
+                        <li><code>Source Main 5.2/source/UIControls.h</code> e <code>NewUIButton.cpp</code> — comportamento
+                            de botões, abas e atalhos especiais (CTRL, ALT, SHIFT).</li>
+                        <li>Pastas <code>Data/Interface</code>, <code>Data/Interface/Custom</code>,
+                            <code>Data/Mark</code>, <code>Data/WorldInterface</code> e sons em <code>Data/Sounds</code>.</li>
+                        <li>Arquivos de texto <code>Data/Local/GlobalText.txt</code>, <code>MsgBox.txt</code>,
+                            <code>ToolTip.txt</code> e <code>EventMsg.txt</code> para legendas e mensagens.</li>
+                        <li><code>Source MuServer Update 15/GameServer/GameServer/Protocol.cpp</code>,
+                            <code>ItemMove.cpp</code> e <code>DataServerProtocol.cpp</code> — subcódigos de cada janela
+                            (trade, guild, cash shop, personal store, eventos, opções).</li>
+                    </ul>
+                    <h4>Modo de preparo na Unreal (passos detalhados)</h4>
+                    <ol>
+                        <li><strong>Passo 1 — Mise en place dos assets:</strong> use o conversor BMD/FBX para transformar as
+                            texturas da pasta <code>Data/Interface</code>, ícones de <code>Data/Mark</code> e molduras em PNG.
+                            Importe para <code>Content/UI/Legacy</code> mantendo subpastas por janela.</li>
+                        <li><strong>Passo 2 — Defina a base:</strong> crie o módulo/folder <code>UIFramework</code> contendo
+                            <code>UWindowRegistry</code>, <code>UUIAudioLibrary</code> e material padrão de borda replicando
+                            <code>newui_frame_*</code>.</li>
+                        <li><strong>Passo 3 — Widget mestre:</strong> implemente <code>WB_WindowBase</code> com molduras,
+                            barra de título, botões fechar/minimizar, atalhos (ESC, Enter) e eventos <code>OnAbrir</code>,
+                            <code>OnFechar</code>, <code>OnSolicitarPacote</code>.</li>
+                        <li><strong>Passo 4 — Cadastro das janelas:</strong> no <code>UWindowRegistry</code>, registre cada
+                            janela (Inventário, Personagem, Guilda, Trade, Quest, Eventos, Cash Shop, Opções, Mensagens,
+                            Duelo, Mini-mapa) com classe do widget, textura base, sons, atalhos e pacotes necessários.</li>
+                        <li><strong>Passo 5 — Widgets especializados:</strong> crie derivados de <code>WB_WindowBase</code>
+                            como <code>WB_InventoryWindow</code>, <code>WB_CharacterWindow</code>, <code>WB_QuestJournal</code>,
+                            <code>WB_NpcShop</code>, <code>WB_GuildPanel</code>, <code>WB_PartySearch</code>,
+                            <code>WB_EventBoard</code>, <code>WB_MessageBox</code>, <code>WB_OptionsWindow</code> e
+                            <code>WB_PersonalStore</code>.</li>
+                        <li><strong>Passo 6 — Componentes reutilizáveis:</strong> construa <code>WB_TabButton</code>,
+                            <code>WB_ListHeader</code>, <code>WB_ItemSlot</code> e <code>WB_AmountSpinner</code> replicando os
+                            controles descritos em <code>UIControls.h</code>.</li>
+                        <li><strong>Passo 7 — Sons e feedback:</strong> preencha <code>UUIAudioLibrary</code> com os cliques e
+                            alertas originais. Garanta que cada janela registre qual som usar ao abrir, confirmar e fechar.</li>
+                        <li><strong>Passo 8 — Roteador central:</strong> implemente <code>UIRouterComponent</code> no
+                            <code>PlayerController</code> para abrir/fechar janelas via <code>UWindowRegistry</code>, evitar
+                            sobreposição, controlar foco e emitir eventos globais.</li>
+                        <li><strong>Passo 9 — Textos e tooltips:</strong> converta <code>GlobalText.txt</code>,
+                            <code>MsgBox.txt</code>, <code>ToolTip.txt</code> e <code>EventMsg.txt</code> em Data Tables;
+                            crie função <code>GetTextoGlobal</code> e use <em>Bindings</em> para preencher rótulos, botões e
+                            mensagens automaticamente.</li>
+                        <li><strong>Passo 10 — Integração de rede:</strong> conecte cada janela aos pacotes equivalentes
+                            (<code>0x3F/0x3C</code> trade, <code>0x6D</code> guild, <code>0x2F</code> quest, <code>0xF6</code>
+                            eventos, <code>0xD2</code> cash shop). Use <code>UNetworkBridgeSubsystem</code> para atualizar UI
+                            quando respostas chegarem.</li>
+                        <li><strong>Passo 11 — Persistência local:</strong> para janelas com configurações (Options, Interface,
+                            atalhos), salve valores em <code>SaveGame</code> e replique comportamento de <code>NewUIOption</code>.</li>
+                        <li><strong>Passo 12 — Documentação visual:</strong> adicione comentários e capturas no Designer
+                            indicando qual arquivo original inspirou cada widget, ajudando iniciantes a revisar depois.</li>
+                    </ol>
+                    <h4>Cobertura Blueprint & automações</h4>
+                    <ol class="blueprint-list">
+                        <li>No <code>PlayerController</code>, configure <em>InputAction</em> (I, C, V, G, P, O, K, B)
+                            chamando <code>UIRouterComponent-&gt;AlternarJanela</code> com a chave cadastrada no
+                            <code>UWindowRegistry</code>.</li>
+                        <li>Dentro do <code>WB_WindowBase</code>, associe o botão fechar ao evento <code>OnFechar</code>,
+                            reproduza áudio da <code>UUIAudioLibrary</code> e chame
+                            <code>UIRouterComponent-&gt;FecharJanela</code> para manter o estado sincronizado.</li>
+                        <li>Crie <code>WB_WindowAnimator</code> (Blueprint Function Library) com funções
+                            <code>AbrirComFade</code> e <code>FecharComSlide</code> usando <em>Timeline</em> para replicar o
+                            movimento suave do cliente clássico.</li>
+                        <li>Para janelas com abas (Guilda, Quest, Eventos), utilize <em>Widget Switcher</em> preenchido com
+                            dados da Data Table e destaque a aba ativa alterando material da borda.</li>
+                        <li>Implemente <code>WB_GlobalOverlay</code> que recebe notificações do <code>UIRouter</code> e exibe
+                            balões, tooltips e mensagens de sistema (trade, convite de party, alertas de evento).</li>
+                        <li>Adicione <code>UIAutomationComponent</code> que percorre janelas registradas, valida widgets
+                            obrigatórios e registra no log itens ausentes para alunos corrigirem.</li>
+                    </ol>
+                    <h4>Teste de forno e apresentação</h4>
+                    <ul>
+                        <li>Todos os atalhos abrem a janela correta com textura e som originais, e o <code>UIRouter</code>
+                            impede janelas duplicadas.</li>
+                        <li>Textos e tooltips são carregados das Data Tables sem strings vazias ou fora do idioma.</li>
+                        <li>Pacotes de rede atualizam conteúdo imediatamente (trade, guild, quest, cash shop) e registram logs
+                            para auditoria didática.</li>
+                        <li>Fechar e reabrir qualquer janela preserva posição, abas e animações de entrada/saída.</li>
+                    </ul>
+                    <div class="recipe-mapping">
+                        <h4>Arquivos de referência</h4>
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Elemento</th>
+                                    <th>Unreal</th>
+                                    <th>Original</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td>Registro de janelas</td>
+                                    <td><code>UWindowRegistry</code> + <code>UIRouterComponent</code></td>
+                                    <td><code>NewUIManager::CreateInterface</code></td>
+                                </tr>
+                                <tr>
+                                    <td>Layout padrão</td>
+                                    <td><code>WB_WindowBase</code> + materiais legados</td>
+                                    <td><code>NewUICommonMessageBox::Create</code></td>
+                                </tr>
+                                <tr>
+                                    <td>Textos e tooltips</td>
+                                    <td><code>Data Table GlobalText</code></td>
+                                    <td><code>GlobalText.txt</code></td>
                                 </tr>
                             </tbody>
                         </table>
@@ -2176,6 +2657,138 @@ struct FRemakePacket {
                     </ul>
                 </article>
                 <article class="atlas-card">
+                    <h3>Duelo 1x1 &amp; Arena</h3>
+                    <p><strong>Objetivo:</strong> recriar o sistema de duelos, placar em tempo real e lista de espectadores.</p>
+                    <h4>Arquivos clássicos</h4>
+                    <ul>
+                        <li><code>Source Main 5.2/source/NewUIDuelWindow.cpp</code>, <code>NewUIDuelWindow.h</code> e <code>CDuelMgr.cpp</code>.</li>
+                        <li><code>Source Main 5.2/source/ProtocolSend.cpp</code> &mdash; funções <code>SendDuelRequest</code>, <code>SendDuelAnswer</code>, <code>SendDuelQuit</code>.</li>
+                        <li><code>Source MuServer Update 15/GameServer/GameServer/DuelSystem.cpp</code> e <code>DuelSystem.h</code>.</li>
+                    </ul>
+                    <h4>Na Unreal</h4>
+                    <ol class="atlas-steps">
+                        <li>Crie <code>WB_DuelHUD</code> com barras de HP dos dois jogadores, cronômetro e lista de espectadores usando dados de <code>CDuelMgr::m_mapDuelUser</code>.</li>
+                        <li>Implemente <code>UDuelComponent</code> (Actor Component) no personagem, expondo eventos <code>SolicitarDuel</code>, <code>ResponderDuel</code> e <code>AtualizarPlacar</code>.</li>
+                        <li>Na camada de rede, serialize pacotes 0xAA subcódigos 0x01–0x07 espelhando <code>ProtocolSend::SendDuel*</code> e valide respostas com <code>DuelSystem::GDuelRequestRecv</code>.</li>
+                        <li>Para o visual, importe texturas <code>Interface\\newui_duel*.jpg</code> e utilize <em>UMG Progress Bars</em> com cores originais.</li>
+                    </ol>
+                    <h4>Checklist</h4>
+                    <ul>
+                        <li>Solicitar duelo abre janela modal com tempos idênticos ao clássico.</li>
+                        <li>O placar pisca em vermelho quando um jogador atinge zero HP e o GameServer encerra a sessão corretamente.</li>
+                    </ul>
+                </article>
+                <article class="atlas-card">
+                    <h3>Empire Guardian (Imperial Guardian)</h3>
+                    <p><strong>Objetivo:</strong> suportar filas, HUD progressiva e fechamento automático das waves cooperativas.</p>
+                    <h4>Arquivos clássicos</h4>
+                    <ul>
+                        <li><code>Source Main 5.2/source/NewUIEmpireGuardianNPC.cpp</code> e <code>NewUIEmpireGuardianResult.cpp</code>.</li>
+                        <li><code>Source Main 5.2/Global Release/Data/Interface/EmpireGuardian</code> &mdash; molduras e ícones.</li>
+                        <li><code>Source MuServer Update 15/GameServer/GameServer/ImperialGuardian.cpp</code> e <code>ImperialGuardian.h</code>.</li>
+                    </ul>
+                    <h4>Na Unreal</h4>
+                    <ol class="atlas-steps">
+                        <li>Crie <code>WB_EmpireGuardianLobby</code> com slots de party e cronômetro usando dados do pacote 0xF7 subcódigo 0x10.</li>
+                        <li>Implemente <code>AEmpireGuardianManager</code> que ativa <code>LevelStream</code> por wave, posiciona portais e aplica restrições de tempo conforme <code>ImperialGuardian.cpp</code>.</li>
+                        <li>Construa HUD in-game <code>WB_EmpireGuardianHUD</code> exibindo etapa atual, contagem de monstros e objetivos convertendo textos de <code>GlobalText.lua</code>.</li>
+                        <li>Reproduza efeitos luminosos das portas com <em>Niagara</em> reaproveitando texturas <code>Effects\\glow_guardian.tga</code>.</li>
+                    </ol>
+                    <h4>Checklist</h4>
+                    <ul>
+                        <li>O lobby impede entrada após o limite de jogadores/tempo enviado pelo GameServer.</li>
+                        <li>Cada wave conclui quando o servidor envia <code>F7:0x11</code> e os objetivos visuais são atualizados instantaneamente.</li>
+                    </ul>
+                </article>
+                <article class="atlas-card">
+                    <h3>Cursed Temple (Battle)</h3>
+                    <p><strong>Objetivo:</strong> recriar o modo competitivo com times Holy/Illusion, HUD, minimapa e lógica de rounds.</p>
+                    <h4>Arquivos clássicos</h4>
+                    <ul>
+                        <li><code>Source Main 5.2/source/CNewUICursedTempleSystem.cpp</code> e <code>NewUICursedTempleWindow.cpp</code>.</li>
+                        <li>Texturas em <code>Global Release/Data/Interface/CursedTemple</code> (barras, ícones de equipes).</li>
+                        <li><code>Source MuServer Update 15/GameServer/GameServer/CursedTempleEvent.cpp</code> e <code>CursedTempleEvent.h</code>.</li>
+                    </ul>
+                    <h4>Na Unreal</h4>
+                    <ol class="atlas-steps">
+                        <li>Desenvolva <code>WC_CursedTempleHUD</code> com barra de pontos por equipe, contagem de relíquias e feed de kills.</li>
+                        <li>Implemente <code>UCursedTempleComponent</code> para personagens, tratando pacotes 0xF8 (match info) e 0xF6 (pontuação).</li>
+                        <li>Construa minimapa dedicado com <code>SceneCapture2D</code> e materiais mascarados usando as texturas originais.</li>
+                        <li>Crie efeitos de captura com <em>Niagara</em> (auras roxas/azuis) sincronizados com o estado do objetivo enviado pelo servidor.</li>
+                    </ol>
+                    <h4>Checklist</h4>
+                    <ul>
+                        <li>HUD alterna automaticamente entre fases Preparação &rarr; Combate &rarr; Resultado conforme os pacotes.</li>
+                        <li>A pontuação bate com os logs de <code>CursedTempleEvent.cpp</code> e a câmera espectador ativa após derrota.</li>
+                    </ul>
+                </article>
+                <article class="atlas-card">
+                    <h3>Doppelganger</h3>
+                    <p><strong>Objetivo:</strong> implementar filas, portais, avisos visuais e lógica de progressão do evento.</p>
+                    <h4>Arquivos clássicos</h4>
+                    <ul>
+                        <li><code>Source Main 5.2/source/NewUIDoppelGangerWindow.cpp</code> e <code>DoppelGangerInfo.cpp</code>.</li>
+                        <li>Textos em <code>Data/Local/doppelganger.txt</code> e texturas em <code>Interface/DoppelGanger</code>.</li>
+                        <li><code>Source MuServer Update 15/GameServer/GameServer/Doppelganger.cpp</code> e scripts <code>Event/DoppelGanger/*.txt</code>.</li>
+                    </ul>
+                    <h4>Na Unreal</h4>
+                    <ol class="atlas-steps">
+                        <li>Modele <code>WB_DoppelgangerLobby</code> com requisitos de nível, consumo de convite e horário consultando <code>DoppelGangerInfo::CheckEnterCondition</code>.</li>
+                        <li>Implemente <code>ADoppelgangerTimeline</code> que controla spawn de monstros, NPC guia e fase final conforme <code>Doppelganger.cpp</code>.</li>
+                        <li>Adicione HUD com barra de tempo restante, objetivos e indicador da estátua usando ícones originais convertidos.</li>
+                        <li>Use <em>Sequencer</em> para animar a abertura do portal e o colapso final conforme scripts de evento.</li>
+                    </ol>
+                    <h4>Checklist</h4>
+                    <ul>
+                        <li>O lobby bloqueia jogadores sem convite ou fora do horário configurado pelo servidor.</li>
+                        <li>O evento encerra com recompensas e mensagens iguais às do cliente clássico.</li>
+                    </ul>
+                </article>
+                <article class="atlas-card">
+                    <h3>Lucky Coin &amp; Lucky Item</h3>
+                    <p><strong>Objetivo:</strong> replicar a economia de moedas e criação de itens sorteados com feedback visual.</p>
+                    <h4>Arquivos clássicos</h4>
+                    <ul>
+                        <li><code>Source Main 5.2/source/NewUIExchangeLuckyCoin.cpp</code> e <code>NewUILuckyItemWnd.cpp</code>.</li>
+                        <li>Dados de itens em <code>Data/LuckyItemOption.txt</code> e <code>Data/Item.txt</code>.</li>
+                        <li><code>Source MuServer Update 15/GameServer/GameServer/LuckyCoinSystem.cpp</code> e <code>ItemAddOption.cpp</code>.</li>
+                    </ul>
+                    <h4>Na Unreal</h4>
+                    <ol class="atlas-steps">
+                        <li>Crie <code>WB_LuckyCoinExchange</code> com abas (Trocar, Recompensas, Histórico) e animações de brilho importando texturas <code>Interface\\LuckyCoin</code>.</li>
+                        <li>Implemente <code>ULuckyEconomyComponent</code> responsável por saldo, requisições de troca (pacotes 0xF3 subcódigo 0x03) e salvamento via DataServer.</li>
+                        <li>Monte tabela <code>DT_LuckyRewards</code> convertendo <code>LuckyItemOption.txt</code> para CSV &rarr; Data Table.</li>
+                        <li>Adicione efeitos <em>Niagara</em> e <em>Timeline</em> para revelar itens raros, espelhando o brilho dourado do cliente original.</li>
+                    </ol>
+                    <h4>Checklist</h4>
+                    <ul>
+                        <li>Trocas atualizam saldo local e no servidor sem atraso perceptível.</li>
+                        <li>Itens criados carregam opções extras idênticas às enviadas pelo <code>LuckyCoinSystem.cpp</code>.</li>
+                    </ul>
+                </article>
+                <article class="atlas-card">
+                    <h3>Refinaria Jewel of Harmony</h3>
+                    <p><strong>Objetivo:</strong> converter o fluxo de refinaria com interface, tabelas e feedback luminoso.</p>
+                    <h4>Arquivos clássicos</h4>
+                    <ul>
+                        <li><code>Source Main 5.2/source/UIJewelHarmony.cpp</code>, <code>UIJewelHarmony.h</code>.</li>
+                        <li>Arquivos <code>Data/JewelOfHarmonyOption.bmd</code> e <code>Data/JewelOfHarmonyMix.bmd</code>.</li>
+                        <li><code>Source MuServer Update 15/GameServer/GameServer/JewelOfHarmonySystem.cpp</code>.</li>
+                    </ul>
+                    <h4>Na Unreal</h4>
+                    <ol class="atlas-steps">
+                        <li>Converta os arquivos <code>.bmd</code> para JSON utilizando o utilitário <code>BMD_FBX</code> adaptado ou ferramentas externas e importe como <code>DataTable</code>.</li>
+                        <li>Modele <code>WB_JewelHarmony</code> com slots Arrastar/Soltar para item base, Jewel of Harmony e Jewel of Harmony Smelt.</li>
+                        <li>Implemente <code>UHarmonyForgeComponent</code> que valida requisitos, envia pacote 0xF3 subcódigo 0x50 e aguarda resposta 0xF3:0x51.</li>
+                        <li>Crie material instanciado com <em>panner</em> e <em>emissive</em> para iluminar o item resultante replicando o efeito azul do cliente clássico.</li>
+                    </ol>
+                    <h4>Checklist</h4>
+                    <ul>
+                        <li>A UI bloqueia combinações inválidas e mostra mensagens do servidor traduzidas do <code>GlobalText</code>.</li>
+                        <li>O item refinado exibe opções extras idênticas aos registros convertidos dos arquivos <code>.bmd</code>.</li>
+                    </ul>
+                </article>
+                <article class="atlas-card">
                     <h3>Mundo, Monstros e Eventos</h3>
                     <p><strong>Objetivo:</strong> replicar mapas, respawns, IA e cronogramas de eventos.</p>
                     <h4>Arquivos clássicos</h4>
@@ -2195,6 +2808,72 @@ struct FRemakePacket {
                     <ul>
                         <li>Spawns e respawns respeitam limites e horários dos arquivos originais.</li>
                         <li>Eventos exibem mensagens globais e prêmios iguais aos configurados em <code>Event.cpp</code>.</li>
+                    </ul>
+                </article>
+                <article class="atlas-card">
+                    <h3>Chaos Castle &amp; Chaos Ranking</h3>
+                    <p><strong>Objetivo:</strong> reconstruir o evento de eliminação com armadilhas, scoreboard e ranking semanal.</p>
+                    <h4>Arquivos clássicos</h4>
+                    <ul>
+                        <li><code>Source Main 5.2/source/NewUIChaosCastle.cpp</code> e <code>NewUIChaosCastle.h</code> — HUD, regras de entrada e efeitos.</li>
+                        <li><code>Source MuServer Update 15/GameServer/GameServer/ChaosCastle.cpp</code> — lógica de rounds, armadilhas e mortes.</li>
+                        <li><code>Data/Event/ChaosCastleSetting.txt</code> e <code>Data/Item/ChaosCastleReward.txt</code>.</li>
+                    </ul>
+                    <h4>Na Unreal</h4>
+                    <ol class="atlas-steps">
+                        <li>Construa um <code>AChaosCastleArena</code> com <em>Level Sequence</em> controlando a queda das plataformas e colisores destrutíveis.</li>
+                        <li>Modele <code>WB_ChaosCastleHUD</code> com contadores de sobreviventes, timers e slots de recompensa seguindo <code>NewUIChaosCastle::Render</code>.</li>
+                        <li>Implemente <code>UChaosCastleComponent</code> no <code>PlayerState</code> para replicar mortes, pontos e ranking (pacotes 0x95, 0xB0).</li>
+                        <li>Importe tabelas de armadilhas/recompensas para <code>DT_ChaosCastleConfig</code> e conecte ao GameServer para validação.</li>
+                    </ol>
+                    <h4>Checklist</h4>
+                    <ul>
+                        <li>Plataformas e armadilhas ativam no mesmo timing descrito em <code>ChaosCastle.cpp</code>.</li>
+                        <li>Ranking semanal registra vitórias e distribui recompensas usando os dados convertidos dos arquivos <code>.txt</code>.</li>
+                    </ul>
+                </article>
+                <article class="atlas-card">
+                    <h3>Sistema Gens</h3>
+                    <p><strong>Objetivo:</strong> implementar facções Vanert/Dupren com missões diárias, ranqueamento e buffs.</p>
+                    <h4>Arquivos clássicos</h4>
+                    <ul>
+                        <li><code>Source Main 5.2/source/NewUIGensWindow.cpp</code>, <code>NewUIGensRanking.cpp</code>.</li>
+                        <li><code>Source MuServer Update 15/GameServer/GameServer/GensSystem.cpp</code> e <code>GensSystem.h</code>.</li>
+                        <li><code>Data/GensSystem.txt</code>, <code>Data/Quest/GensQuest.txt</code>, <code>Data/Local/GensText.txt</code>.</li>
+                    </ul>
+                    <h4>Na Unreal</h4>
+                    <ol class="atlas-steps">
+                        <li>Crie <code>WB_GensLobby</code> e <code>WB_GensRanking</code> utilizando <em>Widget Switcher</em> para alternar entre inscrição, recompensas e classificação.</li>
+                        <li>Implemente <code>UGensFactionComponent</code> (no <code>PlayerState</code>) para sincronizar pontos, missões e buffs recebidos do servidor (pacotes 0xF8 sub 0x03/0x04).</li>
+                        <li>Monte <code>DT_GensRewards</code> e <code>DT_GensQuests</code> convertendo os arquivos <code>.txt</code> para CSV e importando como <em>Data Tables</em>.</li>
+                        <li>Reproduza os buffs visuais aplicando <em>Materials</em> dinâmicos e efeitos Niagara de acordo com o rank configurado em <code>GensSystem.cpp</code>.</li>
+                    </ol>
+                    <h4>Checklist</h4>
+                    <ul>
+                        <li>Pontos de contribuição atualizam imediatamente após completar missões ou derrotar jogadores rivais.</li>
+                        <li>Ranking exibe posição, facção e recompensas iguais às calculadas no servidor clássico.</li>
+                    </ul>
+                </article>
+                <article class="atlas-card">
+                    <h3>Cash Shop (XShop)</h3>
+                    <p><strong>Objetivo:</strong> portar a loja em tempo real com catálogo dinâmico, carrinho e entregas no inventário.</p>
+                    <h4>Arquivos clássicos</h4>
+                    <ul>
+                        <li><code>Source Main 5.2/source/NewUIInGameShop.cpp</code>, <code>NewUIInGameShop.h</code> e assets em <code>Interface/XShop</code>.</li>
+                        <li><code>Source MuServer Update 15/GameServer/GameServer/CashShop.cpp</code> e <code>CashShopDBSet.cpp</code>.</li>
+                        <li>Bases <code>Data/ShopItemList.txt</code>, <code>Data/CashShopPackage.txt</code>, <code>Data/CashItemList.txt</code>.</li>
+                    </ul>
+                    <h4>Na Unreal</h4>
+                    <ol class="atlas-steps">
+                        <li>Modele <code>WB_CashShop</code> com abas (Novidades, Pacotes, Consumíveis) usando <code>ListView</code> e <em>TileView</em> para o catálogo.</li>
+                        <li>Implemente <code>UCashShopComponent</code> com carrinho local, saldo em WCoin/GP e integração com o servidor via pacotes 0xD2/0xD3.</li>
+                        <li>Converta tabelas do XShop para <code>DT_CashCatalog</code> e <code>DT_CashPackages</code> com ícones referenciando texturas originais.</li>
+                        <li>Automatize a entrega criando um <code>CashMailbox</code> que injeta itens no inventário (pacote 0xD6) e registra logs educativos em <code>Saved/Logs/cash_shop.csv</code>.</li>
+                    </ol>
+                    <h4>Checklist</h4>
+                    <ul>
+                        <li>Preços, descrições e pré-visualizações coincidem com <code>ShopItemList.txt</code> convertido.</li>
+                        <li>Compras adicionam itens automaticamente ao inventário ou baú de presentes replicando <code>CashShop.cpp</code>.</li>
                     </ul>
                 </article>
                 <article class="atlas-card">
@@ -2646,24 +3325,628 @@ struct FRemakePacket {
                     aqui.
                 </div>
                 <div class="asset-tool__summary" id="asset-tool-summary" hidden>
-                    <div class="asset-tool__totals">
-                        <div>
-                            <span class="asset-tool__totals-label">Arquivos analisados</span>
-                            <span class="asset-tool__totals-value" id="asset-total-files">0</span>
+                    <div class="asset-tool__totals row row-cols-1 row-cols-md-3 g-3">
+                        <div class="col">
+                            <div class="asset-tool__totals-card card h-100 border-0 shadow-sm">
+                                <div class="card-body">
+                                    <span class="asset-tool__totals-label">Arquivos analisados</span>
+                                    <span class="asset-tool__totals-value" id="asset-total-files">0</span>
+                                </div>
+                            </div>
                         </div>
-                        <div>
-                            <span class="asset-tool__totals-label">Conversões sugeridas</span>
-                            <span class="asset-tool__totals-value" id="asset-convertible-files">0</span>
+                        <div class="col">
+                            <div class="asset-tool__totals-card card h-100 border-0 shadow-sm">
+                                <div class="card-body">
+                                    <span class="asset-tool__totals-label">Conversões sugeridas</span>
+                                    <span class="asset-tool__totals-value" id="asset-convertible-files">0</span>
+                                </div>
+                            </div>
                         </div>
-                        <div>
-                            <span class="asset-tool__totals-label">Arquivos já compatíveis</span>
-                            <span class="asset-tool__totals-value" id="asset-compatible-files">0</span>
+                        <div class="col">
+                            <div class="asset-tool__totals-card card h-100 border-0 shadow-sm">
+                                <div class="card-body">
+                                    <span class="asset-tool__totals-label">Arquivos já compatíveis</span>
+                                    <span class="asset-tool__totals-value" id="asset-compatible-files">0</span>
+                                </div>
+                            </div>
                         </div>
                     </div>
                     <div class="asset-tool__categories" id="asset-results">
                         <!-- conteúdo gerado via JavaScript -->
                     </div>
+                    <div class="asset-tool__visualization" id="asset-visualization" hidden>
+                        <div class="d-flex flex-column flex-lg-row align-items-lg-center justify-content-between gap-3">
+                            <h4 class="mb-0">Visualização rápida da pasta <code>Data</code></h4>
+                            <p class="asset-visualization__summary alert alert-info mb-0" id="asset-visualization-status">
+                                Selecione a pasta <code>Data</code> para localizar rapidamente arquivos de HUD, Inventário e
+                                Personagens.
+                            </p>
+                        </div>
+                        <div class="asset-visualization__list row row-cols-1 row-cols-lg-3 g-4" id="asset-visualization-list"></div>
+                    </div>
                 </div>
+            </div>
+
+            <div class="asset-tool__guide" id="bmd-fbx">
+                <h4>Conversor autom&aacute;tico <code>BMD_FBX</code></h4>
+                <p>
+                    Utilize o conversor C++ <code>BMD_FBX</code> para transformar arquivos <code>.BMD</code> em
+                    <code>.FBX</code> prontos para a Unreal. O utilit&aacute;rio reorganiza a hierarquia de ossos,
+                    gera materiais e localiza texturas legadas automaticamente.
+                </p>
+                <ul class="asset-tool__guide-list">
+                    <li>
+                        <strong>Raiz unificada:</strong> cria um osso <code>root</code> e clusters para cada
+                        <code>Bone_t</code>, corrigindo modelos com v&aacute;rias ra&iacute;zes antes de salvar em
+                        <code>SaveFbx</code>.
+                    </li>
+                    <li>
+                        <strong>Materiais nomeados:</strong> renomeia texturas para <code>Mesh_T_###</code>, conecta
+                        <code>FbxFileTexture</code> aos materiais Phong e usa <code>FindTextureRecursive</code> para
+                        extrair <code>.OZJ/.OZT/.OZB</code> diretamente para a pasta de destino.
+                    </li>
+                    <li>
+                        <strong>Anima&ccedil;&otilde;es consistentes:</strong> converte quadros com
+                        <code>BMD_FBX::FRAME_TIME</code>, inclui poses de bind via <code>StoreBindPose</code> e exporta
+                        normais opcionais quando <code>export_normals</code> est&aacute; habilitado.
+                    </li>
+                </ul>
+                <pre class="asset-tool__guide-code"><code>BMD_FBX converter;
+BMD_FBX::SetRootPath(R"(C:\EnsinoRemake\Data)");
+BMD_FBX::SetFrameTime(1.0 / 30.0);
+converter.Unpack(
+    R"(C:\EnsinoRemake\MainOriginal\Data\Character\Knight01.bmd)",
+    nullptr,
+    true,   // localizar texturas
+    true,   // renomear texturas
+    true    // exportar normais
+);
+</code></pre>
+                <p class="asset-tool__guide-note">
+                    Se alguma textura n&atilde;o for encontrada localmente, defina <code>BMD_FBX::SetRootPath</code>
+                    apontando para uma pasta global de <code>Data</code>. O conversor registra cada arquivo faltante no
+                    console, facilitando o ajuste antes da importa&ccedil;&atilde;o no Unreal.
+                </p>
+            </div>
+
+            <div class="asset-tool__configurator card border-0 shadow-sm" id="bmd-configurator" hidden>
+                <div class="card-body d-flex flex-column gap-4">
+                    <div class="d-flex flex-column flex-lg-row align-items-lg-center justify-content-between gap-3">
+                        <div>
+                            <h5 class="card-title mb-1">Gerador de snippet <code>BMD_FBX</code></h5>
+                            <p class="card-text text-muted mb-0">
+                                Personalize as op&ccedil;&otilde;es do conversor C++ e copie um bloco pronto para
+                                compilar junto ao utilit&aacute;rio. As configura&ccedil;&otilde;es abaixo usam os
+                                mesmos par&acirc;metros de <code>Unpack</code> presentes no c&oacute;digo legado.
+                            </p>
+                        </div>
+                        <span
+                            class="asset-tool__configurator-count badge rounded-pill text-uppercase small fw-semibold"
+                            id="bmd-configurator-count"
+                        ></span>
+                    </div>
+
+                    <form class="asset-tool__configurator-form row g-3" autocomplete="off">
+                        <div class="col-12 col-lg-6">
+                            <label for="bmd-root-path" class="form-label text-uppercase small fw-semibold"
+                                >Pasta raiz para texturas (<code>SetRootPath</code>)</label
+                            >
+                            <input
+                                type="text"
+                                class="form-control"
+                                id="bmd-root-path"
+                                name="bmd-root-path"
+                                value="C:\\EnsinoRemake\\Data"
+                                placeholder="C:\\EnsinoRemake\\Data"
+                            />
+                            <div class="form-text">
+                                Defina onde <code>FindTextureRecursive</code> procurar&aacute; texturas adicionais caso o
+                                diret&oacute;rio local n&atilde;o contenha todos os arquivos.
+                            </div>
+                        </div>
+                        <div class="col-12 col-lg-6">
+                            <label for="bmd-output-dir" class="form-label text-uppercase small fw-semibold"
+                                >Destino opcional para FBX</label
+                            >
+                            <input
+                                type="text"
+                                class="form-control"
+                                id="bmd-output-dir"
+                                name="bmd-output-dir"
+                                placeholder="C:\\EnsinoRemake\\SaidaFBX"
+                            />
+                            <div class="form-text">
+                                Se vazio, <code>Unpack</code> salva ao lado do <code>.BMD</code> original usando o
+                                sufixo <code>_fbx</code> do utilit&aacute;rio.
+                            </div>
+                        </div>
+                        <div class="col-6 col-lg-3">
+                            <label for="bmd-frame-time" class="form-label text-uppercase small fw-semibold"
+                                >Frame time (<code>SetFrameTime</code>)</label
+                            >
+                            <input
+                                type="number"
+                                class="form-control"
+                                id="bmd-frame-time"
+                                name="bmd-frame-time"
+                                value="0.033333"
+                                step="0.001"
+                                min="0.001"
+                            />
+                            <div class="form-text">Equivale a 1 / FPS. O padr&atilde;o de 0,033 gera 30 quadros/s.</div>
+                        </div>
+                        <div class="col-12 col-lg-9">
+                            <div class="asset-tool__configurator-switches d-flex flex-column flex-lg-row gap-2">
+                                <div class="form-check form-switch">
+                                    <input
+                                        class="form-check-input"
+                                        type="checkbox"
+                                        role="switch"
+                                        id="bmd-find-textures"
+                                        name="bmd-find-textures"
+                                        checked
+                                    />
+                                    <label class="form-check-label" for="bmd-find-textures"
+                                        >Localizar texturas adicionais (<code>find_textures</code>)</label
+                                    >
+                                </div>
+                                <div class="form-check form-switch">
+                                    <input
+                                        class="form-check-input"
+                                        type="checkbox"
+                                        role="switch"
+                                        id="bmd-rename-textures"
+                                        name="bmd-rename-textures"
+                                        checked
+                                    />
+                                    <label class="form-check-label" for="bmd-rename-textures"
+                                        >Renomear texturas (<code>rename_textures</code>)</label
+                                    >
+                                </div>
+                                <div class="form-check form-switch">
+                                    <input
+                                        class="form-check-input"
+                                        type="checkbox"
+                                        role="switch"
+                                        id="bmd-export-normals"
+                                        name="bmd-export-normals"
+                                        checked
+                                    />
+                                    <label class="form-check-label" for="bmd-export-normals"
+                                        >Exportar normais (<code>export_normals</code>)</label
+                                    >
+                                </div>
+                            </div>
+                        </div>
+                    </form>
+
+                    <div class="asset-tool__configurator-files">
+                        <h6 class="text-uppercase small fw-semibold mb-2">Arquivos detectados</h6>
+                        <ul
+                            class="asset-tool__configurator-files-list list-group list-group-flush"
+                            id="bmd-configurator-files"
+                        ></ul>
+                    </div>
+
+                    <div class="asset-tool__configurator-code">
+                        <div class="d-flex align-items-center justify-content-between gap-3">
+                            <h6 class="text-uppercase small fw-semibold mb-0">C&oacute;digo pronto para uso</h6>
+                            <button
+                                type="button"
+                                class="btn btn-outline-light btn-sm asset-tool__configurator-copy"
+                                id="bmd-copy-button"
+                                disabled
+                            >
+                                Copiar
+                            </button>
+                        </div>
+                        <pre class="asset-tool__configurator-pre"><code id="bmd-configurator-code"></code></pre>
+                    </div>
+
+                    <p class="asset-tool__configurator-options text-muted small mb-0" id="bmd-configurator-options"></p>
+                </div>
+            </div>
+
+            <div class="asset-tool__guide" id="bmd-fbx">
+                <h4>Conversor autom&aacute;tico <code>BMD_FBX</code></h4>
+                <p>
+                    Utilize o conversor C++ <code>BMD_FBX</code> para transformar arquivos <code>.BMD</code> em
+                    <code>.FBX</code> prontos para a Unreal. O utilit&aacute;rio reorganiza a hierarquia de ossos,
+                    gera materiais e localiza texturas legadas automaticamente.
+                </p>
+                <ul class="asset-tool__guide-list">
+                    <li>
+                        <strong>Raiz unificada:</strong> cria um osso <code>root</code> e clusters para cada
+                        <code>Bone_t</code>, corrigindo modelos com v&aacute;rias ra&iacute;zes antes de salvar em
+                        <code>SaveFbx</code>.
+                    </li>
+                    <li>
+                        <strong>Materiais nomeados:</strong> renomeia texturas para <code>Mesh_T_###</code>, conecta
+                        <code>FbxFileTexture</code> aos materiais Phong e usa <code>FindTextureRecursive</code> para
+                        extrair <code>.OZJ/.OZT/.OZB</code> diretamente para a pasta de destino.
+                    </li>
+                    <li>
+                        <strong>Anima&ccedil;&otilde;es consistentes:</strong> converte quadros com
+                        <code>BMD_FBX::FRAME_TIME</code>, inclui poses de bind via <code>StoreBindPose</code> e exporta
+                        normais opcionais quando <code>export_normals</code> est&aacute; habilitado.
+                    </li>
+                </ul>
+                <pre class="asset-tool__guide-code"><code>BMD_FBX converter;
+BMD_FBX::SetRootPath(R"(C:\EnsinoRemake\Data)");
+BMD_FBX::SetFrameTime(1.0 / 30.0);
+converter.Unpack(
+    R"(C:\EnsinoRemake\MainOriginal\Data\Character\Knight01.bmd)",
+    nullptr,
+    true,   // localizar texturas
+    true,   // renomear texturas
+    true    // exportar normais
+);
+</code></pre>
+                <p class="asset-tool__guide-note">
+                    Se alguma textura n&atilde;o for encontrada localmente, defina <code>BMD_FBX::SetRootPath</code>
+                    apontando para uma pasta global de <code>Data</code>. O conversor registra cada arquivo faltante no
+                    console, facilitando o ajuste antes da importa&ccedil;&atilde;o no Unreal.
+                </p>
+            </div>
+
+            <div class="asset-tool__configurator card border-0 shadow-sm" id="bmd-configurator" hidden>
+                <div class="card-body d-flex flex-column gap-4">
+                    <div class="d-flex flex-column flex-lg-row align-items-lg-center justify-content-between gap-3">
+                        <div>
+                            <h5 class="card-title mb-1">Gerador de snippet <code>BMD_FBX</code></h5>
+                            <p class="card-text text-muted mb-0">
+                                Personalize as op&ccedil;&otilde;es do conversor C++ e copie um bloco pronto para
+                                compilar junto ao utilit&aacute;rio. As configura&ccedil;&otilde;es abaixo usam os
+                                mesmos par&acirc;metros de <code>Unpack</code> presentes no c&oacute;digo legado.
+                            </p>
+                        </div>
+                        <span
+                            class="asset-tool__configurator-count badge rounded-pill text-uppercase small fw-semibold"
+                            id="bmd-configurator-count"
+                        ></span>
+                    </div>
+
+                    <form class="asset-tool__configurator-form row g-3" autocomplete="off">
+                        <div class="col-12 col-lg-6">
+                            <label for="bmd-root-path" class="form-label text-uppercase small fw-semibold"
+                                >Pasta raiz para texturas (<code>SetRootPath</code>)</label
+                            >
+                            <input
+                                type="text"
+                                class="form-control"
+                                id="bmd-root-path"
+                                name="bmd-root-path"
+                                value="C:\\EnsinoRemake\\Data"
+                                placeholder="C:\\EnsinoRemake\\Data"
+                            />
+                            <div class="form-text">
+                                Defina onde <code>FindTextureRecursive</code> procurar&aacute; texturas adicionais caso o
+                                diret&oacute;rio local n&atilde;o contenha todos os arquivos.
+                            </div>
+                        </div>
+                        <div class="col-12 col-lg-6">
+                            <label for="bmd-output-dir" class="form-label text-uppercase small fw-semibold"
+                                >Destino opcional para FBX</label
+                            >
+                            <input
+                                type="text"
+                                class="form-control"
+                                id="bmd-output-dir"
+                                name="bmd-output-dir"
+                                placeholder="C:\\EnsinoRemake\\SaidaFBX"
+                            />
+                            <div class="form-text">
+                                Se vazio, <code>Unpack</code> salva ao lado do <code>.BMD</code> original usando o
+                                sufixo <code>_fbx</code> do utilit&aacute;rio.
+                            </div>
+                        </div>
+                        <div class="col-6 col-lg-3">
+                            <label for="bmd-frame-time" class="form-label text-uppercase small fw-semibold"
+                                >Frame time (<code>SetFrameTime</code>)</label
+                            >
+                            <input
+                                type="number"
+                                class="form-control"
+                                id="bmd-frame-time"
+                                name="bmd-frame-time"
+                                value="0.033333"
+                                step="0.001"
+                                min="0.001"
+                            />
+                            <div class="form-text">Equivale a 1 / FPS. O padr&atilde;o de 0,033 gera 30 quadros/s.</div>
+                        </div>
+                        <div class="col-12 col-lg-9">
+                            <div class="asset-tool__configurator-switches d-flex flex-column flex-lg-row gap-2">
+                                <div class="form-check form-switch">
+                                    <input
+                                        class="form-check-input"
+                                        type="checkbox"
+                                        role="switch"
+                                        id="bmd-find-textures"
+                                        name="bmd-find-textures"
+                                        checked
+                                    />
+                                    <label class="form-check-label" for="bmd-find-textures"
+                                        >Localizar texturas adicionais (<code>find_textures</code>)</label
+                                    >
+                                </div>
+                                <div class="form-check form-switch">
+                                    <input
+                                        class="form-check-input"
+                                        type="checkbox"
+                                        role="switch"
+                                        id="bmd-rename-textures"
+                                        name="bmd-rename-textures"
+                                        checked
+                                    />
+                                    <label class="form-check-label" for="bmd-rename-textures"
+                                        >Renomear texturas (<code>rename_textures</code>)</label
+                                    >
+                                </div>
+                                <div class="form-check form-switch">
+                                    <input
+                                        class="form-check-input"
+                                        type="checkbox"
+                                        role="switch"
+                                        id="bmd-export-normals"
+                                        name="bmd-export-normals"
+                                        checked
+                                    />
+                                    <label class="form-check-label" for="bmd-export-normals"
+                                        >Exportar normais (<code>export_normals</code>)</label
+                                    >
+                                </div>
+                            </div>
+                        </div>
+                    </form>
+
+                    <div class="asset-tool__configurator-files">
+                        <h6 class="text-uppercase small fw-semibold mb-2">Arquivos detectados</h6>
+                        <ul
+                            class="asset-tool__configurator-files-list list-group list-group-flush"
+                            id="bmd-configurator-files"
+                        ></ul>
+                    </div>
+
+                    <div class="asset-tool__configurator-code">
+                        <div class="d-flex align-items-center justify-content-between gap-3">
+                            <h6 class="text-uppercase small fw-semibold mb-0">C&oacute;digo pronto para uso</h6>
+                            <button
+                                type="button"
+                                class="btn btn-outline-light btn-sm asset-tool__configurator-copy"
+                                id="bmd-copy-button"
+                                disabled
+                            >
+                                Copiar
+                            </button>
+                        </div>
+                        <pre class="asset-tool__configurator-pre"><code id="bmd-configurator-code"></code></pre>
+                    </div>
+
+                    <p class="asset-tool__configurator-options text-muted small mb-0" id="bmd-configurator-options"></p>
+                </div>
+            </div>
+
+            <div class="asset-tool__guide" id="bmd-fbx">
+                <h4>Conversor autom&aacute;tico <code>BMD_FBX</code></h4>
+                <p>
+                    Utilize o conversor C++ <code>BMD_FBX</code> para transformar arquivos <code>.BMD</code> em
+                    <code>.FBX</code> prontos para a Unreal. O utilit&aacute;rio reorganiza a hierarquia de ossos,
+                    gera materiais e localiza texturas legadas automaticamente.
+                </p>
+                <ul class="asset-tool__guide-list">
+                    <li>
+                        <strong>Raiz unificada:</strong> cria um osso <code>root</code> e clusters para cada
+                        <code>Bone_t</code>, corrigindo modelos com v&aacute;rias ra&iacute;zes antes de salvar em
+                        <code>SaveFbx</code>.
+                    </li>
+                    <li>
+                        <strong>Materiais nomeados:</strong> renomeia texturas para <code>Mesh_T_###</code>, conecta
+                        <code>FbxFileTexture</code> aos materiais Phong e usa <code>FindTextureRecursive</code> para
+                        extrair <code>.OZJ/.OZT/.OZB</code> diretamente para a pasta de destino.
+                    </li>
+                    <li>
+                        <strong>Anima&ccedil;&otilde;es consistentes:</strong> converte quadros com
+                        <code>BMD_FBX::FRAME_TIME</code>, inclui poses de bind via <code>StoreBindPose</code> e exporta
+                        normais opcionais quando <code>export_normals</code> est&aacute; habilitado.
+                    </li>
+                </ul>
+                <pre class="asset-tool__guide-code"><code>BMD_FBX converter;
+BMD_FBX::SetRootPath(R"(C:\EnsinoRemake\Data)");
+BMD_FBX::SetFrameTime(1.0 / 30.0);
+converter.Unpack(
+    R"(C:\EnsinoRemake\MainOriginal\Data\Character\Knight01.bmd)",
+    nullptr,
+    true,   // localizar texturas
+    true,   // renomear texturas
+    true    // exportar normais
+);
+</code></pre>
+                <p class="asset-tool__guide-note">
+                    Se alguma textura n&atilde;o for encontrada localmente, defina <code>BMD_FBX::SetRootPath</code>
+                    apontando para uma pasta global de <code>Data</code>. O conversor registra cada arquivo faltante no
+                    console, facilitando o ajuste antes da importa&ccedil;&atilde;o no Unreal.
+                </p>
+            </div>
+
+            <div class="asset-tool__configurator card border-0 shadow-sm" id="bmd-configurator" hidden>
+                <div class="card-body d-flex flex-column gap-4">
+                    <div class="d-flex flex-column flex-lg-row align-items-lg-center justify-content-between gap-3">
+                        <div>
+                            <h5 class="card-title mb-1">Gerador de snippet <code>BMD_FBX</code></h5>
+                            <p class="card-text text-muted mb-0">
+                                Personalize as op&ccedil;&otilde;es do conversor C++ e copie um bloco pronto para
+                                compilar junto ao utilit&aacute;rio. As configura&ccedil;&otilde;es abaixo usam os
+                                mesmos par&acirc;metros de <code>Unpack</code> presentes no c&oacute;digo legado.
+                            </p>
+                        </div>
+                        <span
+                            class="asset-tool__configurator-count badge rounded-pill text-uppercase small fw-semibold"
+                            id="bmd-configurator-count"
+                        ></span>
+                    </div>
+
+                    <form class="asset-tool__configurator-form row g-3" autocomplete="off">
+                        <div class="col-12 col-lg-6">
+                            <label for="bmd-root-path" class="form-label text-uppercase small fw-semibold"
+                                >Pasta raiz para texturas (<code>SetRootPath</code>)</label
+                            >
+                            <input
+                                type="text"
+                                class="form-control"
+                                id="bmd-root-path"
+                                name="bmd-root-path"
+                                value="C:\\EnsinoRemake\\Data"
+                                placeholder="C:\\EnsinoRemake\\Data"
+                            />
+                            <div class="form-text">
+                                Defina onde <code>FindTextureRecursive</code> procurar&aacute; texturas adicionais caso o
+                                diret&oacute;rio local n&atilde;o contenha todos os arquivos.
+                            </div>
+                        </div>
+                        <div class="col-12 col-lg-6">
+                            <label for="bmd-output-dir" class="form-label text-uppercase small fw-semibold"
+                                >Destino opcional para FBX</label
+                            >
+                            <input
+                                type="text"
+                                class="form-control"
+                                id="bmd-output-dir"
+                                name="bmd-output-dir"
+                                placeholder="C:\\EnsinoRemake\\SaidaFBX"
+                            />
+                            <div class="form-text">
+                                Se vazio, <code>Unpack</code> salva ao lado do <code>.BMD</code> original usando o
+                                sufixo <code>_fbx</code> do utilit&aacute;rio.
+                            </div>
+                        </div>
+                        <div class="col-6 col-lg-3">
+                            <label for="bmd-frame-time" class="form-label text-uppercase small fw-semibold"
+                                >Frame time (<code>SetFrameTime</code>)</label
+                            >
+                            <input
+                                type="number"
+                                class="form-control"
+                                id="bmd-frame-time"
+                                name="bmd-frame-time"
+                                value="0.033333"
+                                step="0.001"
+                                min="0.001"
+                            />
+                            <div class="form-text">Equivale a 1 / FPS. O padr&atilde;o de 0,033 gera 30 quadros/s.</div>
+                        </div>
+                        <div class="col-12 col-lg-9">
+                            <div class="asset-tool__configurator-switches d-flex flex-column flex-lg-row gap-2">
+                                <div class="form-check form-switch">
+                                    <input
+                                        class="form-check-input"
+                                        type="checkbox"
+                                        role="switch"
+                                        id="bmd-find-textures"
+                                        name="bmd-find-textures"
+                                        checked
+                                    />
+                                    <label class="form-check-label" for="bmd-find-textures"
+                                        >Localizar texturas adicionais (<code>find_textures</code>)</label
+                                    >
+                                </div>
+                                <div class="form-check form-switch">
+                                    <input
+                                        class="form-check-input"
+                                        type="checkbox"
+                                        role="switch"
+                                        id="bmd-rename-textures"
+                                        name="bmd-rename-textures"
+                                        checked
+                                    />
+                                    <label class="form-check-label" for="bmd-rename-textures"
+                                        >Renomear texturas (<code>rename_textures</code>)</label
+                                    >
+                                </div>
+                                <div class="form-check form-switch">
+                                    <input
+                                        class="form-check-input"
+                                        type="checkbox"
+                                        role="switch"
+                                        id="bmd-export-normals"
+                                        name="bmd-export-normals"
+                                        checked
+                                    />
+                                    <label class="form-check-label" for="bmd-export-normals"
+                                        >Exportar normais (<code>export_normals</code>)</label
+                                    >
+                                </div>
+                            </div>
+                        </div>
+                    </form>
+
+                    <div class="asset-tool__configurator-files">
+                        <h6 class="text-uppercase small fw-semibold mb-2">Arquivos detectados</h6>
+                        <ul
+                            class="asset-tool__configurator-files-list list-group list-group-flush"
+                            id="bmd-configurator-files"
+                        ></ul>
+                    </div>
+
+                    <div class="asset-tool__configurator-code">
+                        <div class="d-flex align-items-center justify-content-between gap-3">
+                            <h6 class="text-uppercase small fw-semibold mb-0">C&oacute;digo pronto para uso</h6>
+                            <button
+                                type="button"
+                                class="btn btn-outline-light btn-sm asset-tool__configurator-copy"
+                                id="bmd-copy-button"
+                                disabled
+                            >
+                                Copiar
+                            </button>
+                        </div>
+                        <pre class="asset-tool__configurator-pre"><code id="bmd-configurator-code"></code></pre>
+                    </div>
+
+                    <p class="asset-tool__configurator-options text-muted small mb-0" id="bmd-configurator-options"></p>
+                </div>
+            </div>
+
+            <div class="asset-tool__guide" id="bmd-fbx">
+                <h4>Conversor autom&aacute;tico <code>BMD_FBX</code></h4>
+                <p>
+                    Utilize o conversor C++ <code>BMD_FBX</code> para transformar arquivos <code>.BMD</code> em
+                    <code>.FBX</code> prontos para a Unreal. O utilit&aacute;rio reorganiza a hierarquia de ossos,
+                    gera materiais e localiza texturas legadas automaticamente.
+                </p>
+                <ul class="asset-tool__guide-list">
+                    <li>
+                        <strong>Raiz unificada:</strong> cria um osso <code>root</code> e clusters para cada
+                        <code>Bone_t</code>, corrigindo modelos com v&aacute;rias ra&iacute;zes antes de salvar em
+                        <code>SaveFbx</code>.
+                    </li>
+                    <li>
+                        <strong>Materiais nomeados:</strong> renomeia texturas para <code>Mesh_T_###</code>, conecta
+                        <code>FbxFileTexture</code> aos materiais Phong e usa <code>FindTextureRecursive</code> para
+                        extrair <code>.OZJ/.OZT/.OZB</code> diretamente para a pasta de destino.
+                    </li>
+                    <li>
+                        <strong>Anima&ccedil;&otilde;es consistentes:</strong> converte quadros com
+                        <code>BMD_FBX::FRAME_TIME</code>, inclui poses de bind via <code>StoreBindPose</code> e exporta
+                        normais opcionais quando <code>export_normals</code> est&aacute; habilitado.
+                    </li>
+                </ul>
+                <pre class="asset-tool__guide-code"><code>BMD_FBX converter;
+BMD_FBX::SetRootPath(R"(C:\EnsinoRemake\Data)");
+BMD_FBX::SetFrameTime(1.0 / 30.0);
+converter.Unpack(
+    R"(C:\EnsinoRemake\MainOriginal\Data\Character\Knight01.bmd)",
+    nullptr,
+    true,   // localizar texturas
+    true,   // renomear texturas
+    true    // exportar normais
+);
+</code></pre>
+                <p class="asset-tool__guide-note">
+                    Se alguma textura n&atilde;o for encontrada localmente, defina <code>BMD_FBX::SetRootPath</code>
+                    apontando para uma pasta global de <code>Data</code>. O conversor registra cada arquivo faltante no
+                    console, facilitando o ajuste antes da importa&ccedil;&atilde;o no Unreal.
+                </p>
             </div>
 
             <div class="table-wrapper table-wrapper--compact">
@@ -2854,6 +4137,26 @@ struct FRemakePacket {
                             transições com o servidor.</li>
                         <li>Testar spawn de monstros usando dados de <code>MonsterSetBase.txt</code> convertidos para
                             <code>DataTable</code> <code>DT_SpawnGroups</code>.</li>
+                    </ol>
+                </article>
+                <article class="card">
+                    <h3>Duelo, rankings e HUD competitiva</h3>
+                    <ol class="step-list">
+                        <li>Estudar <code>NewUIDuelWindow.cpp</code> e <code>CDuelMgr.cpp</code> para mapear estados e timers do duelo.</li>
+                        <li>Implementar <code>UDuelComponent</code> na Unreal com estados replicados e pacotes 0xAA convertidos.</li>
+                        <li>Construir <code>WB_DuelHUD</code> com barras de HP, cronômetro circular e lista de espectadores usando texturas originais.</li>
+                        <li>Sincronizar confirmações com o GameServer (<code>DuelSystem.cpp</code>) e registrar logs comparativos.</li>
+                        <li>Adicionar scoreboard pós-partida exibindo vitórias acumuladas e recompensas.</li>
+                    </ol>
+                </article>
+                <article class="card">
+                    <h3>Economia avançada &amp; refinaria</h3>
+                    <ol class="step-list">
+                        <li>Ler <code>NewUIExchangeLuckyCoin.cpp</code>, <code>NewUILuckyItemWnd.cpp</code> e <code>UIJewelHarmony.cpp</code> para entender fluxos completos.</li>
+                        <li>Converter arquivos <code>LuckyItemOption.txt</code> e <code>JewelOfHarmonyOption.bmd</code> em <em>Data Tables</em> para uso na Unreal.</li>
+                        <li>Criar componentes <code>ULuckyEconomyComponent</code> e <code>UHarmonyForgeComponent</code> com integração ao DataServer.</li>
+                        <li>Desenvolver Widgets <code>WB_LuckyExchange</code> e <code>WB_HarmonyForge</code> com animações de brilho e feedback visual.</li>
+                        <li>Executar testes end-to-end verificando saldo, resultados e mensagens de erro alinhadas ao cliente clássico.</li>
                     </ol>
                 </article>
             </div>
