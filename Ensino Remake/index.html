@@ -1090,8 +1090,18 @@
                 e do servidor observar, quais assets converter e quais ações executar dentro da <strong>Unreal Engine 5</strong>
                 para obter o mesmo resultado. Siga os passos na ordem e marque a checklist antes de continuar.
             </p>
+            <div class="novice-toggle" role="group" aria-labelledby="novice-mode-label">
+                <div class="novice-toggle__header">
+                    <input type="checkbox" id="novice-mode-toggle" aria-describedby="novice-mode-description">
+                    <label for="novice-mode-toggle" id="novice-mode-label">Ativar modo iniciante</label>
+                </div>
+                <p id="novice-mode-description">
+                    Quando ligado, cada receita ganha um tutorial passo a passo explicando os cliques na Unreal, os
+                    arquivos a abrir e como validar cada etapa — pensado para quem nunca programou.
+                </p>
+            </div>
             <div class="recipe-grid">
-                <article class="recipe-card">
+                <article class="recipe-card" data-recipe="receita-1">
                     <h3>Receita 1 — HUD principal idêntica</h3>
                     <p class="recipe-intro">Recompõe a barra inferior com HP/MP/AG/SD, minimapa e ícones exatamente como o
                         cliente clássico exibe.</p>
@@ -1174,7 +1184,7 @@
                         </table>
                     </div>
                 </article>
-                <article class="recipe-card">
+                <article class="recipe-card" data-recipe="receita-2">
                     <h3>Receita 2 — Inventário e arrastar/soltar</h3>
                     <p class="recipe-intro">Recria o inventário 8×8, lógica de tamanho de itens e movimentação com o mouse.</p>
                     <h4>Copie do projeto original</h4>
@@ -1252,7 +1262,7 @@
                         </table>
                     </div>
                 </article>
-                <article class="recipe-card">
+                <article class="recipe-card" data-recipe="receita-3">
                     <h3>Receita 3 — Chat, notificações e mensagens</h3>
                     <p class="recipe-intro">Permite digitar mensagens, exibir log e mostrar alertas como no cliente clássico.</p>
                     <h4>Copie do projeto original</h4>
@@ -1326,7 +1336,7 @@
                         </table>
                     </div>
                 </article>
-                <article class="recipe-card">
+                <article class="recipe-card" data-recipe="receita-4">
                     <h3>Receita 4 — Ações do personagem e rede</h3>
                     <p class="recipe-intro">Conecta movimento, ataque básico e confirmação do servidor respeitando os mesmos
                         pacotes.</p>
@@ -1402,7 +1412,7 @@
                         </table>
                     </div>
                 </article>
-                <article class="recipe-card">
+                <article class="recipe-card" data-recipe="receita-5">
                     <h3>Receita 5 — Tela de login e seleção de personagem</h3>
                     <p class="recipe-intro">Clona o fluxo de entrada do cliente, desde botões até o handshake com o
                         JoinServer.</p>
@@ -1451,7 +1461,7 @@
                         <li>Ao confirmar, o servidor responde com o mesmo pacote 0x1D tratado pelo cliente original.</li>
                     </ul>
                 </article>
-                <article class="recipe-card">
+                <article class="recipe-card" data-recipe="receita-6">
                     <h3>Receita 6 — Barra de habilidades e atalhos</h3>
                     <p class="recipe-intro">Permite arrastar habilidades para teclas rápidas, consumindo mana e respeitando atrasos
                         como no cliente original.</p>
@@ -1495,7 +1505,7 @@
                         <li>O servidor valida cada uso antes de causar dano ou efeitos.</li>
                     </ul>
                 </article>
-                <article class="recipe-card">
+                <article class="recipe-card" data-recipe="receita-7">
                     <h3>Receita 7 — NPC Loja e trocas entre jogadores</h3>
                     <p class="recipe-intro">Recria o atendimento de NPCs comerciantes e a janela de trade usando as mesmas verificações de
                         servidor.</p>
@@ -1538,7 +1548,7 @@
                         <li>Trocas só finalizam quando os dois jogadores confirmam, replicando a lógica do pacote 0x3C.</li>
                     </ul>
                 </article>
-                <article class="recipe-card">
+                <article class="recipe-card" data-recipe="receita-8">
                     <h3>Receita 8 — Diário de missões e recompensas</h3>
                     <p class="recipe-intro">Configura o sistema de quests, diário e recompensas automáticas igual ao cliente clássico.</p>
                     <h4>Copie do projeto original</h4>
@@ -1599,7 +1609,7 @@
                         </table>
                     </div>
                 </article>
-                <article class="recipe-card">
+                <article class="recipe-card" data-recipe="receita-9">
                     <h3>Receita 9 — IA de monstros e respawns</h3>
                     <p class="recipe-intro">Constrói respawns, comportamento e sincronização de monstros replicando o servidor.</p>
                     <h4>Copie do projeto original</h4>
@@ -1660,7 +1670,7 @@
                         </table>
                     </div>
                 </article>
-                <article class="recipe-card">
+                <article class="recipe-card" data-recipe="receita-10">
                     <h3>Receita 10 — Party, guild e correio social</h3>
                     <p class="recipe-intro">Permite formar grupos, guilds e enviar mensagens internas com a mesma lógica do clássico.</p>
                     <h4>Copie do projeto original</h4>
@@ -1721,7 +1731,7 @@
                         </table>
                     </div>
                 </article>
-                <article class="recipe-card">
+                <article class="recipe-card" data-recipe="receita-11">
                     <h3>Receita 11 — Eventos instanciados (Blood Castle, Devil Square)</h3>
                     <p class="recipe-intro">Recria os eventos em instâncias com controles de tempo, objetivos e recompensas.</p>
                     <h4>Copie do projeto original</h4>
@@ -1782,7 +1792,7 @@
                         </table>
                     </div>
                 </article>
-                <article class="recipe-card">
+                <article class="recipe-card" data-recipe="receita-12">
                     <h3>Receita 12 — Sistema de duelo, placar e espectadores</h3>
                     <p class="recipe-intro">Ativa a arena de duelos com feedback visual, convites, ranking temporário e mensagens do servidor.</p>
                     <h4>Copie do projeto original</h4>
@@ -1815,7 +1825,7 @@
                         <li>Logs do GameServer mostram <code>[Duel] Start</code>/<code>[Duel] End</code> sincronizados com a UI.</li>
                     </ul>
                 </article>
-                <article class="recipe-card">
+                <article class="recipe-card" data-recipe="receita-13">
                     <h3>Receita 13 — Empire Guardian com waves e HUD</h3>
                     <p class="recipe-intro">Constrói lobby, instância e painel de progresso do evento cooperativo Imperial Guardian.</p>
                     <h4>Copie do projeto original</h4>
@@ -1847,7 +1857,7 @@
                         <li>Recompensas são atribuídas após o pacote 0xF7:0x12 e aparecem na tela de resultado.</li>
                     </ul>
                 </article>
-                <article class="recipe-card">
+                <article class="recipe-card" data-recipe="receita-14">
                     <h3>Receita 14 — Cursed Temple com equipes Holy/Illusion</h3>
                     <p class="recipe-intro">Recria o modo competitivo com minimapa dedicado, placar por equipe e feed de kills.</p>
                     <h4>Copie do projeto original</h4>
@@ -1879,7 +1889,7 @@
                         <li>Time vencedor recebe bônus aplicados pelo servidor (exp/zen) e visual highlight na HUD.</li>
                     </ul>
                 </article>
-                <article class="recipe-card">
+                <article class="recipe-card" data-recipe="receita-15">
                     <h3>Receita 15 — Doppelganger com linha do tempo e cinematics</h3>
                     <p class="recipe-intro">Implementa o evento Doppelganger com lobby, portais sincronizados e cutscenes.</p>
                     <h4>Copie do projeto original</h4>
@@ -1911,7 +1921,7 @@
                         <li>Recompensas correspondem aos valores definidos em <code>Doppelganger.cpp</code>.</li>
                     </ul>
                 </article>
-                <article class="recipe-card">
+                <article class="recipe-card" data-recipe="receita-16">
                     <h3>Receita 16 — Economia Lucky Coin &amp; Lucky Item</h3>
                     <p class="recipe-intro">Implementa troca de moedas, roleta de itens e feedback visual dourado.</p>
                     <h4>Copie do projeto original</h4>
@@ -1943,7 +1953,7 @@
                         <li>Log registra todas as operações com timestamp e resultado.</li>
                     </ul>
                 </article>
-                <article class="recipe-card">
+                <article class="recipe-card" data-recipe="receita-17">
                     <h3>Receita 17 — Refinaria Jewel of Harmony</h3>
                     <p class="recipe-intro">Permite aplicar e remover opções Harmony com efeitos visuais idênticos.</p>
                     <h4>Copie do projeto original</h4>
@@ -1975,7 +1985,7 @@
                         <li>Efeitos de brilho e partículas replicam o visual azul característico do cliente clássico.</li>
                     </ul>
                 </article>
-                <article class="recipe-card">
+                <article class="recipe-card" data-recipe="receita-18">
                     <h3>Receita 18 — Chaos Castle completo</h3>
                     <p class="recipe-intro">Transforma o blueprint do evento em um modo jogável com armadilhas, HUD e ranking.</p>
                     <h4>Copie do projeto original</h4>
@@ -2007,7 +2017,7 @@
                         <li>Ranking semanal reinicia automaticamente conforme configurado.</li>
                     </ul>
                 </article>
-                <article class="recipe-card">
+                <article class="recipe-card" data-recipe="receita-19">
                     <h3>Receita 19 — Facções Gens Vanert/Dupren</h3>
                     <p class="recipe-intro">Entrega facções, missões diárias e buffs de rank integrados ao servidor.</p>
                     <h4>Copie do projeto original</h4>
@@ -2039,7 +2049,7 @@
                         <li>Buffs corretos são aplicados/removidos em cada faixa de rank.</li>
                     </ul>
                 </article>
-                <article class="recipe-card">
+                <article class="recipe-card" data-recipe="receita-20">
                     <h3>Receita 20 — Cash Shop e entrega de itens</h3>
                     <p class="recipe-intro">Porta o XShop com catálogo dinâmico, carrinho e integração com inventário/banco.</p>
                     <h4>Copie do projeto original</h4>
