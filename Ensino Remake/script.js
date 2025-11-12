@@ -544,14 +544,14 @@ const assetConversionRules = [
         id: "character-models",
         label: "Modelos 3D (.BMD/.SMD)",
         description:
-            "Meshes e animações usadas por personagens, monstros e objetos interativos definidos em ZzzBMD.",
+            "Meshes e animações usadas por personagens, monstros e objetos interativos definidos em ZzzBMD com conversão assistida pelo utilitário BMD_FBX.",
         extensions: [".bmd", ".smd"],
-        target: "<code>.FBX</code> com esqueleto compartilhado",
+        target: "<code>.FBX</code> com esqueleto e texturas automatizadas",
         destination: "<code>Content/Characters</code> e <code>Content/Monsters</code>",
         steps: [
-            "Abrir o modelo no MuModel Viewer (ou ferramenta equivalente) e exportar FBX incluindo animações chave.",
-            "Validar hierarquia de ossos conforme a estrutura documentada em ZzzBMD.cpp antes de importar no Unreal.",
-            "Ativar \"Use T0 As Ref Pose\" no importador do Unreal e retargetar para o esqueleto player/monster."
+            "Compile o utilitário <code>BMD_FBX</code> com o FBX SDK e defina <code>BMD_FBX::SetRootPath</code> para apontar para <code>Data</code>, permitindo que o buscador localize texturas adicionais.",
+            "Ajuste <code>BMD_FBX::SetFrameTime</code> conforme a velocidade desejada e execute <code>converter.Unpack(bmdPath, nullptr, true, true, true)</code> para gerar <code>SKM_/SM_*.fbx</code> com materiais, pesos e animações normalizadas.",
+            "Revise a pasta gerada: as texturas são extraídas com nomes únicos e o esqueleto já possui raiz compatível com retargeting. Importe no Unreal ativando <em>Use T0 As Ref Pose</em> e associe as texturas renomeadas."
         ],
         references: [
             {
@@ -561,6 +561,10 @@ const assetConversionRules = [
             {
                 path: "Source Main 5.2/bin/Data/Character",
                 note: "Modelos originais do cliente"
+            },
+            {
+                path: "Ensino Remake/index.html#bmd-fbx",
+                note: "Guia de uso do conversor BMD_FBX"
             }
         ]
     },

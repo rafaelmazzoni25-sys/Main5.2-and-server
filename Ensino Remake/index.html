@@ -2401,6 +2401,48 @@
                 </div>
             </div>
 
+            <div class="asset-tool__guide" id="bmd-fbx">
+                <h4>Conversor autom&aacute;tico <code>BMD_FBX</code></h4>
+                <p>
+                    Utilize o conversor C++ <code>BMD_FBX</code> para transformar arquivos <code>.BMD</code> em
+                    <code>.FBX</code> prontos para a Unreal. O utilit&aacute;rio reorganiza a hierarquia de ossos,
+                    gera materiais e localiza texturas legadas automaticamente.
+                </p>
+                <ul class="asset-tool__guide-list">
+                    <li>
+                        <strong>Raiz unificada:</strong> cria um osso <code>root</code> e clusters para cada
+                        <code>Bone_t</code>, corrigindo modelos com v&aacute;rias ra&iacute;zes antes de salvar em
+                        <code>SaveFbx</code>.
+                    </li>
+                    <li>
+                        <strong>Materiais nomeados:</strong> renomeia texturas para <code>Mesh_T_###</code>, conecta
+                        <code>FbxFileTexture</code> aos materiais Phong e usa <code>FindTextureRecursive</code> para
+                        extrair <code>.OZJ/.OZT/.OZB</code> diretamente para a pasta de destino.
+                    </li>
+                    <li>
+                        <strong>Anima&ccedil;&otilde;es consistentes:</strong> converte quadros com
+                        <code>BMD_FBX::FRAME_TIME</code>, inclui poses de bind via <code>StoreBindPose</code> e exporta
+                        normais opcionais quando <code>export_normals</code> est&aacute; habilitado.
+                    </li>
+                </ul>
+                <pre class="asset-tool__guide-code"><code>BMD_FBX converter;
+BMD_FBX::SetRootPath(R"(C:\EnsinoRemake\Data)");
+BMD_FBX::SetFrameTime(1.0 / 30.0);
+converter.Unpack(
+    R"(C:\EnsinoRemake\MainOriginal\Data\Character\Knight01.bmd)",
+    nullptr,
+    true,   // localizar texturas
+    true,   // renomear texturas
+    true    // exportar normais
+);
+</code></pre>
+                <p class="asset-tool__guide-note">
+                    Se alguma textura n&atilde;o for encontrada localmente, defina <code>BMD_FBX::SetRootPath</code>
+                    apontando para uma pasta global de <code>Data</code>. O conversor registra cada arquivo faltante no
+                    console, facilitando o ajuste antes da importa&ccedil;&atilde;o no Unreal.
+                </p>
+            </div>
+
             <div class="table-wrapper table-wrapper--compact">
                 <table class="data-table data-table--mapping">
                     <caption>Mapa rápido de conversão 1:1</caption>
