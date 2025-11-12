@@ -385,7 +385,7 @@ const curriculum = {
                 "Implemente sockets TCP/UDP na Unreal para enviar pacotes compatíveis com ProtocolSend.cpp e consumir respostas tratadas por JSProtocol.cpp/Protocol.cpp.",
             prereqs: [
                 "Criar módulo C++ NetworkBridge com classes de conexão e filas",
-                "Serializar pacotes seguindo formato C1/C3 e estrutura do cliente clássico",
+                "Estruturar mensagens usando FRemakeMessage e os enums definidos (ERemakeMessage, EInstanceEvent, etc.)",
                 "Registrar pacotes recebidos comparando com WSclient.cpp",
                 "Implementar reconexão, heartbeat e feedback visual no HUD"
             ]
@@ -544,14 +544,14 @@ const assetConversionRules = [
         id: "character-models",
         label: "Modelos 3D (.BMD/.SMD)",
         description:
-            "Meshes e animações usadas por personagens, monstros e objetos interativos definidos em ZzzBMD.",
+            "Meshes e animações usadas por personagens, monstros e objetos interativos definidos em ZzzBMD com conversão assistida pelo utilitário BMD_FBX.",
         extensions: [".bmd", ".smd"],
-        target: "<code>.FBX</code> com esqueleto compartilhado",
+        target: "<code>.FBX</code> com esqueleto e texturas automatizadas",
         destination: "<code>Content/Characters</code> e <code>Content/Monsters</code>",
         steps: [
-            "Abrir o modelo no MuModel Viewer (ou ferramenta equivalente) e exportar FBX incluindo animações chave.",
-            "Validar hierarquia de ossos conforme a estrutura documentada em ZzzBMD.cpp antes de importar no Unreal.",
-            "Ativar \"Use T0 As Ref Pose\" no importador do Unreal e retargetar para o esqueleto player/monster."
+            "Compile o utilitário <code>BMD_FBX</code> com o FBX SDK e defina <code>BMD_FBX::SetRootPath</code> para apontar para <code>Data</code>, permitindo que o buscador localize texturas adicionais.",
+            "Ajuste <code>BMD_FBX::SetFrameTime</code> conforme a velocidade desejada e execute <code>converter.Unpack(bmdPath, nullptr, true, true, true)</code> para gerar <code>SKM_/SM_*.fbx</code> com materiais, pesos e animações normalizadas.",
+            "Revise a pasta gerada: as texturas são extraídas com nomes únicos e o esqueleto já possui raiz compatível com retargeting. Importe no Unreal ativando <em>Use T0 As Ref Pose</em> e associe as texturas renomeadas."
         ],
         references: [
             {
@@ -561,6 +561,10 @@ const assetConversionRules = [
             {
                 path: "Source Main 5.2/bin/Data/Character",
                 note: "Modelos originais do cliente"
+            },
+            {
+                path: "Ensino Remake/index.html#bmd-fbx",
+                note: "Guia de uso do conversor BMD_FBX"
             }
         ]
     },
@@ -651,6 +655,599 @@ const assetResults = document.getElementById("asset-results");
 const assetTotalEl = document.getElementById("asset-total-files");
 const assetConvertibleEl = document.getElementById("asset-convertible-files");
 const assetCompatibleEl = document.getElementById("asset-compatible-files");
+const assetVisualization = document.getElementById("asset-visualization");
+const assetVisualizationStatus = document.getElementById("asset-visualization-status");
+const assetVisualizationList = document.getElementById("asset-visualization-list");
+const bmdConfigurator = document.getElementById("bmd-configurator");
+const bmdConfiguratorCount = document.getElementById("bmd-configurator-count");
+const bmdConfiguratorFiles = document.getElementById("bmd-configurator-files");
+const bmdRootPathInput = document.getElementById("bmd-root-path");
+const bmdOutputDirInput = document.getElementById("bmd-output-dir");
+const bmdFrameTimeInput = document.getElementById("bmd-frame-time");
+const bmdFindTexturesInput = document.getElementById("bmd-find-textures");
+const bmdRenameTexturesInput = document.getElementById("bmd-rename-textures");
+const bmdExportNormalsInput = document.getElementById("bmd-export-normals");
+const bmdSnippetElement = document.getElementById("bmd-configurator-code");
+const bmdOptionsSummary = document.getElementById("bmd-configurator-options");
+const bmdCopyButton = document.getElementById("bmd-copy-button");
+const noviceModeToggle = document.getElementById("novice-mode-toggle");
+const noviceModeLabel = document.getElementById("novice-mode-label");
+const recipesPanel = document.getElementById("receitas-unreal");
+const recipeArticles = document.querySelectorAll("#receitas-unreal article.recipe-card");
+const NOVICE_STORAGE_KEY = "ensino-remake-novice-mode";
+const noviceBlocks = new Map();
+
+let bmdDetectedFiles = [];
+const BMD_PREVIEW_LIMIT = 8;
+const BMD_SNIPPET_LIMIT = 12;
+let bmdCopyResetHandle;
+
+const visualizationCategories = [
+    {
+        id: "hud",
+        label: "HUD",
+        description: "Texturas e layouts da interface clássica.",
+        keywords: ["/interface/", "/hud", "/ui/"]
+    },
+    {
+        id: "inventory",
+        label: "Inventário",
+        description: "Ícones, slots e tabelas usados no inventário do jogo.",
+        keywords: ["/item", "/inventory", "/equip"]
+    },
+    {
+        id: "characters",
+        label: "Personagens",
+        description: "Modelos, animações e dados de personagens e monstros.",
+        keywords: ["/character", "/monster", "/npc"]
+    }
+];
+
+const noviceRecipes = {
+    "receita-1": {
+        "intro": "Objetivo: refazer a HUD principal sem depender de scripts complexos.",
+        "preparation": [
+            "Abra o projeto EnsinoRemake na Unreal Engine 5 e confirme que o mapa Test_Level está aberto.",
+            "Separe em uma pasta as texturas exportadas do cliente clássico (menu01, menu_red, minimap, barras).",
+            "No Content Drawer crie as pastas UI/HUD se ainda não existirem.",
+            "Deixe o editor em modo Layout Default para seguir os mesmos nomes de menus mencionados nos passos."
+        ],
+        "steps": [
+            "Clique em Add/Import > Import to /Game/UI/HUD e selecione todas as texturas coletadas.",
+            "Na janela de importação, marque sRGB para imagens da interface e desmarque para máscaras do minimapa.",
+            "Clique com o botão direito na pasta UI/HUD e crie o Widget Blueprint chamado WB_HUDMain (User Widget).",
+            "Abra o WB_HUDMain, arraste um Canvas Panel para a Hierarchy e defina o tamanho padrão 640x480 em Designer > Desired Size.",
+            "Adicione três Image como filhos do Canvas, posicione conforme as coordenadas anotadas no guia e defina as texturas importadas.",
+            "Para cada barra (HP, MP, AG, SD) adicione uma Image, marque SizeBoxWrap e habilite Size X para poder animar a largura.",
+            "Crie no Graph eventos personalizados AtualizarHP/MP/AG/SD, recebendo ValorAtual e ValorMaximo do tipo float.",
+            "Dentro de cada evento use Divide (ValorAtual ÷ ValorMaximo) e SetRenderScale ou SetFillAmount da barra correspondente.",
+            "Crie um Widget WB_Minimap, adicione Image com textura circular, crie material com máscara e salve.",
+            "No Event Construct do WB_HUDMain, use Create Widget (WB_Minimap) e AddChildToOverlay para posicioná-lo no canto superior direito.",
+            "No GameInstance padrão, abra o Graph, use Event Init -> Create Widget (WB_HUDMain) -> Add to Viewport e promova para variável HUDAtivo.",
+            "Ainda no GameInstance, crie função AplicarStatusDoServidor que chama os eventos de atualização usando dados vindos da rede.",
+            "Compile o Widget, salve e feche mantendo o Content Drawer organizado."
+        ],
+        "validation": [
+            "No GameInstance, chame AplicarStatusDoServidor com valores fictícios (ex.: HP 100/200) e clique em Play para ver se barras mudam.",
+            "Gire a câmera no modo Play: o minimapa deve acompanhar a rotação se o material estiver configurado como Masked.",
+            "Abra o Output Log: nenhuma mensagem de erro sobre texturas faltando deve aparecer ao iniciar o nível."
+        ]
+    },
+    "receita-2": {
+        "intro": "Objetivo: entregar um inventário 8x8 funcional com arrastar e soltar sem escrever C++ avançado.",
+        "preparation": [
+            "Converta os ícones de itens para PNG/TGA e coloque em Content/UI/Inventory.",
+            "Abra o arquivo ZzzInventory.h para ter a tabela de largura e altura de cada item durante o processo.",
+            "Dentro da Unreal, confirme que o plugin UMG está ativo (deve estar por padrão).",
+            "Crie uma Blueprint Class baseada em Actor chamada BP_InventarioFake para testar interações sem rede."
+        ],
+        "steps": [
+            "No Content Drawer crie uma Data Table do tipo struct (ItemDefinition) contendo Nome, Classe, Largura, Altura, Icone.",
+            "Preencha a Data Table copiando os valores do ZzzInventory.h usando nomes amigáveis.",
+            "Crie um Widget Blueprint chamado WB_Inventory baseado em User Widget.",
+            "No Designer, adicione um UniformGridPanel chamado GridSlots e configure Fill para 8 colunas por 8 linhas.",
+            "Crie um Widget filho chamado WB_InventorySlot com botão transparente e uma imagem interna.",
+            "No WB_Inventory, use ForLoop de 0 a 63 no Event Construct para criar 64 slots, adicionando ao Grid com AddChildToUniformGrid (linha = Índice/8, coluna = Índice % 8).",
+            "Armazene cada slot em um array SlotsDisponiveis para consulta posterior.",
+            "Implemente função PodeColocarItem (Entrada: ItemId, Linha, Coluna) verificando se o espaço está livre e respeita largura/altura.",
+            "Crie estrutura FItemInstancia com campos ItemId, Quantidade, Rotacao e SlotsOcupados.",
+            "Implemente a função AdicionarItem que percorre os slots usando PodeColocarItem e marca quais índices foram preenchidos.",
+            "Para drag and drop, selecione o Botão do slot, marque Is Variable e em Behavior habilite On Mouse Button Down.",
+            "No Graph, implemente OnDragDetected criando um DragVisual com a imagem do item e armazenando referência do slot original.",
+            "Implemente OnDrop no WB_Inventory para reposicionar o item chamando AdicionarItem no novo local e liberando os slots antigos.",
+            "Adicione texto flutuante no slot selecionado exibindo Nome e Atributos usando dados da Data Table.",
+            "Coloque o Widget na tela através do BP_InventarioFake (Event BeginPlay -> Create Widget -> Add to Viewport)."
+        ],
+        "validation": [
+            "No modo Play, arraste um item de um slot para outro: ele deve seguir o cursor e encaixar apenas quando houver espaço.",
+            "Tente colocar um item 2x4 em uma área que falta espaço vertical: a função deve impedir e reproduzir som/feedback visual.",
+            "Remova um item e confirme no Output Log que o array SlotsOcupados foi limpo (use PrintString temporário)."
+        ]
+    },
+    "receita-3": {
+        "intro": "Objetivo: reconstruir o chat completo com canais, cores e notificações sem precisar conhecer Slate.",
+        "preparation": [
+            "Separe as fontes usadas pelo cliente clássico (gothic, arial) em Content/UI/Fonts.",
+            "Analise NewUIChat.cpp para entender códigos de canal (Normal, Party, Guild, Gens, Sistema).",
+            "No servidor de testes, habilite pacotes de chat simples para validar ida e volta (ProtocolSend.cpp).",
+            "Crie sons ou reutilize os .wav clássicos para toques de notificação."
+        ],
+        "steps": [
+            "No Content Drawer, crie um Widget Blueprint chamado WB_ChatWindow.",
+            "Adicione um Border escuro, dentro dele coloque um VerticalBox com um ScrollBox (mensagens) e um EditableTextBox (entrada).",
+            "Configure o ScrollBox para usar tamanho automático e permitir Scroll to End quando novas mensagens chegarem.",
+            "Crie uma Data Table DT_ChatChannels com campos Canal, Prefixo, CorTexto e SomNotificacao.",
+            "No Graph do WB_ChatWindow, crie a função RegistrarMensagem (Entrada: Canal, Autor, Texto) e dentro instancie um Widget linha (WB_ChatLine) com RichTextBlock.",
+            "Configure o EditableTextBox para capturar OnTextCommitted: ao pressionar Enter, leia o texto, determine canal (ex.: comandos /p, /g) e chame uma função do GameInstance para enviar ao servidor.",
+            "No GameInstance, implemente EnviarChat que chama o NetworkBridge (ou stub) com o pacote ERemakeMessage::ChatBroadcast + subcódigo correto.",
+            "Crie um componente UChatHistoryComponent armazenando últimas 100 mensagens para permitir rolagem após reconexão.",
+            "Para notificações rápidas, adicione um Widget WB_ToastQueue com animação fade in/out e crie função MostrarToast recebendo título e descrição.",
+            "Dentro do ScrollBox, use CreateWidget (WB_ChatLine) para cada mensagem, defina cor com base na Data Table e chame ScrollBox->ScrollToEnd.",
+            "Associe atalhos PageUp/PageDown para navegar no histórico usando Input Actions simples.",
+            "Para comandos de slash, adicione validação no Graph para impedir envio vazio e limpar o campo após confirmação.",
+            "Adicione tooltips nos botões de canal (Normal, Party, Guild) para orientar iniciantes."
+        ],
+        "validation": [
+            "Pressione Play em modo dois jogadores (New Editor Window) e envie mensagens: os canais precisam chegar coloridos nos dois clientes.",
+            "Execute /p teste: somente jogadores do mesmo grupo devem receber e o prefixo [Party] deve aparecer.",
+            "Provoque um aviso de sistema (por exemplo, entrada em evento) e confirme que o Toast aparece e some após o tempo configurado."
+        ]
+    },
+    "receita-4": {
+        "intro": "Objetivo: dominar o combate completo com mensagens ERemakeMessage, sem depender do protocolo legado.",
+        "preparation": [
+            "Ative os plugins Gameplay Ability System e Enhanced Input nas Project Settings > Plugins.",
+            "Separe SkillList.txt, SkillTree.txt, Item.txt e BuffEffect.txt convertendo-os para CSV para uso em Data Tables.",
+            "Separe montagens de animação (Idle, Walk, Run, Combo1, Combo2, Finisher) e as partículas Niagara de impacto.",
+            "Crie uma pasta C++ RemakeCombat com classes vazias (componentes, abilities, coordenador de servidor)."
+        ],
+        "steps": [
+            "No módulo RemakeNet, adicione struct FRemakeMessage com enum ERemakeMessage, canal (uint8) e payload (TArray<uint8>) implementando NetSerialize.",
+            "Crie o componente C++ URemakeCombatComponent herdado de UActorComponent, anexe ao personagem jogador e registre eventos OnMovementValidated, OnSkillImpact e OnQuickSlotSync.",
+            "Dentro do componente, inicialize o Ability System (UAbilitySystemComponent) e carregue DT_Skills/DT_Combos usando DataTableRowHandle.",
+            "Implemente função SolicitarMovimento que envia mensagem ERemakeMessage::MovementRequest via URemakeSessionChannel, passando vetor objetivo.",
+            "Implemente função AplicarMovementCommit que recebe posição autorizada do servidor e chama SetActorLocation/ServerSetControlRotation.",
+            "Crie classes UGA_RemakeAttack e UGA_RemakeSkillArea herdando de UGameplayAbility. Na ativação, envie mensagem ERemakeMessage::SkillCast e aguarde callback OnSkillImpact.",
+            "Monte URemakeQuickSlotComponent para poções. Ao clicar na UI, chame ConsumirItemRapido -> envia ERemakeMessage::QuickSlotUse e só libera novamente após QuickSlotSync.",
+            "No servidor dedicado, implemente ARemakeCombatCoordinator (AGameModeBase) com URemakeCombatSystem que processa MovementRequest, SkillCast e QuickSlotUse validando recursos/tempo.",
+            "No personagem blueprint, conecte Enhanced Input: InputAction Move chama SolicitarMovimento; InputAction Attack chama AtivarAbility (leve/pesado) conforme estado do combo.",
+            "Integre com o HUD: crie evento OnCombateAtualizado no componente e, dentro de WB_CombatHUD, atualize barras, cooldowns e lista de buffs sempre que o evento disparar.",
+            "Adicione testes funcionais (AutomationSpec ou Gauntlet) simulando dois personagens se enfrentando e verificando se ambos recebem MovementCommit e SkillImpact em ordem."
+        ],
+        "validation": [
+            "Inicie dois clientes conectados ao servidor Unreal: caminhe com ambos e confirme no Output Log que MovementRequest/MovementCommit aparecem pareados.",
+            "Execute um combo completo: cada golpe deve reproduzir Montage, emitir partículas e só aplicar dano após OnSkillImpact.",
+            "Use uma poção rápida e confira se o item sai do inventário apenas quando QuickSlotSync chega do servidor.",
+            "Ative um buff temporário e observe o HUD marcar duração e remover o ícone automaticamente ao terminar."
+        ]
+    },
+    "receita-5": {
+        "intro": "Objetivo: reconstruir login, criação e seleção de personagem usando apenas o pipeline da Unreal Engine 5+.",
+        "preparation": [
+            "Ative o plugin Online Subsystem (ou o transporte escolhido) e confirme que o projeto compila em modo servidor dedicado.",
+            "Separe sons clássicos (clique, erro, confirmação) e converta para SoundCue.",
+            "Prepare Data Tables com classes iniciais (CharacterCreate.txt) e atributos base por classe.",
+            "Crie widgets vazios WB_Login, WB_SelecaoPersonagem e WB_CriacaoClasse no Content/UI/Login."
+        ],
+        "steps": [
+            "No módulo RemakeAccounts, declare structs FRemakeLoginPayload, FRemakeCharacterSummary e FRemakeWorldTicket compartilhadas entre cliente e servidor.",
+            "Implemente o URemakeAccountSubsystem com funções SolicitarLogin, SolicitarLista, SolicitarCriacao, SolicitarExclusao e SolicitarEntradaNoMundo enviando mensagens ERemakeMessage apropriadas.",
+            "No servidor, crie ARemakeAccountCoordinator (AGameModeBase) que valida credenciais, lê a tabela de personagens e devolve um array de FRemakeCharacterSummary.",
+            "Monte o widget WB_Login com campos de usuário e senha, botões laterais e área de mensagens. Vincule o botão Entrar a SolicitarLogin e desabilite entradas até o retorno chegar.",
+            "Construa WB_SelecaoPersonagem com TileView para slots, painel de detalhes e botão Criar. Quando OnListaAtualizada disparar, atualize a TileView e selecione o primeiro personagem.",
+            "Ao clicar em Criar, abra WB_CriacaoClasse dentro de um Overlay, carregue dados da Data Table e monte o payload CharacterCreate. Envie e aguarde confirmação para atualizar a lista.",
+            "Implemente exclusão com um diálogo modal solicitando confirmação antes de chamar SolicitarExclusao.",
+            "Quando o jogador escolher um personagem, envie SolicitarEntradaNoMundo e aguarde o ticket. Ao receber, armazene a estrutura e carregue o nível principal com OpenLevel passando Options com o ticket.",
+            "No GameInstance (BeginPlay do mundo principal), consuma o ticket recebido para spawnar o personagem e inicializar HUD/combate.",
+            "Adicione logs educativos (UE_LOG) sinalizando cada etapa: login aceito, lista carregada, ticket recebido, mundo aberto."
+        ],
+        "validation": [
+            "Teste três cenários de login: sucesso, senha errada e conta bloqueada. Em todos, a UI precisa mostrar mensagens amigáveis.",
+            "Crie e exclua personagens em sequência; a lista deve atualizar imediatamente sem reiniciar o cliente.",
+            "Após receber o ticket, confirme que o personagem entra no mapa correto com HUD carregado e que o servidor registrou a sessão.",
+            "Repita o fluxo em dois clientes simultâneos garantindo que os tickets direcionem cada jogador para a instância correta."
+        ]
+    },
+    "receita-6": {
+        "intro": "Objetivo: montar a barra de habilidades com atalhos configuráveis, cooldowns e suporte a itens consumíveis.",
+        "preparation": [
+            "Liste as habilidades principais do Main 5.2 (arquivo Skill.txt) e prepare ícones em Content/UI/Skills.",
+            "Habilite o plugin GameplayAbilities caso use sistema de habilidades avançado.",
+            "Separe efeitos sonoros e Niagara básicos para feedback.",
+            "Defina teclas padrão (1 a 6, QWER) no Input Mapping Context."
+        ],
+        "steps": [
+            "Crie o Widget WB_SkillBar com um HorizontalBox contendo 12 botões estilizados.",
+            "Cada botão deve ter Image para ícone, texto pequeno para tecla e overlay para cooldown (ProgressBar circular).",
+            "Crie struct FSkillSlot com campos SlotIndex, SkillId, CooldownAtual, CooldownMax, Tipo (Habilidade ou Item).",
+            "No Event Construct, inicialize array de slots lendo Data Table de habilidades padrão.",
+            "Implemente drag and drop permitindo arrastar ícones do painel de habilidades para a barra.",
+            "Quando o jogador pressiona uma tecla, chame TentarAtivarSkill: verifique se cooldown está zero e se requisitos (mana, flechas) são atendidos.",
+            "Se aprovado, envie pacote ERemakeMessage::SkillCastSingle (uso de skill) ou ERemakeMessage::QuickSlotUse (item) ao servidor e inicie contagem regressiva animando o overlay.",
+            "Reproduza efeito Niagara/áudio e mostre mensagem no chat \"Skill usada\" para reforçar feedback.",
+            "Crie função AtualizarCooldowns chamada a cada Tick do HUD usando Delta Seconds.",
+            "Armazene preferências do jogador (layout da barra) em SaveGame para restaurar quando ele voltar."
+        ],
+        "validation": [
+            "Arraste uma habilidade para outro slot e pressione a tecla: o ícone deve mudar e o comando correto deve ser enviado.",
+            "Ao usar habilidade repetidamente, verifique se cooldown impede spam (overlay visual e bloqueio de input).",
+            "Use um item consumível (Ex.: Poção de Zen) e confirme que a quantidade diminui no inventário e a barra atualiza."
+        ]
+    },
+    "receita-7": {
+        "intro": "Objetivo: orientar a criação de lojas NPC e trocas diretas entre jogadores com segurança para novatos.",
+        "preparation": [
+            "Liste os NPCs comerciantes relevantes no arquivo Shop0X.txt e separe seus ícones.",
+            "Prepare tabela de itens vendidos com preço, nível e moeda (Zen, WCoin, Pontos).",
+            "No servidor de testes, ative pacotes ERemakeMessage::NpcBuyRequest (abrir loja) e ERemakeMessage::TradeCancel (troca) para simular respostas.",
+            "Configure duas contas no banco para validar troca entre jogadores."
+        ],
+        "steps": [
+            "Crie Widget WB_ShopWindow com abas para categorias e uma Grid com itens.",
+            "Preencha a Grid lendo Data Table DT_NpcShops criada a partir dos arquivos Shop0X.txt.",
+            "Ao clicar em um item, abra painel lateral com descrição, preço e botão Comprar.",
+            "Integre com o inventário chamando UInventoryComponent->TemEspacoAntesDeComprar.",
+            "Ao confirmar compra, envie pacote ERemakeMessage::NpcBuyConfirm para o servidor e aguarde resposta ERemakeMessage::NpcBuyFinalize para finalizar.",
+            "Para lojas pessoais, crie Widget WB_PersonalStore que permite arrastar itens do inventário e definir preço.",
+            "Ao abrir troca com outro jogador, use Widget WB_TradeWindow com dois quadros (você e outro) e botão Confirmar.",
+            "Implemente travas: enquanto a troca não estiver confirmada pelos dois, impedir movimentação de itens.",
+            "Adicione log de auditoria em CSV salvando itens envolvidos a cada transação educativa.",
+            "Forneça dicas textuais explicando o fluxo (ex.: \"Arraste o item para a área superior para vender\")."
+        ],
+        "validation": [
+            "Abra uma loja NPC, compre um item barato e veja se aparece no inventário com preço descontado do Zen.",
+            "Configure loja pessoal e conecte segundo cliente: confirme se lista de itens aparece igual para ambos.",
+            "Execute troca entre duas contas e verifique se, ao cancelar no final, nenhum item desaparece."
+        ]
+    },
+    "receita-8": {
+        "intro": "Objetivo: guiar a montagem do diário de missões com passos, recompensas e sincronização com o servidor.",
+        "preparation": [
+            "Extraia arquivos QuestInfo.dat e QuestProgress.txt para montar Data Tables.",
+            "Separe ícones de missões e retratos de NPCs para Content/UI/Quests.",
+            "Certifique-se de ter o plugin DataTable Editor habilitado para edição rápida.",
+            "Verifique os pacotes ERemakeMessage::EventNotice no Protocol.cpp para entender como o servidor envia progresso de missão."
+        ],
+        "steps": [
+            "Crie uma Data Table DT_Quests com campos Id, Nome, NPC, Objetivo, Recompensa, TextoResumo.",
+            "Monte o Widget WB_QuestJournal com três colunas: lista de missões à esquerda, descrição no centro e recompensas à direita.",
+            "Adicione um SearchBox para filtrar missões por nome ou categoria (Main, Sub, Evento).",
+            "Implemente função AtualizarLista que percorre DT_Quests e marca quais estão concluídas conforme dados recebidos do servidor.",
+            "Crie o Widget WB_QuestTracker (mini painel) para mostrar até três objetivos ativos na HUD.",
+            "Ao aceitar missão, envie pacote ERemakeMessage::EventNotice evento <code>EQuestEvent::Accept</code> e aguarde resposta confirmando estados.",
+            "Quando o servidor enviar progresso, atualize a barra de objetivo e toque som de checkpoint.",
+            "Permita que o usuário fixe uma missão no topo clicando no botão \"Fixar\" ao lado do nome.",
+            "Salve progresso local em SaveGame caso esteja rodando offline para aulas.",
+            "Adicione botões \"Mostrar no mapa\" que chamam o minimapa para destacar posição do NPC."
+        ],
+        "validation": [
+            "Aceite uma missão teste e confirme que ela aparece no tracker com texto claro.",
+            "Complete o objetivo (ex.: derrotar 5 monstros) e verifique se barra de progresso chega a 100%.",
+            "Ao entregar missão, confira se recompensa é adicionada ao inventário e se o diário marca como concluída."
+        ]
+    },
+    "receita-9": {
+        "intro": "Objetivo: criar IA de monstros, ciclos de respawn e drops sem exigir conhecimento profundo de C++.",
+        "preparation": [
+            "Importe modelos e animações de monstros do cliente para Content/Monsters.",
+            "Analise MonsterAI.txt e MonsterSetBase.txt para extrair posicionamentos e atributos.",
+            "Crie um mapa simples com volumes que representarão áreas de respawn.",
+            "Ative o Behavior Tree Editor (padrão) e prepare um Blackboard."
+        ],
+        "steps": [
+            "Crie uma Blueprint de personagem chamada BP_MonsterBase herdando de Character.",
+            "Adicione componentes para AgroSphere (detectar jogadores) e Vida.",
+            "Construa um Behavior Tree BT_Monster com nós: Selecionar alvo -> Perseguir -> Atacar -> Resetar.",
+            "No Blackboard, mantenha chaves TargetActor, SpawnPoint, TempoSemAlvo.",
+            "Crie um SpawnManager que lê MonsterSetBase e instancia monstros conforme índice do mapa.",
+            "Implemente respawn usando Delay com tempo configurado em Data Table.",
+            "Ao morrer, gere drops consultando tabela de loot convertida (ItemDropRate.txt) e chame função do GameServer via pacote ERemakeMessage::WorldSnapshot.",
+            "Para efeitos visuais, reproduza partículas clássicas (morte, drop) e sons.",
+            "Registre estatísticas em HUD (quantos monstros restam) para facilitar exercícios de IA.",
+            "Documente no Blueprint com comentários indicando trechos equivalentes em MonsterAI.cpp."
+        ],
+        "validation": [
+            "Inicie o mapa e observe se monstros nascem nos pontos definidos.",
+            "Ao aproximar-se, verifique se entram em combate seguindo a árvore (perseguem, atacam, retornam).",
+            "Após eliminá-los, confirme se respawn ocorre após tempo configurado e itens caem corretamente."
+        ]
+    },
+    "receita-10": {
+        "intro": "Objetivo: estruturar party, guild e correio social com painéis fáceis de operar por iniciantes.",
+        "preparation": [
+            "Extraia arquivos GuildList.txt e FriendList para montar dados fictícios.",
+            "Garanta que pacotes ERemakeMessage::PartyInvite (party) e ERemakeMessage::GuildCommand (guild) estejam documentados na planilha de rede.",
+            "Separe ícones de guilda e brasões para Content/UI/Social.",
+            "Configure duas contas adicionais para testar convites e mensagens."
+        ],
+        "steps": [
+            "Crie o Widget WB_PartyPanel com lista de membros, barra de HP/MP compartilhada e botões Convidar/Sair.",
+            "Implemente função EnviarConviteParty chamando pacote ERemakeMessage::PartyInvite evento <code>EPartyEvent::Invite</code> com nome do jogador.",
+            "Ao receber atualização ERemakeMessage::PartyInvite evento <code>EPartyEvent::Update</code>, atualize lista e notifique com som discreto.",
+            "Para guild, crie Widget WB_GuildWindow com abas (Informações, Membros, Alianças, Armazém).",
+            "Monte Data Table DT_GuildRanks com permissões (convidar, expulsar, abrir baú) e use para habilitar botões.",
+            "Implemente sistema de brasão permitindo importar imagem 24x24 (convertida) e enviar ao servidor via ERemakeMessage::GuildCommand evento <code>EGuildEvent::UploadCrest</code>.",
+            "Crie Widget WB_Mailbox com lista de mensagens, anexos e botão Coletar Tudo.",
+            "Armazene mensagens em SaveGame para uso offline durante aulas.",
+            "Adicione log informando quem convidou quem e quando, útil para monitorar treinos."
+        ],
+        "validation": [
+            "Convide um segundo jogador para party e verifique se ambos veem os dados sincronizados.",
+            "Altere rank de um membro na guilda e confirme se permissões mudam instantaneamente.",
+            "Envie correio com item anexado e teste resgate pelo destinatário, garantindo que o item apareça no inventário."
+        ]
+    },
+    "receita-11": {
+        "intro": "Objetivo: replicar eventos instanciados Blood Castle e Devil Square com foco em professores iniciantes.",
+        "preparation": [
+            "Exporta mapas originais (bmd) e converta para FBX usando o conversor documentado.",
+            "Leia arquivos Event/BloodCastleSetting.txt e DevilSquareSetting.txt.",
+            "Configure cronograma no servidor simulando abertura das instâncias.",
+            "Prepare efeitos visuais (portões quebrando, portais) em Content/FX/Events."
+        ],
+        "steps": [
+            "Crie níveis dedicados LV_BloodCastle e LV_DevilSquare reutilizando malhas convertidas.",
+            "Implemente GameMode base AEventInstanceGameMode responsável por cronômetro, objetivos e pontuação.",
+            "Crie um Director Actor que lê Data Table com fases (Preparação, Defesa, Boss) e controla spawn de monstros.",
+            "Desenvolva Widget WB_EventHUD exibindo tempo restante, objetivos e ranking de contribuição.",
+            "Ao iniciar evento, teletransporte jogadores usando ServerTravel e atribua times conforme nível.",
+            "Controle portões e obstáculos com Sequencer (Level Sequence) acionado pelo Director.",
+            "Ao finalizar, calcule pontos e envie pacote ERemakeMessage::BloodCastleScore (Blood Castle) ou ERemakeMessage::DevilSquareSummary (Devil Square) ao servidor com resultados.",
+            "Retorne jogadores ao mapa principal e conceda recompensas baseadas no ranking.",
+            "Documente no guia como resetar o evento para a próxima aula."
+        ],
+        "validation": [
+            "Inicie evento com dois alunos e confirme que ambos recebem objetivo \"Proteja o portão\" com contagem regressiva correta.",
+            "Permita que o portão seja destruído: o evento deve avançar para fase seguinte automaticamente.",
+            "Ao terminar, verifique se ranking e recompensas correspondem às configurações lidas do arquivo."
+        ]
+    },
+    "receita-12": {
+        "intro": "Objetivo: implementar o sistema de duelo 1x1 com placar, espectadores e regras anti-abuso.",
+        "preparation": [
+            "Analise CDuelMgr.cpp e NewUIDuelWindow.cpp para entender estados (Solicitado, Aceito, Em Andamento).",
+            "Separe efeitos de contagem regressiva e trilha sonora curta para início de duelo.",
+            "Configure área plana no mapa principal para servir de arena teste.",
+            "Ative pacotes ERemakeMessage::DuelFlow no servidor de treino (pedidos de duelo e atualizações)."
+        ],
+        "steps": [
+            "Crie componente UDuelComponent anexado ao PlayerState armazenando estado atual do duelo, adversário e pontuação.",
+            "Construa Widget WB_DuelInvite com texto claro e botões Aceitar/Recusar.",
+            "Ao desafiar (clique direito no jogador -> opção Duelo), envie pacote ERemakeMessage::DuelFlow evento <code>EDuelEvent::Request</code> e aguarde resposta.",
+            "Se aceito, ative contagem regressiva exibindo Widget WB_DuelCountdown e bloqueando movimentação até zero.",
+            "Durante o duelo, atualize Widget WB_DuelHUD com barras de HP, pontuação e tempo restante (3 minutos padrão).",
+            "Registre hits em UDuelComponent e envie atualização ERemakeMessage::DuelFlow evento <code>EDuelEvent::ScoreTick</code> para sincronizar com servidor.",
+            "Permita espectadores: jogadores próximos recebem Widget com barra \"Assistindo\" e podem deixar comentários no chat.",
+            "Ao finalizar, reproduza animação de vitória e libere movimentação após 3 segundos.",
+            "Gravar resultado em arquivo CSV para revisão posterior em aula."
+        ],
+        "validation": [
+            "Solicite duelo entre duas contas e verifique se ambos veem a contagem regressiva e o placar.",
+            "Forçe empate deixando o tempo zerar: o sistema deve declarar empate sem travar personagens.",
+            "Durante duelo, tente usar Teleport Scroll: o componente deve impedir ações proibidas mostrando aviso."
+        ]
+    },
+    "receita-13": {
+        "intro": "Objetivo: guiar a criação do evento Empire Guardian com ondas cooperativas e HUD detalhada.",
+        "preparation": [
+            "Leia EmpireGuardian.cpp (GameServer) e NewUIEmpireGuardianNPC.cpp para mapear fases e NPCs.",
+            "Converta assets do cenário (mu_guardian) para Content/Maps/EmpireGuardian.",
+            "Prepare Data Table com configurações de waves, tipos de monstros e recompensas.",
+            "Configure timers de teste no servidor para disparar a instância rapidamente."
+        ],
+        "steps": [
+            "Crie nível LV_EmpireGuardian com pontos de spawn marcados por TargetPoints nomeados (Wave1_SpawnA, etc.).",
+            "Desenvolva GameMode AEEmpireGuardianMode com estados Preparação, Defesa, Boss e Conclusão.",
+            "Crie Widget WB_EmpireHUD mostrando tempo, vida do cristal, wave atual e barra de progresso.",
+            "Implemente Actor CrystalGuardian com componente Vida compartilhada e evento OnDestroyed que encerra partida.",
+            "Carregue waves lendo Data Table e, para cada entrada, agende SpawnActor de monstros com Delay.",
+            "Ao completar wave, envie pacote ERemakeMessage::BloodCastleSummary ao servidor com estatísticas e toque fanfarra curta.",
+            "Ofereça dicas visuais (setas) indicando onde próxima wave aparecerá.",
+            "Após vitória, abra Widget de recompensas listando itens com botão \"Coletar\".",
+            "Documente no UI a origem dos dados (linhas específicas dos arquivos originais) para estudo."
+        ],
+        "validation": [
+            "Inicie o evento com dois jogadores e confirme que ambos veem a mesma wave e barra do cristal.",
+            "Deixe o cristal ser destruído: o jogo deve encerrar mostrando mensagem de falha e teletransportar os jogadores.",
+            "Complete todas as waves e valide se recompensas listadas batem com Data Table configurada."
+        ]
+    },
+    "receita-14": {
+        "intro": "Objetivo: orientar a implementação do Cursed Temple com equipes Holy/Illusion, pontos e minimapa dedicado.",
+        "preparation": [
+            "Analise CNewUICursedTempleSystem.cpp e dados em Event/CursedTempleSetting.txt.",
+            "Converta minimapas e ícones das equipes para Content/UI/CursedTemple.",
+            "Configure GameServer para enviar pacotes ERemakeMessage::EventBanner evento <code>EEventBanner::OpenStage</code> relacionados ao evento.",
+            "Separe efeitos Niagara para capturar selo e distribuir pontos."
+        ],
+        "steps": [
+            "Crie nível LV_CursedTemple com volumes para capturar Relic e zonas de ressurgimento por equipe.",
+            "Desenvolva GameMode ACTempleMode com times Holy e Illusion, usando GameState para replicar pontuação.",
+            "Implemente Widget WB_CursedHUD com placar, tempo, contagem de selos e indicador do portador atual.",
+            "Adicione minimapa dedicado com ícones coloridos para cada equipe e para a Relic.",
+            "Ao capturar Relic, toque efeito, atribua pontos por segundo e envie pacote ERemakeMessage::EventBanner evento <code>EEventBanner::RelicUpdate</code> ao servidor.",
+            "Gere mensagens de narração (\"Equipe Holy recuperou a relíquia!\") usando Data Table de frases.",
+            "Ao final, mostre tela de resultados com ranking individual, pontos e recompensas.",
+            "Salve replay opcional (Sequence Recorder) para análise em sala de aula."
+        ],
+        "validation": [
+            "Capture a relíquia com a equipe Holy e garanta que pontuação aumente gradualmente.",
+            "Deixe a equipe adversária derrotar o portador: a relíquia deve cair no chão com temporizador adequado.",
+            "Finalize a partida e confira se a equipe vencedora recebe a mensagem e recompensas corretas."
+        ]
+    },
+    "receita-15": {
+        "intro": "Objetivo: replicar o evento Doppelganger com linha do tempo, cinematics e lógica de clones.",
+        "preparation": [
+            "Examine NewUIDoppelGangerWindow.cpp e dados em Event/DoppelGangerSetting.txt.",
+            "Converta cutscenes curtas ou crie Level Sequences para abertura e encerramento.",
+            "Prepare Data Table com passos (Estágio 1, Estágio 2, Boss) e recompensas.",
+            "Configure servidor de testes para enviar pacotes ERemakeMessage::LuckyItem durante o evento."
+        ],
+        "steps": [
+            "Crie nível LV_DoppelGanger com rotas separadas para equipe do jogador e clones.",
+            "Desenvolva GameMode ADoppelMode controlando timeline (Start -> Run -> Boss -> Result).",
+            "Monte Widget WB_DoppelTimeline exibindo barra de progresso com marcadores de cada etapa.",
+            "Implemente spawn de clones usando versões esmaecidas dos personagens (material com opacity controlada).",
+            "Ao derrotar clone, atualize pontuação e avance timeline com animação.",
+            "Acione cinematic de transição usando Level Sequence quando Boss surgir.",
+            "Envie pacote ERemakeMessage::LuckyItem evento <code>ELuckyItemEvent::Result</code> com pontuação final e compare com tabela de recompensas.",
+            "Permita que professores acionem modo Replay para discutir decisões com os alunos."
+        ],
+        "validation": [
+            "Inicie evento e verifique se timeline avança conforme monstros são derrotados.",
+            "Chegando ao Boss, confirme que cinematic toca e que HUD atualiza para modo final.",
+            "Ao concluir, confira se pontuação exibida bate com o log do servidor e se recompensas são entregues."
+        ]
+    },
+    "receita-16": {
+        "intro": "Objetivo: ensinar passo a passo a economia Lucky Coin e a janela Lucky Item, incluindo conversão de arquivos.",
+        "preparation": [
+            "Reúna LuckyCoinTrade.txt, LuckyItem.txt e recursos de interface correspondentes.",
+            "Prepare banco com tabelas de moedas para contas teste.",
+            "Certifique-se de que o conversor BMD_FBX exportou modelos necessários para itens brilhantes.",
+            "Configure o servidor para enviar pacotes ERemakeMessage::LuckyCoin (Lucky Coin) e ERemakeMessage::LuckyItem (Lucky Item)."
+        ],
+        "steps": [
+            "Crie Data Table DT_LuckyCoin com itens oferecidos, custo em moedas e requisitos.",
+            "Monte Widget WB_LuckyCoinExchange com lista de ofertas, pré-visualização e botão Trocar.",
+            "Ao confirmar, envie pacote ERemakeMessage::LuckyCoin evento <code>ELuckyCoinEvent::Exchange</code> e exiba barra de progresso simulando animação de troca.",
+            "Para Lucky Item, crie Widget WB_LuckyItemForge com slots para materiais, botão Combinar e visualização 3D do item.",
+            "Importe partículas azuis e aplique ao item ao completar combinação.",
+            "Registre histórico de trocas em arquivo local (CSV) para consulta.",
+            "Informe ao aluno limites diários e como resetar contadores no servidor de treino.",
+            "Adicione explicações textuais sobre diferença entre Lucky Coin e Cash Shop."
+        ],
+        "validation": [
+            "Troque algumas Lucky Coins por item básico e confirme que o saldo reduz corretamente.",
+            "Tente realizar combinação sem materiais completos: o sistema deve bloquear com mensagem clara.",
+            "Gere um Lucky Item e verifique se brilha na vitrine 3D e aparece no inventário com opções extras."
+        ]
+    },
+    "receita-17": {
+        "intro": "Objetivo: orientar a refinaria Jewel of Harmony com interface, validações e logs educativos.",
+        "preparation": [
+            "Converta UIJewelHarmony.bmd para obter imagens e leia UIJewelHarmony.cpp para entender regras.",
+            "Prepare Data Table com combinações permitidas (item base, opção, custo em Gemstone).",
+            "Separe efeitos visuais para sucesso e falha.",
+            "Configure servidor para aceitar pacotes ERemakeMessage::SkillAreaBroadcast evento <code>EHarmonyEvent::Forge</code> (Harmony)."
+        ],
+        "steps": [
+            "Crie Widget WB_HarmonyRefinery com slots para Item Base, Jewel of Harmony e Gemstone.",
+            "Ao colocar item, valide se pertence às categorias suportadas consultando Data Table.",
+            "Exiba lista de opções possíveis com descrição traduzida do arquivo original.",
+            "Ao clicar em Combinar, envie pacote ERemakeMessage::SkillAreaBroadcast evento <code>EHarmonyEvent::Forge</code> com dados do item e aguarde resposta.",
+            "Em caso de sucesso, reproduza efeito brilhante e atualize atributos do item na Data Table do inventário.",
+            "Se falhar, toque som específico e registre tentativa no log educacional (CSV).",
+            "Forneça botão \"Histórico\" mostrando últimas combinações feitas pelo jogador."
+        ],
+        "validation": [
+            "Insira item incompatível: interface deve exibir aviso e bloquear botão Combinar.",
+            "Realize combinação de teste e confira se atributos extras aparecem no item no inventário.",
+            "Abra histórico e veja se a linha recém-executada foi registrada com data, hora e resultado."
+        ]
+    },
+    "receita-18": {
+        "intro": "Objetivo: entregar o Chaos Castle com armadilhas, HUD dinâmica e guia passo a passo para professores.",
+        "preparation": [
+            "Converta mapas e texturas do Chaos Castle usando o pipeline BMD_FBX.",
+            "Leia ChaosCastle.cpp (GameServer) para mapear estados e pacotes.",
+            "Prepare Data Table com posições de armadilhas e tempos de ativação.",
+            "Separe efeitos de queda e fogo para volumes letais."
+        ],
+        "steps": [
+            "Monte nível LV_ChaosCastle com plataformas e volumes de queda identificados.",
+            "Crie GameMode ACChaosCastleMode gerenciando fases StandBy, Playing e End.",
+            "Adicione Widget WB_ChaosHUD com contador de sobreviventes, ranking e alertas de armadilha.",
+            "Implemente Actor TrapController lendo Data Table e ativando volumes com Timeline.",
+            "Ao eliminar jogador, chame função que envia pacote ERemakeMessage::ChaosCastleStatus evento <code>EChaosCastleEvent::SurvivorCount</code> e atualiza ranking.",
+            "Crie espectador automático: quando cair, mudar para câmera aérea explicativa.",
+            "Ao final, gere CSV com classificação semanal para acompanhamento."
+        ],
+        "validation": [
+            "Inicie partida com vários bots e verifique se armadilhas ativam nos tempos programados.",
+            "Caia de propósito para garantir que câmera de espectador e mensagens funcionem.",
+            "Finalize a rodada e confira se ranking e CSV refletem posições corretas."
+        ]
+    },
+    "receita-19": {
+        "intro": "Objetivo: ensinar as facções Gens, missões diárias e buffs de rank com linguagem acessível.",
+        "preparation": [
+            "Leia GensSystem.cpp e NewUIGensWindow.cpp para entender estrutura.",
+            "Converta ícones das facções (Vanert, Dupren) para Content/UI/Gens.",
+            "Monte Data Table com recompensas por rank e missões diárias.",
+            "Configure servidor para responder pacotes ERemakeMessage::FactionChannel."
+        ],
+        "steps": [
+            "Crie Widget WB_GensLobby com botões Entrar Vanert/Dupren e descrição simples de cada facção.",
+            "Implemente componente UGensFactionComponent armazenando pontos, rank, facção e buffs ativos.",
+            "Ao entrar, envie pacote ERemakeMessage::FactionChannel evento <code>EFactionEvent::JoinRequest</code> e aguarde confirmação para atualizar HUD.",
+            "Crie Widget WB_GensRanking exibindo lista ordenada dos jogadores com pontuação.",
+            "Adicione painel de missões diárias carregando Data Table e marcando concluídas quando pacote ERemakeMessage::FactionChannel evento <code>EFactionEvent::QuestUpdate</code> chegar.",
+            "Aplique buffs utilizando GameplayEffects configurados conforme rank retornado.",
+            "Exiba aura Niagara diferenciada por facção.",
+            "Programe reset semanal com Timer lendo configuração ResetDay na Data Table."
+        ],
+        "validation": [
+            "Entre em uma facção e confirme que ícones e cores da HUD mudam imediatamente.",
+            "Complete missão diária e veja se pontos aumentam e ranking é atualizado.",
+            "Espere pelo reset programado ou force manualmente e cheque se pontos voltam a zero mantendo histórico salvo."
+        ]
+    },
+    "receita-20": {
+        "intro": "Objetivo: reproduzir a Cash Shop completa, do catálogo à entrega de itens e saldo de moedas.",
+        "preparation": [
+            "Converta recursos da Cash Shop (Interface/XShop) para Content/UI/CashShop.",
+            "Prepare Data Tables DT_CashCatalog e DT_CashPackages com dados dos arquivos originais.",
+            "Configure servidor para aceitar pacotes ERemakeMessage::CashShopPurchase, ERemakeMessage::CashShopReceipt e ERemakeMessage::CashMailbox.",
+            "Separe sons e animações para compras e presentes."
+        ],
+        "steps": [
+            "Crie Widget WB_CashShop com abas laterais, TileView de itens e painel de detalhes.",
+            "Carregue Data Tables no Event Construct e filtre itens por categoria quando abas forem clicadas.",
+            "Permita adicionar ao carrinho com botão destacado e exiba quantidade no canto superior.",
+            "Ao clicar em Comprar, abra modal com resumo, saldo disponível e botão Confirmar.",
+            "Envie pacote ERemakeMessage::CashShopPurchase com itens do carrinho e aguarde resposta ERemakeMessage::CashShopReceipt.",
+            "Atualize saldo mostrado na HUD e registre compra em log.",
+            "Crie Widget WB_CashMailbox listando presentes (pacote ERemakeMessage::CashMailbox) com botão Resgatar.",
+            "Ao resgatar, mova item para inventário e toque efeito de luz."
+        ],
+        "validation": [
+            "Adicione itens diferentes ao carrinho e confirme que total e saldo são recalculados corretamente.",
+            "Realize compra e verifique se resposta ERemakeMessage::CashShopReceipt atualiza saldo e entrega itens no inventário.",
+            "Resgate presente no mailbox e confirme se desaparece da lista e aparece na bolsa."
+        ]
+    },
+    "receita-21": {
+        "intro": "Objetivo: reconstruir todas as janelas do NewUI na Unreal com texturas, sons e atalhos idênticos ao cliente clássico.",
+        "preparation": [
+            "Liste as janelas em NewUIManager.cpp (Inventário, Personagem, Guilda, Trade, Quest, Eventos, Cash Shop, Opções, Mensagens).",
+            "Converta texturas da pasta Interface/ e sons de Data/Sounds para Content/UI/Legacy e Content/Audio/UI.",
+            "Abra GlobalText.txt, MsgBox.txt, ToolTip.txt e EventMsg.txt para separar as mensagens de cada janela.",
+            "Revise NewUICommonMessageBox.cpp, NewUIInventoryCtrl.cpp, NewUITrade.cpp e UIControls.h para entender controles compartilhados."
+        ],
+        "steps": [
+            "Crie módulo/folder UIFramework com UWindowRegistry, UUIAudioLibrary e material padrão das molduras (newui_frame_*).",
+            "Implemente o widget base WB_WindowBase com molduras, barra de título, botões padrão, atalhos ESC/Enter e eventos OnAbrir/OnFechar/OnSolicitarPacote.",
+            "Registre cada janela no UWindowRegistry (Inventário, Personagem, Guilda, Trade, Quest, Eventos, Cash Shop, Opções, Mensagens, Duelo, Mini-Mapa) com widget, textura, sons e pacotes necessários.",
+            "Crie widgets derivados (WB_InventoryWindow, WB_CharacterWindow, WB_QuestJournal, WB_NpcShop, WB_GuildPanel, WB_EventBoard, WB_MessageBox, WB_OptionsWindow, WB_PersonalStore) seguindo layouts e texturas originais.",
+            "Implemente componentes reutilizáveis (WB_TabButton, WB_ListHeader, WB_ItemSlot, WB_AmountSpinner) reproduzindo comportamentos de UIControls.h.",
+            "Adicione BP_UIRouter (Actor Component) ao PlayerController com funções AlternarJanela/FecharJanela e integração com sons do UUIAudioLibrary.",
+            "Converta GlobalText.txt, MsgBox.txt, ToolTip.txt e EventMsg.txt em Data Tables; crie função GetTextoGlobal e use bindings para preencher textos automaticamente.",
+            "Conecte cada janela aos pacotes equivalentes (trade ERemakeMessage::TradeCancel/ERemakeMessage::TradeLock, guild ERemakeMessage::GuildCommand, quest ERemakeMessage::QuestHubUpdate, eventos ERemakeMessage::EventNotice, cash shop ERemakeMessage::CashShopPurchase) via UNetworkBridgeSubsystem.",
+            "Implemente persistência para janelas de opções/som em SaveGame replicando comportamento de NewUIOption.",
+            "Crie WB_GlobalOverlay para notificações, tooltips e mensagens de sistema disparadas pelo UIRouter.",
+            "Documente no Designer de cada widget qual arquivo original serviu de referência (comentários visíveis aos alunos)."
+        ],
+        "validation": [
+            "Pressione todos os atalhos (I, C, V, G, P, O, K, B): cada janela deve abrir com textura correta, som clássico e foco no primeiro controle.",
+            "Abra Trade com outro jogador: slots devem alinhar exatamente como no cliente clássico e bloquear itens aguardando confirmação.",
+            "Acesse Options e altere volume/sensibilidade: valores aplicam imediatamente e persistem após reiniciar.",
+            "Dispare mensagens globais (MessageBox, eventos): textos devem vir das Data Tables e o overlay mostrar notificações sem sobreposição."
+        ]
+    },
+};
+
 
 function normaliseExtension(path) {
     const lastDot = path.lastIndexOf(".");
@@ -658,6 +1255,220 @@ function normaliseExtension(path) {
         return "";
     }
     return path.slice(lastDot).toLowerCase();
+}
+
+function normalisePath(path) {
+    return path.replace(/\\/g, "/");
+}
+
+function escapeCStringLiteral(value) {
+    return value.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
+}
+
+function getBmdConfig() {
+    const rootPath = (bmdRootPathInput?.value || "").trim();
+    const outputDir = (bmdOutputDirInput?.value || "").trim();
+    const frameValue = parseFloat(bmdFrameTimeInput?.value || "");
+    const frameTime = Number.isFinite(frameValue) && frameValue > 0 ? frameValue : 0.033333;
+
+    return {
+        rootPath,
+        outputDir,
+        frameTime,
+        findTextures: bmdFindTexturesInput ? bmdFindTexturesInput.checked : true,
+        renameTextures: bmdRenameTexturesInput ? bmdRenameTexturesInput.checked : true,
+        exportNormals: bmdExportNormalsInput ? bmdExportNormalsInput.checked : true
+    };
+}
+
+function buildBmdSnippet(config) {
+    if (!bmdSnippetElement || bmdDetectedFiles.length === 0) {
+        return "";
+    }
+
+    const snippetFiles = bmdDetectedFiles.slice(0, BMD_SNIPPET_LIMIT);
+    const extraCount = Math.max(0, bmdDetectedFiles.length - snippetFiles.length);
+
+    const lines = [
+        '#include "BMD_FBX.h"',
+        '#include <iostream>',
+        '#include <string>',
+        '#include <vector>'
+    ];
+
+    if (config.outputDir) {
+        lines.push('#include <filesystem>');
+    }
+
+    lines.push("", "int main()", "{", "    BMD_FBX converter;", "");
+
+    if (config.rootPath) {
+        lines.push(`    BMD_FBX::SetRootPath("${escapeCStringLiteral(config.rootPath)}");`);
+    }
+
+    lines.push(`    BMD_FBX::SetFrameTime(${config.frameTime.toFixed(6)});`, "");
+
+    lines.push("    const std::vector<const char*> sources = {");
+    snippetFiles.forEach((file, index) => {
+        const isLast = index === snippetFiles.length - 1 && extraCount === 0;
+        lines.push(`        "${escapeCStringLiteral(file)}"${isLast ? "" : ","}`);
+    });
+    if (extraCount > 0) {
+        lines.push(`        // ... +${numberFormatter.format(extraCount)} arquivo(s) adicional(is)`);
+    }
+    lines.push("    };", "");
+
+    if (config.outputDir) {
+        lines.push(`    const std::filesystem::path outputRoot = "${escapeCStringLiteral(config.outputDir)}";`, "");
+    }
+
+    lines.push("    for (const char* source : sources) {", "        const char* destination = nullptr;");
+
+    if (config.outputDir) {
+        lines.push(
+            "        std::string outputPath = (",
+            "            outputRoot /",
+            '            (std::filesystem::path(source).stem().string() + ".fbx")',
+            "        ).string();",
+            "        destination = outputPath.c_str();"
+        );
+    }
+
+    lines.push(
+        "        const bool ok = converter.Unpack(",
+        "            source,",
+        "            destination,",
+        `            ${config.findTextures ? "true" : "false"},`,
+        `            ${config.renameTextures ? "true" : "false"},`,
+        `            ${config.exportNormals ? "true" : "false"}`,
+        "        );",
+        "        if (!ok) {",
+        `            std::cerr << "[BMD_FBX] Falha ao converter " << source << '\\n';`,
+        "        }",
+        "    }",
+        "",
+        "    return 0;",
+        "}"
+    );
+
+    return lines.join("\n");
+}
+
+function copyTextToClipboard(text) {
+    if (navigator.clipboard && window.isSecureContext) {
+        return navigator.clipboard.writeText(text);
+    }
+
+    const textArea = document.createElement("textarea");
+    textArea.value = text;
+    textArea.setAttribute("readonly", "");
+    textArea.style.position = "fixed";
+    textArea.style.top = "-9999px";
+    document.body.appendChild(textArea);
+    textArea.focus();
+    textArea.select();
+
+    let succeeded = false;
+    try {
+        succeeded = document.execCommand("copy");
+    } catch (error) {
+        succeeded = false;
+    }
+
+    document.body.removeChild(textArea);
+    return succeeded ? Promise.resolve() : Promise.reject();
+}
+
+function refreshBmdSnippet() {
+    if (!bmdSnippetElement) {
+        return;
+    }
+
+    if (bmdDetectedFiles.length === 0) {
+        bmdSnippetElement.textContent = "";
+        if (bmdCopyButton) {
+            bmdCopyButton.disabled = true;
+            bmdCopyButton.textContent = "Copiar";
+        }
+        if (bmdOptionsSummary) {
+            bmdOptionsSummary.textContent = "";
+        }
+        return;
+    }
+
+    const config = getBmdConfig();
+    const snippet = buildBmdSnippet(config);
+    bmdSnippetElement.textContent = snippet;
+
+    const hasSnippet = snippet.trim().length > 0;
+    if (bmdCopyButton) {
+        bmdCopyButton.disabled = !hasSnippet;
+        const defaultLabel = bmdCopyButton.dataset.label || bmdCopyButton.textContent || "Copiar";
+        bmdCopyButton.dataset.label = defaultLabel;
+        if (!hasSnippet) {
+            bmdCopyButton.textContent = "Copiar";
+        } else if (!bmdCopyResetHandle && bmdCopyButton.textContent !== defaultLabel) {
+            bmdCopyButton.textContent = defaultLabel;
+        }
+    }
+
+    if (bmdOptionsSummary) {
+        const snippetCount = Math.min(bmdDetectedFiles.length, BMD_SNIPPET_LIMIT);
+        const parts = [
+            `Localizar texturas: ${config.findTextures ? "ativo" : "desativado"}`,
+            `Renomear texturas: ${config.renameTextures ? "ativo" : "desativado"}`,
+            `Exportar normais: ${config.exportNormals ? "ativo" : "desativado"}`
+        ];
+        bmdOptionsSummary.textContent = `Opções atuais — ${parts.join(" · ")}. Snippet inclui ${numberFormatter.format(
+            snippetCount
+        )} de ${numberFormatter.format(bmdDetectedFiles.length)} arquivo(s) .BMD/.SMD detectados.`;
+    }
+}
+
+function updateBmdConfigurator(files = []) {
+    if (!bmdConfigurator || !bmdConfiguratorFiles || !bmdConfiguratorCount) {
+        return;
+    }
+
+    if (!files || files.length === 0) {
+        bmdDetectedFiles = [];
+        bmdConfigurator.setAttribute("hidden", "");
+        bmdConfiguratorFiles.innerHTML = "";
+        bmdConfiguratorCount.textContent = "";
+        refreshBmdSnippet();
+        return;
+    }
+
+    bmdDetectedFiles = files
+        .slice()
+        .sort((a, b) => a.localeCompare(b, undefined, { sensitivity: "base" }));
+
+    bmdConfigurator.removeAttribute("hidden");
+    bmdConfiguratorFiles.innerHTML = "";
+    bmdConfiguratorCount.textContent = `${numberFormatter.format(
+        bmdDetectedFiles.length
+    )} arquivo(s) .BMD/.SMD`;
+
+    const preview = bmdDetectedFiles.slice(0, BMD_PREVIEW_LIMIT);
+    preview.forEach((file) => {
+        const item = document.createElement("li");
+        item.className = "list-group-item";
+        const code = document.createElement("code");
+        code.textContent = file;
+        item.appendChild(code);
+        bmdConfiguratorFiles.appendChild(item);
+    });
+
+    if (bmdDetectedFiles.length > preview.length) {
+        const more = document.createElement("li");
+        more.className = "list-group-item text-muted fst-italic";
+        more.textContent = `… +${numberFormatter.format(
+            bmdDetectedFiles.length - preview.length
+        )} outros`;
+        bmdConfiguratorFiles.appendChild(more);
+    }
+
+    refreshBmdSnippet();
 }
 
 function createList(items, className, ordered = false) {
@@ -673,6 +1484,88 @@ function createList(items, className, ordered = false) {
         element.appendChild(li);
     });
     return element;
+}
+
+function appendNoviceList(container, title, items, ordered = false) {
+    if (!items || items.length === 0) {
+        return;
+    }
+
+    const heading = document.createElement("h5");
+    heading.className = "recipe-novice__subtitle";
+    heading.textContent = title;
+    container.appendChild(heading);
+
+    const list = createList(items, "recipe-novice__list", ordered);
+    container.appendChild(list);
+}
+
+function buildNoviceSection(article, data) {
+    const container = document.createElement("section");
+    container.className = "recipe-novice";
+    container.setAttribute("hidden", "");
+
+    const title = document.createElement("h4");
+    title.className = "recipe-novice__title";
+    title.textContent = "Modo iniciante — tutorial completo";
+    container.appendChild(title);
+
+    if (data.intro) {
+        const intro = document.createElement("p");
+        intro.className = "recipe-novice__intro";
+        intro.textContent = data.intro;
+        container.appendChild(intro);
+    }
+
+    appendNoviceList(container, "Antes de começar", data.preparation, false);
+    appendNoviceList(container, "Passo a passo guiado", data.steps, true);
+    appendNoviceList(container, "Como conferir se deu certo", data.validation, false);
+
+    return container;
+}
+
+function renderNoviceGuides() {
+    recipeArticles.forEach((article) => {
+        const recipeId = article?.dataset?.recipe;
+        if (!recipeId || !noviceRecipes[recipeId]) {
+            return;
+        }
+
+        if (article.querySelector(".recipe-novice")) {
+            const existing = article.querySelector(".recipe-novice");
+            noviceBlocks.set(recipeId, existing);
+            return;
+        }
+
+        const block = buildNoviceSection(article, noviceRecipes[recipeId]);
+        article.appendChild(block);
+        noviceBlocks.set(recipeId, block);
+    });
+}
+
+function updateNoviceMode(show) {
+    if (recipesPanel) {
+        recipesPanel.classList.toggle("panel--recipes-novice", show);
+    }
+
+    noviceBlocks.forEach((block) => {
+        if (!block) {
+            return;
+        }
+        if (show) {
+            block.removeAttribute("hidden");
+        } else {
+            block.setAttribute("hidden", "");
+        }
+    });
+
+    if (noviceModeLabel) {
+        noviceModeLabel.textContent = show ? "Modo iniciante ativo" : "Ativar modo iniciante";
+    }
+
+    if (noviceModeToggle) {
+        noviceModeToggle.setAttribute("aria-pressed", show ? "true" : "false");
+    }
 }
 
 function buildReferenceText(references) {
@@ -755,11 +1648,24 @@ function renderAssetGroups(groups, totals) {
         sampleLabel.textContent = "Exemplos encontrados:";
         category.appendChild(sampleLabel);
 
-        const sampleFiles = files.slice(0, 6).map((file) => ({ __html: `<code>${file}</code>` }));
+        const samplesList = document.createElement("ul");
+        samplesList.className = "asset-tool__samples";
+
+        files.slice(0, 6).forEach((file) => {
+            const item = document.createElement("li");
+            const code = document.createElement("code");
+            code.textContent = file;
+            item.appendChild(code);
+            samplesList.appendChild(item);
+        });
+
         if (files.length > 6) {
-            sampleFiles.push({ __html: `… +${numberFormatter.format(files.length - 6)} outros` });
+            const remainingItem = document.createElement("li");
+            remainingItem.textContent = `… +${numberFormatter.format(files.length - 6)} outros`;
+            samplesList.appendChild(remainingItem);
         }
-        category.appendChild(createList(sampleFiles, "asset-tool__samples"));
+
+        category.appendChild(samplesList);
 
         const details = document.createElement("details");
         details.className = "asset-tool__details";
@@ -797,6 +1703,140 @@ function renderAssetGroups(groups, totals) {
     }
 }
 
+function resetAssetVisualization() {
+    if (!assetVisualization || !assetVisualizationList) {
+        return;
+    }
+
+    assetVisualization.setAttribute("hidden", "");
+    assetVisualizationList.innerHTML = "";
+    if (assetVisualizationStatus) {
+        assetVisualizationStatus.textContent =
+            "Selecione a pasta Data para localizar rapidamente arquivos de HUD, Inventário e Personagens.";
+    }
+}
+
+function renderAssetVisualization(paths) {
+    if (!assetVisualization || !assetVisualizationList) {
+        return;
+    }
+
+    if (!paths || paths.length === 0) {
+        resetAssetVisualization();
+        return;
+    }
+
+    assetVisualizationList.innerHTML = "";
+
+    const results = visualizationCategories.map((category) => {
+        const files = paths
+            .filter((entry) =>
+                category.keywords.some((keyword) => entry.lower.includes(keyword))
+            )
+            .map((entry) => entry.display);
+
+        return { ...category, files };
+    });
+
+    const totalMatches = results.reduce((sum, category) => sum + category.files.length, 0);
+
+    assetVisualization.removeAttribute("hidden");
+
+    if (assetVisualizationStatus) {
+        if (totalMatches === 0) {
+            assetVisualizationStatus.textContent =
+                "Nenhum arquivo característico de HUD, Inventário ou Personagens foi encontrado automaticamente.";
+        } else {
+            assetVisualizationStatus.textContent = `Encontrados ${numberFormatter.format(
+                totalMatches
+            )} arquivo(s) ligados à HUD, Inventário e Personagens. Veja amostras abaixo.`;
+        }
+    }
+
+    if (totalMatches === 0) {
+        const emptyCol = document.createElement("div");
+        emptyCol.className = "col-12";
+        const empty = document.createElement("div");
+        empty.className = "asset-visualization__empty alert alert-warning shadow-sm mb-0";
+        empty.textContent =
+            "Confirme se a pasta Data contém Interface, Item e Character para visualizar este resumo.";
+        emptyCol.appendChild(empty);
+        assetVisualizationList.appendChild(emptyCol);
+        return;
+    }
+
+    results.forEach((category) => {
+        if (category.files.length === 0) {
+            return;
+        }
+
+        const col = document.createElement("div");
+        col.className = "col";
+
+        const card = document.createElement("div");
+        card.className = "asset-visualization__card card h-100 border-0 shadow-sm";
+
+        const cardBody = document.createElement("div");
+        cardBody.className = "card-body d-flex flex-column gap-3";
+
+        const header = document.createElement("div");
+        header.className = "d-flex align-items-center justify-content-between gap-2";
+
+        const title = document.createElement("h5");
+        title.className = "card-title mb-0";
+        title.textContent = category.label;
+        header.appendChild(title);
+
+        const count = document.createElement("span");
+        count.className = "asset-visualization__count badge rounded-pill";
+        count.textContent = `${numberFormatter.format(category.files.length)} arquivo(s)`;
+        header.appendChild(count);
+
+        cardBody.appendChild(header);
+
+        const description = document.createElement("p");
+        description.className = "asset-visualization__description card-text";
+        description.textContent = category.description;
+        cardBody.appendChild(description);
+
+        const sampleFiles = category.files.slice(0, 5);
+        if (sampleFiles.length > 0) {
+            const samplesLabel = document.createElement("p");
+            samplesLabel.className = "asset-visualization__samples-label text-uppercase small mb-1";
+            samplesLabel.textContent = "Exemplos:";
+            cardBody.appendChild(samplesLabel);
+
+            const list = document.createElement("ul");
+            list.className = "asset-visualization__samples list-group list-group-flush small";
+
+            sampleFiles.forEach((filePath) => {
+                const item = document.createElement("li");
+                item.className = "list-group-item px-0 bg-transparent";
+                const code = document.createElement("code");
+                code.className = "text-break";
+                code.textContent = filePath;
+                item.appendChild(code);
+                list.appendChild(item);
+            });
+
+            if (category.files.length > sampleFiles.length) {
+                const more = document.createElement("li");
+                more.className = "list-group-item px-0 bg-transparent text-muted fst-italic";
+                more.textContent = `… +${numberFormatter.format(
+                    category.files.length - sampleFiles.length
+                )} outros`;
+                list.appendChild(more);
+            }
+
+            cardBody.appendChild(list);
+        }
+
+        card.appendChild(cardBody);
+        col.appendChild(card);
+        assetVisualizationList.appendChild(col);
+    });
+}
+
 function handleAssetSelection(event) {
     if (!assetStatus || !assetTotalEl || !assetConvertibleEl || !assetCompatibleEl) {
         return;
@@ -809,6 +1849,8 @@ function handleAssetSelection(event) {
         assetStatus.textContent =
             "Nenhum diretório analisado ainda. Assim que você apontar a pasta Data, os resultados aparecem aqui.";
         assetResults && (assetResults.innerHTML = "");
+        resetAssetVisualization();
+        updateBmdConfigurator([]);
         return;
     }
 
@@ -816,9 +1858,12 @@ function handleAssetSelection(event) {
     let convertible = 0;
     let compatible = 0;
     let unknown = 0;
+    const analysedPaths = [];
 
     files.forEach((file) => {
-        const relativePath = file.webkitRelativePath || file.name;
+        const rawPath = file.webkitRelativePath || file.name;
+        const relativePath = normalisePath(rawPath);
+        analysedPaths.push({ display: relativePath, lower: relativePath.toLowerCase() });
         const extension = normaliseExtension(relativePath);
 
         if (extensionRuleMap.has(extension)) {
@@ -861,10 +1906,57 @@ function handleAssetSelection(event) {
 
     const groups = Array.from(grouped.values()).sort((a, b) => b.files.length - a.files.length);
     renderAssetGroups(groups, { unknown });
+    renderAssetVisualization(analysedPaths);
+    const bmdGroup = grouped.get("character-models");
+    updateBmdConfigurator(bmdGroup ? bmdGroup.files : []);
 }
 
 if (assetInput) {
     assetInput.addEventListener("change", handleAssetSelection);
+}
+
+[bmdRootPathInput, bmdOutputDirInput, bmdFrameTimeInput].forEach((input) => {
+    input?.addEventListener("input", refreshBmdSnippet);
+});
+
+[bmdFindTexturesInput, bmdRenameTexturesInput, bmdExportNormalsInput].forEach((input) => {
+    input?.addEventListener("change", refreshBmdSnippet);
+});
+
+if (bmdCopyButton) {
+    bmdCopyButton.addEventListener("click", () => {
+        const code = bmdSnippetElement?.textContent || "";
+        if (!code.trim()) {
+            return;
+        }
+
+        if (bmdCopyResetHandle) {
+            clearTimeout(bmdCopyResetHandle);
+            bmdCopyResetHandle = undefined;
+        }
+
+        const defaultLabel = bmdCopyButton.dataset.label || bmdCopyButton.textContent;
+        bmdCopyButton.dataset.label = defaultLabel;
+        bmdCopyButton.disabled = true;
+
+        copyTextToClipboard(code)
+            .then(() => {
+                bmdCopyButton.textContent = "Copiado!";
+                bmdCopyResetHandle = window.setTimeout(() => {
+                    bmdCopyButton.textContent = defaultLabel;
+                    bmdCopyButton.disabled = false;
+                    bmdCopyResetHandle = undefined;
+                }, 2000);
+            })
+            .catch(() => {
+                bmdCopyButton.textContent = "Erro ao copiar";
+                bmdCopyResetHandle = window.setTimeout(() => {
+                    bmdCopyButton.textContent = defaultLabel;
+                    bmdCopyButton.disabled = false;
+                    bmdCopyResetHandle = undefined;
+                }, 2500);
+            });
+    });
 }
 
 const navigationButtons = document.querySelectorAll(".quick-nav button");
@@ -922,3 +2014,29 @@ renderTimeline("geral");
 renderTimeline("frontend");
 renderTimeline("unreal");
 renderTimeline("backend");
+
+renderNoviceGuides();
+let initialNoviceState = false;
+
+if (noviceModeToggle) {
+    try {
+        initialNoviceState = localStorage.getItem(NOVICE_STORAGE_KEY) === "true";
+    } catch (error) {
+        initialNoviceState = false;
+    }
+
+    noviceModeToggle.checked = initialNoviceState;
+    updateNoviceMode(initialNoviceState);
+
+    noviceModeToggle.addEventListener("change", () => {
+        const show = noviceModeToggle.checked;
+        updateNoviceMode(show);
+        try {
+            localStorage.setItem(NOVICE_STORAGE_KEY, show ? "true" : "false");
+        } catch (error) {
+            // ignore storage errors in ambientes restritos
+        }
+    });
+} else {
+    updateNoviceMode(false);
+}
