@@ -889,11 +889,14 @@ function renderAssetVisualization(paths) {
     }
 
     if (totalMatches === 0) {
-        const empty = document.createElement("p");
-        empty.className = "asset-visualization__empty";
+        const emptyCol = document.createElement("div");
+        emptyCol.className = "col-12";
+        const empty = document.createElement("div");
+        empty.className = "asset-visualization__empty alert alert-warning shadow-sm mb-0";
         empty.textContent =
             "Confirme se a pasta Data contém Interface, Item e Character para visualizar este resumo.";
-        assetVisualizationList.appendChild(empty);
+        emptyCol.appendChild(empty);
+        assetVisualizationList.appendChild(emptyCol);
         return;
     }
 
@@ -902,36 +905,50 @@ function renderAssetVisualization(paths) {
             return;
         }
 
-        const card = document.createElement("article");
-        card.className = "asset-visualization__card";
+        const col = document.createElement("div");
+        col.className = "col";
+
+        const card = document.createElement("div");
+        card.className = "asset-visualization__card card h-100 border-0 shadow-sm";
+
+        const cardBody = document.createElement("div");
+        cardBody.className = "card-body d-flex flex-column gap-3";
+
+        const header = document.createElement("div");
+        header.className = "d-flex align-items-center justify-content-between gap-2";
 
         const title = document.createElement("h5");
+        title.className = "card-title mb-0";
         title.textContent = category.label;
-        card.appendChild(title);
+        header.appendChild(title);
 
-        const count = document.createElement("p");
-        count.className = "asset-visualization__count";
+        const count = document.createElement("span");
+        count.className = "asset-visualization__count badge rounded-pill";
         count.textContent = `${numberFormatter.format(category.files.length)} arquivo(s)`;
-        card.appendChild(count);
+        header.appendChild(count);
+
+        cardBody.appendChild(header);
 
         const description = document.createElement("p");
-        description.className = "asset-visualization__description";
+        description.className = "asset-visualization__description card-text";
         description.textContent = category.description;
-        card.appendChild(description);
+        cardBody.appendChild(description);
 
         const sampleFiles = category.files.slice(0, 5);
         if (sampleFiles.length > 0) {
             const samplesLabel = document.createElement("p");
-            samplesLabel.className = "asset-visualization__samples-label";
+            samplesLabel.className = "asset-visualization__samples-label text-uppercase small mb-1";
             samplesLabel.textContent = "Exemplos:";
-            card.appendChild(samplesLabel);
+            cardBody.appendChild(samplesLabel);
 
             const list = document.createElement("ul");
-            list.className = "asset-visualization__samples";
+            list.className = "asset-visualization__samples list-group list-group-flush small";
 
             sampleFiles.forEach((filePath) => {
                 const item = document.createElement("li");
+                item.className = "list-group-item px-0 bg-transparent";
                 const code = document.createElement("code");
+                code.className = "text-break";
                 code.textContent = filePath;
                 item.appendChild(code);
                 list.appendChild(item);
@@ -939,16 +956,19 @@ function renderAssetVisualization(paths) {
 
             if (category.files.length > sampleFiles.length) {
                 const more = document.createElement("li");
+                more.className = "list-group-item px-0 bg-transparent text-muted fst-italic";
                 more.textContent = `… +${numberFormatter.format(
                     category.files.length - sampleFiles.length
                 )} outros`;
                 list.appendChild(more);
             }
 
-            card.appendChild(list);
+            cardBody.appendChild(list);
         }
 
-        assetVisualizationList.appendChild(card);
+        card.appendChild(cardBody);
+        col.appendChild(card);
+        assetVisualizationList.appendChild(col);
     });
 }
 
