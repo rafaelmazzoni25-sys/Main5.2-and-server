@@ -651,6 +651,30 @@ const assetResults = document.getElementById("asset-results");
 const assetTotalEl = document.getElementById("asset-total-files");
 const assetConvertibleEl = document.getElementById("asset-convertible-files");
 const assetCompatibleEl = document.getElementById("asset-compatible-files");
+const assetVisualization = document.getElementById("asset-visualization");
+const assetVisualizationStatus = document.getElementById("asset-visualization-status");
+const assetVisualizationList = document.getElementById("asset-visualization-list");
+
+const visualizationCategories = [
+    {
+        id: "hud",
+        label: "HUD",
+        description: "Texturas e layouts da interface clássica.",
+        keywords: ["/interface/", "/hud", "/ui/"]
+    },
+    {
+        id: "inventory",
+        label: "Inventário",
+        description: "Ícones, slots e tabelas usados no inventário do jogo.",
+        keywords: ["/item", "/inventory", "/equip"]
+    },
+    {
+        id: "characters",
+        label: "Personagens",
+        description: "Modelos, animações e dados de personagens e monstros.",
+        keywords: ["/character", "/monster", "/npc"]
+    }
+];
 
 function normaliseExtension(path) {
     const lastDot = path.lastIndexOf(".");
@@ -658,6 +682,10 @@ function normaliseExtension(path) {
         return "";
     }
     return path.slice(lastDot).toLowerCase();
+}
+
+function normalisePath(path) {
+    return path.replace(/\\/g, "/");
 }
 
 function createList(items, className, ordered = false) {
@@ -810,6 +838,120 @@ function renderAssetGroups(groups, totals) {
     }
 }
 
+function resetAssetVisualization() {
+    if (!assetVisualization || !assetVisualizationList) {
+        return;
+    }
+
+    assetVisualization.setAttribute("hidden", "");
+    assetVisualizationList.innerHTML = "";
+    if (assetVisualizationStatus) {
+        assetVisualizationStatus.textContent =
+            "Selecione a pasta Data para localizar rapidamente arquivos de HUD, Inventário e Personagens.";
+    }
+}
+
+function renderAssetVisualization(paths) {
+    if (!assetVisualization || !assetVisualizationList) {
+        return;
+    }
+
+    if (!paths || paths.length === 0) {
+        resetAssetVisualization();
+        return;
+    }
+
+    assetVisualizationList.innerHTML = "";
+
+    const results = visualizationCategories.map((category) => {
+        const files = paths
+            .filter((entry) =>
+                category.keywords.some((keyword) => entry.lower.includes(keyword))
+            )
+            .map((entry) => entry.display);
+
+        return { ...category, files };
+    });
+
+    const totalMatches = results.reduce((sum, category) => sum + category.files.length, 0);
+
+    assetVisualization.removeAttribute("hidden");
+
+    if (assetVisualizationStatus) {
+        if (totalMatches === 0) {
+            assetVisualizationStatus.textContent =
+                "Nenhum arquivo característico de HUD, Inventário ou Personagens foi encontrado automaticamente.";
+        } else {
+            assetVisualizationStatus.textContent = `Encontrados ${numberFormatter.format(
+                totalMatches
+            )} arquivo(s) ligados à HUD, Inventário e Personagens. Veja amostras abaixo.`;
+        }
+    }
+
+    if (totalMatches === 0) {
+        const empty = document.createElement("p");
+        empty.className = "asset-visualization__empty";
+        empty.textContent =
+            "Confirme se a pasta Data contém Interface, Item e Character para visualizar este resumo.";
+        assetVisualizationList.appendChild(empty);
+        return;
+    }
+
+    results.forEach((category) => {
+        if (category.files.length === 0) {
+            return;
+        }
+
+        const card = document.createElement("article");
+        card.className = "asset-visualization__card";
+
+        const title = document.createElement("h5");
+        title.textContent = category.label;
+        card.appendChild(title);
+
+        const count = document.createElement("p");
+        count.className = "asset-visualization__count";
+        count.textContent = `${numberFormatter.format(category.files.length)} arquivo(s)`;
+        card.appendChild(count);
+
+        const description = document.createElement("p");
+        description.className = "asset-visualization__description";
+        description.textContent = category.description;
+        card.appendChild(description);
+
+        const sampleFiles = category.files.slice(0, 5);
+        if (sampleFiles.length > 0) {
+            const samplesLabel = document.createElement("p");
+            samplesLabel.className = "asset-visualization__samples-label";
+            samplesLabel.textContent = "Exemplos:";
+            card.appendChild(samplesLabel);
+
+            const list = document.createElement("ul");
+            list.className = "asset-visualization__samples";
+
+            sampleFiles.forEach((filePath) => {
+                const item = document.createElement("li");
+                const code = document.createElement("code");
+                code.textContent = filePath;
+                item.appendChild(code);
+                list.appendChild(item);
+            });
+
+            if (category.files.length > sampleFiles.length) {
+                const more = document.createElement("li");
+                more.textContent = `… +${numberFormatter.format(
+                    category.files.length - sampleFiles.length
+                )} outros`;
+                list.appendChild(more);
+            }
+
+            card.appendChild(list);
+        }
+
+        assetVisualizationList.appendChild(card);
+    });
+}
+
 function handleAssetSelection(event) {
     if (!assetStatus || !assetTotalEl || !assetConvertibleEl || !assetCompatibleEl) {
         return;
@@ -822,6 +964,7 @@ function handleAssetSelection(event) {
         assetStatus.textContent =
             "Nenhum diretório analisado ainda. Assim que você apontar a pasta Data, os resultados aparecem aqui.";
         assetResults && (assetResults.innerHTML = "");
+        resetAssetVisualization();
         return;
     }
 
@@ -829,9 +972,12 @@ function handleAssetSelection(event) {
     let convertible = 0;
     let compatible = 0;
     let unknown = 0;
+    const analysedPaths = [];
 
     files.forEach((file) => {
-        const relativePath = file.webkitRelativePath || file.name;
+        const rawPath = file.webkitRelativePath || file.name;
+        const relativePath = normalisePath(rawPath);
+        analysedPaths.push({ display: relativePath, lower: relativePath.toLowerCase() });
         const extension = normaliseExtension(relativePath);
 
         if (extensionRuleMap.has(extension)) {
@@ -874,6 +1020,7 @@ function handleAssetSelection(event) {
 
     const groups = Array.from(grouped.values()).sort((a, b) => b.files.length - a.files.length);
     renderAssetGroups(groups, { unknown });
+    renderAssetVisualization(analysedPaths);
 }
 
 if (assetInput) {
