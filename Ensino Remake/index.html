@@ -983,7 +983,7 @@
                     <ul>
                         <li>Liste variáveis globais (<code>gObjTotalUser</code>, <code>gObjOffStore</code>) e mantenha um
                             dashboard simples para compará-las com a Unreal.</li>
-                        <li>Documente eventos obrigatórios (Blood Castle, Castle Siege) para planejar adaptações futuras.</li>
+                        <li>Implemente instâncias base para Blood Castle e Castle Siege replicando triggers do GameServer e mantenha-as ativas nos testes de regressão.</li>
                         <li>Garanta que resets de sessão (<code>CloseClient</code>, <code>gObjAllDisconnect</code>) funcionem
                             mesmo quando o cliente for a Unreal.</li>
                     </ul>
@@ -1975,6 +1975,102 @@
                         <li>Efeitos de brilho e partículas replicam o visual azul característico do cliente clássico.</li>
                     </ul>
                 </article>
+                <article class="recipe-card">
+                    <h3>Receita 18 — Chaos Castle completo</h3>
+                    <p class="recipe-intro">Transforma o blueprint do evento em um modo jogável com armadilhas, HUD e ranking.</p>
+                    <h4>Copie do projeto original</h4>
+                    <ul>
+                        <li><code>Source Main 5.2/source/NewUIChaosCastle.cpp</code> — lógica de UI, timers e indicações visuais.</li>
+                        <li><code>Source MuServer Update 15/GameServer/GameServer/ChaosCastle.cpp</code> — estados (StandBy, Playing, End) e armadilhas.</li>
+                        <li>Arquivos <code>Data/Event/ChaosCastleSetting.txt</code>, <code>Data/Item/ChaosCastleReward.txt</code>.</li>
+                    </ul>
+                    <h4>Monte na Unreal</h4>
+                    <ol>
+                        <li>Crie o nível <code>LV_ChaosCastle</code> replicando plataformas e zonas de queda com <em>Destructible Meshes</em>.</li>
+                        <li>Implemente <code>AChaosCastleDirector</code> que consulta <code>DT_ChaosCastleConfig</code> (derivado dos <code>.txt</code>) e controla fases, armadilhas e tempo.</li>
+                        <li>Monte <code>WB_ChaosCastleHUD</code> com contadores de sobreviventes, ranking em tempo real e avisos de armadilha.</li>
+                        <li>Sincronize com o servidor enviando 0x95 (entrada), 0x95:0x03 (status) e recebendo 0xB0 (pontuação).</li>
+                        <li>Registre resultado semanal escrevendo CSV educativo em <code>Saved/Logs/chaos_castle.csv</code> antes de entregar recompensas.</li>
+                    </ol>
+                    <h4>Fluxo Blueprint</h4>
+                    <ol class="blueprint-list">
+                        <li>No <code>AChaosCastleDirector</code>, use <em>Event BeginPlay</em> &rarr; <em>Load Data Table Row</em> &rarr; configurar timers para StandBy &rarr; Playing &rarr; End.</li>
+                        <li>Quando um jogador cair, detecte com <em>OnComponentEndOverlap</em> e notifique o servidor via <code>ServerReportElimination</code>.</li>
+                        <li>Atualize o HUD usando <em>Event Dispatcher</em> disparado ao receber pacotes 0x95:0x06 com contagem de sobreviventes.</li>
+                        <li>Ative armadilhas com <em>Timeline</em> acionando <code>Enable Collision</code> em volumes configurados no Data Table.</li>
+                        <li>Ao finalizar, toque <em>Level Sequence</em> de encerramento, distribua recompensas e retorne jogadores usando <code>ServerTravel</code>.</li>
+                    </ol>
+                    <h4>Checklist final</h4>
+                    <ul>
+                        <li>Timers e mensagens coincidem com os mostrados no cliente clássico.</li>
+                        <li>Recompensas são atribuídas conforme posição e tabela de <code>ChaosCastleReward.txt</code>.</li>
+                        <li>Ranking semanal reinicia automaticamente conforme configurado.</li>
+                    </ul>
+                </article>
+                <article class="recipe-card">
+                    <h3>Receita 19 — Facções Gens Vanert/Dupren</h3>
+                    <p class="recipe-intro">Entrega facções, missões diárias e buffs de rank integrados ao servidor.</p>
+                    <h4>Copie do projeto original</h4>
+                    <ul>
+                        <li><code>Source Main 5.2/source/NewUIGensWindow.cpp</code> e <code>NewUIGensRanking.cpp</code>.</li>
+                        <li><code>Source MuServer Update 15/GameServer/GameServer/GensSystem.cpp</code> — regras de contribuição, buffs e recompensas.</li>
+                        <li>Arquivos <code>Data/GensSystem.txt</code>, <code>Data/Quest/GensQuest.txt</code>, <code>Data/Local/GensText.txt</code>.</li>
+                    </ul>
+                    <h4>Monte na Unreal</h4>
+                    <ol>
+                        <li>Crie Widgets <code>WB_GensLobby</code>, <code>WB_GensRanking</code>, <code>WB_GensQuestCard</code> respeitando layout e ícones originais.</li>
+                        <li>Implemente <code>UGensFactionComponent</code> no <code>PlayerState</code> para armazenar facção, pontos, rank e buffs ativos.</li>
+                        <li>Converta as tabelas <code>.txt</code> para <code>DT_GensRewards</code>, <code>DT_GensQuests</code> e <code>DT_GensBuffs</code> com chaves idênticas às do servidor.</li>
+                        <li>Sincronize pacotes 0xF8 subcódigos 0x03 (atualização de pontos) e 0x04 (ranking) disparando eventos visuais no HUD.</li>
+                        <li>Implemente buffs aplicando <code>GameplayEffects</code> conforme rank retornado pelo servidor, exibindo aura Niagara correspondente.</li>
+                    </ol>
+                    <h4>Fluxo Blueprint</h4>
+                    <ol class="blueprint-list">
+                        <li>No <code>WB_GensLobby</code>, conecte botões “Entrar Vanert/Dupren” a chamadas <code>SolicitarInscricao</code> que enviam 0xF8:0x00.</li>
+                        <li>Atualize a lista de missões preenchendo <code>ListView</code> com dados da Data Table e marcando concluídas ao receber 0xF8:0x05.</li>
+                        <li>Mostre rank atual em <code>WB_GensRanking</code> com <em>Sort Custom</em> usando a pontuação recebida.</li>
+                        <li>Ao aplicar buff, chame <em>Apply Gameplay Effect to Self</em> com os valores carregados de <code>DT_GensBuffs</code>.</li>
+                        <li>Agende reset semanal com <em>Timer by Event</em> lendo configuração <code>ResetDay</code> no Data Table.</li>
+                    </ol>
+                    <h4>Checklist final</h4>
+                    <ul>
+                        <li>Ingressar ou sair de uma facção reflete imediatamente no HUD e nas habilidades.</li>
+                        <li>Missões e pontos diários batem com os registros do servidor.</li>
+                        <li>Buffs corretos são aplicados/removidos em cada faixa de rank.</li>
+                    </ul>
+                </article>
+                <article class="recipe-card">
+                    <h3>Receita 20 — Cash Shop e entrega de itens</h3>
+                    <p class="recipe-intro">Porta o XShop com catálogo dinâmico, carrinho e integração com inventário/banco.</p>
+                    <h4>Copie do projeto original</h4>
+                    <ul>
+                        <li><code>Source Main 5.2/source/NewUIInGameShop.cpp</code>, <code>NewUIInGameShop.h</code> e recursos em <code>Interface/XShop</code>.</li>
+                        <li><code>Source MuServer Update 15/GameServer/GameServer/CashShop.cpp</code>, <code>CashShopDBSet.cpp</code> e <code>CashShopSocket.cpp</code>.</li>
+                        <li>Arquivos <code>Data/ShopItemList.txt</code>, <code>Data/CashShopPackage.txt</code>, <code>Data/CashItemList.txt</code>.</li>
+                    </ul>
+                    <h4>Monte na Unreal</h4>
+                    <ol>
+                        <li>Construa <code>WB_CashShop</code> com abas, vitrine <code>TileView</code> e painel de detalhes com pré-visualização do item.</li>
+                        <li>Implemente <code>UCashShopComponent</code> gerenciando saldo (WCoin, GoblinPoint), carrinho e pedidos pendentes.</li>
+                        <li>Converta tabelas do XShop em <code>DT_CashCatalog</code> e <code>DT_CashPackages</code>, incluindo caminhos das texturas originais.</li>
+                        <li>Ao confirmar compra, envie pacote 0xD2 com itens do carrinho; processe resposta 0xD3 atualizando saldo e disparando feedback visual.</li>
+                        <li>Implemente caixa de presentes <code>WB_CashMailbox</code> que lista entregas (pacote 0xD6) e permite resgatar direto para o inventário.</li>
+                    </ol>
+                    <h4>Fluxo Blueprint</h4>
+                    <ol class="blueprint-list">
+                        <li>No <code>WB_CashShop</code>, use <em>Event Construct</em> para carregar Data Table e preencher abas com <em>Filter by Tag</em>.</li>
+                        <li>Adicione animação de destaque quando um item for adicionado ao carrinho e reproduza áudio importado do cliente clássico.</li>
+                        <li>Implemente confirmação com <em>Modal</em> exibindo custos e saldo restante antes de enviar o pacote 0xD2.</li>
+                        <li>Ao receber 0xD3, atualize saldo e chame <code>AtualizarHUDMoedasPremium</code> no HUD principal.</li>
+                        <li>Quando o jogador abrir o baú de presentes, chame <code>SolicitarEntrega</code> enviando 0xD6:0x02 para mover item ao inventário.</li>
+                    </ol>
+                    <h4>Checklist final</h4>
+                    <ul>
+                        <li>Catalogo reflete descrições, ícones e preços originais.</li>
+                        <li>Compras atualizam saldo e entregam itens sem inconsistências.</li>
+                        <li>Logs registram todas as transações para auditoria educativa.</li>
+                    </ul>
+                </article>
             </div>
         </section>
 
@@ -2233,6 +2329,72 @@
                     <ul>
                         <li>Spawns e respawns respeitam limites e horários dos arquivos originais.</li>
                         <li>Eventos exibem mensagens globais e prêmios iguais aos configurados em <code>Event.cpp</code>.</li>
+                    </ul>
+                </article>
+                <article class="atlas-card">
+                    <h3>Chaos Castle &amp; Chaos Ranking</h3>
+                    <p><strong>Objetivo:</strong> reconstruir o evento de eliminação com armadilhas, scoreboard e ranking semanal.</p>
+                    <h4>Arquivos clássicos</h4>
+                    <ul>
+                        <li><code>Source Main 5.2/source/NewUIChaosCastle.cpp</code> e <code>NewUIChaosCastle.h</code> — HUD, regras de entrada e efeitos.</li>
+                        <li><code>Source MuServer Update 15/GameServer/GameServer/ChaosCastle.cpp</code> — lógica de rounds, armadilhas e mortes.</li>
+                        <li><code>Data/Event/ChaosCastleSetting.txt</code> e <code>Data/Item/ChaosCastleReward.txt</code>.</li>
+                    </ul>
+                    <h4>Na Unreal</h4>
+                    <ol class="atlas-steps">
+                        <li>Construa um <code>AChaosCastleArena</code> com <em>Level Sequence</em> controlando a queda das plataformas e colisores destrutíveis.</li>
+                        <li>Modele <code>WB_ChaosCastleHUD</code> com contadores de sobreviventes, timers e slots de recompensa seguindo <code>NewUIChaosCastle::Render</code>.</li>
+                        <li>Implemente <code>UChaosCastleComponent</code> no <code>PlayerState</code> para replicar mortes, pontos e ranking (pacotes 0x95, 0xB0).</li>
+                        <li>Importe tabelas de armadilhas/recompensas para <code>DT_ChaosCastleConfig</code> e conecte ao GameServer para validação.</li>
+                    </ol>
+                    <h4>Checklist</h4>
+                    <ul>
+                        <li>Plataformas e armadilhas ativam no mesmo timing descrito em <code>ChaosCastle.cpp</code>.</li>
+                        <li>Ranking semanal registra vitórias e distribui recompensas usando os dados convertidos dos arquivos <code>.txt</code>.</li>
+                    </ul>
+                </article>
+                <article class="atlas-card">
+                    <h3>Sistema Gens</h3>
+                    <p><strong>Objetivo:</strong> implementar facções Vanert/Dupren com missões diárias, ranqueamento e buffs.</p>
+                    <h4>Arquivos clássicos</h4>
+                    <ul>
+                        <li><code>Source Main 5.2/source/NewUIGensWindow.cpp</code>, <code>NewUIGensRanking.cpp</code>.</li>
+                        <li><code>Source MuServer Update 15/GameServer/GameServer/GensSystem.cpp</code> e <code>GensSystem.h</code>.</li>
+                        <li><code>Data/GensSystem.txt</code>, <code>Data/Quest/GensQuest.txt</code>, <code>Data/Local/GensText.txt</code>.</li>
+                    </ul>
+                    <h4>Na Unreal</h4>
+                    <ol class="atlas-steps">
+                        <li>Crie <code>WB_GensLobby</code> e <code>WB_GensRanking</code> utilizando <em>Widget Switcher</em> para alternar entre inscrição, recompensas e classificação.</li>
+                        <li>Implemente <code>UGensFactionComponent</code> (no <code>PlayerState</code>) para sincronizar pontos, missões e buffs recebidos do servidor (pacotes 0xF8 sub 0x03/0x04).</li>
+                        <li>Monte <code>DT_GensRewards</code> e <code>DT_GensQuests</code> convertendo os arquivos <code>.txt</code> para CSV e importando como <em>Data Tables</em>.</li>
+                        <li>Reproduza os buffs visuais aplicando <em>Materials</em> dinâmicos e efeitos Niagara de acordo com o rank configurado em <code>GensSystem.cpp</code>.</li>
+                    </ol>
+                    <h4>Checklist</h4>
+                    <ul>
+                        <li>Pontos de contribuição atualizam imediatamente após completar missões ou derrotar jogadores rivais.</li>
+                        <li>Ranking exibe posição, facção e recompensas iguais às calculadas no servidor clássico.</li>
+                    </ul>
+                </article>
+                <article class="atlas-card">
+                    <h3>Cash Shop (XShop)</h3>
+                    <p><strong>Objetivo:</strong> portar a loja em tempo real com catálogo dinâmico, carrinho e entregas no inventário.</p>
+                    <h4>Arquivos clássicos</h4>
+                    <ul>
+                        <li><code>Source Main 5.2/source/NewUIInGameShop.cpp</code>, <code>NewUIInGameShop.h</code> e assets em <code>Interface/XShop</code>.</li>
+                        <li><code>Source MuServer Update 15/GameServer/GameServer/CashShop.cpp</code> e <code>CashShopDBSet.cpp</code>.</li>
+                        <li>Bases <code>Data/ShopItemList.txt</code>, <code>Data/CashShopPackage.txt</code>, <code>Data/CashItemList.txt</code>.</li>
+                    </ul>
+                    <h4>Na Unreal</h4>
+                    <ol class="atlas-steps">
+                        <li>Modele <code>WB_CashShop</code> com abas (Novidades, Pacotes, Consumíveis) usando <code>ListView</code> e <em>TileView</em> para o catálogo.</li>
+                        <li>Implemente <code>UCashShopComponent</code> com carrinho local, saldo em WCoin/GP e integração com o servidor via pacotes 0xD2/0xD3.</li>
+                        <li>Converta tabelas do XShop para <code>DT_CashCatalog</code> e <code>DT_CashPackages</code> com ícones referenciando texturas originais.</li>
+                        <li>Automatize a entrega criando um <code>CashMailbox</code> que injeta itens no inventário (pacote 0xD6) e registra logs educativos em <code>Saved/Logs/cash_shop.csv</code>.</li>
+                    </ol>
+                    <h4>Checklist</h4>
+                    <ul>
+                        <li>Preços, descrições e pré-visualizações coincidem com <code>ShopItemList.txt</code> convertido.</li>
+                        <li>Compras adicionam itens automaticamente ao inventário ou baú de presentes replicando <code>CashShop.cpp</code>.</li>
                     </ul>
                 </article>
                 <article class="atlas-card">
