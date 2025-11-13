@@ -9,7 +9,8 @@ A pasta **Dados** traz o roteiro completo para reconstruir o projeto no Unreal E
 ## Linha do Tempo, Prioridades e Dependências
 | Ordem | Arquivo | Prioridade | Dependências Diretas | Desbloqueia | Janela Indicativa |
 | --- | --- | --- | --- | --- | --- |
-| 0 | `00_ModulesAndStartup.md` | Crítica | Nenhuma | 1–11 | Semana 1 (Sessões 1–2) |
+| 0 | `00_ModulesAndStartup.md` | Crítica | Nenhuma | 0A, 1–11 | Semana 1 (Sessões 1–2) |
+| 0A | `00A_BlueprintCookbook.md` | Crítica | 0 | 1–3 | Semana 1 (Sessão 2) |
 | 1 | `01_PlayerCharacter.md` | Crítica | 0 | 2–5 | Semana 1 (Sessões 3–4) |
 | 2 | `02_InputAndCamera.md` | Alta | 0–1 | 3–5,7–8 | Semana 1 (Sessões 5–6) |
 | 3 | `03_MovementAndNav.md` | Alta | 0–2 | 4–5,7–8 | Semana 2 (Sessões 1–2) |

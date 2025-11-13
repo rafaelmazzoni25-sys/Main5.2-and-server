@@ -17,6 +17,8 @@ Iniciar o remake na Unreal Engine 5+ com uma base Blueprint estável: módulos h
 - Pastas organizadas como `/Game/Core`, `/Game/Data`, `/Game/Blueprints`, `/Game/UI`.
 
 ## Sequência Cronológica em Blueprint
+> Consulte também `00A_BlueprintCookbook.md` para diagramas de passos estilo "receita" dos Blueprints centrais desta etapa.
+
 1. **Preparar GameInstance**
    - Criar `BP_RemakeGameInstance` derivado de `GameInstance`.
    - No evento `Init`, carregar DataTables usando `Load Data Table` para `DT_Items`, `DT_Skills`, `DT_Monsters`.
