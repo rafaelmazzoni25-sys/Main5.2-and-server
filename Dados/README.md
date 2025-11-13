@@ -1,18 +1,28 @@
-# Plano de Implementação para Remake UE5
+# Plano de Implementação para Remake UE5+
 
-Esta pasta organiza o código-base e pseudoimplementações necessários para recriar o projeto em Unreal Engine 5+, separados por etapa lógica de desenvolvimento. Cada arquivo apresenta o código essencial da mecânica correspondente, scripts de inicialização e notas de integração para orientar a ordem de implementação.
+Esta pasta "Dados" apresenta o roteiro completo para reconstruir o projeto no Unreal Engine 5+ usando **Blueprints** como tecnologia principal. Cada etapa contém prioridades, dependências e o fluxo detalhado para implementação.
 
-1. `00_ModulesAndStartup.cpp` – configuração do módulo principal e modo de jogo.
-2. `01_PlayerCharacter.cpp` – personagem jogável, atributos e componentes principais.
-3. `02_InputAndCamera.cpp` – mapeamento de inputs e câmeras orbitais.
-4. `03_MovementAndNav.cpp` – movimentação, navegação e sincronização de rede.
-5. `04_CombatAndSkills.cpp` – combate básico, habilidades e efeitos.
-6. `05_ItemsAndInventory.cpp` – sistema de itens, inventário 3D e crafting.
-7. `06_QuestsAndProgression.cpp` – missões, progressão e economia.
-8. `07_WorldAndSpawns.cpp` – gerenciamento de mundo, spawns e bosses.
-9. `08_UIAndHUD.cpp` – HUD, janelas 3D e feedbacks.
-10. `09_NetworkingAndPersistence.cpp` – replicação, saves e escalabilidade.
-11. `10_LiveOpsAndTools.cpp` – monitoramento, analytics e automações.
-12. `11_TestingAndDeployment.md` – estratégias de QA e publicação.
+## Estrutura dos Arquivos
+- `00_*.md` até `11_*.md`: guias de etapas em ordem **prioritária e dependente**.
+- Cada arquivo descreve objetivo, pré-requisitos, workflow em Blueprint, entregáveis e verificações.
 
-Os arquivos `.cpp` contêm exemplos em C++/Blueprint C++ compatíveis com UE5, servindo como base para implementação direta ou como referência para Blueprints. Ajuste conforme o escopo real do projeto.
+## Ordem Prioritária e Dependências
+1. `00_ModulesAndStartup.md` — Fundamentos do projeto (GameInstance, Subsystems). **Prioridade Crítica**, sem dependências.
+2. `01_PlayerCharacter.md` — Personagem jogável e Ability System. Depende da Etapa 0.
+3. `02_InputAndCamera.md` — Enhanced Input, PlayerController e modos de câmera. Depende das Etapas 0 e 1.
+4. `03_MovementAndNav.md` — Locomoção avançada, dash e navegação. Depende das Etapas 0–2.
+5. `04_CombatAndSkills.md` — Loop de combate com GAS. Depende das Etapas 0–3.
+6. `05_ItemsAndInventory.md` — Inventário data-driven e preview 3D. Depende das Etapas 0, 1, 2 e 4.
+7. `06_QuestsAndProgression.md` — Missões, progressão e economia. Depende das Etapas 0, 1, 2, 4 e 5.
+8. `07_WorldAndSpawns.md` — Gerenciamento de mundo, spawns e eventos dinâmicos. Depende das Etapas 0, 1, 2, 3, 4 e 6.
+9. `08_UIAndHUD.md` — HUD e interfaces integradas. Depende das Etapas 0, 1, 2, 4, 5 e 6.
+10. `09_NetworkingAndPersistence.md` — Replicação e backend. Depende das Etapas 0–8.
+11. `10_LiveOpsAndTools.md` — Live Ops, telemetria e ferramentas. Depende das Etapas 0–9.
+12. `11_TestingAndDeployment.md` — QA, automação e publicação. Depende das Etapas 0–10.
+
+## Como Utilizar
+- Prossiga na ordem indicada, garantindo que cada dependência esteja pronta antes de iniciar a próxima etapa.
+- Utilize os fluxos de trabalho em Blueprint descritos para configurar rapidamente sistemas dentro do editor.
+- Marque as verificações ao final de cada arquivo para assegurar que a etapa foi concluída com sucesso.
+
+Com este roteiro, você pode avançar passo a passo desde a fundação do projeto até operações ao vivo, mantendo sempre o foco em soluções Blueprint compatíveis com UE5+.
