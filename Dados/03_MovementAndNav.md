@@ -1,42 +1,43 @@
 # Etapa 3 — Movimentação Avançada e Navegação
-**Prioridade:** Alta  
-**Depende de:** Etapas 0, 1 e 2
 
-## Objetivo
-Expandir a movimentação do personagem para incluir sistemas de locomoção avançados, navegação com AI (para companion ou testes) e detecção de terreno usando Blueprints.
+| Campo | Detalhe |
+| --- | --- |
+| **Prioridade Global** | P3 — Alta |
+| **Dependências Diretas** | Etapas 0, 1 e 2 |
+| **Desbloqueia** | Etapas 4, 5, 7 e 8 |
+| **Foco UE5+** | Blueprint com Character Movement e Navigation System |
+| **Linha do Tempo Indicativa** | Semana 2 — Sessões 1 e 2 |
 
-## Pré-requisitos
-- `BP_RemakeCharacter` com input configurado.
-- Mapas com `NavMeshBoundsVolume` básico posicionado.
+## Marco Principal
+Expandir a locomoção do personagem com dash, salto carregado e navegação AI/companion, garantindo base sólida para combate e mundo aberto.
 
-## Fluxo de Trabalho em Blueprint
-1. **Estados de Locomoção**
-   - Adicione `Enum ELocomotionState` com estados `Idle`, `Jog`, `Sprint`, `Walk`, `Air`.
-   - Use `Event Tick` minimizado (melhor via `Ability System`/`AnimBP`): crie função `UpdateMovementState` chamada em `OnMovementModeChanged` e `OnSpeedChanged`.
-   - Ajuste `Character Movement Component` com `Max Walk Speed` dinâmico conforme estado.
+## Pré-requisitos Organizacionais
+- `BP_RemakeCharacter` com input funcional (Etapa 2).
+- Mapas com `NavMeshBoundsVolume` configurado para testes.
 
-2. **Dash e Esquiva**
-   - Implemente `Ability_BP_Dash` (Gameplay Ability Blueprint). Configure `Ability Input` ligado a `IA_Dash` (Etapa 2).
-   - Use `Launch Character` ou `Root Motion` do AnimMontage, com `Gameplay Effect` reduzindo stamina.
+## Sequência Cronológica em Blueprint
+1. **Ajustes de Character Movement**
+   - Atualizar `Character Movement` para suportar sprint e dash (habilitar `Use Separate Braking Friction`).
+   - Criar Timeline Blueprint para dash, aplicando impulso via `Launch Character`.
+   - Expor variáveis `WalkSpeed`, `SprintSpeed`, `DashDistance` para DataTable.
+2. **Sistema de Estamina**
+   - Integrar consumo de `Stamina` durante sprint/dash utilizando `GameplayAbility` leve ou lógica direta em Blueprint.
+   - Ligar eventos `OnStaminaBelowThreshold` -> interromper sprint e emitir aviso via HUD (Etapa 8).
+3. **Movimentos Verticais**
+   - Implementar `Mantle` simples usando `Trace For Objects` e timeline para subir obstáculos.
+   - Adicionar `Charged Jump` com `Hold` no Input Action e curva de força.
+4. **Navegação e AI Assistida**
+   - Criar `BP_RemakeNavHelper` (Actor Blueprint) responsável por chamar `Simple Move to Location` e emitir eventos de navegação.
+   - Configurar `Nav Link Proxy` para saltos e escaladas especiais.
+   - Preparar `AI Companion` placeholder (`BP_RemakeCompanion`) que segue player usando `Move To` (utilizado na Etapa 7).
+5. **Sincronização em Multiplayer**
+   - Certificar que `Launch Character`, `Dash` e `Mantle` são executados no servidor e replicados aos clientes.
+   - Usar `Multicast` para efeitos visuais compartilhados.
 
-3. **Interação com Terreno**
-   - Detecte `Physical Surface` via `Get Material` -> `Get Physical Material` -> `Switch on Physical Surface` para ajustar sons/FX.
-   - Atualize `MovementMode` para `Falling` e `Swimming` ativando habilidades correspondentes.
+## Checklist de Saída
+- Blueprint do personagem com movimentos expandidos e variáveis parametrizadas.
+- Componentes de navegação e helpers disponíveis para companions e inimigos.
 
-4. **Navegação e Companion**
-   - Crie `BP_RemakeCompanion` derivado de `Character` com `AIController`.
-   - Configure `AI MoveTo` em `Behavior Tree` simples (BT_RemakeFollow) para seguir jogador ou pontos de interesse.
-   - Exponha função `RequestPathToLocation` usada por sistemas de missões (Etapa 6).
-
-5. **Escalada/Interações Verticais (Opcional Prioridade Alta)**
-   - Configure `Ability_BP_Climb` usando `Trace` para detectar superfícies escaláveis.
-   - Integre com `State Machine` do `Animation Blueprint`.
-
-## Entregáveis
-- Ability Blueprints `Ability_BP_Dash`, `Ability_BP_Climb` (se aplicável) em `/Game/Abilities/Movement`.
-- Atualizações no `BP_RemakeCharacter` e `AnimBP_RemakeCharacter` com estados de locomoção.
-- Companion AI funcional com Behavior Tree simples.
-
-## Verificações
-- Testar `Sprint`/`Dash` em `Play In Editor` e validar consumo de stamina (ligado ao AttributeSet).
-- Usar `NavMesh` visualization (`P` no editor) e confirmar que companion segue jogador sem bloqueios.
+## Verificações de Dependência
+- Testar `Play In Editor` com `2 Clients` garantindo replicação do dash/mantle.
+- Validar `NavMesh` com `Show Navigation` e checar se `AI Companion` contorna obstáculos.

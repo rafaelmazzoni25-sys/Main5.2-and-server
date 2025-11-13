@@ -1,44 +1,44 @@
-# Etapa 2 — Input e Câmera
-**Prioridade:** Crítica  
-**Depende de:** Etapas 0 e 1
+# Etapa 2 — Input Avançado e Sistemas de Câmera
 
-## Objetivo
-Configurar o sistema de input aprimorado, contextos de controle e lógicas de câmera totalmente em Blueprint para garantir movimentação suave e base para combate e interação.
+| Campo | Detalhe |
+| --- | --- |
+| **Prioridade Global** | P2 — Alta |
+| **Dependências Diretas** | Etapas 0 e 1 |
+| **Desbloqueia** | Etapas 3, 4, 5, 7 e 8 |
+| **Foco UE5+** | Blueprint com Enhanced Input e Camera Managers |
+| **Linha do Tempo Indicativa** | Semana 1 — Sessões 5 e 6 |
 
-## Pré-requisitos
-- `BP_RemakeCharacter` com componentes `SpringArm` e `Camera`.
-- Plugin **Enhanced Input** ativo e mapeamentos a partir de `InputAction`/`InputMappingContext`.
+## Marco Principal
+Configurar Enhanced Input, PlayerController, modos de câmera e ações contextuais para que movimentos, combate e interação possam evoluir nas próximas etapas.
 
-## Fluxo de Trabalho em Blueprint
-1. **Configuração do Enhanced Input**
-   - Crie `IMC_RemakeGameplay` (Input Mapping Context) contendo ações `IA_Move`, `IA_Look`, `IA_Jump`, `IA_Attack`, `IA_Interact`.
-   - Defina `Triggers` e `Modifiers` (ex.: `IA_Move` com `DeadZone`, `IA_Attack` com `Tap or Hold`).
-   - Em `BP_RemakePlayerController`, no evento `BeginPlay`, use `Add Mapping Context` apontando para `IMC_RemakeGameplay` com prioridade 0.
+## Pré-requisitos Organizacionais
+- `BP_RemakeCharacter` com componentes de câmera anexados (Etapa 1).
+- Tabelas de ações de input definidas em `/Game/Data/Input/` (pode iniciar com placeholders).
 
-2. **Processamento no Personagem**
-   - Em `BP_RemakeCharacter`, implemente `Enhanced Input` via `Input Action` events (`IA_Move` -> `Input Action Event`).
-   - `IA_Move`: use `Break Vector2D`, `Add Movement Input` com vetor `Forward` e `Right`.
-   - `IA_Look`: utilize `Add Controller Yaw Input` e `Add Controller Pitch Input`, ajustando sensibilidade com variável `LookRate`.
-   - `IA_Jump`: chame `Jump`/`Stop Jumping` (será refinado com habilidades na Etapa 4).
+## Sequência Cronológica em Blueprint
+1. **Enhanced Input Setup**
+   - Criar `BP_RemakeInputConfig` (Data Asset) listando `Input Actions` para movimento, câmera, combate leve, interação.
+   - Configurar `BP_RemakePlayerController` derivado de `PlayerController` para usar `Enhanced Input Local Player Subsystem` no evento `BeginPlay`.
+   - Mapear `Input Mapping Context` principal e definir prioridade 0.
+2. **Bindings do Personagem**
+   - No `BP_RemakeCharacter`, criar função `SetupInputContext` chamada pelo PlayerController via `Interface`.
+   - Associar `Input Action Move` ao evento `Enhanced Input Action` -> `Add Movement Input`.
+   - Associar `Input Action Look` ao `Add Controller Yaw/Pitch Input` e limitar pitch com `Clamp`.
+3. **Modos de Câmera**
+   - Criar `BP_RemakeCameraManager` derivado de `PlayerCameraManager` com `Blend` entre câmera de exploração e combate.
+   - Utilizar `Set View Target with Blend` ao alternar estado `bIsInCombat` (variável do personagem atualizada na Etapa 4).
+   - Implementar curva de distância de câmera (Timeline em Blueprint) para zoom dinâmico.
+4. **Ações Contextuais**
+   - Configurar `Input Action Interact` que chama `TryInteract` em `BP_RemakeCharacter` (usará interface com objetos interativos).
+   - Criar `Input Action QuickSlot` com enum `EQuickSlot` para itens rápidos (será consumido na Etapa 5).
+   - Registrar `Input Action ToggleInventory` abrindo HUD da Etapa 8.
+5. **Testes Multiplayer**
+   - Marcar `BP_RemakePlayerController` e `BP_RemakeCameraManager` como replicáveis onde necessário e verificar instâncias separadas.
 
-3. **Câmera e SpringArm**
-   - Configure `SpringArm` com `Use Pawn Control Rotation` e `Target Arm Length` base.
-   - Adicione interpolações: use `Timeline` `TL_CameraZoom` acionada por `Mouse Wheel` (`IA_Zoom`). A Timeline interpola `Target Arm Length` e `Socket Offset`.
-   - Configure `Camera Lag` e `Enable Camera Lag` com valores calibráveis em Data Assets.
+## Checklist de Saída
+- `BP_RemakePlayerController`, `BP_RemakeCameraManager` e Data Assets de input configurados em `/Game/Core`.
+- Blueprint do personagem respondendo a ações de movimento, câmera e interação.
 
-4. **Modos de Câmera**
-   - Crie `Enum ECameraMode` com valores `Exploration`, `Combat`, `InventoryPreview`.
-   - No personagem, mantenha variável `CurrentCameraMode`. Use `Switch on ECameraMode` para ajustar `Target Arm Length`, `Camera FOV` e ativar/desativar `PostProcess` volumes.
-   - Exponha função `SetCameraMode` utilizada na Etapa 5 (preview de itens) e Etapa 8 (HUD).
-
-5. **Depuradores**
-   - Adicione comando `Cheat Manager` Blueprint `BP_RemakeCheatManager` com função `CycleCameraMode` para QA.
-
-## Entregáveis
-- `IMC_RemakeGameplay`, `IA_*` assets configurados na pasta `/Game/Input`.
-- `BP_RemakePlayerController` Blueprint configurado e atribuído ao GameMode.
-- Funções de modo de câmera acessíveis a outros sistemas.
-
-## Verificações
-- `Play In Editor` usando teclado/mouse e gamepad; validar que sensibilidade pode ser ajustada via `DA_RemakeSettings`.
-- Testar troca de modos de câmera via comando debug e confirmar comportamento esperado.
+## Verificações de Dependência
+- `Play In Editor` com dois clientes para garantir que cada PlayerController possui sua câmera independente.
+- Validar que alternar `Input Mapping Context` não afeta instâncias remotas.

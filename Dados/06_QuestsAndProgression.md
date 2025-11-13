@@ -1,44 +1,42 @@
 # Etapa 6 — Missões, Progressão e Economia
-**Prioridade:** Alta  
-**Depende de:** Etapas 0, 1, 2, 4 e 5
 
-## Objetivo
-Desenhar o sistema de missões, experiência, níveis e economia em Blueprints, conectando-o ao inventário e às habilidades.
+| Campo | Detalhe |
+| --- | --- |
+| **Prioridade Global** | P6 — Média-Alta |
+| **Dependências Diretas** | Etapas 0, 1, 2, 4 e 5 |
+| **Desbloqueia** | Etapas 7, 8, 9 e 10 |
+| **Foco UE5+** | Blueprint com DataTables, GAS e sistemas de economia |
+| **Linha do Tempo Indicativa** | Semana 3 — Sessões 3 e 4 |
 
-## Pré-requisitos
-- Inventário funcional e atributos integrados (Etapa 5).
-- Ability System emitindo eventos de combate (Etapa 4).
+## Marco Principal
+Construir sistemas de quests lineares/modulares, progressão de personagem e economia base para habilitar conteúdo de mundo, UI dinâmica e backend.
 
-## Fluxo de Trabalho em Blueprint
-1. **Sistema de Missões**
-   - Crie `DataTable` `DT_Quests` com campos `QuestID`, `Objectives` (array de `FQuestObjective`), `Rewards`.
-   - Desenvolva `BP_QuestComponent` (ActorComponent) para o PlayerState com funções `AcceptQuest`, `UpdateObjective`, `CompleteQuest`.
-   - Utilize `Event Dispatchers` para notificar HUD (`OnQuestUpdated`).
+## Pré-requisitos Organizacionais
+- Inventário e eventos `OnInventoryUpdated` operacionais (Etapa 5).
+- Abilities de combate fornecendo XP/drops (Etapa 4).
 
-2. **Progressão de Nível**
-   - Crie `CurveFloat` `Curve_XPToLevel` e `CurveFloat` `Curve_LevelStats`.
-   - No `BP_RemakePlayerState`, mantenha variáveis `CurrentXP`, `CurrentLevel`; em `AddExperience`, consulte `Curve_XPToLevel`.
-   - Ao subir de nível, acione `GrantLevelUpRewards` que usa `BP_InventoryComponent` para dar itens e `AbilitySystem` para liberar habilidades.
-
-3. **Economia**
-   - Estruture `Struct FCurrencyBalance` (gold, gems, tokens).
-   - Crie `BP_CurrencyComponent` no PlayerState e `BP_Vendor` para interação.
-   - Use `DataTable` `DT_VendorStock` e menus `WBP_Vendor` para compra/venda.
-
-4. **Eventos e Mundo**
-   - Integre missões com mundo via `BP_QuestTrigger` (Actor com `Box Collision`).
-   - Quando um inimigo morre (evento da Etapa 4), dispare `UpdateObjective` no componente de missão.
-
+## Sequência Cronológica em Blueprint
+1. **Estruturas de Dados**
+   - Criar `DT_Quests`, `DT_QuestSteps`, `DT_Currencies` com identificadores únicos.
+   - Definir `FQuestState` (struct Blueprint) contendo `CurrentStep`, `Progress`, `Rewards`.
+2. **Sistema de Quests**
+   - Desenvolver `BP_QuestSubsystem` (GameInstanceSubsystem) com funções `AcceptQuest`, `AdvanceQuest`, `CompleteQuest`.
+   - Ligar eventos de combate (`OnEnemyDefeated`) e inventário (`OnItemCollected`) para atualizar progresso.
+   - Expor `Event Dispatcher` `OnQuestUpdated` para HUD (Etapa 8) e mundo (Etapa 7).
+3. **Progressão de Personagem**
+   - Criar `BP_ProgressionComponent` no PlayerState para controlar XP, nível e pontos de atributo.
+   - Utilizar `Gameplay Effect` para aplicar bônus de nível.
+   - Atualizar DataTables para escalar XP necessário por nível.
+4. **Economia Básica**
+   - Implementar `BP_WalletComponent` no PlayerState com `Currencies` e métodos `AddCurrency`, `SpendCurrency`.
+   - Integrar recompensas de quests e drops.
 5. **Sincronização e Salvamento**
-   - Utilize `SaveGame` `SG_PlayerProgression` armazenando missões aceitas/completas, nível e moedas.
-   - Na Etapa 9, estes dados serão enviados ao servidor.
+   - Salvar estado de quests/progressão em `SaveGame` e expor eventos para replicação (suportará Etapa 9).
 
-## Entregáveis
-- Componentes `BP_QuestComponent`, `BP_CurrencyComponent` no PlayerState.
-- DataTables e Curves configurados em `/Game/Data`.
-- Widgets de missão e vendedor esboçados (`WBP_QuestLog`, `WBP_Vendor`).
+## Checklist de Saída
+- Quests aceitas, atualizadas e completadas via Blueprint.
+- Progressão de nível e economia integradas ao inventário e combate.
 
-## Verificações
-- Testar aceitar/completar missão durante gameplay e verificar atualização de objetivos em HUD.
-- Garantir que recompensas adicionem itens e XP corretamente.
-- Validar persistência local via `SaveGame`.
+## Verificações de Dependência
+- Completar quest de teste conferindo atualização imediata na HUD.
+- Validar ganhos de moeda e XP persistindo após reload do `SaveGame`.

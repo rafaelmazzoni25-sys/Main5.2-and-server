@@ -1,43 +1,45 @@
-# Etapa 5 — Itens, Inventário e Visualização 3D
-**Prioridade:** Alta  
-**Depende de:** Etapas 0, 1, 2 e 4
+# Etapa 5 — Itens, Inventário e Preview 3D
 
-## Objetivo
-Implementar o sistema de itens, inventário e renderização 3D em Blueprint, garantindo compatibilidade com HUD, atributos e lógica de rotação quando um item é selecionado.
+| Campo | Detalhe |
+| --- | --- |
+| **Prioridade Global** | P5 — Alta |
+| **Dependências Diretas** | Etapas 0, 1, 2 e 4 |
+| **Desbloqueia** | Etapas 6, 8 e 9 |
+| **Foco UE5+** | Blueprint com DataTables, componentes de inventário e HUD 3D |
+| **Linha do Tempo Indicativa** | Semana 3 — Sessões 1 e 2 |
 
-## Pré-requisitos
-- DataTables `DT_Items`, `DT_ItemModels`, `DT_ItemEffects` carregadas na Etapa 0.
-- Interface `BPI_InventoryCarrier` implementada no personagem (Etapa 1).
+## Marco Principal
+Implementar inventário data-driven, slots equipáveis, renderização 3D dentro do HUD e rotação animada de itens selecionados totalmente em Blueprint.
 
-## Fluxo de Trabalho em Blueprint
-1. **Estruturas e Data Assets**
-   - Defina `Struct FInventorySlot` (Blueprint Struct) com campos `SlotType`, `ItemID`, `Quantity`, `Durability`.
-   - Crie `PrimaryDataAsset` `DA_ItemFamilies` com referências para meshes (`StaticMesh`/`SkeletalMesh`) e efeitos (`Niagara`) por raridade.
+## Pré-requisitos Organizacionais
+- `DT_Items` preenchida com metadados base (Etapa 0).
+- `BP_RemakeCharacter` expondo interface `BPI_InventoryCarrier` (Etapa 1).
+- Habilidades de combate configuradas para ler atributos de item (Etapa 4).
 
-2. **Inventário do Personagem**
-   - No `BP_RemakeCharacter`, adicione componente `BP_InventoryComponent` (ActorComponent).
-   - Component blueprint mantém `Array` de `FInventorySlot`, eventos `OnInventoryUpdated`, e funções `AddItem`, `RemoveItem`, `EquipItem`.
-   - Utilize `GameplayTag` `Inventory.Equipped.*` para sincronizar com Ability System (buffs e habilidades passivas).
+## Sequência Cronológica em Blueprint
+1. **Componentes de Inventário**
+   - Criar `BP_InventoryComponent` (ActorComponent) com arrays `BackpackSlots`, `EquipmentSlots`.
+   - Implementar funções `AddItem`, `RemoveItem`, `CanEquipItem` usando `Switch on EItemType`.
+   - Integrar persistência temporária via `SaveGame` (será extendido na Etapa 9).
+2. **Data Binding**
+   - Construir `BP_ItemDataLibrary` para acessar `DT_Items` e retornar `FItemDefinition` com estáticos.
+   - Converter estatísticas de item para `GameplayEffectSpec` quando equipados.
+3. **HUD de Inventário 3D**
+   - Criar `WBP_InventoryRoot` (UMG) com `Widget Switcher` entre visualizações (grid/backpack vs. equipamento).
+   - Adicionar `Viewport` 3D interno renderizando `BP_ItemPreviewActor`.
+   - Sincronizar seleção com `On Item Hovered` -> `Event Dispatcher` para spawn/rotacionar preview.
+4. **Preview e Rotação**
+   - Criar `BP_ItemPreviewActor` derivado de `Actor` com `StaticMesh`/`SkeletalMesh` dinâmico.
+   - Aplicar `Timeline` para rotação contínua quando item estiver selecionado.
+   - Usar `Render Target` opcional para aplicar pós-processo (Glow para excelentes/nível elevado).
+5. **Integração com Gameplay**
+   - Ao equipar item, aplicar `Gameplay Effect` de bônus e atualizar tags.
+   - Emitir eventos `OnInventoryUpdated` para HUD e sistemas de progressão (Etapa 6).
 
-3. **UI e HUD 3D**
-   - Crie `Widget` `WBP_InventoryGrid` com `UniformGridPanel` populado dinamicamente.
-   - Para renderização 3D, instancie `BP_ItemPreviewActor` (Actor com `SceneCaptureComponent2D`, `StaticMeshComponent`).
-   - Configure material `M_ItemPreview` para suportar rotação suave e highlight.
-   - Quando um item é selecionado, use `Timeline` `TL_ItemRotate` no `BP_ItemPreviewActor` girando `Yaw` continuamente.
+## Checklist de Saída
+- Inventário funcional com dados vindos de DataTables e preview 3D integrado ao HUD.
+- Componentes replicáveis prontos para persistência e rede (será concluído na Etapa 9).
 
-4. **Interação e Controle**
-   - Mapear input `IA_OpenInventory` no PlayerController; ao abrir, mude `CameraMode` para `InventoryPreview` (Etapa 2) e mostre `WBP_Inventory`.
-   - Dentro do widget, ao clicar em um slot, chame `ShowItemPreview(ItemID)` no PlayerController. Esta função spawna/atualiza `BP_ItemPreviewActor` em um `PreviewScene` (subnível ou componente `Widget Interaction`).
-   - Para itens excelentes/nível, aplique overlays Niagara conforme `DT_ItemEffects` (usando `Spawn System Attached`).
-
-5. **Persistência Temporária**
-   - Salve inventário local usando `SaveGame` Blueprint `SG_PlayerInventory` até a Etapa 9 lidar com persistência completa.
-
-## Entregáveis
-- `BP_InventoryComponent`, `BP_ItemPreviewActor`, `WBP_Inventory`, `WBP_InventoryGrid`.
-- Timelines e rotinas de rotação/iluminação configuradas para itens selecionados.
-
-## Verificações
-- Adicionar itens via `Cheat` ou `Pickup` e validar atualização imediata do HUD.
-- Confirmar que o item selecionado gira suavemente e troca de efeito conforme raridade.
-- Testar replicação básica: em modo multiplayer, os itens equipados devem atualizar atributos (mesmo que inventário completo sincronize na Etapa 9).
+## Verificações de Dependência
+- Testar abertura do inventário (`ToggleInventory`) e rotacionar item selecionado.
+- Verificar replicação de itens equipados em sessão multiplayer.

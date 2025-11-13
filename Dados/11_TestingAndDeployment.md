@@ -1,38 +1,40 @@
-# Etapa 11 — Testes, QA e Implantação
-**Prioridade:** Média  
-**Depende de:** Etapas 0 a 10
+# Etapa 11 — QA, Automação e Publicação
 
-## Objetivo
-Consolidar processos de qualidade, automação e lançamento para o remake UE5+ garantindo estabilidade pós-implementação.
+| Campo | Detalhe |
+| --- | --- |
+| **Prioridade Global** | P11 — Média |
+| **Dependências Diretas** | Etapas 0 a 10 |
+| **Desbloqueia** | Conclusão do roadmap |
+| **Foco UE5+** | Blueprint com Automation Framework e pipelines |
+| **Linha do Tempo Indicativa** | Semana 6 — Sessões 1 e 2 |
 
-## Fluxo de Trabalho
-1. **Pipeline de Build e Testes**
-   - Configurar CI (GitHub Actions/Jenkins/Azure) com etapas: `Compile`, `Cook`, `Build`, `Package` para Win64 e Linux.
-   - Adicionar estágio `Run Automation Tests` executando testes funcionais definidos na Etapa 10.
-   - Publicar artefatos e logs automaticamente.
+## Marco Principal
+Estabelecer rotinas de QA, testes automatizados em Blueprint e pipeline de publicação para consoles/PC.
 
-2. **Matriz de Testes**
-   - Criar `Test Plan` ligado a cada etapa (0–10) destacando dependências críticas.
-   - Usar `Functional Testing` maps para smoke tests diários: login, combate, inventário, missões, eventos de mundo.
-   - Documentar cenários multiplayer (2–4 jogadores) para validar replicação (Etapa 9).
+## Pré-requisitos Organizacionais
+- Ferramentas e analytics operacionais (Etapa 10).
 
-3. **QA Manual e Aprovação**
-   - Definir checklist de regressão antes de cada release: performance mínima, ausência de crashes, integridade de dados.
-   - Estabelecer critérios de bloqueio (ex.: falhas em inventário/combate impedem release).
+## Sequência Cronológica em Blueprint
+1. **Planos de Teste**
+   - Criar `Test Case Assets` usando `Functional Testing` em Blueprint para inventário, quests e combate.
+   - Catalogar cenários críticos e critérios de aprovação.
+2. **Automação**
+   - Configurar `Automation Tool` para executar testes funcionais e registrar resultados.
+   - Criar `Editor Utility Widget` para disparar suíte completa.
+3. **Continuous Integration**
+   - Integrar com soluções CI (GitHub Actions/Azure DevOps) exportando comandos CLI do Unreal.
+   - Garantir geração de relatórios em HTML para QA.
+4. **Empacotamento e Publicação**
+   - Documentar `Project Launcher` com perfis para QA, Beta e Live.
+   - Scriptar passos para gerar builds incrementais e enviar para plataformas (Steam/Epic) usando ferramentas Blueprint ou CLI.
+5. **Rollback e Suporte**
+   - Definir procedimentos de rollback utilizando `SaveGame` versionado e toggles de Live Events.
+   - Preparar checklists pós-lançamento (monitorar analytics, estabilidade, feedback).
 
-4. **Monitoramento e Telemetria**
-   - Integrar Crash Reporter com envio automático para servidor central.
-   - Usar `BFL_Telemetry` (Etapa 10) para monitorar eventos chave e alimentar dashboards.
+## Checklist de Saída
+- Testes automatizados cobrindo mecânicas principais executáveis via Blueprint.
+- Pipeline de build/publicação documentado e repetível.
 
-5. **Publicação e Rollback**
-   - Preparar scripts de distribuição (SteamCMD/Epic/Beta) com canais `Staging`, `Canary`, `Live`.
-   - Definir estratégia de rollout gradual e plano de rollback documentado (reimportar snapshot de banco, revogar assets).
-
-## Entregáveis
-- Pipeline CI configurado com gatilhos por branch.
-- Planos de teste versionados (`Docs/QA/*`).
-- Runbooks de publicação/rollback atualizados.
-
-## Verificações
-- Executar pipeline completo em branch release e validar sucesso.
-- Rodar smoke test manual checklist antes da primeira release pública.
+## Verificações de Dependência
+- Executar suíte funcional e validar geração de relatório.
+- Realizar empacotamento de teste confirmando integridade em build QA.

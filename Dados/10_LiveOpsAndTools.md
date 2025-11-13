@@ -1,40 +1,39 @@
-# Etapa 10 — Live Ops, Ferramentas e Automação
-**Prioridade:** Média  
-**Depende de:** Etapas 0 a 9
+# Etapa 10 — Live Ops, Ferramentas e Telemetria
 
-## Objetivo
-Preparar ferramentas e pipelines de Live Ops usando Blueprints, Editor Utilities e integração com serviços externos para suporte pós-lançamento.
+| Campo | Detalhe |
+| --- | --- |
+| **Prioridade Global** | P10 — Média |
+| **Dependências Diretas** | Etapas 0 a 9 |
+| **Desbloqueia** | Etapa 11 |
+| **Foco UE5+** | Blueprint com Editor Utilities, Analytics e Live Updates |
+| **Linha do Tempo Indicativa** | Semana 5 — Sessões 3 e 4 |
 
-## Pré-requisitos
-- Sistemas principais concluídos até a Etapa 9.
-- Acesso a repositório de controle de versão e pipelines de CI/CD.
+## Marco Principal
+Preparar ferramentas para operação contínua: telemetria, eventos ao vivo e utilidades de editor que aceleram atualizações.
 
-## Fluxo de Trabalho em Blueprint
-1. **Ferramentas de Editor**
-   - Crie `Editor Utility Widget` `EUW_SpawnConfigurator` para editar `DA_SpawnTables` visualmente.
-   - Desenvolva `EUW_ItemBatchImporter` que lê CSV e popula DataTables de itens.
+## Pré-requisitos Organizacionais
+- Networking/persistência funcionando (Etapa 9).
 
-2. **Eventos em Tempo Real**
-   - Configure `BP_LiveEventManager` (Actor Singleton) que consome `Async` HTTP para ativar eventos temporários (boosts, skins).
-   - Use `Gameplay Tags` para aplicar modificadores globais (ex.: `Event.DropRateBoost`).
+## Sequência Cronológica em Blueprint
+1. **Telemetria e Analytics**
+   - Integrar `Analytics Blueprint Library` para registrar eventos (`QuestCompleted`, `ItemCrafted`).
+   - Garantir envio assíncrono com fallback offline.
+2. **Ferramentas de Editor**
+   - Criar `Editor Utility Widgets` para manipular DataTables de itens/quests.
+   - Implementar validações automáticas (ex.: checar dependências de item) acionadas via botão.
+3. **Eventos Ao Vivo**
+   - Configurar `BP_LiveEventManager` lendo DataAssets `DA_LiveEvent` com cronograma.
+   - Expor eventos para HUD e sistemas de mundo (Etapa 7).
+4. **Balanceamento Contínuo**
+   - Criar `Curve Tables` para escalonar recompensas e usar `Runtime Float Curve` para ajustes sem recompilar.
+   - Incluir opção de recarregar curvas em tempo real via console.
+5. **Automação de Publicação**
+   - Documentar pipeline de empacotamento em Blueprint (Automation Tool) e scripts Editor Utility para gerar builds QA/live.
 
-3. **Analytics e Telemetria**
-   - Crie `Blueprint Function Library` `BFL_Telemetry` com funções `SendEvent` usando `Analytics Blueprint` plugin.
-   - Integre chamadas em pontos críticos: completar missão, loot raro, entrada em evento.
+## Checklist de Saída
+- Ferramentas e analytics conectados, permitindo operação contínua.
+- Eventos ao vivo configuráveis via DataAssets.
 
-4. **Automação de Testes**
-   - Utilize `Automation` Blueprints (`Functional Testing`) para cenários chave: login, combate boss, compra em vendor.
-   - Configure mapa `FunctionalTestMap` com `Functional Test Actors` acionados via `Automation Controller`.
-
-5. **Publicação e Hotfix**
-   - Crie `WBP_PatchNotes` lido pelo cliente via JSON remoto.
-   - Estruture fluxo de hotfix usando `Primary Asset Labels` para atualizar assets sem rebuild completo.
-
-## Entregáveis
-- Editor Utility Widgets e Function Libraries para Live Ops.
-- Scripts de automação configurados no mapa de testes.
-- Integração de telemetria básica acionada por Blueprints.
-
-## Verificações
-- Executar testes funcionais via `Session Frontend > Automation` e registrar resultados.
-- Simular evento Live Ops chamando manualmente `BP_LiveEventManager` e validar efeitos.
+## Verificações de Dependência
+- Executar evento ao vivo de teste e verificar logs de analytics.
+- Validar edição de DataTables através do Editor Utility.

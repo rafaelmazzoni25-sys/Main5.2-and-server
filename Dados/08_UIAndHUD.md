@@ -1,42 +1,41 @@
-# Etapa 8 — UI, HUD e Experiência do Jogador
-**Prioridade:** Média  
-**Depende de:** Etapas 0, 1, 2, 4, 5 e 6
+# Etapa 8 — HUD, UI Dinâmica e Integrações 3D
 
-## Objetivo
-Construir a interface do usuário completa em Blueprints/UMG, conectando HUD, menus e feedbacks ao inventário, missões e combate.
+| Campo | Detalhe |
+| --- | --- |
+| **Prioridade Global** | P8 — Média |
+| **Dependências Diretas** | Etapas 0, 1, 2, 4, 5 e 6 |
+| **Desbloqueia** | Etapas 9, 10 e 11 |
+| **Foco UE5+** | Blueprint com UMG, Viewports 3D e bindings dinâmicos |
+| **Linha do Tempo Indicativa** | Semana 4 — Sessões 3 e 4 |
 
-## Pré-requisitos
-- Eventos de atributos e cooldowns emitidos pelo personagem (Etapa 1 e 4).
-- Inventário com eventos `OnInventoryUpdated` (Etapa 5).
+## Marco Principal
+Construir a HUD principal, telas contextuais e integrações com preview 3D de inventário, quests e status.
 
-## Fluxo de Trabalho em Blueprint
+## Pré-requisitos Organizacionais
+- Inventário 3D funcional (Etapa 5).
+- Eventos de quests/economia disponíveis (Etapa 6).
+
+## Sequência Cronológica em Blueprint
 1. **HUD Base**
-   - Crie `WBP_RemakeHUD` com widgets filhos para `StatusBar`, `SkillBar`, `MiniMap`, `QuestTracker`.
-   - No `BP_RemakeHUD` (classe HUD), durante `BeginPlay`, crie e adicione `WBP_RemakeHUD` ao viewport.
-   - Vincule `OnAttributeChanged` aos elementos de status usando `Bind Widget` ou `Event Dispatcher`.
+   - Criar `WBP_GameHUD` com painéis para barras, objetivos e notificações.
+   - Vincular a `BP_RemakeGameMode` como HUD padrão.
+2. **Widgets Dinâmicos**
+   - Implementar `WBP_StatusBars`, `WBP_QuestTracker`, `WBP_CurrencyPanel` consumindo `Event Dispatchers` das etapas anteriores.
+   - Configurar `Binding` apenas via `Event Driven` (evitar `Tick`).
+3. **Inventário e Preview 3D**
+   - Integrar `WBP_InventoryRoot` (Etapa 5) ao HUD com transição suave.
+   - Garantir que `Viewport` 3D respeite iluminação e rotação do item selecionado.
+4. **Menus Contextuais**
+   - Criar `WBP_InteractionPrompt` para exibir ações disponíveis (usando Input da Etapa 2).
+   - Adicionar `WBP_CombatLog` e `WBP_DamageNumbers` usando `Niagara UI Renderer` se disponível.
+5. **Acessibilidade e Internacionalização**
+   - Adicionar suporte a escalonamento de UI e legendas via `User Settings`.
+   - Preparar `String Tables` para localização futura.
 
-2. **Inventário e Preview**
-   - Integre `WBP_Inventory` da Etapa 5 ao HUD com transições (`Widget Switcher`).
-   - Adicione `WBP_ItemDetails` que recebe dados `FItemData` e exibe descrição, requisitos, efeitos.
-   - Conecte rotação 3D do item via `BP_ItemPreviewActor` e `Render Target` exibido no widget.
+## Checklist de Saída
+- HUD completa instanciada pelo GameMode com widgets atualizando em tempo real.
+- Preview 3D integrado exibindo rotação de itens selecionados.
 
-3. **HUD de Combate**
-   - Implemente `WBP_SkillCooldown` que usa `Progress Bar` e animações `UMG` (Timeline) para cooldown.
-   - Configure `Floating Damage Numbers` usando `Widget Component` anexado a inimigos.
-
-4. **Menus de Missão e Economia**
-   - `WBP_QuestLog`: lista missões do `BP_QuestComponent`, permite marcar rastreamento.
-   - `WBP_Vendor`: interface de compra/venda, com `ListView` e lógica de drag & drop integrada ao inventário.
-
-5. **Experiência do Jogador**
-   - `WBP_LoadingScreen` acionado por `BP_WorldDirector` (Etapa 7) durante streaming.
-   - `WBP_GameMenu` com opções (configurações, controles, saída) lendo `DA_RemakeSettings`.
-
-## Entregáveis
-- Widgets `WBP_RemakeHUD`, `WBP_Inventory`, `WBP_QuestLog`, `WBP_Vendor`, `WBP_LoadingScreen`.
-- `BP_RemakeHUD` referenciado no GameMode.
-
-## Verificações
-- Testar HUD em `Play In Editor`, garantindo que alterações de atributos atualizam barras em tempo real.
-- Abrir inventário, selecionar item e confirmar renderização 3D/rotação.
-- Validar menus de missão e vendedor respondendo aos componentes correspondentes.
+## Verificações de Dependência
+- Testar abertura/fechamento de HUD, inventário e tracker de quests durante gameplay.
+- Validar responsividade em diferentes resoluções e modos de tela.
