@@ -1,0 +1,646 @@
+:root {
+    color-scheme: light dark;
+    --bg: #0b1120;
+    --bg-alt: #121c33;
+    --text: #f0f4ff;
+    --accent: #5b8def;
+    --accent-strong: #89a9ff;
+    --border: rgba(255, 255, 255, 0.1);
+    --shadow: rgba(0, 0, 0, 0.35);
+    font-size: 16px;
+}
+
+* {
+    box-sizing: border-box;
+}
+
+body {
+    margin: 0;
+    font-family: "Inter", "Segoe UI", Roboto, sans-serif;
+    background: linear-gradient(180deg, var(--bg) 0%, #05070f 100%);
+    color: var(--text);
+    line-height: 1.6;
+}
+
+main {
+    max-width: 1100px;
+    margin: 0 auto;
+    padding: 2rem 1.5rem 4rem;
+}
+
+.hero {
+    background: radial-gradient(circle at top, rgba(91, 141, 239, 0.4), transparent 60%), var(--bg-alt);
+    text-align: center;
+    padding: 3.5rem 1.5rem 2.5rem;
+    border-bottom: 1px solid var(--border);
+    box-shadow: 0 1.5rem 3rem -1.5rem var(--shadow);
+}
+
+.hero h1 {
+    margin: 0;
+    font-size: clamp(2rem, 4vw, 3rem);
+}
+
+.hero p {
+    max-width: 680px;
+    margin: 1rem auto 2rem;
+    font-size: 1.1rem;
+}
+
+.primary {
+    background: var(--accent);
+    color: #080b16;
+    font-weight: 600;
+    padding: 0.75rem 1.6rem;
+    border: none;
+    border-radius: 999px;
+    cursor: pointer;
+    transition: transform 0.2s ease, background 0.2s ease;
+}
+
+.primary:hover,
+.primary:focus {
+    background: var(--accent-strong);
+    transform: translateY(-1px);
+}
+
+.toc {
+    background: rgba(11, 17, 32, 0.8);
+    border: 1px solid var(--border);
+    border-radius: 18px;
+    padding: 1.5rem;
+    margin-bottom: 2rem;
+    backdrop-filter: blur(10px);
+}
+
+.toc h2 {
+    margin-top: 0;
+}
+
+.toc ol {
+    list-style: decimal;
+    padding-left: 1.2rem;
+    margin: 0;
+    display: grid;
+    gap: 0.5rem;
+}
+
+.toc a {
+    color: var(--accent-strong);
+    text-decoration: none;
+    font-weight: 600;
+}
+
+.toc a:focus,
+.toc a:hover {
+    text-decoration: underline;
+}
+
+.module {
+    background: rgba(10, 16, 30, 0.85);
+    border: 1px solid var(--border);
+    border-radius: 24px;
+    padding: 2rem;
+    margin-bottom: 2.5rem;
+    box-shadow: 0 2rem 3rem -2rem var(--shadow);
+}
+
+.module.special-project {
+    background: linear-gradient(140deg, rgba(91, 141, 239, 0.18), rgba(10, 16, 30, 0.92));
+    border-color: rgba(137, 169, 255, 0.45);
+}
+
+.module.blueprint-decoder {
+    background: linear-gradient(150deg, rgba(15, 28, 58, 0.95), rgba(8, 13, 27, 0.85));
+    border-color: rgba(255, 255, 255, 0.08);
+}
+
+.module.recipe-book {
+    background: linear-gradient(160deg, rgba(17, 31, 66, 0.95), rgba(11, 17, 32, 0.88));
+    border-color: rgba(91, 141, 239, 0.35);
+}
+
+.module.beginner-roadmap {
+    background: linear-gradient(160deg, rgba(22, 35, 68, 0.95), rgba(9, 15, 28, 0.9));
+    border-color: rgba(137, 169, 255, 0.4);
+}
+
+.module header {
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+    margin-bottom: 1.5rem;
+}
+
+.module .tag {
+    align-self: flex-start;
+    background: rgba(91, 141, 239, 0.1);
+    border: 1px solid rgba(91, 141, 239, 0.4);
+    border-radius: 999px;
+    padding: 0.25rem 0.9rem;
+    font-size: 0.85rem;
+    font-weight: 500;
+}
+
+.lesson {
+    margin-bottom: 1.8rem;
+    padding-bottom: 1.2rem;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.lesson:last-child {
+    border-bottom: none;
+    margin-bottom: 0;
+    padding-bottom: 0;
+}
+
+.step-guide > p {
+    margin-top: 0.4rem;
+    margin-bottom: 1.2rem;
+    font-size: 1rem;
+}
+
+.step-list {
+    counter-reset: etapa;
+    list-style: none;
+    padding-left: 0;
+    display: grid;
+    gap: 1rem;
+    margin: 0 0 1.5rem;
+}
+
+.step-list li {
+    counter-increment: etapa;
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(137, 169, 255, 0.25);
+    border-radius: 16px;
+    padding: 1rem 1.2rem 1rem 3.2rem;
+    position: relative;
+    line-height: 1.5;
+}
+
+.step-list li::before {
+    content: counter(etapa);
+    position: absolute;
+    left: 1.2rem;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 1.8rem;
+    height: 1.8rem;
+    border-radius: 999px;
+    background: var(--accent);
+    color: #05070f;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 700;
+}
+
+.step-list strong {
+    display: block;
+    font-size: 1.05rem;
+    margin-bottom: 0.35rem;
+}
+
+.step-guide .checklist {
+    margin-top: 1.2rem;
+}
+
+dl {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 1rem;
+    margin: 1rem 0 1.5rem;
+}
+
+dl div {
+    background: rgba(255, 255, 255, 0.03);
+    border-radius: 12px;
+    padding: 0.9rem;
+    border: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+dl dt {
+    font-weight: 700;
+    margin-bottom: 0.4rem;
+}
+
+.recipe {
+    background: rgba(8, 12, 24, 0.6);
+    border: 1px solid rgba(137, 169, 255, 0.2);
+    border-radius: 20px;
+    padding: 1.5rem;
+    margin-bottom: 1.5rem;
+    box-shadow: 0 1.25rem 2.5rem -2rem var(--shadow);
+}
+
+.recipe:last-of-type {
+    margin-bottom: 0;
+}
+
+.recipe h3 {
+    margin-top: 0;
+    font-size: 1.45rem;
+}
+
+.recipe-brief {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 0.8rem;
+    margin: 1rem 0 1.5rem;
+}
+
+.recipe-brief div {
+    border-radius: 14px;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    padding: 0.75rem;
+    background: rgba(255, 255, 255, 0.02);
+}
+
+.recipe-section + .recipe-section {
+    margin-top: 1.25rem;
+}
+
+.recipe-section h4 {
+    margin-bottom: 0.6rem;
+    font-size: 1.1rem;
+}
+
+.recipe-section ul {
+    margin: 0;
+    padding-left: 1.1rem;
+}
+
+.recipe-steps {
+    counter-reset: etapa;
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: grid;
+    gap: 1rem;
+}
+
+.recipe-steps li {
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(255, 255, 255, 0.07);
+    border-radius: 16px;
+    padding: 1rem 1.2rem;
+    position: relative;
+}
+
+.recipe-steps li::before {
+    counter-increment: etapa;
+    content: counter(etapa, decimal-leading-zero);
+    position: absolute;
+    top: -0.75rem;
+    left: -0.75rem;
+    background: var(--accent);
+    color: #080b16;
+    font-weight: 700;
+    padding: 0.35rem 0.6rem;
+    border-radius: 12px;
+    box-shadow: 0 0.6rem 1.2rem -0.6rem var(--shadow);
+}
+
+.recipe-steps h5 {
+    margin: 0 0 0.35rem;
+    font-size: 1.05rem;
+    color: var(--accent-strong);
+}
+
+.recipe-steps p {
+    margin: 0;
+    font-size: 0.95rem;
+}
+
+.recipe-section .checklist {
+    padding-left: 0;
+}
+
+.recipe-section .checklist li {
+    list-style: none;
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    border-radius: 14px;
+    padding: 0.65rem 0.9rem;
+    display: flex;
+    gap: 0.75rem;
+    align-items: center;
+}
+
+.recipe-section .checklist input[type='checkbox'] {
+    accent-color: var(--accent);
+    width: 1.1rem;
+    height: 1.1rem;
+}
+
+@media (max-width: 720px) {
+    .recipe {
+        padding: 1.25rem;
+    }
+
+    .recipe-steps li {
+        padding: 0.9rem 1rem;
+    }
+}
+
+dl dd {
+    margin: 0;
+}
+
+.checklist {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    display: grid;
+    gap: 0.6rem;
+}
+
+.checklist li {
+    display: flex;
+    align-items: center;
+    gap: 0.7rem;
+    background: rgba(255, 255, 255, 0.03);
+    border-radius: 12px;
+    padding: 0.6rem 0.8rem;
+    border: 1px solid transparent;
+    transition: border 0.2s ease;
+}
+
+.checklist li:focus-within {
+    border-color: var(--accent);
+}
+
+.checklist input[type="checkbox"] {
+    width: 1.2rem;
+    height: 1.2rem;
+    accent-color: var(--accent);
+    cursor: pointer;
+}
+
+.focus-tools {
+    display: flex;
+    flex-direction: column;
+    gap: 0.8rem;
+}
+
+.focus-toggle {
+    align-self: flex-start;
+    background: transparent;
+    border: 1px solid var(--accent);
+    border-radius: 999px;
+    padding: 0.4rem 1rem;
+    color: var(--accent-strong);
+    cursor: pointer;
+    transition: background 0.2s ease;
+}
+
+.focus-toggle:hover,
+.focus-toggle:focus {
+    background: rgba(91, 141, 239, 0.15);
+}
+
+.focus-panel {
+    background: rgba(91, 141, 239, 0.08);
+    border: 1px solid rgba(91, 141, 239, 0.3);
+    border-radius: 16px;
+    padding: 1rem;
+}
+
+.focus-panel ul,
+.focus-panel ol {
+    margin: 0;
+    padding-left: 1.2rem;
+}
+
+.special-project .focus-panel ul,
+.special-project .focus-panel ol {
+    padding-left: 1.5rem;
+    list-style: disc;
+}
+
+.interpretation-card {
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 22px;
+    padding: 1.5rem 1.6rem;
+    margin-bottom: 1.75rem;
+    box-shadow: 0 1.4rem 2.8rem -2.1rem var(--shadow);
+}
+
+.interpretation-card:last-of-type {
+    margin-bottom: 0;
+}
+
+.interpretation-card h4 {
+    margin-top: 0;
+    font-size: 1.35rem;
+}
+
+.code-path {
+    font-size: 0.9rem;
+    color: rgba(197, 214, 255, 0.85);
+    margin-bottom: 1rem;
+}
+
+.interpretation-columns {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 1.5rem;
+    margin-bottom: 1.2rem;
+}
+
+.interpretation-columns section {
+    background: rgba(10, 16, 32, 0.8);
+    border-radius: 16px;
+    padding: 1rem 1.1rem;
+    border: 1px solid rgba(91, 141, 239, 0.2);
+}
+
+.interpretation-columns h5 {
+    margin-top: 0;
+    font-size: 1.05rem;
+    color: var(--accent-strong);
+}
+
+.interpretation-columns ul,
+.interpretation-columns ol {
+    margin: 0;
+    padding-left: 1.1rem;
+}
+
+.interpretation-checklist {
+    background: transparent;
+    gap: 0.5rem;
+}
+
+.interpretation-checklist li {
+    background: rgba(255, 255, 255, 0.02);
+    border: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+footer {
+    text-align: center;
+    padding: 2rem 1rem 3rem;
+    background: rgba(5, 7, 15, 0.9);
+    border-top: 1px solid var(--border);
+    font-size: 0.9rem;
+}
+
+@media (max-width: 768px) {
+    main {
+        padding: 1.5rem 1rem 3rem;
+    }
+
+    .module {
+        padding: 1.5rem;
+    }
+
+    dl {
+        grid-template-columns: 1fr;
+    }
+
+    .interpretation-columns {
+        grid-template-columns: 1fr;
+    }
+}
+
+.blueprint-lab {
+    background: radial-gradient(circle at top left, rgba(72, 187, 255, 0.08), transparent 55%),
+        var(--card-bg);
+    border: 1px solid rgba(72, 187, 255, 0.2);
+}
+
+.blueprint-lab .lab-overview {
+    background: rgba(45, 55, 72, 0.6);
+    border-radius: 1.5rem;
+    padding: 1.75rem;
+    border: 1px solid rgba(72, 187, 255, 0.25);
+    margin-bottom: 2.5rem;
+}
+
+.blueprint-lab .lab-hints {
+    list-style: none;
+    display: grid;
+    gap: 1rem;
+    margin: 0;
+    padding: 0;
+}
+
+.blueprint-lab .lab-hints li {
+    background: rgba(72, 187, 255, 0.08);
+    border-radius: 1rem;
+    padding: 1rem 1.25rem;
+    border: 1px dashed rgba(72, 187, 255, 0.35);
+}
+
+.blueprint-lab .lab-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 2rem;
+}
+
+.blueprint-lab .lab-card {
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+    background: rgba(17, 24, 39, 0.85);
+    border: 1px solid rgba(72, 187, 255, 0.25);
+    border-radius: 1.75rem;
+    padding: 2rem;
+    box-shadow: 0 18px 35px -20px rgba(15, 23, 42, 0.8);
+}
+
+.blueprint-lab .lab-card h3 {
+    font-size: clamp(1.35rem, 2.5vw, 1.6rem);
+    color: #90cdf4;
+}
+
+.blueprint-lab .lab-columns {
+    display: grid;
+    gap: 1.5rem;
+    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+}
+
+.blueprint-lab .lab-columns section {
+    background: rgba(26, 32, 44, 0.75);
+    border-radius: 1.25rem;
+    padding: 1.25rem 1.5rem;
+    border: 1px solid rgba(72, 187, 255, 0.18);
+}
+
+.blueprint-lab .lab-columns h4 {
+    font-size: 1.05rem;
+    margin-bottom: 0.75rem;
+    color: #63b3ed;
+}
+
+.blueprint-lab .lab-columns ul,
+.blueprint-lab .lab-columns ol {
+    margin: 0;
+    padding-left: 1.25rem;
+    display: grid;
+    gap: 0.5rem;
+}
+
+.blueprint-lab .lab-columns li::marker {
+    color: #90cdf4;
+    font-weight: 600;
+}
+
+.blueprint-lab .lab-toggle {
+    align-self: flex-start;
+    background: rgba(66, 153, 225, 0.15);
+    border: 1px solid rgba(66, 153, 225, 0.35);
+    color: #e2e8f0;
+    border-radius: 999px;
+    padding: 0.6rem 1.2rem;
+    transition: transform 0.2s ease, background 0.2s ease;
+}
+
+.blueprint-lab .lab-toggle:hover,
+.blueprint-lab .lab-toggle:focus {
+    background: rgba(99, 179, 237, 0.35);
+    transform: translateY(-1px);
+}
+
+.blueprint-lab .lab-extra {
+    background: rgba(26, 32, 44, 0.85);
+    border: 1px dashed rgba(99, 179, 237, 0.4);
+    border-radius: 1.25rem;
+    padding: 1.25rem 1.5rem;
+    line-height: 1.65;
+}
+
+.blueprint-lab .lab-extra ol {
+    margin: 0;
+    display: grid;
+    gap: 0.6rem;
+    padding-left: 1.25rem;
+}
+
+.blueprint-lab .lab-checklist {
+    background: rgba(26, 32, 44, 0.7);
+    border-radius: 1.25rem;
+    padding: 1rem 1.25rem;
+    border: 1px solid rgba(72, 187, 255, 0.2);
+}
+
+.blueprint-lab .lab-checklist li::marker {
+    display: none;
+}
+
+@media (max-width: 768px) {
+    .blueprint-lab .lab-card {
+        padding: 1.5rem;
+    }
+
+    .blueprint-lab .lab-columns {
+        grid-template-columns: 1fr;
+    }
+
+    .blueprint-lab .lab-toggle {
+        width: 100%;
+        text-align: center;
+    }
+}
