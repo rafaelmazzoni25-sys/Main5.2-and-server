@@ -92,6 +92,23 @@
         });
     }
 
+    function inicializarAtalhosRapidos() {
+        const links = document.querySelectorAll('.quick-links a[href^="#"]');
+        links.forEach((link) => {
+            const href = link.getAttribute('href');
+            if (!href) return;
+            const targetId = href.slice(1);
+            if (!targetId) return;
+
+            link.addEventListener('click', (evento) => {
+                evento.preventDefault();
+                const alvo = document.getElementById(targetId);
+                if (!alvo) return;
+                alvo.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            });
+        });
+    }
+
     function inicializarBotaoRetomar() {
         const botao = document.getElementById('resume-button');
         if (!botao) return;
@@ -256,6 +273,7 @@
         inicializarChecklist();
         inicializarMapaJornada();
         inicializarFoco();
+        inicializarAtalhosRapidos();
         inicializarBotaoRetomar();
         inicializarDiario();
     });
