@@ -470,6 +470,140 @@
                 </ul>
             </article>
         </section>
+
+        <section class="module recipe-book" data-section-id="muonline-receitas">
+            <header>
+                <h2>Receitas de Bolo: Remake Cliente &amp; Servidor</h2>
+                <p class="tag">Passo a passo prático</p>
+                <p>Use estas receitas como scripts rápidos para iniciar implementações críticas. Cada uma segue o formato <strong>O quê</strong>, <strong>Por quê</strong>, <strong>Quando</strong>, <strong>Onde</strong> e detalha ingredientes, modo de preparo e verificações finais.</p>
+            </header>
+
+            <article class="recipe">
+                <h3>Receita do Cliente UE5 — HUD e Fluxo de Login</h3>
+                <dl class="recipe-brief">
+                    <div>
+                        <dt>O quê?</dt>
+                        <dd>Recriar a interface principal do Mu Online (HUD, login, seleção de personagem) usando UMG e Blueprints.</dd>
+                    </div>
+                    <div>
+                        <dt>Por quê?</dt>
+                        <dd>Garantir familiaridade para veteranos e estabelecer base para testes com o servidor UE5.</dd>
+                    </div>
+                    <div>
+                        <dt>Quando?</dt>
+                        <dd>Após mapear telas legadas no roadmap e antes de portar combates ou eventos dinâmicos.</dd>
+                    </div>
+                    <div>
+                        <dt>Onde?</dt>
+                        <dd>Projeto UE5 &gt; <code>Content/UI</code>, <code>Content/HUD</code> e <code>Content/Blueprints/Flow</code>.</dd>
+                    </div>
+                </dl>
+
+                <div class="recipe-section">
+                    <h4>Ingredientes (Pré-requisitos)</h4>
+                    <ul>
+                        <li>Planilha de telas e assets extraída do Source Main 5.2.</li>
+                        <li>Mockups ou capturas de tela de cada janela principal.</li>
+                        <li>Blueprint <code>BP_MuGameInstance</code> configurado com rotas de login.</li>
+                        <li>Fonte tipográfica compatível com português/brilho retro (ex.: <em>Roboto Condensed</em>).</li>
+                    </ul>
+                </div>
+
+                <div class="recipe-section">
+                    <h4>Modo de preparo</h4>
+                    <ol class="recipe-steps">
+                        <li>
+                            <h5>Pré-aqueça o projeto</h5>
+                            <p>Duplique o <em>Third Person Template</em>, limpe atores extras e configure o <code>GameMode</code> para usar <code>BP_MuHUD</code> personalizado.</p>
+                        </li>
+                        <li>
+                            <h5>Prepare os widgets-base</h5>
+                            <p>Crie widgets UMG para <code>WBP_Login</code>, <code>WBP_ServerList</code>, <code>WBP_CharacterSelect</code> e <code>WBP_MainHUD</code>. Mapeie slots e botões seguindo a hierarquia do <code>CNewUIMainFrameWindow</code>.</p>
+                        </li>
+                        <li>
+                            <h5>Tempere com lógica de fluxo</h5>
+                            <p>No <code>GameInstance</code> implemente uma <em>State Machine</em> simples (enum <code>EMuClientState</code>) acionando transições entre widgets e emitindo eventos para o servidor.</p>
+                        </li>
+                        <li>
+                            <h5>Finalize com feedback e testes</h5>
+                            <p>Adicione animações leves para foco/hover, traduções PT-BR e utilize <em>PIE Multiplayer</em> para validar que o HUD responde aos eventos de login simulados.</p>
+                        </li>
+                    </ol>
+                </div>
+
+                <div class="recipe-section">
+                    <h4>Checklist final</h4>
+                    <ul class="checklist" aria-label="Checklist receita cliente UE5">
+                        <li><input type="checkbox" data-task-id="receita-cliente-widgets" /> Todos os widgets principais criados e conectados à máquina de estados.</li>
+                        <li><input type="checkbox" data-task-id="receita-cliente-assets" /> Assets visuais revisados e substituídos por materiais/texturas atualizadas.</li>
+                        <li><input type="checkbox" data-task-id="receita-cliente-testes" /> Fluxo login &rarr; seleção &rarr; HUD testado com pelo menos dois perfis de personagem.</li>
+                    </ul>
+                </div>
+            </article>
+
+            <article class="recipe">
+                <h3>Receita do Servidor UE5 — GameServer, ConnectServer &amp; Persistência</h3>
+                <dl class="recipe-brief">
+                    <div>
+                        <dt>O quê?</dt>
+                        <dd>Montar um servidor dedicado dentro da UE5 que aceite logins, valide personagens e sincronize o mundo.</dd>
+                    </div>
+                    <div>
+                        <dt>Por quê?</dt>
+                        <dd>Substituir o código Win32 legado por uma base moderna, integrável e fácil de depurar.</dd>
+                    </div>
+                    <div>
+                        <dt>Quando?</dt>
+                        <dd>Assim que o cliente UE5 conseguir simular logins com dados mockados.</dd>
+                    </div>
+                    <div>
+                        <dt>Onde?</dt>
+                        <dd><code>Source/MuServer.Target.cs</code>, <code>Source/MuServer/</code> e serviços auxiliares (REST/gRPC).</dd>
+                    </div>
+                </dl>
+
+                <div class="recipe-section">
+                    <h4>Ingredientes (Pré-requisitos)</h4>
+                    <ul>
+                        <li>Lista de pacotes e estruturas de rede extraída do <code>Protocol.h</code> legado.</li>
+                        <li>Banco de dados com tabelas de contas/personagens (SQLite ou PostgreSQL).</li>
+                        <li>Projeto UE5 com <em>Dedicated Server Target</em> já configurado.</li>
+                        <li>Ferramenta de monitoramento (ex.: <code>Unreal Insights</code> ou logs estruturados).</li>
+                    </ul>
+                </div>
+
+                <div class="recipe-section">
+                    <h4>Modo de preparo</h4>
+                    <ol class="recipe-steps">
+                        <li>
+                            <h5>Mise en place da infraestrutura</h5>
+                            <p>Gere o target dedicado, habilite <code>OnlineSubsystem</code> básico e configure módulos <code>MuNetworking</code> e <code>MuPersistence</code> em <code>.Build.cs</code>.</p>
+                        </li>
+                        <li>
+                            <h5>Cozinhe os handlers de conexão</h5>
+                            <p>Implemente <code>AMuGameSession</code> derivada de <code>AGameSession</code> para aceitar conexões e delegue parsing a um <code>UMuPacketRouter</code> (subclasse de <code>UObject</code>).</p>
+                        </li>
+                        <li>
+                            <h5>Adicione camada de dados</h5>
+                            <p>Crie um <code>UGameInstanceSubsystem</code> chamado <code>UMuAccountService</code> que consulta o banco via REST/gRPC ou <code>FSQLiteDatabase</code>. Garanta cache de sessão em <code>TMap</code>.</p>
+                        </li>
+                        <li>
+                            <h5>Sirva com replicação e testes</h5>
+                            <p>Mapeie structs <code>USTRUCT(BlueprintType)</code> para personagens, utilize <em>Gameplay Ability System</em> para buffs e execute testes headless com <code>-log</code> para validar reconexões.</p>
+                        </li>
+                    </ol>
+                </div>
+
+                <div class="recipe-section">
+                    <h4>Checklist final</h4>
+                    <ul class="checklist" aria-label="Checklist receita servidor UE5">
+                        <li><input type="checkbox" data-task-id="receita-servidor-target" /> Build dedicada compilando sem erros e executável <code>MuServerServer</code> gerado.</li>
+                        <li><input type="checkbox" data-task-id="receita-servidor-handlers" /> Handlers de login/seleção/entrada no mundo respondendo aos pacotes do cliente UE5.</li>
+                        <li><input type="checkbox" data-task-id="receita-servidor-persistencia" /> Persistência testada com criação de personagem, atualização de inventário e registro de log de auditoria.</li>
+                    </ul>
+                </div>
+            </article>
+        </section>
     </main>
 
     <footer>
