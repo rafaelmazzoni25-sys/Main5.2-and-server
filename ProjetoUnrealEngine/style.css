@@ -504,3 +504,143 @@ footer {
         grid-template-columns: 1fr;
     }
 }
+
+.blueprint-lab {
+    background: radial-gradient(circle at top left, rgba(72, 187, 255, 0.08), transparent 55%),
+        var(--card-bg);
+    border: 1px solid rgba(72, 187, 255, 0.2);
+}
+
+.blueprint-lab .lab-overview {
+    background: rgba(45, 55, 72, 0.6);
+    border-radius: 1.5rem;
+    padding: 1.75rem;
+    border: 1px solid rgba(72, 187, 255, 0.25);
+    margin-bottom: 2.5rem;
+}
+
+.blueprint-lab .lab-hints {
+    list-style: none;
+    display: grid;
+    gap: 1rem;
+    margin: 0;
+    padding: 0;
+}
+
+.blueprint-lab .lab-hints li {
+    background: rgba(72, 187, 255, 0.08);
+    border-radius: 1rem;
+    padding: 1rem 1.25rem;
+    border: 1px dashed rgba(72, 187, 255, 0.35);
+}
+
+.blueprint-lab .lab-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 2rem;
+}
+
+.blueprint-lab .lab-card {
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+    background: rgba(17, 24, 39, 0.85);
+    border: 1px solid rgba(72, 187, 255, 0.25);
+    border-radius: 1.75rem;
+    padding: 2rem;
+    box-shadow: 0 18px 35px -20px rgba(15, 23, 42, 0.8);
+}
+
+.blueprint-lab .lab-card h3 {
+    font-size: clamp(1.35rem, 2.5vw, 1.6rem);
+    color: #90cdf4;
+}
+
+.blueprint-lab .lab-columns {
+    display: grid;
+    gap: 1.5rem;
+    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+}
+
+.blueprint-lab .lab-columns section {
+    background: rgba(26, 32, 44, 0.75);
+    border-radius: 1.25rem;
+    padding: 1.25rem 1.5rem;
+    border: 1px solid rgba(72, 187, 255, 0.18);
+}
+
+.blueprint-lab .lab-columns h4 {
+    font-size: 1.05rem;
+    margin-bottom: 0.75rem;
+    color: #63b3ed;
+}
+
+.blueprint-lab .lab-columns ul,
+.blueprint-lab .lab-columns ol {
+    margin: 0;
+    padding-left: 1.25rem;
+    display: grid;
+    gap: 0.5rem;
+}
+
+.blueprint-lab .lab-columns li::marker {
+    color: #90cdf4;
+    font-weight: 600;
+}
+
+.blueprint-lab .lab-toggle {
+    align-self: flex-start;
+    background: rgba(66, 153, 225, 0.15);
+    border: 1px solid rgba(66, 153, 225, 0.35);
+    color: #e2e8f0;
+    border-radius: 999px;
+    padding: 0.6rem 1.2rem;
+    transition: transform 0.2s ease, background 0.2s ease;
+}
+
+.blueprint-lab .lab-toggle:hover,
+.blueprint-lab .lab-toggle:focus {
+    background: rgba(99, 179, 237, 0.35);
+    transform: translateY(-1px);
+}
+
+.blueprint-lab .lab-extra {
+    background: rgba(26, 32, 44, 0.85);
+    border: 1px dashed rgba(99, 179, 237, 0.4);
+    border-radius: 1.25rem;
+    padding: 1.25rem 1.5rem;
+    line-height: 1.65;
+}
+
+.blueprint-lab .lab-extra ol {
+    margin: 0;
+    display: grid;
+    gap: 0.6rem;
+    padding-left: 1.25rem;
+}
+
+.blueprint-lab .lab-checklist {
+    background: rgba(26, 32, 44, 0.7);
+    border-radius: 1.25rem;
+    padding: 1rem 1.25rem;
+    border: 1px solid rgba(72, 187, 255, 0.2);
+}
+
+.blueprint-lab .lab-checklist li::marker {
+    display: none;
+}
+
+@media (max-width: 768px) {
+    .blueprint-lab .lab-card {
+        padding: 1.5rem;
+    }
+
+    .blueprint-lab .lab-columns {
+        grid-template-columns: 1fr;
+    }
+
+    .blueprint-lab .lab-toggle {
+        width: 100%;
+        text-align: center;
+    }
+}

@@ -60,12 +60,30 @@
     function inicializarFoco() {
         const toggles = document.querySelectorAll('.focus-toggle');
         toggles.forEach((botao) => {
+            const alvo = document.getElementById(botao.dataset.target);
+            if (!alvo) return;
+
+            const closeLabel = botao.dataset.closeLabel || botao.textContent.trim();
+            const fallbackOpen = closeLabel.toLowerCase().includes('mostrar')
+                ? closeLabel.replace(/mostrar/i, 'Ocultar')
+                : 'Ocultar detalhe';
+            const openLabel = botao.dataset.openLabel || fallbackOpen;
+
+            botao.dataset.closeLabel = closeLabel;
+            botao.dataset.openLabel = openLabel;
+            botao.setAttribute('aria-expanded', alvo.hasAttribute('hidden') ? 'false' : 'true');
+
             botao.addEventListener('click', () => {
-                const alvo = document.getElementById(botao.dataset.target);
-                if (!alvo) return;
                 const estaOculto = alvo.hasAttribute('hidden');
-                alvo.toggleAttribute('hidden');
-                botao.textContent = estaOculto ? 'Ocultar detalhe' : 'Mostrar detalhe';
+                if (estaOculto) {
+                    alvo.removeAttribute('hidden');
+                    botao.textContent = botao.dataset.openLabel;
+                    botao.setAttribute('aria-expanded', 'true');
+                } else {
+                    alvo.setAttribute('hidden', '');
+                    botao.textContent = botao.dataset.closeLabel;
+                    botao.setAttribute('aria-expanded', 'false');
+                }
             });
         });
     }
