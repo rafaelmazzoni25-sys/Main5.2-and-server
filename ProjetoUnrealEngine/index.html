@@ -432,6 +432,43 @@
                     <li><input type="checkbox" data-task-id="muonline-ue5-rede" /> Testar comunicação básica com servidor (HTTP/Socket) simulando fluxo de login.</li>
                 </ul>
             </article>
+            <article class="lesson">
+                <h3>Recriando o lado servidor dentro da Unreal</h3>
+                <dl>
+                    <div>
+                        <dt>O quê?</dt>
+                        <dd>Estruturar um servidor dedicado UE5 (ou serviço externo) que reproduza os papéis do GameServer, ConnectServer e DataServer originais.</dd>
+                    </div>
+                    <div>
+                        <dt>Por quê?</dt>
+                        <dd>Permite validar protocolos, persistência e regras de progressão sem depender do código Win32 legado, facilitando testes rápidos com o cliente UE5.</dd>
+                    </div>
+                    <div>
+                        <dt>Quando?</dt>
+                        <dd>Após ter o projeto base organizado e os contratos de mensagens mapeados, antes de migrar eventos complexos ou temporadas.</dd>
+                    </div>
+                    <div>
+                        <dt>Onde?</dt>
+                        <dd>No <code>Source/</code> do projeto UE5 (módulos <code>Server</code> ou <code>MuBackend</code>) e em serviços auxiliares como banco de dados ou APIs em nuvem.</dd>
+                    </div>
+                </dl>
+                <div class="focus-tools">
+                    <button type="button" class="focus-toggle" data-target="muonline-ue5-servidor-tarefas">Passos de migração</button>
+                    <div id="muonline-ue5-servidor-tarefas" class="focus-panel" hidden>
+                        <ul>
+                            <li><strong>Target dedicado:</strong> Configure um <em>Dedicated Server Target</em> em <code>Source/MuServer.Target.cs</code>.</li>
+                            <li><strong>Protocolos:</strong> Converta <code>Protocol.h</code> legados em estruturas <code>USTRUCT</code> replicáveis.</li>
+                            <li><strong>Persistência:</strong> Utilize <code>GameInstanceSubsystem</code> para abstrair chamadas ao banco (REST, gRPC ou sockets).</li>
+                        </ul>
+                    </div>
+                </div>
+                <ul class="checklist" aria-label="Serviço servidor UE5">
+                    <li><input type="checkbox" data-task-id="muonline-ue5-servidor-target" /> Criar alvo dedicado e projeto <code>.uproject</code> configurado para builds de servidor.</li>
+                    <li><input type="checkbox" data-task-id="muonline-ue5-servidor-handlers" /> Implementar handlers de login e seleção de personagem em C++ (derivados de <code>UGameSession</code> ou <code>APlayerController</code> servidor).</li>
+                    <li><input type="checkbox" data-task-id="muonline-ue5-servidor-persistencia" /> Conectar o servidor a uma camada de dados (SQLite, PostgreSQL ou API) mapeando tabelas de contas, personagens e inventário.</li>
+                    <li><input type="checkbox" data-task-id="muonline-ue5-servidor-testes" /> Simular múltiplos clientes usando <em>PIE</em> ou builds headless para validar sessões, latência e desconexões.</li>
+                </ul>
+            </article>
         </section>
     </main>
 
