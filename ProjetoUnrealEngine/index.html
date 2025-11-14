@@ -608,6 +608,171 @@
                 </div>
             </article>
         </section>
+
+        <section class="module blueprint-decoder" data-section-id="interpretacao-blueprint">
+            <header>
+                <h2>Caderno de Interpretação dos Códigos Legados</h2>
+                <p class="tag">Passo a passo em linguagem simples</p>
+            </header>
+
+            <article class="lesson interpretation">
+                <h3>Cliente original → Blueprint sem mistério</h3>
+                <p>
+                    Aqui você encontra descrições em português claro do que o <strong>Source Main 5.2</strong> faz e o equivalente direto em Blueprints.
+                    Use como referência sempre que travar: leia o que o código realiza, reproduza a rotina visualmente e marque o checklist para consolidar o aprendizado.
+                </p>
+
+                <div class="interpretation-card">
+                    <h4>HUD principal e botões do menu</h4>
+                    <p class="code-path">Fonte: <code>NewUIMainFrameWindow.cpp</code>, linhas 59-199.</p>
+                    <div class="interpretation-columns">
+                        <section>
+                            <h5>O que o código faz</h5>
+                            <ul>
+                                <li><strong>LoadImages</strong> carrega as texturas do HUD antigo, como barras de HP/MP e botões, usando caminhos <code>Interface\*.jpg</code>.【F:Source Main 5.2/source/NewUIMainFrameWindow.cpp†L59-L77】</li>
+                                <li><strong>SetButtonInfo</strong> posiciona cinco botões lado a lado, configurando cor, tooltip e imagem para cada função (shop, status, inventário, amigos, janela).【F:Source Main 5.2/source/NewUIMainFrameWindow.cpp†L117-L160】</li>
+                                <li><strong>Render</strong> desenha frame, barras de vida/escudo/AG, lista de skills e efeitos antes de finalizar com os botões, garantindo sempre a mesma ordem visual.【F:Source Main 5.2/source/NewUIMainFrameWindow.cpp†L180-L199】</li>
+                            </ul>
+                        </section>
+                        <section>
+                            <h5>Como replicar com Blueprints</h5>
+                            <ol>
+                                <li>Crie um <em>Widget Blueprint</em> chamado <code>WBP_MainHUD</code> e adicione <em>Images</em> para cada textura. Carregue-as como <em>Brushes</em> apontando para as mesmas pastas ou equivalentes remasterizados.</li>
+                                <li>Organize cinco <em>Buttons</em> dentro de um <em>Horizontal Box</em>. Ajuste <em>Padding</em> para reproduzir o espaçamento de <code>x_Add</code> (30 px) e defina <em>Tooltips</em> com os mesmos textos.</li>
+                                <li>No <em>Event Construct</em>, chame uma função <code>ConfigurarHUD</code> que seta as barras de HP/MP/AG em sequência, garantindo que a ordem de atualização siga o fluxo do render legado.</li>
+                                <li>Expose variáveis como <code>CorBotaoNormal</code> e <code>CorBotaoPressionado</code> para trocar facilmente cores de destaque, equivalentes aos <code>ChangeImgColor</code> originais.</li>
+                            </ol>
+                        </section>
+                    </div>
+                    <ul class="checklist interpretation-checklist" aria-label="Checklist de compreensão do HUD">
+                        <li><input type="checkbox" data-task-id="interpretacao-hud-identificar" /> Consegui apontar onde cada barra/botão aparece no Blueprint.</li>
+                        <li><input type="checkbox" data-task-id="interpretacao-hud-configurar" /> Configurei a função <code>ConfigurarHUD</code> para atualizar barras na ordem original.</li>
+                        <li><input type="checkbox" data-task-id="interpretacao-hud-tooltips" /> Reproduzi os tooltips com textos equivalentes aos do cliente.</li>
+                    </ul>
+                </div>
+
+                <div class="interpretation-card">
+                    <h4>Inventário e efeitos de equipar</h4>
+                    <p class="code-path">Fonte: <code>NewUIMyInventory.cpp</code>, linhas 65-188.</p>
+                    <div class="interpretation-columns">
+                        <section>
+                            <h5>O que o código faz</h5>
+                            <ul>
+                                <li><strong>Create</strong> registra a janela no gerenciador de UI, cria o controle de grid (8×8) e prepara imagens e botões antes de exibir.【F:Source Main 5.2/source/NewUIMyInventory.cpp†L65-L89】</li>
+                                <li><strong>EquipItem</strong> transforma um pacote de item em estrutura interna, substitui o slot, chama efeitos e solicita dados extras para pets especiais.【F:Source Main 5.2/source/NewUIMyInventory.cpp†L115-L147】</li>
+                                <li><strong>UnequipItem/UnequipAllItems</strong> limpam o slot, removem efeitos visuais e reiniciam informações de pets quando um item sai do equipamento.【F:Source Main 5.2/source/NewUIMyInventory.cpp†L151-L196】</li>
+                            </ul>
+                        </section>
+                        <section>
+                            <h5>Como replicar com Blueprints</h5>
+                            <ol>
+                                <li>No <code>WBP_Inventory</code>, monte um <em>Uniform Grid Panel</em> 8×8 e salve a referência em uma variável <code>InventoryGrid</code>, equivalente ao <code>CNewUIInventoryCtrl</code>.</li>
+                                <li>Crie um <em>Actor Component</em> <code>BP_ItemPacketDecoder</code> que recebe um <code>Struct</code> (<em>DataTable Row</em>) e retorna um <code>StructBP_Item</code> pronto para ser colocado no grid.</li>
+                                <li>Quando o jogador clica em “equipar”, use um <em>Event Dispatcher</em> <code>OnEquipItem</code> que atualiza um array de slots e dispara efeitos com <em>Niagara</em> ou <em>Timeline</em>, simulando <code>CreateEquippingEffect</code>.</li>
+                                <li>Para pets, adicione um <em>Switch on Enum</em> baseado no tipo do item e chame funções <code>SolicitarInfoPet</code> e <code>RemoverInfoPet</code>, reproduzindo as chamadas <code>SendRequestPetInfo</code> e limpeza de dados.</li>
+                            </ol>
+                        </section>
+                    </div>
+                    <ul class="checklist interpretation-checklist" aria-label="Checklist de compreensão do inventário">
+                        <li><input type="checkbox" data-task-id="interpretacao-inventario-grid" /> Organizei o grid 8×8 com uma variável parecida com <code>InventoryGrid</code>.</li>
+                        <li><input type="checkbox" data-task-id="interpretacao-inventario-struct" /> Criei um <code>StructBP_Item</code> para guardar tipo, nível, sockets e efeitos.</li>
+                        <li><input type="checkbox" data-task-id="interpretacao-inventario-eventos" /> Configurei <em>Dispatchers</em> para efeitos de equipar e remoção, incluindo os casos de pets.</li>
+                    </ul>
+                </div>
+            </article>
+
+            <article class="lesson interpretation">
+                <h3>Servidores legados → Blueprint organizado</h3>
+                <p>
+                    Esta parte traduz as rotinas centrais do <strong>Source MuServer Update 15</strong> em blocos lógicos que cabem em Blueprints.
+                    A intenção é mostrar claramente o fluxo de mensagens e estados para que você monte subsistemas dedicados sem escrever C++.
+                </p>
+
+                <div class="interpretation-card">
+                    <h4>Handshake do ConnectServer</h4>
+                    <p class="code-path">Fonte: <code>ConnectServer/ConnectServerProtocol.cpp</code>, linhas 10-87.</p>
+                    <div class="interpretation-columns">
+                        <section>
+                            <h5>O que o código faz</h5>
+                            <ul>
+                                <li><strong>ConnectServerProtocolCore</strong> atualiza o tempo do cliente e roteia mensagens pelo cabeçalho 0xF4.【F:Source MuServer Update 15/ConnectServer/ConnectServer/ConnectServerProtocol.cpp†L10-L31】</li>
+                                <li><strong>CCServerInfoRecv</strong> valida se o servidor está visível e responde com IP e porta corretos usando <code>DataSend</code>.【F:Source MuServer Update 15/ConnectServer/ConnectServer/ConnectServerProtocol.cpp†L34-L62】</li>
+                                <li><strong>CCServerListRecv</strong> gera a lista completa de mundos e envia de volta com o tamanho calculado dinamicamente.【F:Source MuServer Update 15/ConnectServer/ConnectServer/ConnectServerProtocol.cpp†L64-L87】</li>
+                            </ul>
+                        </section>
+                        <section>
+                            <h5>Como replicar com Blueprints</h5>
+                            <ol>
+                                <li>Implemente um <code>BP_ConnectServerSubsystem</code> (GameInstance Subsystem) com um <em>Map</em> <code>Pacote → Função</code> para simular o <code>switch</code> do cabeçalho.</li>
+                                <li>Crie uma <em>DataTable</em> <code>DT_ServerList</code> com colunas <em>Código</em>, <em>Nome</em>, <em>IP</em>, <em>Porta</em>, <em>Visível</em> e use-a para preencher arrays que serão enviados via <em>RPC</em>.</li>
+                                <li>Ao receber um pedido de info, monte uma <code>Struct</code> <code>BP_ServerInfo</code> e dispare um <em>Custom Event</em> replicado que envia IP/Porta aos clientes conectados.</li>
+                            </ol>
+                        </section>
+                    </div>
+                    <ul class="checklist interpretation-checklist" aria-label="Checklist de compreensão do ConnectServer">
+                        <li><input type="checkbox" data-task-id="interpretacao-connect-mapa" /> Modelei o mapa <code>Pacote → Função</code> no Subsystem.</li>
+                        <li><input type="checkbox" data-task-id="interpretacao-connect-datatable" /> Montei uma <em>DataTable</em> com IP, porta e status de cada servidor.</li>
+                        <li><input type="checkbox" data-task-id="interpretacao-connect-broadcast" /> Configurei um evento replicado que envia <code>BP_ServerInfo</code> para os clientes.</li>
+                    </ul>
+                </div>
+
+                <div class="interpretation-card">
+                    <h4>Roteamento de pacotes do GameServer</h4>
+                    <p class="code-path">Fonte: <code>GameServer/Protocol.cpp</code>, linhas 1-199.</p>
+                    <div class="interpretation-columns">
+                        <section>
+                            <h5>O que o código faz</h5>
+                            <ul>
+                                <li>O arquivo inclui dezenas de sistemas (trade, guild, eventos) porque o <code>ProtocolCore</code> distribui cada cabeçalho para o manipulador correto.【F:Source MuServer Update 15/GameServer/GameServer/Protocol.cpp†L1-L73】</li>
+                                <li>Antes de roteá-los, o servidor registra o pacote recebido para depuração, imprimindo cabeçalho e tamanho em log vermelho quando não é handshake.【F:Source MuServer Update 15/GameServer/GameServer/Protocol.cpp†L82-L92】</li>
+                                <li>O grande <code>switch</code> despacha casos como chat (0x00), ataque (PROTOCOL_CODE2), teleporte (0x1C) ou interações de loja (0x32-0x37) para classes especializadas.【F:Source MuServer Update 15/GameServer/GameServer/Protocol.cpp†L97-L195】</li>
+                            </ul>
+                        </section>
+                        <section>
+                            <h5>Como replicar com Blueprints</h5>
+                            <ol>
+                                <li>Construa um <code>BP_GameServerRouter</code> com um <em>Switch on Byte</em> principal e <em>Macros</em> ou <em>Functions</em> nomeadas (Ex.: <code>TratarChat</code>, <code>TratarAtaque</code>) para cada cabeçalho.</li>
+                                <li>Implemente um logger visual usando <code>Print String</code> colorido ou um <em>Widget</em> dedicado que registra os pacotes, simulando o <code>LogAdd</code> vermelho.</li>
+                                <li>Para cada caso complexo, chame um <em>Blueprint Interface</em> (<code>BPI_Trade</code>, <code>BPI_ItemManager</code>) para delegar a lógica e manter o gráfico legível.</li>
+                            </ol>
+                        </section>
+                    </div>
+                    <ul class="checklist interpretation-checklist" aria-label="Checklist de compreensão do roteador do GameServer">
+                        <li><input type="checkbox" data-task-id="interpretacao-protocol-switch" /> Reproduzi o <em>Switch on Byte</em> com eventos nomeados para cada pacote importante.</li>
+                        <li><input type="checkbox" data-task-id="interpretacao-protocol-log" /> Configurei um logger visual para ver cada pacote chegando.</li>
+                        <li><input type="checkbox" data-task-id="interpretacao-protocol-interfaces" /> Separei a lógica em <em>Blueprint Interfaces</em> ou <em>Function Libraries</em>.</li>
+                    </ul>
+                </div>
+
+                <div class="interpretation-card">
+                    <h4>Estados do jogador e limites</h4>
+                    <p class="code-path">Fonte: <code>GameServer/User.h</code>, linhas 13-183.</p>
+                    <div class="interpretation-columns">
+                        <section>
+                            <h5>O que o código faz</h5>
+                            <ul>
+                                <li>Define limites globais como quantidade máxima de usuários, monstros e inventário estendido, que impactam validações em runtime.【F:Source MuServer Update 15/GameServer/GameServer/User.h†L13-L63】</li>
+                                <li>Enumera estados de conexão (<code>OBJECT_OFFLINE</code> → <code>OBJECT_ONLINE</code>) e tipos de interface ativa (trade, party, shop, etc.).【F:Source MuServer Update 15/GameServer/GameServer/User.h†L65-L118】</li>
+                                <li>Lista animações/ações possíveis (atacar, sentar, cumprimentar) com constantes numéricas usadas em pacotes e animações.【F:Source MuServer Update 15/GameServer/GameServer/User.h†L120-L183】</li>
+                            </ul>
+                        </section>
+                        <section>
+                            <h5>Como replicar com Blueprints</h5>
+                            <ol>
+                                <li>Crie <code>Enums</code> Blueprint (<code>EPlayerConnectionState</code>, <code>EPlayerInterfaceType</code>, <code>EPlayerAction</code>) com os mesmos nomes/valores para manter compatibilidade.</li>
+                                <li>Adicione essas enums em um <code>Struct</code> <code>BP_UserState</code> armazenado no seu <code>BP_UserManager</code>. Atualize-as via <em>RepNotify</em> quando pacotes chegarem.</li>
+                                <li>Use os limites (ex.: <code>MAX_MONEY</code>, <code>MAX_SELF_DEFENSE</code>) como constantes em <em>Blueprint Function Libraries</em> para validar entrada do usuário sem precisar revisar o C++ sempre.</li>
+                            </ol>
+                        </section>
+                    </div>
+                    <ul class="checklist interpretation-checklist" aria-label="Checklist de compreensão dos estados de usuário">
+                        <li><input type="checkbox" data-task-id="interpretacao-user-enums" /> Criei enums Blueprint com os mesmos estados do arquivo.</li>
+                        <li><input type="checkbox" data-task-id="interpretacao-user-struct" /> Montei o <code>Struct BP_UserState</code> e configurei replicação.</li>
+                        <li><input type="checkbox" data-task-id="interpretacao-user-constantes" /> Anotei limites importantes (dinheiro, slots, ações) em uma biblioteca de constantes.</li>
+                    </ul>
+                </div>
+            </article>
+        </section>
     </main>
 
     <footer>

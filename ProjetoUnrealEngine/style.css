@@ -110,6 +110,11 @@ main {
     border-color: rgba(137, 169, 255, 0.45);
 }
 
+.module.blueprint-decoder {
+    background: linear-gradient(150deg, rgba(15, 28, 58, 0.95), rgba(8, 13, 27, 0.85));
+    border-color: rgba(255, 255, 255, 0.08);
+}
+
 .module.recipe-book {
     background: linear-gradient(160deg, rgba(17, 31, 66, 0.95), rgba(11, 17, 32, 0.88));
     border-color: rgba(91, 141, 239, 0.35);
@@ -357,6 +362,66 @@ dl dd {
     list-style: disc;
 }
 
+.interpretation-card {
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 22px;
+    padding: 1.5rem 1.6rem;
+    margin-bottom: 1.75rem;
+    box-shadow: 0 1.4rem 2.8rem -2.1rem var(--shadow);
+}
+
+.interpretation-card:last-of-type {
+    margin-bottom: 0;
+}
+
+.interpretation-card h4 {
+    margin-top: 0;
+    font-size: 1.35rem;
+}
+
+.code-path {
+    font-size: 0.9rem;
+    color: rgba(197, 214, 255, 0.85);
+    margin-bottom: 1rem;
+}
+
+.interpretation-columns {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 1.5rem;
+    margin-bottom: 1.2rem;
+}
+
+.interpretation-columns section {
+    background: rgba(10, 16, 32, 0.8);
+    border-radius: 16px;
+    padding: 1rem 1.1rem;
+    border: 1px solid rgba(91, 141, 239, 0.2);
+}
+
+.interpretation-columns h5 {
+    margin-top: 0;
+    font-size: 1.05rem;
+    color: var(--accent-strong);
+}
+
+.interpretation-columns ul,
+.interpretation-columns ol {
+    margin: 0;
+    padding-left: 1.1rem;
+}
+
+.interpretation-checklist {
+    background: transparent;
+    gap: 0.5rem;
+}
+
+.interpretation-checklist li {
+    background: rgba(255, 255, 255, 0.02);
+    border: 1px solid rgba(255, 255, 255, 0.05);
+}
+
 footer {
     text-align: center;
     padding: 2rem 1rem 3rem;
@@ -375,6 +440,10 @@ footer {
     }
 
     dl {
+        grid-template-columns: 1fr;
+    }
+
+    .interpretation-columns {
         grid-template-columns: 1fr;
     }
 }
