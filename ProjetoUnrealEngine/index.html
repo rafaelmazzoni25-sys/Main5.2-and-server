@@ -157,6 +157,94 @@
             </article>
         </section>
 
+        <section class="module beginner-roadmap" data-section-id="trilha-zero-remake">
+            <header>
+                <h2>Trilha do Zero até o Remake</h2>
+                <p class="tag">Iniciante absoluto</p>
+            </header>
+
+            <article class="lesson step-guide">
+                <h3>Fase 1 – Entender as peças antes de recriar</h3>
+                <p>Objetivo: transformar arquivos C++ em conceitos visuais fáceis de lembrar antes de abrir qualquer Blueprint.</p>
+                <ol class="step-list">
+                    <li>
+                        <strong>Leia com calma o que cada função faz.</strong>
+                        Foque em trechos curtos como <code>LoadImages</code> e <code>SetButtonInfo</code> que apenas carregam imagens e posicionam botões na tela do HUD. Observe que o código só repete caminhos de arquivo e coordenadas, nada “mágico”.【F:Source Main 5.2/source/NewUIMainFrameWindow.cpp†L59-L160】
+                    </li>
+                    <li>
+                        <strong>Desenhe o fluxo em papel ou bloco.</strong>
+                        Marque a ordem que o <code>Render</code> segue: desenhar moldura, atualizar barras e, por último, os botões. Isso vira um fluxograma simples que você poderá copiar para o <em>Event Graph</em> depois.【F:Source Main 5.2/source/NewUIMainFrameWindow.cpp†L180-L197】
+                    </li>
+                    <li>
+                        <strong>Mapeie as estruturas de dados.</strong>
+                        No inventário, destaque que primeiro cria-se o grid 8×8, depois cada item do pacote vira uma estrutura completa com nível, sockets e efeitos especiais para pets. Liste esses campos em português em uma folha para saber que variáveis criar nos Blueprints.【F:Source Main 5.2/source/NewUIMyInventory.cpp†L65-L147】
+                    </li>
+                    <li>
+                        <strong>Traduza termos desconhecidos.</strong>
+                        Pesquise palavras como “socket” ou “tooltip” e escreva o significado ao lado da função correspondente. Isso evita travar quando ler nomes como <code>CreateEquippingEffect</code> ou <code>SendRequestPetInfo</code> nas próximas fases.【F:Source Main 5.2/source/NewUIMyInventory.cpp†L133-L185】
+                </ol>
+                <ul class="checklist" aria-label="Checklist da fase 1">
+                    <li><input type="checkbox" data-task-id="fase1-anotar-funcoes" /> Fiz anotações em português sobre cada função que aparece no HUD e inventário.</li>
+                    <li><input type="checkbox" data-task-id="fase1-fluxograma" /> Montei um fluxograma simples da ordem de desenho do HUD.</li>
+                    <li><input type="checkbox" data-task-id="fase1-glossario" /> Criei um mini glossário com os termos técnicos que encontrei.</li>
+                </ul>
+            </article>
+
+            <article class="lesson step-guide">
+                <h3>Fase 2 – Montar o cliente em Blueprints</h3>
+                <p>Objetivo: repetir no editor o que você entendeu no papel, sem tocar em código C++.</p>
+                <ol class="step-list">
+                    <li>
+                        <strong>Construa o HUD com Widgets.</strong>
+                        Crie o <code>WBP_MainHUD</code>, adicione imagens seguindo a mesma ordem da função <code>Render</code> e configure os cinco botões com o espaçamento indicado por <code>x_Add</code> (= 30). Use o <em>Details Panel</em> para definir tooltips iguais aos originais.【F:Source Main 5.2/source/NewUIMainFrameWindow.cpp†L117-L160】【F:Source Main 5.2/source/NewUIMainFrameWindow.cpp†L180-L197】
+                    </li>
+                    <li>
+                        <strong>Crie DataTables para itens.</strong>
+                        Cada linha deve conter tipo, nível, sockets e campos especiais. Esses dados são os mesmos copiados para o slot quando <code>EquipItem</code> é chamado, então garanta que o seu <code>StructBP_Item</code> tenha essas entradas.【F:Source Main 5.2/source/NewUIMyInventory.cpp†L115-L147】</li>
+                    <li>
+                        <strong>Implemente eventos de equipar e remover.</strong>
+                        Use <em>Event Dispatchers</em> para simular <code>CreateEquippingEffect</code>, <code>SendRequestPetInfo</code> e <code>UnequipItem</code>. Separe um dispatcher só para pets para que a lógica fique clara ao revisar.【F:Source Main 5.2/source/NewUIMyInventory.cpp†L125-L185】
+                    </li>
+                    <li>
+                        <strong>Teste como jogador.</strong>
+                        Execute o projeto, clique nos botões e valide se os tooltips aparecem, se as barras atualizam na ordem planejada e se pets disparam efeitos corretos. Ajuste o Blueprint até ficar igual ao fluxo anotado na fase 1.</li>
+                </ol>
+                <ul class="checklist" aria-label="Checklist da fase 2">
+                    <li><input type="checkbox" data-task-id="fase2-hud" /> HUD criado e funcionando com tooltips.</li>
+                    <li><input type="checkbox" data-task-id="fase2-datatable" /> DataTable de itens preenchida com campos do inventário.</li>
+                    <li><input type="checkbox" data-task-id="fase2-eventos" /> Eventos de equipar/remover replicando efeitos e pets.</li>
+                </ul>
+            </article>
+
+            <article class="lesson step-guide">
+                <h3>Fase 3 – Substituir os servidores passo a passo</h3>
+                <p>Objetivo: montar subsistemas Blueprint que fazem o mesmo trabalho do ConnectServer e do GameServer originais.</p>
+                <ol class="step-list">
+                    <li>
+                        <strong>Comece pelo ConnectServer.</strong>
+                        Recrie o <code>switch</code> dos pacotes em um <em>GameInstance Subsystem</em> e garanta que há um mapa “cabeçalho → função”. Essa estrutura vem direto do <code>ConnectServerProtocolCore</code>.【F:Source MuServer Update 15/ConnectServer/ConnectServer/ConnectServerProtocol.cpp†L10-L27】
+                    </li>
+                    <li>
+                        <strong>Prepare mensagens de resposta.</strong>
+                        Ao tratar <code>CCServerInfoRecv</code> e <code>CCServerListRecv</code>, preencha structs com IP, porta e contagem de mundos antes de enviar aos clientes. Em Blueprint, isso vira um <code>Struct BP_ServerInfo</code> e um <code>Array</code> replicado.【F:Source MuServer Update 15/ConnectServer/ConnectServer/ConnectServerProtocol.cpp†L34-L87】
+                    </li>
+                    <li>
+                        <strong>Monte o roteador do GameServer.</strong>
+                        Copie os cabeçalhos usados no <code>ProtocolCore</code> e crie um <em>Switch on Byte</em> para cada caso importante (chat, ataque, teleporte, trade, loja pessoal). Anote qual interface cada pacote usa para dividir a lógica em gráficos separados.【F:Source MuServer Update 15/GameServer/GameServer/Protocol.cpp†L75-L195】
+                    </li>
+                    <li>
+                        <strong>Defina estados e limites do jogador.</strong>
+                        Transforme as <code>enum</code> e constantes de <code>User.h</code> em <code>Enums</code> e <code>Structs</code> Blueprint. Assim você sabe quando um usuário está conectado, quais interfaces ele pode abrir e os limites de dinheiro ou inventário sem revisar o C++ toda hora.【F:Source MuServer Update 15/GameServer/GameServer/User.h†L14-L170】
+                </ol>
+                <ul class="checklist" aria-label="Checklist da fase 3">
+                    <li><input type="checkbox" data-task-id="fase3-connect" /> Subsystem do ConnectServer configurado com mapa de pacotes.</li>
+                    <li><input type="checkbox" data-task-id="fase3-respostas" /> Estruturas de resposta replicadas para IP/Porta e lista de mundos.</li>
+                    <li><input type="checkbox" data-task-id="fase3-protocol" /> Switch principal do GameServer criado com casos mais usados.</li>
+                    <li><input type="checkbox" data-task-id="fase3-userstate" /> Enums e Structs de estados e limites configurados.</li>
+                </ul>
+            </article>
+        </section>
+
         <section class="module" data-section-id="renderizacao">
             <header>
                 <h2>Módulo 3: Gráficos e Renderização</h2>
