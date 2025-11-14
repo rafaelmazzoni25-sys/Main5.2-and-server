@@ -997,6 +997,64 @@
                 </article>
             </div>
         </section>
+
+        <section class="module support-hub" data-section-id="acompanhamento-continuo">
+            <header>
+                <h2>Centro de Revisão Contínua</h2>
+                <p class="tag">Sustentação do estudo</p>
+                <p>Use esta área para repetir revisões críticas e registrar interpretações com suas próprias palavras, mantendo o foco mesmo sem experiência prévia em programação.</p>
+            </header>
+
+            <article class="lesson support-checklist">
+                <h3>Checklist de manutenção semanal</h3>
+                <p>Reserve um bloco de 30 a 45 minutos para validar se os Blueprints continuam fiéis aos comportamentos do código legado.</p>
+                <div class="support-grid">
+                    <section>
+                        <h4>Por que repetir?</h4>
+                        <p>Esses testes reforçam o entendimento das entradas e saídas originais, evitando que ajustes recentes quebrem o fluxo do HUD ou do servidor.</p>
+                    </section>
+                    <section>
+                        <h4>O que revisar</h4>
+                        <ul class="checklist weekly-checklist" aria-label="Checklist semanal de revisão">
+                            <li><input type="checkbox" data-task-id="review-manager-rotinas" /> Conferi se o Blueprint que substitui <code>CNewUIManager</code> ainda mantém a ordem de foco e remoção de UI, igual ao <code>UpdateMouseEvent</code> que reorganiza a lista antes de processar cliques.【F:Source Main 5.2/source/NewUIManager.cpp†L108-L141】</li>
+                            <li><input type="checkbox" data-task-id="review-hud-texturas" /> Reabri o HUD e garanti que todos os botões usam as mesmas texturas carregadas por <code>LoadImages</code>, sem trocas acidentais ou ícones faltando.【F:Source Main 5.2/source/NewUIMainFrameWindow.cpp†L59-L116】</li>
+                            <li><input type="checkbox" data-task-id="review-protocol-core" /> Executei o fluxo de login observando se o roteador Blueprint dispara as mesmas respostas do <code>ConnectServerProtocolCore</code> para cabeçalhos 0xF4.【F:Source MuServer Update 15/ConnectServer/ConnectServer/ConnectServerProtocol.cpp†L10-L87】</li>
+                            <li><input type="checkbox" data-task-id="review-user-states" /> Validei que os estados e limites do jogador continuam respeitando as constantes de <code>User.h</code> (como <code>MAX_SELF_DEFENSE</code> e <code>MAX_MONEY</code>) ao sincronizar inventário e ações.【F:Source MuServer Update 15/GameServer/GameServer/User.h†L13-L183】</li>
+                        </ul>
+                    </section>
+                </div>
+            </article>
+
+            <article class="lesson support-journal">
+                <h3>Diário de interpretação (O quê, Por quê, Quando, Onde)</h3>
+                <p>Registre o que você entendeu de cada trecho. Ao reescrever com suas palavras, você cria um manual personalizado que pode consultar antes de construir o Blueprint correspondente.</p>
+                <form id="diary-form" class="diary-form" autocomplete="off">
+                    <div class="form-grid">
+                        <label>
+                            Trecho observado
+                            <input type="text" name="topic" id="diary-topic" required placeholder="Ex.: Render() do HUD principal" />
+                        </label>
+                        <label>
+                            Arquivo ou função
+                            <input type="text" name="reference" id="diary-reference" placeholder="Ex.: NewUIMainFrameWindow.cpp" />
+                        </label>
+                    </div>
+                    <label class="full-width">
+                        Anotações (O quê, Por quê, Quando, Onde)
+                        <textarea name="notes" id="diary-notes" rows="4" required placeholder="Descreva com suas palavras o que acontece no código e onde isso aparece no jogo"></textarea>
+                    </label>
+                    <label class="full-width">
+                        Próximo passo em Blueprint
+                        <textarea name="next" id="diary-next" rows="3" placeholder="Ex.: Criar Widget com Widget Switcher e mapear botões"></textarea>
+                    </label>
+                    <div class="diary-actions">
+                        <button type="submit" class="primary">Salvar anotação</button>
+                        <button type="button" id="diary-clear" class="ghost">Limpar diário</button>
+                    </div>
+                </form>
+                <ul id="diary-list" class="diary-entries" aria-live="polite" aria-label="Anotações salvas do diário"></ul>
+            </article>
+        </section>
     </main>
 
     <footer>

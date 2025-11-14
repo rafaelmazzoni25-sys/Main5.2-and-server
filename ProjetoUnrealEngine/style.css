@@ -125,6 +125,11 @@ main {
     border-color: rgba(137, 169, 255, 0.4);
 }
 
+.module.support-hub {
+    background: linear-gradient(165deg, rgba(20, 33, 70, 0.96), rgba(7, 11, 24, 0.9));
+    border-color: rgba(137, 169, 255, 0.45);
+}
+
 .module header {
     display: flex;
     flex-direction: column;
@@ -152,6 +157,42 @@ main {
     border-bottom: none;
     margin-bottom: 0;
     padding-bottom: 0;
+}
+
+label {
+    display: block;
+    font-weight: 600;
+    margin-bottom: 0.4rem;
+}
+
+label input,
+label textarea {
+    margin-top: 0.35rem;
+}
+
+input,
+textarea {
+    width: 100%;
+    font: inherit;
+    color: var(--text);
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(137, 169, 255, 0.35);
+    border-radius: 14px;
+    padding: 0.75rem 1rem;
+    transition: border 0.2s ease, background 0.2s ease, box-shadow 0.2s ease;
+}
+
+input:focus,
+textarea:focus {
+    outline: none;
+    border-color: var(--accent-strong);
+    box-shadow: 0 0 0 2px rgba(91, 141, 239, 0.35);
+    background: rgba(91, 141, 239, 0.12);
+}
+
+input::placeholder,
+textarea::placeholder {
+    color: rgba(240, 244, 255, 0.6);
 }
 
 .step-guide > p {
@@ -204,6 +245,160 @@ main {
 
 .step-guide .checklist {
     margin-top: 1.2rem;
+}
+
+.support-grid {
+    display: grid;
+    gap: 1.5rem;
+    margin-top: 1.2rem;
+}
+
+.support-grid section {
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(137, 169, 255, 0.2);
+    border-radius: 18px;
+    padding: 1.2rem;
+}
+
+.support-grid h4 {
+    margin-top: 0;
+}
+
+.weekly-checklist {
+    display: grid;
+    gap: 0.75rem;
+}
+
+.weekly-checklist li {
+    display: flex;
+    gap: 0.75rem;
+    align-items: flex-start;
+}
+
+.weekly-checklist input[type='checkbox'] {
+    margin-top: 0.25rem;
+}
+
+.diary-form {
+    margin-top: 1.5rem;
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(137, 169, 255, 0.25);
+    border-radius: 20px;
+    padding: 1.6rem;
+    display: grid;
+    gap: 1rem;
+}
+
+.form-grid {
+    display: grid;
+    gap: 1rem;
+}
+
+.full-width {
+    width: 100%;
+}
+
+.full-width textarea {
+    min-height: 6rem;
+}
+
+.diary-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+    justify-content: flex-end;
+}
+
+.ghost {
+    background: transparent;
+    color: var(--accent-strong);
+    border: 1px solid rgba(137, 169, 255, 0.5);
+    padding: 0.65rem 1.4rem;
+    border-radius: 999px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.2s ease, color 0.2s ease, border 0.2s ease;
+}
+
+.ghost:hover,
+.ghost:focus {
+    background: rgba(91, 141, 239, 0.18);
+    border-color: rgba(137, 169, 255, 0.8);
+}
+
+.ghost:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.diary-entries {
+    list-style: none;
+    margin: 1.8rem 0 0;
+    padding: 0;
+    display: grid;
+    gap: 1.1rem;
+}
+
+.diary-entry {
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(137, 169, 255, 0.25);
+    border-radius: 18px;
+    padding: 1.4rem 1.6rem;
+    display: grid;
+    gap: 0.65rem;
+}
+
+.diary-entry-header {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+    align-items: baseline;
+}
+
+.diary-entry-header h4 {
+    margin: 0;
+    flex: 1;
+    font-size: 1.1rem;
+}
+
+.diary-meta {
+    font-size: 0.85rem;
+    color: rgba(240, 244, 255, 0.7);
+}
+
+.diary-remove {
+    background: transparent;
+    border: 1px solid rgba(255, 255, 255, 0.25);
+    color: var(--accent-strong);
+    border-radius: 999px;
+    padding: 0.4rem 1rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.2s ease, border 0.2s ease;
+}
+
+.diary-remove:hover,
+.diary-remove:focus {
+    background: rgba(91, 141, 239, 0.18);
+    border-color: rgba(137, 169, 255, 0.6);
+}
+
+.diary-line {
+    margin: 0;
+}
+
+.diary-line strong {
+    font-weight: 600;
+}
+
+.diary-empty {
+    padding: 1.2rem 1.4rem;
+    border-radius: 16px;
+    border: 1px dashed rgba(137, 169, 255, 0.35);
+    background: rgba(255, 255, 255, 0.02);
+    text-align: center;
+    color: rgba(240, 244, 255, 0.75);
+    font-style: italic;
 }
 
 dl {
@@ -332,6 +527,16 @@ dl dt {
     accent-color: var(--accent);
     width: 1.1rem;
     height: 1.1rem;
+}
+
+@media (min-width: 720px) {
+    .support-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .form-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
 }
 
 @media (max-width: 720px) {
