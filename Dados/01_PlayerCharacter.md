@@ -42,3 +42,6 @@ Construir o personagem jogável principal com Blueprint, definindo malha, compon
 ## Verificações de Dependência
 - Executar `Play In Editor` com `Spawn Player at Player Start` e validar movimentação básica (mesmo antes da Etapa 2, usando controles default).
 - Testar replicação abrindo sessão `Play As Listen Server` + `1 Client`; confirmar que atributos replicam.
+
+## Referências do Código Original
+- **Mapeamento de classes**: `CCharacterManager::GetCharacterClass` define o relacionamento entre identificadores do servidor e as classes jogáveis, base para montar `Enum`/`Data Table` usados pelos Blueprints de progressão. 【F:Source Main 5.2/source/CharacterManager.cpp†L1-L79】

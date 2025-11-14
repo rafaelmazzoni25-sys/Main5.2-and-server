@@ -41,3 +41,6 @@ Construir o loop de combate base usando o Gameplay Ability System em Blueprint, 
 ## Verificações de Dependência
 - Testar combate em sessão multiplayer (`Listen Server + 1 Client`) observando replicação.
 - Validar logs sem erros de tag ausente ou ability não concedida.
+
+## Referências do Código Original
+- **Regras de ataque**: `CAttack::Attack` (GameServer) confere conexão, mapa, flags de PvP e integra sistemas como Duel, Siege e eventos PvP, indicando as verificações obrigatórias para `Gameplay Abilities` e `Authority Only` no remake. 【F:Source MuServer Update 15/GameServer/GameServer/Attack.cpp†L1-L74】

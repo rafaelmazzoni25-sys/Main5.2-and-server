@@ -48,3 +48,7 @@ Iniciar o remake na Unreal Engine 5+ com uma base Blueprint estável: módulos h
 - Executar o editor e confirmar logs de inicialização sem warnings.
 - Validar, via `Blueprint Debug`, que variáveis de DataTables estão preenchidas.
 - Realizar `Play In Editor` no mapa padrão para confirmar carregamento de HUD base (será completado na Etapa 8).
+
+## Referências do Código Original
+- **Cliente (Main 5.2)**: `Winmain.cpp` inicializa gerenciadores globais, áudio MP3 e configura janela/renderização, servindo de mapa para estruturar `BP_RemakeGameInstance` e subsistemas equivalentes. 【F:Source Main 5.2/source/Winmain.cpp†L1-L111】
+- **Servidor (MuServer Update 15)**: `GameMain.cpp` monta mutex, tabelas de XP e conexões com Join/DataServer — replique a separação de responsabilidades em serviços dedicados na Etapa 9. 【F:Source MuServer Update 15/GameServer/GameServer/GameMain.cpp†L1-L92】

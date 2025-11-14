@@ -38,3 +38,7 @@ Garantir replicação confiável de personagens, inventário e mundo, além de p
 ## Verificações de Dependência
 - Testar conexão com backend mock (via `Play In Editor`) e garantir sincronização de inventário.
 - Validar reconexão após falha de rede simulada.
+
+## Referências do Código Original
+- **Bootstrap de conexões**: `GameMain.cpp` demonstra conexões separadas com JoinServer/DataServer e leitura de configuração (`gServerInfo`), norteando a arquitetura de serviços/Online Subsystem. 【F:Source MuServer Update 15/GameServer/GameServer/GameMain.cpp†L1-L92】
+- **Estados globais**: `User.cpp` mantém contadores (`gObjTotalUser`, `gObjOffStore`) e processa eventos recorrentes (`gObjEventRunProc`), destacando quais dados exigem replicação e sincronização em background. 【F:Source MuServer Update 15/GameServer/GameServer/User.cpp†L1-L104】

@@ -4,7 +4,8 @@ A pasta **Dados** traz o roteiro completo para reconstruir o projeto no Unreal E
 
 ## Estrutura dos Arquivos
 - `00_*.md` até `11_*.md`: guias de etapas em ordem **prioritária, cronológica e dependente**.
-- Cada arquivo descreve objetivo, pré-requisitos, sequência em Blueprint, checklist e verificações.
+- `00B_MainMuServerFidelity.md`: tabela cruzada que relaciona cada etapa com o comportamento observado no cliente `Main` e no `MuServer`, garantindo fidelidade durante o remake.
+- Cada arquivo descreve objetivo, pré-requisitos, sequência em Blueprint, checklist, verificações e referências ao código original.
 
 ## Linha do Tempo, Prioridades e Dependências
 | Ordem | Arquivo | Prioridade | Dependências Diretas | Desbloqueia | Janela Indicativa |

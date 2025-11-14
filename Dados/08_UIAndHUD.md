@@ -39,3 +39,7 @@ Construir a HUD principal, telas contextuais e integrações com preview 3D de i
 ## Verificações de Dependência
 - Testar abertura/fechamento de HUD, inventário e tracker de quests durante gameplay.
 - Validar responsividade em diferentes resoluções e modos de tela.
+
+## Referências do Código Original
+- **HUD principal**: `CNewUIMainFrameWindow::Create` registra o HUD no `CNewUIManager` e na fila de renderização 3D, indicando que o remake precisa de um controlador central com slots para widgets e viewport dedicado. 【F:Source Main 5.2/source/NewUIMainFrameWindow.cpp†L37-L90】
+- **Layout e botões**: `CNewUIMainFrameWindow::SetButtonInfo` posiciona botões com tooltips pré-definidos; converta-os em `Data Tables` e `Widget Blueprints` para preservar comportamento. 【F:Source Main 5.2/source/NewUIMainFrameWindow.cpp†L92-L144】

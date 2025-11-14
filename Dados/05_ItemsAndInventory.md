@@ -43,3 +43,7 @@ Implementar inventário data-driven, slots equipáveis, renderização 3D dentro
 ## Verificações de Dependência
 - Testar abertura do inventário (`ToggleInventory`) e rotacionar item selecionado.
 - Verificar replicação de itens equipados em sessão multiplayer.
+
+## Referências do Código Original
+- **Inventário e preview 3D**: `CNewUIMyInventory::Create` injeta o controlador de inventário e registra o objeto para renderização 3D no HUD, modelando como o Blueprint deve configurar `Viewport` e componentes. 【F:Source Main 5.2/source/NewUIMyInventory.cpp†L29-L76】
+- **Equipping Hooks**: `CNewUIMyInventory::EquipItem` dispara efeitos adicionais (pets, criação de efeitos visuais) — replique eventos equivalentes nos Blueprints para manter feedback e lógica de pets. 【F:Source Main 5.2/source/NewUIMyInventory.cpp†L78-L123】
