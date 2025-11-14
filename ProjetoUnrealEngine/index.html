@@ -330,6 +330,109 @@
                 </dl>
             </article>
         </section>
+
+        <section class="module special-project" data-section-id="muonline-migracao">
+            <header>
+                <h2>Projeto Especial: Replicando Mu Online na UE5</h2>
+                <p class="tag">Estudo de Caso</p>
+            </header>
+            <article class="lesson">
+                <h3>Mapeando o cliente original (Source Main 5.2)</h3>
+                <dl>
+                    <div>
+                        <dt>O quê?</dt>
+                        <dd>Analisar a UI e os sistemas de jogo legados, como o <code>CNewUIMainFrameWindow</code> que carrega bitmaps e organiza botões do HUD clássico.</dd>
+                    </div>
+                    <div>
+                        <dt>Por quê?</dt>
+                        <dd>Identificar quais elementos precisam virar Widgets/Blueprints na UE5, mantendo feedback visual e fluxos originais.</dd>
+                    </div>
+                    <div>
+                        <dt>Quando?</dt>
+                        <dd>Antes de recriar telas ou importar assets: faça um inventário do que será reimplementado e o que pode ser modernizado.</dd>
+                    </div>
+                    <div>
+                        <dt>Onde?</dt>
+                        <dd><code>Source Main 5.2/source</code>, com destaque para arquivos de UI e gerenciamento de personagens.</dd>
+                    </div>
+                </dl>
+                <div class="focus-tools">
+                    <button type="button" class="focus-toggle" data-target="muonline-main-sistemas">Ver sistemas críticos</button>
+                    <div id="muonline-main-sistemas" class="focus-panel" hidden>
+                        <ul>
+                            <li><strong>Interface principal:</strong> <code>NewUIMainFrameWindow.cpp</code> importa bitmaps da pasta <code>Interface\</code> e registra botões no gerenciador de UI.</li>
+                            <li><strong>Classes e atributos:</strong> <code>CharacterManager.cpp</code> traduz códigos do servidor para classes jogáveis e textos exibidos.</li>
+                        </ul>
+                    </div>
+                </div>
+                <ul class="checklist" aria-label="Primeiros passos do cliente legado">
+                    <li><input type="checkbox" data-task-id="muonline-cliente-mapas-ui" /> Documentar cada HUD/Janela necessária para recriar em UMG (menus, inventário, chat, eventos).</li>
+                    <li><input type="checkbox" data-task-id="muonline-cliente-assets" /> Criar planilha de assets 2D/3D a serem substituídos ou atualizados, incluindo referência a texturas <code>Interface\*.jpg</code>.</li>
+                    <li><input type="checkbox" data-task-id="muonline-cliente-fluxos" /> Descrever fluxos críticos (login, seleção de personagem, combates) para orientar Blueprints de estados.</li>
+                </ul>
+            </article>
+            <article class="lesson">
+                <h3>Mapeando os servidores (Source MuServer Update 15)</h3>
+                <dl>
+                    <div>
+                        <dt>O quê?</dt>
+                        <dd>Entender os serviços Win32 responsáveis por login, dados e lógica (GameServer, ConnectServer, DataServer, etc.).</dd>
+                    </div>
+                    <div>
+                        <dt>Por quê?</dt>
+                        <dd>Definir como portar protocolos de rede e lógica de progressão para subsistemas e serviços na UE5 ou back-end moderno.</dd>
+                    </div>
+                    <div>
+                        <dt>Quando?</dt>
+                        <dd>Após mapear o cliente, para alinhar contratos cliente-servidor e priorizar funcionalidades multiplayer.</dd>
+                    </div>
+                    <div>
+                        <dt>Onde?</dt>
+                        <dd><code>Source MuServer Update 15/</code>, especialmente <code>GameServer/GameServer</code> e <code>ConnectServer/ConnectServer</code>.</dd>
+                    </div>
+                </dl>
+                <div class="focus-tools">
+                    <button type="button" class="focus-toggle" data-target="muonline-server-pipeline">Pipeline legado</button>
+                    <div id="muonline-server-pipeline" class="focus-panel" hidden>
+                        <ul>
+                            <li><strong>GameServer:</strong> inicializa conexões com Join/Data Server, popula tabelas de experiência e monstros.</li>
+                            <li><strong>ConnectServer:</strong> lê configurações <code>.ini</code>, levanta sockets TCP/UDP e gerencia lista de mundos.</li>
+                        </ul>
+                    </div>
+                </div>
+                <ul class="checklist" aria-label="Primeiros passos dos servidores legados">
+                    <li><input type="checkbox" data-task-id="muonline-servidor-diagrama" /> Diagramar a arquitetura cliente ⇄ ConnectServer ⇄ GameServer ⇄ DataServer.</li>
+                    <li><input type="checkbox" data-task-id="muonline-servidor-protocolos" /> Levantar mensagens e estruturas de rede críticas (login, seleção de personagem, eventos).</li>
+                    <li><input type="checkbox" data-task-id="muonline-servidor-modernizacao" /> Decidir estratégia de migração (serviço dedicado em C++/Go/Python ou subsistema dentro da UE via sockets/HTTP).</li>
+                </ul>
+            </article>
+            <article class="lesson">
+                <h3>Primeiros passos para a réplica na UE5</h3>
+                <dl>
+                    <div>
+                        <dt>O quê?</dt>
+                        <dd>Criar um projeto modular na UE5 que isola UI (UMG), gameplay (C++/Blueprints) e integração de rede.</dd>
+                    </div>
+                    <div>
+                        <dt>Por quê?</dt>
+                        <dd>Permite iterar substituindo sistemas legados sem perder o foco e mantendo paridade funcional com o original.</dd>
+                    </div>
+                    <div>
+                        <dt>Quando?</dt>
+                        <dd>Depois que o escopo do cliente e servidor estiver documentado, antes de implementar features complexas.</dd>
+                    </div>
+                    <div>
+                        <dt>Onde?</dt>
+                        <dd>Use um projeto UE5 baseado em <em>Third Person</em> ou <em>Top Down</em>, estruturando pastas <code>Content/UI</code>, <code>Content/Game</code> e <code>Source/</code>.</dd>
+                    </div>
+                </dl>
+                <ul class="checklist" aria-label="Kick-off do projeto UE5">
+                    <li><input type="checkbox" data-task-id="muonline-ue5-projeto" /> Criar projeto UE5 com módulos separados para UI e lógica (ex.: <code>MuClient</code> e <code>MuCore</code>).</li>
+                    <li><input type="checkbox" data-task-id="muonline-ue5-widget" /> Prototipar um Widget UMG do HUD principal para validar escalas e fontes.</li>
+                    <li><input type="checkbox" data-task-id="muonline-ue5-rede" /> Testar comunicação básica com servidor (HTTP/Socket) simulando fluxo de login.</li>
+                </ul>
+            </article>
+        </section>
     </main>
 
     <footer>

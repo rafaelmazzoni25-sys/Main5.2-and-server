@@ -105,6 +105,11 @@ main {
     box-shadow: 0 2rem 3rem -2rem var(--shadow);
 }
 
+.module.special-project {
+    background: linear-gradient(140deg, rgba(91, 141, 239, 0.18), rgba(10, 16, 30, 0.92));
+    border-color: rgba(137, 169, 255, 0.45);
+}
+
 .module header {
     display: flex;
     flex-direction: column;
@@ -220,6 +225,12 @@ dl dd {
 .focus-panel ol {
     margin: 0;
     padding-left: 1.2rem;
+}
+
+.special-project .focus-panel ul,
+.special-project .focus-panel ol {
+    padding-left: 1.5rem;
+    list-style: disc;
 }
 
 footer {
