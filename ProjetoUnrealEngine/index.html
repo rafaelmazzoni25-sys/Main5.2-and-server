@@ -619,6 +619,63 @@
                     </ol>
                 </div>
 
+                <div class="recipe-section blueprint-guide">
+                    <h4>Sequência guiada no Blueprint</h4>
+                    <ol class="blueprint-flow">
+                        <li>
+                            <h5>BP_MuAssetRegistry (Event BeginPlay)</h5>
+                            <p>
+                                Use <strong>Event BeginPlay</strong> → <strong>Get Data Table Row Names</strong> → <strong>For Each Loop</strong> para carregar cada linha da tabela que espelha
+                                <code>LoadImages</code> e <code>SetButtonInfo</code>. Preencha um <code>Struct</code> com as mesmas referências de textura e tooltips usadas nos IDs <code>IMAGE_MENU_*</code> e
+                                chame <strong>Add to Set</strong> para manter o mapeamento antes de sinalizar o <code>BP_MuUIManager</code> com <em>Dispatch Event</em> “AssetsProntos”.【F:Source Main 5.2/source/NewUIMainFrameWindow.cpp†L59-L160】
+                            </p>
+                        </li>
+                        <li>
+                            <h5>BP_MuUIManager (Event AssetsProntos)</h5>
+                            <p>
+                                Dentro de <strong>Event AssetsProntos</strong>, execute <strong>For Each</strong> no DataTable “WidgetsRegistrados” e, para cada linha, faça <strong>Create Widget</strong> → <strong>Add to Viewport</strong>,
+                                definindo <strong>Set ZOrder</strong> conforme o campo “LayerDepth” do DataTable. Esse fluxo substitui as chamadas <code>AddUIObj</code> e garante a mesma pilha de interface do manager legado.【F:Source Main 5.2/source/NewUIManager.cpp†L23-L45】
+                            </p>
+                        </li>
+                        <li>
+                            <h5>WBP_MainHUD (Event Tick)</h5>
+                            <p>
+                                Conecte <strong>Event Tick</strong> → <strong>Get Player Character</strong> → <strong>Cast To BP_MuCharacter</strong> → <strong>Get Current Life/Mana</strong> e ajuste barras com <strong>Set Percent</strong>.
+                                Reproduza o alerta sonoro configurando um <strong>Branch</strong> que dispara <strong>Play Sound 2D</strong> quando a porcentagem ficar abaixo de 20%, imitando a verificação de <code>RenderLifeMana</code>.【F:Source Main 5.2/source/NewUIMainFrameWindow.cpp†L241-L310】
+                            </p>
+                        </li>
+                        <li>
+                            <h5>BP_InteractionRouter (Eventos de clique)</h5>
+                            <p>
+                                Crie uma <strong>Blueprint Interface</strong> “BPI_MuButton” com evento “HandleClick”. Nos botões WBP, chame <strong>Interface Call</strong> ao clicar e deixe o router decidir
+                                qual painel abrir com <strong>Switch on Name</strong>. Esse fluxo reproduz o comportamento condicional de <code>BtnProcess</code>, incluindo o bloqueio de party para níveis baixos.【F:Source Main 5.2/source/NewUIMainFrameWindow.cpp†L763-L816】
+                            </p>
+                        </li>
+                    </ol>
+                </div>
+
+                <div class="recipe-section blueprint-translation">
+                    <h4>Tradução do C++ → nós Blueprints</h4>
+                    <dl class="translation-pairs">
+                        <div>
+                            <dt><code>LoadBitmap</code> / <code>LoadImages</code></dt>
+                            <dd><strong>Blueprint:</strong> DataTable + <em>Set Brush From Texture</em> no widget após <strong>Preload Assets</strong>, mantendo os mesmos arquivos definidos no código legado.【F:Source Main 5.2/source/NewUIMainFrameWindow.cpp†L59-L77】</dd>
+                        </div>
+                        <div>
+                            <dt><code>AddUIObj</code> (UI Manager)</dt>
+                            <dd><strong>Blueprint:</strong> <em>Create Widget</em> + <em>Add to Viewport</em> com controle de ordem via <em>Set ZOrder</em>, alimentado pelos dados de camada do DataTable.【F:Source Main 5.2/source/NewUIManager.cpp†L23-L41】</dd>
+                        </div>
+                        <div>
+                            <dt><code>RenderLifeMana</code></dt>
+                            <dd><strong>Blueprint:</strong> <em>Event Tick</em> → <em>Get Attribute</em> → <em>Normalize To Range</em> → <em>Set Percent</em> / <em>Set Text</em>, tocando áudio com <em>Play Sound 2D</em> quando a porcentagem cair abaixo de 0,2.【F:Source Main 5.2/source/NewUIMainFrameWindow.cpp†L241-L305】</dd>
+                        </div>
+                        <div>
+                            <dt><code>BtnProcess</code></dt>
+                            <dd><strong>Blueprint:</strong> <em>OnClicked</em> → <em>Switch on Name</em> / <em>Switch on Enum</em> → chamadas para <em>Toggle Visibility</em> dos widgets correspondentes, além de <em>Play Sound 2D</em> para o feedback auditivo.【F:Source Main 5.2/source/NewUIMainFrameWindow.cpp†L763-L815】</dd>
+                        </div>
+                    </dl>
+                </div>
+
                 <div class="recipe-section">
                     <h4>Checklist final</h4>
                     <ul class="checklist" aria-label="Checklist receita cliente UE5">
@@ -684,6 +741,68 @@
                             <p>Crie grafos de broadcast inspirados em <code>gSocketManagerModern.PacketSend</code> que executem <em>Multicast</em> quando <code>CGMoveRecv</code> ou outros pacotes de ação chegarem. Execute testes multi-instância (opção <em>New Editor Window (PIE)</em> com número de clientes) verificando se o ConnectServer Blueprint responde como <code>CCServerInfoRecv</code>/<code>CCServerListRecv</code>.</p>
                         </li>
                     </ol>
+                </div>
+
+                <div class="recipe-section blueprint-guide">
+                    <h4>Sequência guiada no Blueprint</h4>
+                    <ol class="blueprint-flow">
+                        <li>
+                            <h5>BP_MuServerGameInstance (Event Init)</h5>
+                            <p>
+                                No evento <strong>Init</strong>, carregue o DataTable de protocolos e configure uma <strong>Map (Byte → Struct)</strong> replicando os cabeçalhos 0xF4/0x03/0x06 do ConnectServer. Adicione um <strong>Switch on Byte</strong> para validar se o servidor está pronto antes de emitir os eventos “SolicitarInfo” e “SolicitarLista”, respeitando a checagem original de <code>ConnectServerProtocolCore</code> e <code>CCServerInfoRecv</code>.【F:Source MuServer Update 15/ConnectServer/ConnectServer/ConnectServerProtocol.cpp†L10-L87】
+                            </p>
+                        </li>
+                        <li>
+                            <h5>BP_MuPacketRouter (Event OnPacketRecebido)</h5>
+                            <p>
+                                Monte um dispatcher que recebe <strong>Estrutura MuPacket</strong> (Head, SubHead, Payload). Use <strong>Switch on Byte</strong> para delegar o fluxo 0xF1/0x01 ao evento “ProcessarLogin” e acione <strong>Timeline</strong> ou <strong>Delay</strong> para simular o tempo de rede antes de chamar “EnviarParaDataServer”. Esse fluxo substitui o <code>CGConnectAccountRecv</code> e garante que versão e serial sejam validados antes de criptografar conta e senha.【F:Source MuServer Update 15/GameServer/GameServer/Protocol.cpp†L1950-L1995】
+                            </p>
+                        </li>
+                        <li>
+                            <h5>BP_MuAccountSubsystem (Evento ProcessarLogin)</h5>
+                            <p>
+                                Dentro do subsistema Blueprint, leia o DataTable “MuAccounts” usando <strong>Find Row</strong> e devolva um struct com personagens, resets e localização. O evento deve chamar “GerarRespostaLogin” (equivalente a <code>GJConnectAccountSend</code>) e, logo após, disparar “SolicitarListaPersonagens” como ocorre em <code>CGCharacterListRecv</code> e <code>GDCharacterListSend</code>.【F:Source MuServer Update 15/GameServer/GameServer/Protocol.cpp†L1994-L2019】
+                            </p>
+                        </li>
+                        <li>
+                            <h5>BP_MuCharacterCache (Gerenciamento de dados)</h5>
+                            <p>
+                                Armazene os dados retornados pelo subsistema em um <strong>Map (Name → Struct)</strong> que implemente <strong>Add</strong>/<strong>Remove</strong> seguindo as rotinas de <code>CCharacterManager</code>. Atualize o mapa a cada login/logout para espelhar <code>InsertCharacterInfo</code> e <code>RemoveCharacterInfo</code>.【F:Source MuServer Update 15/DataServer/DataServer/CharacterManager.cpp†L43-L104】
+                            </p>
+                        </li>
+                        <li>
+                            <h5>BP_MuWorldReplicator (Evento PropagarMovimento)</h5>
+                            <p>
+                                Ao receber um pacote 0xD7/0x1C (movimento), converta em <strong>Multicast RPC</strong> ou <strong>RepNotify</strong> enviando posição e direção para todos os clientes conectados. O fluxo deve replicar o laço que percorre <code>VpPlayer2</code> e usa <code>PacketSend</code>/<code>DataSend</code> para broadcast do movimento.【F:Source MuServer Update 15/GameServer/GameServer/Protocol.cpp†L1907-L1945】
+                            </p>
+                        </li>
+                    </ol>
+                </div>
+
+                <div class="recipe-section blueprint-translation">
+                    <h4>Tradução do C++ → nós Blueprints</h4>
+                    <dl class="translation-pairs">
+                        <div>
+                            <dt><code>ConnectServerProtocolCore</code></dt>
+                            <dd><strong>Blueprint:</strong> <em>Switch on Byte</em> (Head) + <em>Switch on Byte</em> (SubHead) + <em>Custom Events</em> “ReceberInfo” / “ReceberLista” para replicar o roteamento 0xF4/0x03/0x06.【F:Source MuServer Update 15/ConnectServer/ConnectServer/ConnectServerProtocol.cpp†L10-L87】</dd>
+                        </div>
+                        <div>
+                            <dt><code>CGConnectAccountRecv</code></dt>
+                            <dd><strong>Blueprint:</strong> <em>Custom Event</em> “ProcessarLogin” com verificações (<em>Equal</em>, <em>Branch</em>) de versão/serial e chamadas subsequentes para “EnviarRespostaLogin” e “SolicitarDataServer”, reproduzindo as atribuições de <code>LoginMessageSend</code> e a criptografia da conta.【F:Source MuServer Update 15/GameServer/GameServer/Protocol.cpp†L1950-L1995】</dd>
+                        </div>
+                        <div>
+                            <dt><code>GDCharacterListSend</code></dt>
+                            <dd><strong>Blueprint:</strong> <em>Custom Event</em> “SolicitarListaPersonagens” que aciona <em>For Each</em> em uma fonte de dados (HTTP/DataTable) e retorna um array para o cliente via <em>Multicast</em> ou <em>Client RPC</em>, imitando a chamada imediata após <code>CGCharacterListRecv</code>.【F:Source MuServer Update 15/GameServer/GameServer/Protocol.cpp†L2010-L2019】</dd>
+                        </div>
+                        <div>
+                            <dt><code>CCharacterManager::Insert/RemoveCharacterInfo</code></dt>
+                            <dd><strong>Blueprint:</strong> Funções “AdicionarPersonagem” / “RemoverPersonagem” operando sobre um <em>Map</em> ou <em>Data Asset</em>, garantindo consistência em sessões simultâneas assim como o map em C++.【F:Source MuServer Update 15/DataServer/DataServer/CharacterManager.cpp†L64-L104】</dd>
+                        </div>
+                        <div>
+                            <dt><code>gSocketManagerModern.PacketSend</code> / <code>DataSend</code></dt>
+                            <dd><strong>Blueprint:</strong> <em>Multicast RPC</em> / <em>Client RPC</em> chamados a partir do <em>GameMode</em> ou <em>PlayerController</em> servidor para distribuir atualizações de movimento, inventário e chat, reproduzindo o broadcast para <code>VpPlayer2</code>.【F:Source MuServer Update 15/GameServer/GameServer/Protocol.cpp†L1907-L1945】</dd>
+                        </div>
+                    </dl>
                 </div>
 
                 <div class="recipe-section">
