@@ -1,0 +1,621 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Guia de Aprendizagem Unreal Engine 5+</title>
+    <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+    <header class="hero" role="banner">
+        <h1>Jornada Completa na Unreal Engine 5+</h1>
+        <p>Aprenda do zero ao domínio profundo com um guia organizado para mentes curiosas e neurodivergentes.</p>
+        <button id="resume-button" type="button" class="primary">Continuar de onde parei</button>
+    </header>
+
+    <main id="conteudo" role="main">
+        <nav class="toc" aria-label="Mapa da jornada">
+            <h2>Mapa da Jornada</h2>
+            <ol id="toc-list"></ol>
+        </nav>
+
+        <section class="intro focus-block" data-section-id="intro">
+            <h2>Como usar este guia</h2>
+            <p>Este material foi pensado para lhe dar clareza em quatro dimensões: <strong>O quê</strong>, <strong>Por quê</strong>, <strong>Quando</strong> e <strong>Onde</strong>.</p>
+            <ul>
+                <li><strong>O quê?</strong> Conceito objetivo do tema.</li>
+                <li><strong>Por quê?</strong> Benefício prático ou teórico de dominar o tópico.</li>
+                <li><strong>Quando?</strong> Momento ideal de aplicar no fluxo de um projeto.</li>
+                <li><strong>Onde?</strong> Localização na interface da Unreal ou arquivos relevantes.</li>
+            </ul>
+            <p>Use os botões de foco para reduzir distrações e as listas de verificação para acompanhar o progresso. Marque cada item concluído para que o site memorize seu avanço.</p>
+        </section>
+
+        <section class="module" data-section-id="fundamentos">
+            <header>
+                <h2>Módulo 1: Fundamentos da Unreal Engine</h2>
+                <p class="tag">Nível: Iniciante</p>
+            </header>
+            <article class="lesson">
+                <h3>Instalação e configuração inicial</h3>
+                <dl>
+                    <div>
+                        <dt>O quê?</dt>
+                        <dd>Instalar a Unreal Engine via Epic Games Launcher e configurar os requisitos mínimos.</dd>
+                    </div>
+                    <div>
+                        <dt>Por quê?</dt>
+                        <dd>Uma instalação correta garante acesso às versões atualizadas, templates e recursos oficiais.</dd>
+                    </div>
+                    <div>
+                        <dt>Quando?</dt>
+                        <dd>Antes de iniciar qualquer curso ou projeto prático.</dd>
+                    </div>
+                    <div>
+                        <dt>Onde?</dt>
+                        <dd>Epic Games Launcher &gt; Unreal Engine &gt; Biblioteca &gt; Instalar.</dd>
+                    </div>
+                </dl>
+                <ul class="checklist" aria-label="Tarefas de instalação">
+                    <li><input type="checkbox" data-task-id="fundamentos-instalacao-download" /> Baixar o Epic Games Launcher.</li>
+                    <li><input type="checkbox" data-task-id="fundamentos-instalacao-requisitos" /> Conferir drivers de GPU e espaço em disco.</li>
+                    <li><input type="checkbox" data-task-id="fundamentos-instalacao-primeiro-projeto" /> Criar um projeto de teste usando o template <em>Third Person</em>.</li>
+                </ul>
+            </article>
+            <article class="lesson">
+                <h3>Explorando a interface</h3>
+                <dl>
+                    <div>
+                        <dt>O quê?</dt>
+                        <dd>Conhecer o Editor viewport, Outliner, Content Browser e Details Panel.</dd>
+                    </div>
+                    <div>
+                        <dt>Por quê?</dt>
+                        <dd>Compreender a organização da interface reduz a sobrecarga cognitiva durante o desenvolvimento.</dd>
+                    </div>
+                    <div>
+                        <dt>Quando?</dt>
+                        <dd>Após abrir seu primeiro projeto e antes de criar qualquer asset.</dd>
+                    </div>
+                    <div>
+                        <dt>Onde?</dt>
+                        <dd>Editor principal da Unreal: painéis ancorados e menus de janela.</dd>
+                    </div>
+                </dl>
+                <div class="focus-tools">
+                    <button type="button" class="focus-toggle" data-target="fundamentos-interface-mapa">Mostrar mapa mental</button>
+                    <div id="fundamentos-interface-mapa" class="focus-panel" hidden>
+                        <p><strong>Mapa mental rápido:</strong></p>
+                        <ul>
+                            <li>Viewport → manipular objetos 3D.</li>
+                            <li>Outliner → hierarquia de atores.</li>
+                            <li>Content Browser → assets e pastas.</li>
+                            <li>Details Panel → parâmetros do ator selecionado.</li>
+                        </ul>
+                    </div>
+                </div>
+            </article>
+        </section>
+
+        <section class="module" data-section-id="blueprints">
+            <header>
+                <h2>Módulo 2: Blueprints Visuais</h2>
+                <p class="tag">Nível: Intermediário</p>
+            </header>
+            <article class="lesson">
+                <h3>Programação visual com Blueprints</h3>
+                <dl>
+                    <div>
+                        <dt>O quê?</dt>
+                        <dd>Sistema de scripts visuais baseado em nós que controla lógica de jogo sem código C++.</dd>
+                    </div>
+                    <div>
+                        <dt>Por quê?</dt>
+                        <dd>Permite prototipar rapidamente e visualizar fluxos de execução, ideal para manter o foco.</dd>
+                    </div>
+                    <div>
+                        <dt>Quando?</dt>
+                        <dd>Ao criar interações, lógica de personagens ou sistemas de UI.</dd>
+                    </div>
+                    <div>
+                        <dt>Onde?</dt>
+                        <dd>No Blueprint Editor (tecla <kbd>Ctrl</kbd> + <kbd>B</kbd> com um asset selecionado).</dd>
+                    </div>
+                </dl>
+                <ul class="checklist" aria-label="Tarefas de Blueprints básicos">
+                    <li><input type="checkbox" data-task-id="blueprints-variaveis" /> Criar variáveis básicas (boolean, float, vector).</li>
+                    <li><input type="checkbox" data-task-id="blueprints-event-graph" /> Construir um fluxo simples no Event Graph.</li>
+                    <li><input type="checkbox" data-task-id="blueprints-debug" /> Utilizar <em>Print String</em> para depurar um evento.</li>
+                </ul>
+            </article>
+            <article class="lesson">
+                <h3>Padrões avançados</h3>
+                <dl>
+                    <div>
+                        <dt>O quê?</dt>
+                        <dd>Uso de Game Instance, Interfaces e Componentes para modularidade.</dd>
+                    </div>
+                    <div>
+                        <dt>Por quê?</dt>
+                        <dd>Organiza projetos grandes e permite reaproveitamento sem retrabalho.</dd>
+                    </div>
+                    <div>
+                        <dt>Quando?</dt>
+                        <dd>Ao escalar um projeto ou compartilhar lógica entre múltiplos atores.</dd>
+                    </div>
+                    <div>
+                        <dt>Onde?</dt>
+                        <dd>Blueprint Class Editor &gt; Class Settings / Components.</dd>
+                    </div>
+                </dl>
+                <div class="focus-tools">
+                    <button type="button" class="focus-toggle" data-target="blueprints-avancado-dicas">Dicas de retenção</button>
+                    <div id="blueprints-avancado-dicas" class="focus-panel" hidden>
+                        <p>Quebre o estudo em blocos de 25 minutos e, após cada bloco, revise mentalmente os nós utilizados em ordem lógica.</p>
+                    </div>
+                </div>
+            </article>
+        </section>
+
+        <section class="module" data-section-id="renderizacao">
+            <header>
+                <h2>Módulo 3: Gráficos e Renderização</h2>
+                <p class="tag">Nível: Intermediário-Avançado</p>
+            </header>
+            <article class="lesson">
+                <h3>Lumen e Nanite</h3>
+                <dl>
+                    <div>
+                        <dt>O quê?</dt>
+                        <dd>Tecnologias de iluminação global e geometria virtual da UE5.</dd>
+                    </div>
+                    <div>
+                        <dt>Por quê?</dt>
+                        <dd>Entender os novos pipelines otimiza desempenho e qualidade visual.</dd>
+                    </div>
+                    <div>
+                        <dt>Quando?</dt>
+                        <dd>Ao montar cenas realistas ou migrar projetos de versões anteriores.</dd>
+                    </div>
+                    <div>
+                        <dt>Onde?</dt>
+                        <dd>Project Settings &gt; Rendering e detalhes dos Static Meshes.</dd>
+                    </div>
+                </dl>
+                <ul class="checklist" aria-label="Tarefas de renderização">
+                    <li><input type="checkbox" data-task-id="renderizacao-lumen-ativar" /> Ativar Lumen e observar o impacto na cena.</li>
+                    <li><input type="checkbox" data-task-id="renderizacao-nanite" /> Habilitar Nanite em um mesh pesado.</li>
+                    <li><input type="checkbox" data-task-id="renderizacao-perfil" /> Usar <em>Stat GPU</em> para monitorar desempenho.</li>
+                </ul>
+            </article>
+            <article class="lesson">
+                <h3>Materiais e pós-processamento</h3>
+                <dl>
+                    <div>
+                        <dt>O quê?</dt>
+                        <dd>Criação de materiais PBR, uso de Material Functions e volumes de pós-processamento.</dd>
+                    </div>
+                    <div>
+                        <dt>Por quê?</dt>
+                        <dd>Controlar a estética da cena e comunicar emoções de forma consistente.</dd>
+                    </div>
+                    <div>
+                        <dt>Quando?</dt>
+                        <dd>Após definir o layout da cena e antes de realizar capturas finais.</dd>
+                    </div>
+                    <div>
+                        <dt>Onde?</dt>
+                        <dd>Material Editor e Post Process Volume no viewport.</dd>
+                    </div>
+                </dl>
+                <div class="focus-tools">
+                    <button type="button" class="focus-toggle" data-target="renderizacao-padroes">Referência visual</button>
+                    <div id="renderizacao-padroes" class="focus-panel" hidden>
+                        <p>Crie uma pasta <em>References</em> com capturas inspiradoras para comparar antes/depois.</p>
+                    </div>
+                </div>
+            </article>
+        </section>
+
+        <section class="module" data-section-id="cmaismais">
+            <header>
+                <h2>Módulo 4: C++ na Unreal</h2>
+                <p class="tag">Nível: Avançado</p>
+            </header>
+            <article class="lesson">
+                <h3>Estrutura de um projeto C++</h3>
+                <dl>
+                    <div>
+                        <dt>O quê?</dt>
+                        <dd>Arquitetura de módulos, Classes <code>AActor</code> e <code>UObject</code>, Build.cs.</dd>
+                    </div>
+                    <div>
+                        <dt>Por quê?</dt>
+                        <dd>Permite personalizar sistemas além do que Blueprints oferecem.</dd>
+                    </div>
+                    <div>
+                        <dt>Quando?</dt>
+                        <dd>Quando precisar de desempenho máximo ou integração com sistemas externos.</dd>
+                    </div>
+                    <div>
+                        <dt>Onde?</dt>
+                        <dd>Editor &gt; Tools &gt; New C++ Class, arquivos gerados em <code>Source/</code>.</dd>
+                    </div>
+                </dl>
+                <ul class="checklist" aria-label="Tarefas C++">
+                    <li><input type="checkbox" data-task-id="cpp-classe-base" /> Criar uma classe derivada de <code>AActor</code>.</li>
+                    <li><input type="checkbox" data-task-id="cpp-compilacao" /> Compilar usando <em>Unreal Build Tool</em>.</li>
+                    <li><input type="checkbox" data-task-id="cpp-expor-blueprint" /> Expor uma função para Blueprints via <code>UFUNCTION(BlueprintCallable)</code>.</li>
+                </ul>
+            </article>
+            <article class="lesson">
+                <h3>Boas práticas e depuração</h3>
+                <dl>
+                    <div>
+                        <dt>O quê?</dt>
+                        <dd>Uso de <code>UE_LOG</code>, <code>ensure</code> e perfis de <em>Live Coding</em>.</dd>
+                    </div>
+                    <div>
+                        <dt>Por quê?</dt>
+                        <dd>Diagnostica problemas sem quebrar o fluxo de concentração.</dd>
+                    </div>
+                    <div>
+                        <dt>Quando?</dt>
+                        <dd>Durante ciclos de iteração rápida ou otimização.</dd>
+                    </div>
+                    <div>
+                        <dt>Onde?</dt>
+                        <dd>Output Log, Visual Studio / Rider, Painel de Profiler.</dd>
+                    </div>
+                </dl>
+            </article>
+        </section>
+
+        <section class="module" data-section-id="fluxo-trabalho">
+            <header>
+                <h2>Módulo 5: Fluxo de Trabalho e Rotina de Estudo</h2>
+                <p class="tag">Nível: Metacognição</p>
+            </header>
+            <article class="lesson">
+                <h3>Organização para TDAH</h3>
+                <dl>
+                    <div>
+                        <dt>O quê?</dt>
+                        <dd>Estratégias de foco, blocos temporais e revisão espaçada.</dd>
+                    </div>
+                    <div>
+                        <dt>Por quê?</dt>
+                        <dd>Auxilia no armazenamento de longo prazo e evita frustração.</dd>
+                    </div>
+                    <div>
+                        <dt>Quando?</dt>
+                        <dd>Todos os dias de estudo, antes de iniciar tarefas técnicas.</dd>
+                    </div>
+                    <div>
+                        <dt>Onde?</dt>
+                        <dd>Agenda digital, aplicativos de Pomodoro ou planilhas.</dd>
+                    </div>
+                </dl>
+                <div class="focus-tools">
+                    <button type="button" class="focus-toggle" data-target="fluxo-roteiro-diario">Roteiro diário sugerido</button>
+                    <div id="fluxo-roteiro-diario" class="focus-panel" hidden>
+                        <ol>
+                            <li>5 min — Revisão dos objetivos e das tarefas marcadas.</li>
+                            <li>25 min — Estudo focado em um tópico do módulo atual.</li>
+                            <li>5 min — Pausa ativa ou respiração.</li>
+                            <li>10 min — Resumo em voz alta ou escrita do que aprendeu.</li>
+                        </ol>
+                    </div>
+                </div>
+            </article>
+            <article class="lesson">
+                <h3>Próximos passos e comunidade</h3>
+                <dl>
+                    <div>
+                        <dt>O quê?</dt>
+                        <dd>Participar de comunidades, eventos oficiais e documentar projetos.</dd>
+                    </div>
+                    <div>
+                        <dt>Por quê?</dt>
+                        <dd>Networking acelera feedback e oportunidades profissionais.</dd>
+                    </div>
+                    <div>
+                        <dt>Quando?</dt>
+                        <dd>Após concluir cada módulo, compartilhe uma pequena demo ou devlog.</dd>
+                    </div>
+                    <div>
+                        <dt>Onde?</dt>
+                        <dd>Fóruns da Unreal, Discords dedicados, itch.io, ArtStation.</dd>
+                    </div>
+                </dl>
+            </article>
+        </section>
+
+        <section class="module special-project" data-section-id="muonline-migracao">
+            <header>
+                <h2>Projeto Especial: Replicando Mu Online na UE5</h2>
+                <p class="tag">Estudo de Caso</p>
+            </header>
+            <article class="lesson">
+                <h3>Mapeando o cliente original (Source Main 5.2)</h3>
+                <dl>
+                    <div>
+                        <dt>O quê?</dt>
+                        <dd>Analisar a UI e os sistemas de jogo legados, como o <code>CNewUIMainFrameWindow</code> que carrega bitmaps e organiza botões do HUD clássico.</dd>
+                    </div>
+                    <div>
+                        <dt>Por quê?</dt>
+                        <dd>Identificar quais elementos precisam virar Widgets/Blueprints na UE5, mantendo feedback visual e fluxos originais.</dd>
+                    </div>
+                    <div>
+                        <dt>Quando?</dt>
+                        <dd>Antes de recriar telas ou importar assets: faça um inventário do que será reimplementado e o que pode ser modernizado.</dd>
+                    </div>
+                    <div>
+                        <dt>Onde?</dt>
+                        <dd><code>Source Main 5.2/source</code>, com destaque para arquivos de UI e gerenciamento de personagens.</dd>
+                    </div>
+                </dl>
+                <div class="focus-tools">
+                    <button type="button" class="focus-toggle" data-target="muonline-main-sistemas">Ver sistemas críticos</button>
+                    <div id="muonline-main-sistemas" class="focus-panel" hidden>
+                        <ul>
+                            <li><strong>Interface principal:</strong> <code>NewUIMainFrameWindow.cpp</code> importa bitmaps da pasta <code>Interface\</code> e registra botões no gerenciador de UI.</li>
+                            <li><strong>Classes e atributos:</strong> <code>CharacterManager.cpp</code> traduz códigos do servidor para classes jogáveis e textos exibidos.</li>
+                        </ul>
+                    </div>
+                </div>
+                <ul class="checklist" aria-label="Primeiros passos do cliente legado">
+                    <li><input type="checkbox" data-task-id="muonline-cliente-mapas-ui" /> Documentar cada HUD/Janela necessária para recriar em UMG (menus, inventário, chat, eventos).</li>
+                    <li><input type="checkbox" data-task-id="muonline-cliente-assets" /> Criar planilha de assets 2D/3D a serem substituídos ou atualizados, incluindo referência a texturas <code>Interface\*.jpg</code>.</li>
+                    <li><input type="checkbox" data-task-id="muonline-cliente-fluxos" /> Descrever fluxos críticos (login, seleção de personagem, combates) para orientar Blueprints de estados.</li>
+                </ul>
+            </article>
+            <article class="lesson">
+                <h3>Mapeando os servidores (Source MuServer Update 15)</h3>
+                <dl>
+                    <div>
+                        <dt>O quê?</dt>
+                        <dd>Entender os serviços Win32 responsáveis por login, dados e lógica (GameServer, ConnectServer, DataServer, etc.).</dd>
+                    </div>
+                    <div>
+                        <dt>Por quê?</dt>
+                        <dd>Definir como portar protocolos de rede e lógica de progressão para subsistemas e serviços na UE5 ou back-end moderno.</dd>
+                    </div>
+                    <div>
+                        <dt>Quando?</dt>
+                        <dd>Após mapear o cliente, para alinhar contratos cliente-servidor e priorizar funcionalidades multiplayer.</dd>
+                    </div>
+                    <div>
+                        <dt>Onde?</dt>
+                        <dd><code>Source MuServer Update 15/</code>, especialmente <code>GameServer/GameServer</code> e <code>ConnectServer/ConnectServer</code>.</dd>
+                    </div>
+                </dl>
+                <div class="focus-tools">
+                    <button type="button" class="focus-toggle" data-target="muonline-server-pipeline">Pipeline legado</button>
+                    <div id="muonline-server-pipeline" class="focus-panel" hidden>
+                        <ul>
+                            <li><strong>GameServer:</strong> inicializa conexões com Join/Data Server, popula tabelas de experiência e monstros.</li>
+                            <li><strong>ConnectServer:</strong> lê configurações <code>.ini</code>, levanta sockets TCP/UDP e gerencia lista de mundos.</li>
+                        </ul>
+                    </div>
+                </div>
+                <ul class="checklist" aria-label="Primeiros passos dos servidores legados">
+                    <li><input type="checkbox" data-task-id="muonline-servidor-diagrama" /> Diagramar a arquitetura cliente ⇄ ConnectServer ⇄ GameServer ⇄ DataServer.</li>
+                    <li><input type="checkbox" data-task-id="muonline-servidor-protocolos" /> Levantar mensagens e estruturas de rede críticas (login, seleção de personagem, eventos).</li>
+                    <li><input type="checkbox" data-task-id="muonline-servidor-modernizacao" /> Decidir estratégia de migração (serviço dedicado em C++/Go/Python ou subsistema dentro da UE via sockets/HTTP).</li>
+                </ul>
+            </article>
+            <article class="lesson">
+                <h3>Primeiros passos para a réplica na UE5</h3>
+                <dl>
+                    <div>
+                        <dt>O quê?</dt>
+                        <dd>Criar um projeto modular na UE5 que isola UI (UMG), gameplay (C++/Blueprints) e integração de rede.</dd>
+                    </div>
+                    <div>
+                        <dt>Por quê?</dt>
+                        <dd>Permite iterar substituindo sistemas legados sem perder o foco e mantendo paridade funcional com o original.</dd>
+                    </div>
+                    <div>
+                        <dt>Quando?</dt>
+                        <dd>Depois que o escopo do cliente e servidor estiver documentado, antes de implementar features complexas.</dd>
+                    </div>
+                    <div>
+                        <dt>Onde?</dt>
+                        <dd>Use um projeto UE5 baseado em <em>Third Person</em> ou <em>Top Down</em>, estruturando pastas <code>Content/UI</code>, <code>Content/Game</code> e <code>Source/</code>.</dd>
+                    </div>
+                </dl>
+                <ul class="checklist" aria-label="Kick-off do projeto UE5">
+                    <li><input type="checkbox" data-task-id="muonline-ue5-projeto" /> Criar projeto UE5 com módulos separados para UI e lógica (ex.: <code>MuClient</code> e <code>MuCore</code>).</li>
+                    <li><input type="checkbox" data-task-id="muonline-ue5-widget" /> Prototipar um Widget UMG do HUD principal para validar escalas e fontes.</li>
+                    <li><input type="checkbox" data-task-id="muonline-ue5-rede" /> Testar comunicação básica com servidor (HTTP/Socket) simulando fluxo de login.</li>
+                </ul>
+            </article>
+            <article class="lesson">
+                <h3>Recriando o lado servidor dentro da Unreal</h3>
+                <dl>
+                    <div>
+                        <dt>O quê?</dt>
+                        <dd>Estruturar um servidor dedicado UE5 (ou serviço externo) que reproduza os papéis do GameServer, ConnectServer e DataServer originais.</dd>
+                    </div>
+                    <div>
+                        <dt>Por quê?</dt>
+                        <dd>Permite validar protocolos, persistência e regras de progressão sem depender do código Win32 legado, facilitando testes rápidos com o cliente UE5.</dd>
+                    </div>
+                    <div>
+                        <dt>Quando?</dt>
+                        <dd>Após ter o projeto base organizado e os contratos de mensagens mapeados, antes de migrar eventos complexos ou temporadas.</dd>
+                    </div>
+                    <div>
+                        <dt>Onde?</dt>
+                        <dd>No <code>Source/</code> do projeto UE5 (módulos <code>Server</code> ou <code>MuBackend</code>) e em serviços auxiliares como banco de dados ou APIs em nuvem.</dd>
+                    </div>
+                </dl>
+                <div class="focus-tools">
+                    <button type="button" class="focus-toggle" data-target="muonline-ue5-servidor-tarefas">Passos de migração</button>
+                    <div id="muonline-ue5-servidor-tarefas" class="focus-panel" hidden>
+                        <ul>
+                            <li><strong>Target dedicado:</strong> Configure um <em>Dedicated Server Target</em> em <code>Source/MuServer.Target.cs</code>.</li>
+                            <li><strong>Protocolos:</strong> Converta <code>Protocol.h</code> legados em estruturas <code>USTRUCT</code> replicáveis.</li>
+                            <li><strong>Persistência:</strong> Utilize <code>GameInstanceSubsystem</code> para abstrair chamadas ao banco (REST, gRPC ou sockets).</li>
+                        </ul>
+                    </div>
+                </div>
+                <ul class="checklist" aria-label="Serviço servidor UE5">
+                    <li><input type="checkbox" data-task-id="muonline-ue5-servidor-target" /> Criar alvo dedicado e projeto <code>.uproject</code> configurado para builds de servidor.</li>
+                    <li><input type="checkbox" data-task-id="muonline-ue5-servidor-handlers" /> Implementar handlers de login e seleção de personagem em C++ (derivados de <code>UGameSession</code> ou <code>APlayerController</code> servidor).</li>
+                    <li><input type="checkbox" data-task-id="muonline-ue5-servidor-persistencia" /> Conectar o servidor a uma camada de dados (SQLite, PostgreSQL ou API) mapeando tabelas de contas, personagens e inventário.</li>
+                    <li><input type="checkbox" data-task-id="muonline-ue5-servidor-testes" /> Simular múltiplos clientes usando <em>PIE</em> ou builds headless para validar sessões, latência e desconexões.</li>
+                </ul>
+            </article>
+        </section>
+
+        <section class="module recipe-book" data-section-id="muonline-receitas">
+            <header>
+                <h2>Receitas de Bolo: Remake Cliente &amp; Servidor</h2>
+                <p class="tag">Passo a passo prático</p>
+                <p>Use estas receitas como scripts rápidos para iniciar implementações críticas. Cada uma segue o formato <strong>O quê</strong>, <strong>Por quê</strong>, <strong>Quando</strong>, <strong>Onde</strong> e detalha ingredientes, modo de preparo e verificações finais.</p>
+            </header>
+
+            <article class="recipe">
+                <h3>Receita do Cliente UE5 — HUD e Fluxo de Login</h3>
+                <dl class="recipe-brief">
+                    <div>
+                        <dt>O quê?</dt>
+                        <dd>Recriar a interface principal do Mu Online (HUD, login, seleção de personagem) usando UMG e Blueprints.</dd>
+                    </div>
+                    <div>
+                        <dt>Por quê?</dt>
+                        <dd>Garantir familiaridade para veteranos e estabelecer base para testes com o servidor UE5.</dd>
+                    </div>
+                    <div>
+                        <dt>Quando?</dt>
+                        <dd>Após mapear telas legadas no roadmap e antes de portar combates ou eventos dinâmicos.</dd>
+                    </div>
+                    <div>
+                        <dt>Onde?</dt>
+                        <dd>Projeto UE5 &gt; <code>Content/UI</code>, <code>Content/HUD</code> e <code>Content/Blueprints/Flow</code>.</dd>
+                    </div>
+                </dl>
+
+                <div class="recipe-section">
+                    <h4>Ingredientes (Pré-requisitos)</h4>
+                    <ul>
+                        <li>Planilha de telas e assets extraída do Source Main 5.2.</li>
+                        <li>Mockups ou capturas de tela de cada janela principal.</li>
+                        <li>Blueprint <code>BP_MuGameInstance</code> configurado com rotas de login.</li>
+                        <li>Fonte tipográfica compatível com português/brilho retro (ex.: <em>Roboto Condensed</em>).</li>
+                    </ul>
+                </div>
+
+                <div class="recipe-section">
+                    <h4>Modo de preparo</h4>
+                    <ol class="recipe-steps">
+                        <li>
+                            <h5>Pré-aqueça o projeto</h5>
+                            <p>Duplique o <em>Third Person Template</em>, limpe atores extras e configure o <code>GameMode</code> para usar <code>BP_MuHUD</code> personalizado.</p>
+                        </li>
+                        <li>
+                            <h5>Prepare os widgets-base</h5>
+                            <p>Crie widgets UMG para <code>WBP_Login</code>, <code>WBP_ServerList</code>, <code>WBP_CharacterSelect</code> e <code>WBP_MainHUD</code>. Mapeie slots e botões seguindo a hierarquia do <code>CNewUIMainFrameWindow</code>.</p>
+                        </li>
+                        <li>
+                            <h5>Tempere com lógica de fluxo</h5>
+                            <p>No <code>GameInstance</code> implemente uma <em>State Machine</em> simples (enum <code>EMuClientState</code>) acionando transições entre widgets e emitindo eventos para o servidor.</p>
+                        </li>
+                        <li>
+                            <h5>Finalize com feedback e testes</h5>
+                            <p>Adicione animações leves para foco/hover, traduções PT-BR e utilize <em>PIE Multiplayer</em> para validar que o HUD responde aos eventos de login simulados.</p>
+                        </li>
+                    </ol>
+                </div>
+
+                <div class="recipe-section">
+                    <h4>Checklist final</h4>
+                    <ul class="checklist" aria-label="Checklist receita cliente UE5">
+                        <li><input type="checkbox" data-task-id="receita-cliente-widgets" /> Todos os widgets principais criados e conectados à máquina de estados.</li>
+                        <li><input type="checkbox" data-task-id="receita-cliente-assets" /> Assets visuais revisados e substituídos por materiais/texturas atualizadas.</li>
+                        <li><input type="checkbox" data-task-id="receita-cliente-testes" /> Fluxo login &rarr; seleção &rarr; HUD testado com pelo menos dois perfis de personagem.</li>
+                    </ul>
+                </div>
+            </article>
+
+            <article class="recipe">
+                <h3>Receita do Servidor UE5 — GameServer, ConnectServer &amp; Persistência</h3>
+                <dl class="recipe-brief">
+                    <div>
+                        <dt>O quê?</dt>
+                        <dd>Montar um servidor dedicado dentro da UE5 que aceite logins, valide personagens e sincronize o mundo.</dd>
+                    </div>
+                    <div>
+                        <dt>Por quê?</dt>
+                        <dd>Substituir o código Win32 legado por uma base moderna, integrável e fácil de depurar.</dd>
+                    </div>
+                    <div>
+                        <dt>Quando?</dt>
+                        <dd>Assim que o cliente UE5 conseguir simular logins com dados mockados.</dd>
+                    </div>
+                    <div>
+                        <dt>Onde?</dt>
+                        <dd><code>Source/MuServer.Target.cs</code>, <code>Source/MuServer/</code> e serviços auxiliares (REST/gRPC).</dd>
+                    </div>
+                </dl>
+
+                <div class="recipe-section">
+                    <h4>Ingredientes (Pré-requisitos)</h4>
+                    <ul>
+                        <li>Lista de pacotes e estruturas de rede extraída do <code>Protocol.h</code> legado.</li>
+                        <li>Banco de dados com tabelas de contas/personagens (SQLite ou PostgreSQL).</li>
+                        <li>Projeto UE5 com <em>Dedicated Server Target</em> já configurado.</li>
+                        <li>Ferramenta de monitoramento (ex.: <code>Unreal Insights</code> ou logs estruturados).</li>
+                    </ul>
+                </div>
+
+                <div class="recipe-section">
+                    <h4>Modo de preparo</h4>
+                    <ol class="recipe-steps">
+                        <li>
+                            <h5>Mise en place da infraestrutura</h5>
+                            <p>Gere o target dedicado, habilite <code>OnlineSubsystem</code> básico e configure módulos <code>MuNetworking</code> e <code>MuPersistence</code> em <code>.Build.cs</code>.</p>
+                        </li>
+                        <li>
+                            <h5>Cozinhe os handlers de conexão</h5>
+                            <p>Implemente <code>AMuGameSession</code> derivada de <code>AGameSession</code> para aceitar conexões e delegue parsing a um <code>UMuPacketRouter</code> (subclasse de <code>UObject</code>).</p>
+                        </li>
+                        <li>
+                            <h5>Adicione camada de dados</h5>
+                            <p>Crie um <code>UGameInstanceSubsystem</code> chamado <code>UMuAccountService</code> que consulta o banco via REST/gRPC ou <code>FSQLiteDatabase</code>. Garanta cache de sessão em <code>TMap</code>.</p>
+                        </li>
+                        <li>
+                            <h5>Sirva com replicação e testes</h5>
+                            <p>Mapeie structs <code>USTRUCT(BlueprintType)</code> para personagens, utilize <em>Gameplay Ability System</em> para buffs e execute testes headless com <code>-log</code> para validar reconexões.</p>
+                        </li>
+                    </ol>
+                </div>
+
+                <div class="recipe-section">
+                    <h4>Checklist final</h4>
+                    <ul class="checklist" aria-label="Checklist receita servidor UE5">
+                        <li><input type="checkbox" data-task-id="receita-servidor-target" /> Build dedicada compilando sem erros e executável <code>MuServerServer</code> gerado.</li>
+                        <li><input type="checkbox" data-task-id="receita-servidor-handlers" /> Handlers de login/seleção/entrada no mundo respondendo aos pacotes do cliente UE5.</li>
+                        <li><input type="checkbox" data-task-id="receita-servidor-persistencia" /> Persistência testada com criação de personagem, atualização de inventário e registro de log de auditoria.</li>
+                    </ul>
+                </div>
+            </article>
+        </section>
+    </main>
+
+    <footer>
+        <p>Guia criado para apoiar um aprendizado consistente e profundo da Unreal Engine 5+.</p>
+    </footer>
+
+    <template id="toc-item-template">
+        <li>
+            <a href="#" data-target="">Item</a>
+        </li>
+    </template>
+
+    <script src="script.js" defer></script>
+</body>
+</html>
