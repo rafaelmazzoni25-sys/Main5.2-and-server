@@ -11,6 +11,17 @@
         <h1>Jornada Completa na Unreal Engine 5+</h1>
         <p>Aprenda do zero ao domínio profundo com um guia organizado para mentes curiosas e neurodivergentes.</p>
         <button id="resume-button" type="button" class="primary">Continuar de onde parei</button>
+        <nav class="quick-links" aria-label="Atalhos rápidos">
+            <a href="#fundamentos">Fundamentos</a>
+            <a href="#blueprints">Blueprints</a>
+            <a href="#renderizacao">Renderização</a>
+            <a href="#blueprint-pro">Blueprints Avançados</a>
+            <a href="#sistemas-progressao">Progressão &amp; Economia</a>
+            <a href="#sistemas-mundo">Mundo &amp; IA</a>
+            <a href="#sistemas-combate">Combate &amp; Animação</a>
+            <a href="#guia-itens">Guia de Itens</a>
+            <a href="#muonline-migracao">Projeto Especial</a>
+        </nav>
     </header>
 
     <main id="conteudo" role="main">
@@ -359,6 +370,514 @@
             </article>
         </section>
 
+        <section class="module" data-section-id="sistemas-progressao">
+            <header>
+                <h2>Coleção de Receitas MMORPG – Parte 1: Progressão e Economia</h2>
+                <p class="tag">Nível: Avançado</p>
+            </header>
+            <div class="lesson-grid two-columns">
+                <article class="lesson">
+                    <h3>Sistema de XP, Level e Reset</h3>
+                    <dl>
+                        <div>
+                            <dt>O quê?</dt>
+                            <dd>Blueprints e DataTables que reproduzem níveis, resets e multiplicadores herdados do servidor original.</dd>
+                        </div>
+                        <div>
+                            <dt>Por quê?</dt>
+                            <dd>Garante progressão previsível, sincronizada com recompensas e limites utilizados pelo MuServer.</dd>
+                        </div>
+                        <div>
+                            <dt>Quando?</dt>
+                            <dd>Após ter o loop básico de combate funcionando e antes de liberar sistemas de ranking ou reset.</dd>
+                        </div>
+                        <div>
+                            <dt>Onde?</dt>
+                            <dd>Blueprint GameInstance / ExperienceSubsystem + DataTable “DT_ExperienceCurves”.</dd>
+                        </div>
+                    </dl>
+                    <div class="highlight-callout">
+                        <strong>Referência do legado:</strong> Ajuste os multiplicadores e resets seguindo o pipeline de cálculo de experiência mostrado em <code>ObjectManager.cpp</code> e na tabela carregada por <code>ExperienceTable.cpp</code>.【F:Source MuServer Update 15/GameServer/GameServer/ObjectManager.cpp†L1310-L1344】【F:Source MuServer Update 15/GameServer/GameServer/ExperienceTable.cpp†L60-L119】
+                    </div>
+                    <ol class="step-list">
+                        <li>
+                            <strong>Estruture a fonte de dados.</strong>
+                            Importe o arquivo <code>ExperienceTable.txt</code> para uma DataTable Blueprint e exponha campos para nível, reset e taxas especiais para mapas/contas VIP.
+                        </li>
+                        <li>
+                            <strong>Propague eventos de ganho de XP.</strong>
+                            No <code>BP_ExperienceSubsystem</code>, crie um evento <em>OnExperienceGained</em> que recebe dano causado e classe do monstro, calcula multiplicadores e atualiza <em>Attributes</em> do personagem.
+                        </li>
+                        <li>
+                            <strong>Implemente resets e recompensas.</strong>
+                            Use um <em>SaveGame</em> ou <em>HTTP Blueprint</em> para registrar resets, resetando nível e atribuindo pontos extras, assim como o servidor faz antes de reaplicar bônus.
+                        </li>
+                    </ol>
+                    <ul class="checklist" aria-label="Checklist de progressão">
+                        <li><input type="checkbox" data-task-id="progressao-xp-datatable" /> DataTable de XP importada e validada com valores de reset.</li>
+                        <li><input type="checkbox" data-task-id="progressao-xp-event" /> Evento <em>OnExperienceGained</em> disparando para combate solo e em grupo.</li>
+                        <li><input type="checkbox" data-task-id="progressao-reset" /> Fluxo de reset registrando recompensas e reaplicando atributos no player state.</li>
+                    </ul>
+                </article>
+                <article class="lesson">
+                    <h3>Economia, Shops e Cash Shop</h3>
+                    <dl>
+                        <div>
+                            <dt>O quê?</dt>
+                            <dd>Interfaces UMG e subsistemas que replicam lojas NPC, lojinhas pessoais e Cash Shop.</dd>
+                        </div>
+                        <div>
+                            <dt>Por quê?</dt>
+                            <dd>Controla entrada e saída de moedas (Zen, WCoin, Goblin Point), mantendo o mesmo equilíbrio do servidor legado.</dd>
+                        </div>
+                        <div>
+                            <dt>Quando?</dt>
+                            <dd>Depois de estabilizar inventário e moeda base, antes de ativar eventos sazonais.</dd>
+                        </div>
+                        <div>
+                            <dt>Onde?</dt>
+                            <dd>Blueprints <code>BP_ShopManager</code>, <code>BP_CashShopService</code> e Widgets de loja.</dd>
+                        </div>
+                    </dl>
+                    <div class="highlight-callout">
+                        <strong>Referência do legado:</strong> Observe como o servidor monta as tabelas de itens em <code>Shop.cpp</code> e pacotes premium em <code>CashShop.cpp</code> para replicar filtros, categorias e moedas específicas no Blueprint.【F:Source MuServer Update 15/GameServer/GameServer/Shop.cpp†L40-L110】【F:Source MuServer Update 15/GameServer/GameServer/CashShop.cpp†L52-L112】
+                    </div>
+                    <ol class="step-list">
+                        <li>
+                            <strong>Defina catálogos como DataAssets.</strong>
+                            Crie <em>Primary Data Assets</em> por categoria (Armas, Consumíveis, Pacotes) e exponha preço, moeda e requisitos de classe.
+                        </li>
+                        <li>
+                            <strong>Sincronize com o servidor.</strong>
+                            Faça um <em>GameInstance Subsystem</em> cuidar das requisições REST/TCP para carregar saldo e compras, emitindo delegates para atualizar UI.
+                        </li>
+                        <li>
+                            <strong>Implemente lojas pessoais.</strong>
+                            Monte um <em>Actor Component</em> que registra slots colocados à venda pelo jogador e usa <em>Gameplay Tags</em> para controlar permissões de compra.</li>
+                    </ol>
+                    <ul class="checklist" aria-label="Checklist de economia">
+                        <li><input type="checkbox" data-task-id="economia-dataassets" /> DataAssets de loja preenchidos com preços e filtros.</li>
+                        <li><input type="checkbox" data-task-id="economia-sincronizacao" /> Subsystem comunicando saldo do Cash Shop e Zen com o backend.</li>
+                        <li><input type="checkbox" data-task-id="economia-loja-pessoal" /> Loja pessoal replicada com permissões e log de transações.</li>
+                    </ul>
+                </article>
+                <article class="lesson">
+                    <h3>Sistema de Jewels e melhorias</h3>
+                    <dl>
+                        <div>
+                            <dt>O quê?</dt>
+                            <dd>Recipes Blueprint para misturar, consumir e aplicar Jewels na forja (Chaos Machine).</dd>
+                        </div>
+                        <div>
+                            <dt>Por quê?</dt>
+                            <dd>Permite upgrades, sockets e bundles como no cliente original, reforçando progressão de item.</dd>
+                        </div>
+                        <div>
+                            <dt>Quando?</dt>
+                            <dd>Após validar inventário, antes de liberar eventos que dropam bundles (Blood Castle, Devil Square).</dd>
+                        </div>
+                        <div>
+                            <dt>Onde?</dt>
+                            <dd>Blueprint <code>BP_ChaosMachine</code> + Widgets contextuais do Crafting.</dd>
+                        </div>
+                    </dl>
+                    <div class="highlight-callout">
+                        <strong>Referência do legado:</strong> Use as validações de quantidade, trava de Chaos e cálculo de custo registradas em <code>JewelMix.cpp</code> ao portar para Blueprint.【F:Source MuServer Update 15/GameServer/GameServer/JewelMix.cpp†L58-L139】
+                    </div>
+                    <ol class="step-list">
+                        <li>
+                            <strong>Mapeie combinações válidas.</strong>
+                            Crie uma DataTable “DT_JewelRecipes” com tipo, nível e custos Zen dos mixes.
+                        </li>
+                        <li>
+                            <strong>Construa o fluxo da Chaos Machine.</strong>
+                            Utilize um <em>Widget Switcher</em> para alternar entre abas (Misturar, Desfazer, Bundle) e um <em>State Machine</em> para travar o inventário durante o mix.
+                        </li>
+                        <li>
+                            <strong>Conecte ao backend.</strong>
+                            Registre eventos <em>Server</em>/<em>Client</em> no <code>BP_ChaosMachine</code> para enviar pedidos de mix e aplicar resultados replicados para todos os jogadores próximos.
+                        </li>
+                    </ol>
+                    <ul class="checklist" aria-label="Checklist de jewels">
+                        <li><input type="checkbox" data-task-id="jewel-recipes" /> Tabela de receitas criada com validação de estoque.</li>
+                        <li><input type="checkbox" data-task-id="jewel-chaos-flow" /> Blueprint da Chaos Machine bloqueando slots durante o processo.</li>
+                        <li><input type="checkbox" data-task-id="jewel-replicacao" /> Eventos de mix replicando resultado e broadcast de mensagens.</li>
+                    </ul>
+                </article>
+            </div>
+        </section>
+
+        <section class="module" data-section-id="sistemas-mundo">
+            <header>
+                <h2>Coleção de Receitas MMORPG – Parte 2: Mundo Persistente</h2>
+                <p class="tag">Nível: Avançado</p>
+            </header>
+            <div class="lesson-grid two-columns">
+                <article class="lesson">
+                    <h3>Geração de Terreno e Biomas</h3>
+                    <dl>
+                        <div>
+                            <dt>O quê?</dt>
+                            <dd>Pipeline para importar heightmaps, texturas e atributos de colisão semelhantes ao cliente legado.</dd>
+                        </div>
+                        <div>
+                            <dt>Por quê?</dt>
+                            <dd>Reproduz a navegação e a leitura visual clássica (desertos, florestas, calabouços) com fidelidade.</dd>
+                        </div>
+                        <div>
+                            <dt>Quando?</dt>
+                            <dd>Antes de posicionar mobs ou portais, logo após definir a topologia do mundo.</dd>
+                        </div>
+                        <div>
+                            <dt>Onde?</dt>
+                            <dd>Landscape Mode + Blueprint <code>BP_TerrainComposer</code>.</dd>
+                        </div>
+                    </dl>
+                    <div class="highlight-callout">
+                        <strong>Referência do legado:</strong> Observe a decodificação de atributos, camadas e frustums em <code>ZzzLodTerrain.cpp</code> para espelhar colisões e blending de texturas no Landscape UE5.【F:Source Main 5.2/source/ZzzLodTerrain.cpp†L60-L158】
+                    </div>
+                    <ol class="step-list">
+                        <li>
+                            <strong>Importe heightmaps criptografados.</strong>
+                            Crie um utilitário Blueprint/C++ que leia arquivos originais, aplique <em>BuxConvert</em> e gere arquivos <code>.r16</code> para o Landscape.
+                        </li>
+                        <li>
+                            <strong>Configure camadas dinâmicas.</strong>
+                            Use <em>Runtime Virtual Texture</em> para misturar materiais (grama, areia, gelo) com base em curvas de inclinação.</li>
+                        <li>
+                            <strong>Gere colisões e volumes.</strong>
+                            Sincronize <em>LandscapeLayerInfo</em> com volumes de bloqueio iguais aos atributos <code>TerrainWall</code> do cliente.
+                        </li>
+                    </ol>
+                    <ul class="checklist" aria-label="Checklist de terreno">
+                        <li><input type="checkbox" data-task-id="terreno-heightmap" /> Heightmaps e máscaras importados para Landscape.</li>
+                        <li><input type="checkbox" data-task-id="terreno-material" /> Materiais com RVT configurados para múltiplos biomas.</li>
+                        <li><input type="checkbox" data-task-id="terreno-colisao" /> Volumes de colisão espelhando atributos do cliente.</li>
+                    </ul>
+                </article>
+                <article class="lesson">
+                    <h3>Portais, Gates e Mudança de Mapas</h3>
+                    <dl>
+                        <div>
+                            <dt>O quê?</dt>
+                            <dd>Sistema de portais e comandos de teleporte sincronizados entre mapas, incluindo checagens de acesso.</dd>
+                        </div>
+                        <div>
+                            <dt>Por quê?</dt>
+                            <dd>Garante transições seguras entre mundos, eventos instanciados e arenas.</dd>
+                        </div>
+                        <div>
+                            <dt>Quando?</dt>
+                            <dd>Após definir terreno e antes de popular com NPCs ou mobs.</dd>
+                        </div>
+                        <div>
+                            <dt>Onde?</dt>
+                            <dd>DataAsset <code>DA_GateNetwork</code> + <code>BP_GateController</code>.</dd>
+                        </div>
+                    </dl>
+                    <div class="highlight-callout">
+                        <strong>Referência do legado:</strong> Reproduza o cadastro de servidores/mapas e as validações de teleporte documentadas em <code>MapServerManager.cpp</code> e <code>Move.cpp</code>.【F:Source MuServer Update 15/GameServer/GameServer/MapServerManager.cpp†L70-L139】【F:Source MuServer Update 15/GameServer/GameServer/Move.cpp†L205-L318】
+                    </div>
+                    <ol class="step-list">
+                        <li>
+                            <strong>Cadastre o grafo de mapas.</strong>
+                            Monte um DataAsset com destinos, custo em Zen e restrições (Gens, PK, evento ativo).
+                        </li>
+                        <li>
+                            <strong>Implemente validações.</strong>
+                            No <code>BP_GateController</code>, converta verificações em branches Blueprint antes de disparar <em>Server Travel</em> ou <em>ClientTravel</em>.
+                        </li>
+                        <li>
+                            <strong>Atualize estados pós-teleporte.</strong>
+                            Garanta que <em>Player State</em> e <em>HUD</em> reinicializem buffs, objetivos e âncoras ao chegar ao mapa alvo.
+                        </li>
+                    </ol>
+                    <ul class="checklist" aria-label="Checklist de gates">
+                        <li><input type="checkbox" data-task-id="gate-grafo" /> DataAsset com rede de portais e requisitos preenchidos.</li>
+                        <li><input type="checkbox" data-task-id="gate-validacao" /> Blueprint verificando permissões antes da viagem.</li>
+                        <li><input type="checkbox" data-task-id="gate-estado" /> Atualização de estados/HUD após troca de mapa.</li>
+                    </ul>
+                </article>
+                <article class="lesson">
+                    <h3>IA de Mobs e patrulhamento</h3>
+                    <dl>
+                        <div>
+                            <dt>O quê?</dt>
+                            <dd>Behaviour Trees que replicam rotinas, emoções e alvos do AI legado.</dd>
+                        </div>
+                        <div>
+                            <dt>Por quê?</dt>
+                            <dd>Permite agressividade, perseguição e efeitos de status coerentes com o gameplay clássico.</dd>
+                        </div>
+                        <div>
+                            <dt>Quando?</dt>
+                            <dd>Após preparar terreno e gates, antes de balancear drops.</dd>
+                        </div>
+                        <div>
+                            <dt>Onde?</dt>
+                            <dd>Behaviour Tree + <code>BP_MonsterController</code>.</dd>
+                        </div>
+                    </dl>
+                    <div class="highlight-callout">
+                        <strong>Referência do legado:</strong> Converta emoções, patrulhas e ataques reativos descritos em <code>MonsterAI.cpp</code> em <em>State Machines</em> e tasks Blueprint.【F:Source MuServer Update 15/GameServer/GameServer/MonsterAI.cpp†L120-L220】
+                    </div>
+                    <ol class="step-list">
+                        <li>
+                            <strong>Modele estados principais.</strong>
+                            Configure nós (Patrulha, Perseguição, Ataque, Retirada) usando <em>Blackboard Keys</em> equivalentes às emoções do C++.</li>
+                        <li>
+                            <strong>Calcule caminhos.</strong>
+                            Sincronize <code>PathCur</code>/<code>PathCount</code> com <em>EQSTestingPawn</em> ou malhas de navegação dinâmicas.</li>
+                        <li>
+                            <strong>Integre efeitos.</strong>
+                            Encapsule chamadas ao <em>Effect Manager</em> para aplicar veneno, empurrões e buffs temporários.
+                        </li>
+                    </ol>
+                    <ul class="checklist" aria-label="Checklist de IA">
+                        <li><input type="checkbox" data-task-id="ia-estados" /> Behaviour Tree com estados equivalentes às emoções do legado.</li>
+                        <li><input type="checkbox" data-task-id="ia-caminho" /> Sistema de patrulha usando splines ou EQS para hotspots.</li>
+                        <li><input type="checkbox" data-task-id="ia-efeitos" /> Aplicação de efeitos replicados via <code>BP_EffectManager</code>.</li>
+                    </ul>
+                </article>
+                <article class="lesson">
+                    <h3>Drops e eventos dinâmicos</h3>
+                    <dl>
+                        <div>
+                            <dt>O quê?</dt>
+                            <dd>Sistema de loot que respeita taxas por mapa, nível e evento.</dd>
+                        </div>
+                        <div>
+                            <dt>Por quê?</dt>
+                            <dd>Controla progressão de itens raros e mantém raridade de Jewels e excelentes.</dd>
+                        </div>
+                        <div>
+                            <dt>Quando?</dt>
+                            <dd>Após definir IA e balancear economia.</dd>
+                        </div>
+                        <div>
+                            <dt>Onde?</dt>
+                            <dd>Componentes <code>BP_LootTable</code> anexados a mobs e bosses.</dd>
+                        </div>
+                    </dl>
+                    <div class="highlight-callout">
+                        <strong>Referência do legado:</strong> Respeite filtros de mapa, nível e opções extras conforme <code>ItemDrop.cpp</code> aplica ao sortear itens e opções.【F:Source MuServer Update 15/GameServer/GameServer/ItemDrop.cpp†L120-L209】
+                    </div>
+                    <ol class="step-list">
+                        <li>
+                            <strong>Cadastre tabelas de loot.</strong>
+                            Crie DataTables com pesos por evento/mapa e configure <em>Curve Tables</em> para probabilidades.</li>
+                        <li>
+                            <strong>Implemente seleção ponderada.</strong>
+                            Utilize <code>Select Weighted</code> em Blueprint para simular o <code>RandomManager</code> do legado.
+                        </li>
+                        <li>
+                            <strong>Replicação e feedback.</strong>
+                            Gere atores de item com <em>Multicast</em> e sincronize o tempo de desaparecimento conforme raridade.
+                        </li>
+                    </ol>
+                    <ul class="checklist" aria-label="Checklist de drops">
+                        <li><input type="checkbox" data-task-id="drop-tabelas" /> Tabelas de loot configuradas com pesos por mapa.</li>
+                        <li><input type="checkbox" data-task-id="drop-blueprint" /> Função Blueprint que seleciona recompensas ponderadas.</li>
+                        <li><input type="checkbox" data-task-id="drop-replicacao" /> Broadcast de drops e timers replicados para todos os jogadores.</li>
+                    </ul>
+                </article>
+            </div>
+        </section>
+
+        <section class="module" data-section-id="sistemas-combate">
+            <header>
+                <h2>Coleção de Receitas MMORPG – Parte 3: Combate, Skills e Animações</h2>
+                <p class="tag">Nível: Avançado</p>
+            </header>
+            <div class="lesson-grid two-columns">
+                <article class="lesson">
+                    <h3>Loop de ataque do personagem</h3>
+                    <dl>
+                        <div>
+                            <dt>O quê?</dt>
+                            <dd>Blueprints para processar ataques básicos, consumo de projéteis e atualização de atributos.</dd>
+                        </div>
+                        <div>
+                            <dt>Por quê?</dt>
+                            <dd>Reproduz travas de alvo, gasto de flechas e resets de regeneração vistos no cliente original.</dd>
+                        </div>
+                        <div>
+                            <dt>Quando?</dt>
+                            <dd>Após configurar armas, antes de balancear skills.</dd>
+                        </div>
+                        <div>
+                            <dt>Onde?</dt>
+                            <dd><code>BP_CombatComponent</code> anexado ao personagem.</dd>
+                        </div>
+                    </dl>
+                    <div class="highlight-callout">
+                        <strong>Referência do legado:</strong> Inspire-se nas validações de alvo, gasto de flechas e timers de regeneração descritos em <code>Attack.cpp</code>.【F:Source MuServer Update 15/GameServer/GameServer/Attack.cpp†L180-L279】
+                    </div>
+                    <ol class="step-list">
+                        <li>
+                            <strong>Cheque alvos elegíveis.</strong>
+                            Use <em>Gameplay Tags</em> e <em>Trace Channels</em> para impedir ataques contra summons aliados.</li>
+                        <li>
+                            <strong>Atualize timers.</strong>
+                            Reinicie contadores de regeneração (HP/MP/SD) ao confirmar golpes, imitando o comportamento legado.
+                        </li>
+                        <li>
+                            <strong>Sincronize com efeitos de impacto.</strong>
+                            Dispare <em>Anim Notifies</em> para spawnar partículas e aplicar dano via <em>Server RPC</em> com rollback seguro.
+                        </li>
+                    </ol>
+                    <ul class="checklist" aria-label="Checklist de ataque">
+                        <li><input type="checkbox" data-task-id="combate-validacao" /> Função de validação de alvo evitando aliados e summons.</li>
+                        <li><input type="checkbox" data-task-id="combate-timers" /> Timers de regeneração reiniciados ao atacar/ser atingido.</li>
+                        <li><input type="checkbox" data-task-id="combate-notifies" /> Anim Notifies conectados a danos e partículas.</li>
+                    </ul>
+                </article>
+                <article class="lesson">
+                    <h3>Skills, árvores e atributos</h3>
+                    <dl>
+                        <div>
+                            <dt>O quê?</dt>
+                            <dd>Sistema de habilidades ativo/passivo com suporte a master level.</dd>
+                        </div>
+                        <div>
+                            <dt>Por quê?</dt>
+                            <dd>Permite combos, buffs e summons idênticos aos livros originais.</dd>
+                        </div>
+                        <div>
+                            <dt>Quando?</dt>
+                            <dd>Depois do ataque básico e antes de desbloquear eventos PvP.</dd>
+                        </div>
+                        <div>
+                            <dt>Onde?</dt>
+                            <dd><code>Gameplay Ability System</code> ou Blueprint equivalente.</dd>
+                        </div>
+                    </dl>
+                    <div class="highlight-callout">
+                        <strong>Referência do legado:</strong> Utilize os mapeamentos de livros e efeitos descritos em <code>SkillManager.cpp</code> para montar DataTables de habilidades e curvas de poder.【F:Source MuServer Update 15/GameServer/GameServer/SkillManager.cpp†L200-L320】
+                    </div>
+                    <ol class="step-list">
+                        <li>
+                            <strong>Mapeie habilidades.</strong>
+                            Cadastre cada livro/skill em DataTable com IDs e requisitos de classe/master level.</li>
+                        <li>
+                            <strong>Implemente GAS ou Equivalent.</strong>
+                            Configure <em>Gameplay Abilities</em> com custos de mana/bp e cooldowns sincronizados com o servidor.</li>
+                        <li>
+                            <strong>Construa a árvore master.</strong>
+                            Use <em>Ability Trees</em> ou grafos de nós para desbloquear skills progressivas conforme resets/master level.
+                        </li>
+                    </ol>
+                    <ul class="checklist" aria-label="Checklist de skills">
+                        <li><input type="checkbox" data-task-id="skill-tabela" /> DataTable de skills preenchida com requisitos.</li>
+                        <li><input type="checkbox" data-task-id="skill-abilities" /> Abilities configuradas com custos e cooldown replicado.</li>
+                        <li><input type="checkbox" data-task-id="skill-arvore" /> Árvore de master level navegável e salva no backend.</li>
+                    </ul>
+                </article>
+                <article class="lesson">
+                    <h3>Ofensiva dos mobs</h3>
+                    <dl>
+                        <div>
+                            <dt>O quê?</dt>
+                            <dd>Rotinas de ataque corpo a corpo e ranged para criaturas, incluindo penalidades e bônus.</dd>
+                        </div>
+                        <div>
+                            <dt>Por quê?</dt>
+                            <dd>Balanceia dano, status negativos e respostas a eventos como Crywolf ou Castle Siege.</dd>
+                        </div>
+                        <div>
+                            <dt>Quando?</dt>
+                            <dd>Depois de configurar IA básica e antes de calibrar drops raros.</dd>
+                        </div>
+                        <div>
+                            <dt>Onde?</dt>
+                            <dd>Tasks do Behaviour Tree + <code>BP_MonsterCombatComponent</code>.</dd>
+                        </div>
+                    </dl>
+                    <div class="highlight-callout">
+                        <strong>Referência do legado:</strong> Copie regras de penalidades e bônus usados nos cálculos de dano e experiência do servidor para manter consistência com eventos globais.【F:Source MuServer Update 15/GameServer/GameServer/ObjectManager.cpp†L1310-L1354】
+                    </div>
+                    <ol class="step-list">
+                        <li>
+                            <strong>Sincronize penalidades globais.</strong>
+                            Leia estados (Crywolf, Castle Siege) do servidor e ajuste dano/XP antes de aplicar ao jogador.</li>
+                        <li>
+                            <strong>Implemente ataques especiais.</strong>
+                            Use <em>Montages</em> e <em>Anim Notifies</em> para disparar venenos, empurrões ou buffs temporários.</li>
+                        <li>
+                            <strong>Feedback visual.</strong>
+                            Adicione partículas e decalques atrelados aos mesmos notifies para reforçar leitura do combate.</li>
+                    </ol>
+                    <ul class="checklist" aria-label="Checklist ofensiva de mobs">
+                        <li><input type="checkbox" data-task-id="mob-penalidades" /> Penalidades globais integradas ao cálculo de dano.</li>
+                        <li><input type="checkbox" data-task-id="mob-especiais" /> Ataques especiais configurados com montages e efeitos.</li>
+                        <li><input type="checkbox" data-task-id="mob-feedback" /> Feedback visual replicado para todos os clientes.</li>
+                    </ul>
+                </article>
+                <article class="lesson">
+                    <h3>Animações, efeitos e mudança visual</h3>
+                    <dl>
+                        <div>
+                            <dt>O quê?</dt>
+                            <dd>Pipeline para sincronizar animações de personagens e mobs, incluindo troca visual ao equipar itens.</dd>
+                        </div>
+                        <div>
+                            <dt>Por quê?</dt>
+                            <dd>Mantém feedback imediato ao equipar itens, aplicar buffs ou receber debuffs.</dd>
+                        </div>
+                        <div>
+                            <dt>Quando?</dt>
+                            <dd>Após finalizar combate e skills.</dd>
+                        </div>
+                        <div>
+                            <dt>Onde?</dt>
+                            <dd>Animation Blueprints + <code>BP_EquipmentVisualizer</code>.</dd>
+                        </div>
+                    </dl>
+                    <div class="highlight-callout">
+                        <strong>Referência do legado:</strong> Aproveite o gerenciamento de ossos e busca por sockets em <code>BoneManager.cpp</code> e relacione com efeitos carregados via <code>EffectManager.cpp</code> para equipar itens e aplicar buffs.【F:Source Main 5.2/source/BoneManager.cpp†L120-L158】【F:Source MuServer Update 15/GameServer/GameServer/EffectManager.cpp†L80-L154】
+                    </div>
+                    <ol class="step-list">
+                        <li>
+                            <strong>Mapeie sockets e bones.</strong>
+                            Crie tabelas de mapeamento (Bone → Item Slot) e use <em>Anim Notifies</em> para anexar meshes extras.</li>
+                        <li>
+                            <strong>Atualize malhas dinamicamente.</strong>
+                            Use <em>Modular Character</em> ou <em>Gameplay Tags</em> para alternar peças ao equipar/unequipar.
+                        </li>
+                        <li>
+                            <strong>Sincronize efeitos visuais.</strong>
+                            Vincule buffs/debuffs a um <code>BP_EffectManager</code> que instancia partículas e materiais dinâmicos.</li>
+                    </ol>
+                    <ul class="checklist" aria-label="Checklist de animações">
+                        <li><input type="checkbox" data-task-id="anim-sockets" /> Mapa de sockets configurado para personagens e mobs.</li>
+                        <li><input type="checkbox" data-task-id="anim-modular" /> Troca de peças/skins funcionando ao equipar item.</li>
+                        <li><input type="checkbox" data-task-id="anim-efeitos" /> Buffs e efeitos aplicados por um gerenciador comum.</li>
+                    </ul>
+                </article>
+            </div>
+        </section>
+
+        <section class="module reference-module" data-section-id="guia-itens">
+            <header>
+                <h2>Guia Integrado do Sistema de Itens</h2>
+                <p class="tag">Referência Detalhada</p>
+            </header>
+            <article class="lesson">
+                <h3>Resumo rápido</h3>
+                <p>O guia completo de itens foi incorporado ao diretório <code>ProjetoUnrealEngine/guides/</code>. Ele explica inventário, drag &amp; drop, pets, efeitos visuais e mudança de aparência ao equipar itens.</p>
+                <div class="highlight-callout">
+                    <strong>Dica:</strong> Use este resumo para alinhar-se rapidamente e abra o guia completo para fluxos passo a passo, capturas e listas de verificação adicionais.
+                </div>
+                <ul class="module-list" aria-label="Tópicos cobertos no guia de itens">
+                    <li>Inventário e HUD replicados, inclusive troca visual de slots.</li>
+                    <li>Equipamento, pets e efeitos especiais por raridade.</li>
+                    <li>Sistema de Armazenamento (Vault), Cash Shop e integração com drops.</li>
+                </ul>
+                <div class="reference-links">
+                    <a class="guide-button" href="guides/unreal_item_system_guide.html" target="_blank" rel="noopener">Abrir guia completo</a>
+                </div>
+            </article>
+        </section>
         <section class="module" data-section-id="fluxo-trabalho">
             <header>
                 <h2>Módulo 5: Fluxo de Trabalho e Rotina de Estudo</h2>
