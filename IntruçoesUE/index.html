@@ -431,33 +431,54 @@
                   >
                     <div class="accordion-body">
                       <p>
-                        Combine os guias <code>00_ModulesAndStartup</code> e
-                        <code>00A_BlueprintCookbook</code> para erguer o núcleo.
+                        <strong>Objetivo:</strong> replicar o comportamento de
+                        <code>Winmain.cpp</code> + <code>GameMain.cpp</code>,
+                        garantindo que a UE5 inicialize os mesmos serviços e
+                        valide DataTables antes de qualquer mapa ser carregado.
                       </p>
                       <ol>
                         <li>
-                          Criar <code>BP_RemakeGameInstance</code> com evento
-                          <em>Init</em> carregando <code>DT_Items/Skills/Monsters</code>
-                          + assets marcados em <code>Primary Asset Labels</code>.
+                          No <code>BP_RemakeGameInstance</code>, crie a função
+                          <em>BootSequence</em> que chama, na ordem: leitura de
+                          <code>DT_Items</code>, <code>DT_Skills</code>,
+                          <code>DT_Monsters</code>, <code>DT_ClassMap</code> e,
+                          em seguida, registra cada tabela no
+                          <code>BFL_RemakeLogger</code>. Essa função deve ser
+                          chamada no evento <em>Init</em>, exatamente como
+                          <code>Winmain</code> fazia com os gerenciadores globais.
                         </li>
                         <li>
-                          Registrar <code>BP_RemakeEngineSubsystem</code> e
-                          expor função <em>GetStreamableManager</em> para todo o
-                          projeto.
+                          Adicione um <code>BP_RemakeEngineSubsystem</code> com a
+                          função pública <em>GetStreamableManager</em> e expose-a
+                          em Blueprint. Todos os carregamentos assíncronos (UI,
+                          HUDs, mapas) devem usar essa função para espelhar o
+                          <code>CResourceMng::LoadResource</code> do cliente.
                         </li>
                         <li>
-                          Implementar <code>BP_ConfigSubsystem</code> que lê
-                          <code>DA_RemakeSettings</code> e overrides do INI,
-                          disparando <em>OnSettingsUpdated</em>.
+                          Implemente o <code>BP_ConfigSubsystem</code> com o
+                          método <em>ApplyServerSettings</em>: ele lê o
+                          <code>DA_RemakeSettings</code>, aplica overrides de
+                          arquivos <code>.ini</code> e emite um dispatcher
+                          <em>OnSettingsUpdated</em> que substitui os callbacks
+                          de <code>GameMainInit</code> ao trocar configurações em
+                          runtime.
                         </li>
                         <li>
-                          Instalar biblioteca <code>BFL_RemakeLogger</code> com
-                          <em>Ensure Data Table Loaded</em> usada no boot.
+                          Configure o <code>BP_RemakeServerService</code> como
+                          um <em>GameInstanceSubsystem</em> com as funções
+                          <em>ConnectJoinServer</em> e <em>ConnectDataServer</em>.
+                          Cada função deve abrir um canal (Socket/HTTP) e manter
+                          o estado <em>bIsJoinReady</em> / <em>bIsDataReady</em>,
+                          exatamente como o mutex + conexões de
+                          <code>GameMain.cpp</code>.
                         </li>
                         <li>
-                          Definir <code>BP_RemakeGameMode</code> e
-                          <code>BP_RemakePlayerState</code> como padrão em Maps &amp;
-                          Modes.
+                          Defina <code>BP_RemakeGameMode</code>,
+                          <code>BP_RemakePlayerController</code> e
+                          <code>BP_RemakePlayerState</code> como padrões no
+                          projeto, criando funções <em>InitCharacter</em> e
+                          <em>InitServerMirror</em> para garantir que qualquer
+                          mapa carregado execute o mesmo setup inicial.
                         </li>
                       </ol>
                     </div>
@@ -480,23 +501,51 @@
                     data-bs-parent="#receitasAccordion"
                   >
                     <div class="accordion-body">
+                      <p>
+                        <strong>Objetivo:</strong> reproduzir as rotinas de
+                        criação de personagem em <code>CharacterManager</code> e
+                        <code>CGameProcess</code>, entregando um avatar jogável
+                        pronto para receber inventário, habilidades e HUD.
+                      </p>
                       <ol>
                         <li>
-                          Criar <code>BP_RemakeCharacter</code> com malha
-                          base/AnimBP placeholder e componentes <em>Camera</em>,
-                          <em>SpringArm</em> e <em>AbilitySystem</em> replicado.
+                          Crie o <code>BP_RemakeCharacter</code> e anexe os
+                          componentes <em>Camera</em>, <em>SpringArm</em>,
+                          <em>AbilitySystemComponent</em>,
+                          <em>InventoryComponent</em> e
+                          <em>StatusEffectComponent</em>. Configure a replicação
+                          de todos para corresponder às estruturas
+                          <code>OBJECTSTRUCT</code> do servidor.
                         </li>
                         <li>
-                          Adicionar componente de atributos e função
-                          <em>Initialize Attributes</em> lendo DataTables.
+                          Na função <em>SpawnFromServerData</em>, receba uma
+                          struct <code>FRemakeCharacterSnapshot</code> (espelho
+                          de <code>LPOBJ</code>) e aplique raça, classe e
+                          aparência lendo <code>DT_ClassMap</code> e as texturas
+                          equivalentes usadas pelo cliente original.
                         </li>
                         <li>
-                          Configurar <em>GrantDefaultAbilities</em> para
-                          movimento/combos básicos (alimentará Etapa 4).
+                          Implemente <em>InitializeAttributes</em>: para cada
+                          atributo (HP, MP, AG, SD), busque o valor base nas Data
+                          Tables, aplique bônus de itens e invoque o método
+                          <em>SyncAttributeWithServer</em> para comunicar o valor
+                          ao <code>BP_RemakeServerService</code>.
                         </li>
                         <li>
-                          Criar interfaces <code>BPI_InventoryCarrier</code> e
-                          dispatchers de eventos (Downed/Revived) expostos ao HUD.
+                          No evento <em>BeginPlay</em>, chame
+                          <em>GrantDefaultAbilities</em> e garanta que os slots
+                          <code>GA_BasicAttack</code>, <code>GA_Dash</code> e
+                          <code>GA_ClassSkill</code> sejam atribuídos com base no
+                          enum <code>ECharacterClass</code> recebido, espelhando
+                          o switch de <code>GetCharacterClass</code>.
+                        </li>
+                        <li>
+                          Crie a interface <code>BPI_InventoryCarrier</code> com
+                          as funções <em>GetInventoryGrid</em> e
+                          <em>OnInventorySlotUpdated</em>. Emita os dispatchers
+                          <em>OnDowned</em> e <em>OnRevived</em> para que o HUD
+                          reaja exatamente como <code>NewUIMainFrameWindow</code>
+                          escutava os eventos de morte/ressurreição no cliente.
                         </li>
                       </ol>
                     </div>
@@ -519,24 +568,45 @@
                     data-bs-parent="#receitasAccordion"
                   >
                     <div class="accordion-body">
+                      <p>
+                        <strong>Objetivo:</strong> transcrever os fluxos de
+                        entrada e câmera do cliente (clique, teclado, atalhos de
+                        UI) para o sistema de Enhanced Input, mantendo todos os
+                        atalhos que ativavam HUDs, ataques e chats.
+                      </p>
                       <ol>
                         <li>
-                          Criar <code>IMC_RemakeGameplay</code> usando Enhanced
-                          Input; mapear ações de movimento, alvo, inventário e
-                          chat.
+                          Crie <code>IMC_RemakeGameplay</code> e, dentro dele,
+                          adicione <em>InputActions</em> separados para movimento
+                          WASD, clique de movimentação, clique de seleção,
+                          alternância de inventário (<code>V</code>), skill bar
+                          (<code>QWER</code>) e chat (<code>Enter</code>),
+                          espelhando os binds de <code>g_KeyTable</code> do
+                          cliente.
                         </li>
                         <li>
-                          No <code>BP_RemakePlayerController</code>, usar
-                          <em>Add Mapping Context</em> e encaminhar eventos para o
-                          Ability System (Input Tagging).
+                          No <code>BP_RemakePlayerController</code>, execute
+                          <em>AddMappingContext</em> no evento <em>BeginPlay</em>
+                          e encaminhe cada InputAction para o Ability System via
+                          <em>InputTag</em> (ex.: <code>InputTag.Attack.Basic</code>),
+                          garantindo que o mesmo evento dispare animação no
+                          cliente e RPC no servidor.
                         </li>
                         <li>
-                          Criar câmera orbital com <code>Camera Component</code>
-                          adicional para inventário 3D, alternando via timeline.
+                          Modele dois componentes de câmera: <em>CamGameplay</em>
+                          (seguindo o personagem) e <em>CamInventory</em>
+                          (montada em um <code>SceneCapture2D</code>). Crie a
+                          timeline <em>ToggleInventoryCamera</em> para suavizar a
+                          transição, replicando o efeito de zoom/rotação do
+                          inventário 3D original.
                         </li>
                         <li>
-                          Salvar presets em DataAssets para facilitar ajustes no
-                          futuro (ex.: sensibilidade por classe).
+                          Adicione DataAssets
+                          <code>DA_InputPreset_[Classe]</code> contendo sensibilidade,
+                          velocidade de câmera e teclas alternativas. O
+                          <code>BP_ConfigSubsystem</code> deve carregar o preset
+                          correspondente quando a classe do personagem mudar,
+                          garantindo paridade com o menu de opções legado.
                         </li>
                       </ol>
                     </div>
@@ -559,22 +629,42 @@
                     data-bs-parent="#receitasAccordion"
                   >
                     <div class="accordion-body">
+                      <p>
+                        <strong>Objetivo:</strong> entregar o mesmo “feel” de
+                        deslocamento visto em <code>CCharMove</code> e nas rotinas
+                        do servidor que validam movimento + caminho.
+                      </p>
                       <ol>
                         <li>
-                          Criar BlendSpaces/State Machines refletindo animações de
-                          corrida, parada, dash e voo (se aplicável).
+                          Construa um <code>ABP_RemakeLocomotion</code> contendo
+                          BlendSpaces de idle/corrida e um state machine com
+                          transições condicionadas pelos valores de velocidade e
+                          flags de voo/mount. Copie as curvas de aceleração do
+                          arquivo <code>CharacterDefine.h</code> para curvas do
+                          Unreal.
                         </li>
                         <li>
-                          Configurar <em>CharacterMovementComponent</em> para
-                          suportar <em>NavMovement</em> + <em>RootMotion</em>.
+                          No <em>CharacterMovementComponent</em>, habilite
+                          <em>Use Controller Desired Rotation</em>, defina a
+                          fricção/velocidade máxima iguais aos valores de
+                          <code>MoveSpeed</code> e implemente a função
+                          <em>ServerValidateMove</em> para impedir teleporte fora
+                          da malha de navegação.
                         </li>
                         <li>
-                          Implementar <em>DashAbility</em> usando GAS e travas de
-                          cooldown, sincronizando com o servidor.
+                          Recrie a <em>DashAbility</em> lendo os tempos de
+                          cooldown do arquivo <code>SkillDelay.cpp</code>. A
+                          habilidade deve executar um <em>RootMotionSource</em>
+                          com deslocamento e enviar um RPC confirmando a direção
+                          para o servidor.
                         </li>
                         <li>
-                          Integrar com <code>NavigationSystemV1</code> para bots e
-                          seguidores, replicando as rotinas do servidor original.
+                          Para bots/seguidores, crie o
+                          <code>BP_RemakePathTask</code> que usa
+                          <code>NavigationSystemV1</code> e atualiza o caminho a
+                          cada 300 ms, tal como o loop
+                          <code>gObjMonsterMove</code> fazia. Aplique a mesma
+                          lógica para escoltas/eventos do servidor.
                         </li>
                       </ol>
                     </div>
@@ -597,23 +687,41 @@
                     data-bs-parent="#receitasAccordion"
                   >
                     <div class="accordion-body">
+                      <p>
+                        <strong>Objetivo:</strong> reproduzir a pilha de validação
+                        e execução de <code>Attack.cpp</code>, mantendo o mesmo
+                        fluxo: validar cenário → calcular dano → enviar feedbacks.
+                      </p>
                       <ol>
                         <li>
-                          Modelar <em>GameplayEffects</em> para dano, buff e
-                          crowd-control seguindo matriz de Attack.cpp.
+                          Crie a função <em>ServerRequestAttack</em> em
+                          <code>BP_RemakePlayerController</code>, copiando as
+                          verificações de mapa/evento/PK de
+                          <code>gObjCheckAttackArea</code>. Use interfaces
+                          <code>BPI_EventAuthority</code> em cada evento carregado
+                          para aprovar ou negar o ataque antes de prosseguir.
                         </li>
                         <li>
-                          Criar <code>GA_BasicAttack</code>,
-                          <code>GA_SkillSlotX</code> com custos definidos em
-                          DataTables.
+                          Modele <em>GameplayEffects</em> distintos para dano
+                          físico, dano mágico, buff defensivo e crowd-control.
+                          Cada efeito deve ler fórmulas de um
+                          <code>CurveTable_AttackMatrix</code> preenchido com os
+                          valores originais (MinDamage, MagicDamage, Resist).
                         </li>
                         <li>
-                          Implementar checagens de mapa/evento antes de aplicar
-                          dano (interfaces <code>BPI_EventAuthority</code>).
+                          Para cada skill, crie uma <code>GA_SkillSlotX</code>
+                          que executa: (a) validação de custo (Mana/AG), (b)
+                          cálculo de dano através da função
+                          <em>ComputeServerDamage</em>, (c) aplicação do
+                          GameplayEffect correto, (d) emissão de multicast para
+                          os efeitos Niagara e sons equivalentes aos arquivos
+                          <code>EffectInfo.txt</code> e <code>wzAudio</code>.
                         </li>
                         <li>
-                          Conectar efeitos visuais (Niagara) e áudio referenciando
-                          `Source Main 5.2`.
+                          Implemente um <code>BP_DamageFeedService</code> que
+                          recebe todos os resultados e atualiza HUD/logs,
+                          substituindo <code>gDamageLog</code> e o painel de
+                          combate do cliente.
                         </li>
                       </ol>
                     </div>
@@ -636,22 +744,50 @@
                     data-bs-parent="#receitasAccordion"
                   >
                     <div class="accordion-body">
+                      <p>
+                        <strong>Objetivo:</strong> clonar o comportamento dos
+                        arquivos <code>NewUIMyInventory.cpp</code>,
+                        <code>ItemAddOption.cpp</code> e <code>ItemSocket.cpp</code>,
+                        garantindo grid, arraste, sockets e opções excelentes.
+                      </p>
                       <ol>
                         <li>
-                          Criar DataAssets <code>DA_ItemDefinition</code> com stats,
-                          sockets e efeitos excelentes.
+                          Gere DataAssets <code>DA_ItemDefinition</code> a partir
+                          das tabelas originais. Inclua campos para tamanho do
+                          grid (Width/Height), tipo (Armor/Jewel), sockets, flags
+                          excelentes e <em>RequiredClass</em>. Crie também o
+                          <code>DA_ItemSetDefinition</code> para bônus de set.
                         </li>
                         <li>
-                          Implementar <code>BP_InventoryComponent</code> (Array de
-                          <em>ItemInstance</em>) com replicação.
+                          Implemente o <code>BP_InventoryComponent</code> com um
+                          <em>FastArraySerializer</em> de
+                          <code>FItemInstance</code>. Cada instância deve conter
+                          durabilidade, opções excelentes, nível, sockets e
+                          referência ao item base; replique as funções
+                          <code>gObjInventoryInsertItem</code> e
+                          <code>gObjInventoryMoveItem</code> como métodos
+                          <em>Server</em> + <em>Multicast</em>.
                         </li>
                         <li>
-                          Construir widget 3D inspirado em
-                          <code>inventory_hud_3d_rendering.cpp</code> para preview.
+                          Construa o widget <code>WBP_RemakeInventory</code> com a
+                          mesma grade 8x12. Suporte drag & drop, divisão de stack
+                          e tooltip detalhado (usando <code>WBP_ItemTooltip</code>)
+                          que leia os efeitos exatamente como o cliente original
+                          renderizava via <code>NewUICommonMessageBox</code>.
                         </li>
                         <li>
-                          Adicionar crafting/refinação usando <em>Data Table</em>
-                          de receitas e integração com GAS para buffs temporários.
+                          Adicione o preview 3D reutilizando o
+                          <code>SceneCaptureComponent2D</code> e a lógica descrita
+                          em <code>inventory_hud_3d_rendering.cpp</code>: para
+                          cada item equipado, gere o mesh correspondente e aplique
+                          o material original antes de renderizar o painel.
+                        </li>
+                        <li>
+                          Crie o <code>BP_CraftingSubsystem</code> que lê uma
+                          <code>DT_CraftingRecipes</code> (Blood Castle, Chaos
+                          Machine etc.). Ele deve verificar requisitos, remover os
+                          itens corretos do inventário e spawnar resultados com as
+                          mesmas chances definidas em <code>ItemUpgrade.cpp</code>.
                         </li>
                       </ol>
                     </div>
@@ -674,22 +810,42 @@
                     data-bs-parent="#receitasAccordion"
                   >
                     <div class="accordion-body">
+                      <p>
+                        <strong>Objetivo:</strong> reproduzir as rotas de quests
+                        de <code>QuestInfo.dat</code> e os serviços econômicos de
+                        <code>NpcTalk.cpp</code> / <code>Shop.cpp</code>.
+                      </p>
                       <ol>
                         <li>
-                          Definir <code>DT_QuestChains</code> com objetivos e
-                          recompensas escaláveis.
+                          Converta as informações dos arquivos originais em uma
+                          <code>DT_QuestChains</code> onde cada linha contenha:
+                          <em>QuestID</em>, pré-requisitos, objetivos (Kill/Item),
+                          NPC responsável e recompensas. Inclua colunas para
+                          experiência, zen, pontos de atributo e itens opcionais.
                         </li>
                         <li>
-                          Criar componente <code>BP_QuestLogComponent</code>
-                          replicado conectado ao PlayerState.
+                          Crie o <code>BP_QuestLogComponent</code> ligado ao
+                          <code>BP_RemakePlayerState</code>. Ele precisa ter as
+                          funções <em>AcceptQuest</em>, <em>CompleteQuest</em> e
+                          <em>AbandonQuest</em> com validações em RPC (o servidor
+                          consulta a <code>DT_QuestChains</code> antes de aprovar
+                          qualquer alteração, assim como <code>CGQuest</code>).
                         </li>
                         <li>
-                          Implementar serviços de economia (lojas, off-store) com
-                          <em>Server RPCs</em> validando moedas.
+                          Implemente o <code>BP_EconomyService</code> com métodos
+                          <em>Server</em> para abrir lojas, comprar e vender. Use
+                          structs <code>FShopItem</code> com preço em Zen, Jewel e
+                          Pontos de Evento, refletindo <code>ShopData.txt</code> e
+                          o sistema de <em>off-store</em>. Inclua verificações de
+                          estoque e limites diários.
                         </li>
                         <li>
-                          Integrar drop tables aos spawners (Etapa 7) para manter
-                          paridade com o MuServer.
+                          Atualize o <code>BP_LootTable</code> consumido pelos
+                          spawners (Etapa 7) para aplicar as chances definidas em
+                          <code>ItemDropRate.txt</code>. Cada entrada deve apontar
+                          para um conjunto de <code>DA_ItemDefinition</code> e
+                          percentuais, garantindo que o loot do servidor UE5 seja
+                          idêntico ao do MuServer.
                         </li>
                       </ol>
                     </div>
@@ -712,18 +868,33 @@
                     data-bs-parent="#receitasAccordion"
                   >
                     <div class="accordion-body">
+                      <p>
+                        <strong>Objetivo:</strong> mover a lógica de spawns e
+                        eventos de <code>GameServer\/Monster.cpp</code>,
+                        <code>BloodCastle.cpp</code> e similares para sistemas UE5.
+                      </p>
                       <ol>
                         <li>
-                          Criar <code>BP_SpawnManager</code> que lê DataTables de
-                          monstros por mapa e instancia controladores dedicados.
+                          Crie o <code>BP_SpawnManager</code> (Authority-only) que
+                          percorre a <code>DT_MapSpawns</code>. Para cada entrada,
+                          instancie um <code>BP_SpawnController</code> que mantém
+                          limite de monstros ativos, respawn timer e drop table,
+                          espelhando as structs <code>MAPMONSTERSET</code>.
                         </li>
                         <li>
-                          Implementar eventos cronometros (Blood Castle, Devil
-                          Square) com <code>BP_EventScheduler</code> replicado.
+                          Desenvolva o <code>BP_EventScheduler</code> e registre
+                          eventos como Blood Castle, Devil Square e Chaos Castle.
+                          Cada evento deve ter estados (Preparação, Execução,
+                          Resultado) iguais aos enumerados em
+                          <code>BloodCastle.cpp</code>. Use <em>Multicast</em> para
+                          avisar o HUD.
                         </li>
                         <li>
-                          Configurar bosses com <em>AI Controllers</em> e hooks
-                          para Live Ops (Etapa 10).
+                          Para bosses, crie <em>AIControllers</em> específicos que
+                          carregam Behavior Trees com fases (HP thresholds) e
+                          habilidades definidas em <code>DT_BossPatterns</code>.
+                          Garanta integração com o <code>BP_EventScheduler</code>
+                          para disparar cutscenes, portas e recompensas.
                         </li>
                       </ol>
                     </div>
@@ -746,23 +917,43 @@
                     data-bs-parent="#receitasAccordion"
                   >
                     <div class="accordion-body">
+                      <p>
+                        <strong>Objetivo:</strong> replicar todo o HUD construído
+                        em <code>CNewUIMainFrameWindow</code>, incluindo barra
+                        superior, chat, minimapa, botões de eventos e painel 3D.
+                      </p>
                       <ol>
                         <li>
-                          Construir <code>BP_MainFrameHUD</code> inspirado em
-                          <code>CNewUIMainFrameWindow</code> com registrador de
-                          widgets.
+                          Crie o <code>BP_MainFrameHUD</code> com regiões
+                          nomeadas (TopBar, SkillBar, StatusPanels, ChatDock). Em
+                          cada região, instancie os widgets equivalentes
+                          (<code>WBP_StatusBar</code>, <code>WBP_SkillSlots</code>,
+                          etc.) e conecte-os ao <code>BP_UIManagerSubsystem</code>
+                          para poder registrá-los dinamicamente como o UI Manager
+                          original fazia.
                         </li>
                         <li>
-                          Criar <code>BP_UIManagerSubsystem</code> para spawnar
-                          widgets e sincronizar estados 2D/3D.
+                          Implemente o <code>BP_UIManagerSubsystem</code> com as
+                          funções <em>PushWidget</em>, <em>PopWidget</em> e
+                          <em>ToggleWidget</em>. Ele deve manter um mapa de
+                          <code>WidgetID → Instance</code>, acionando animações e
+                          garantindo que apenas um painel exclusivo esteja aberto
+                          por vez (inventário/character), como no cliente legado.
                         </li>
                         <li>
-                          Implementar chat, inventário e tooltips com DataBinding
-                          ao PlayerState/Inventory.
+                          Recrie o chat e minimapa: crie o
+                          <code>WBP_RemakeChat</code> com canais (Normal, Guild,
+                          Whisper) e use o <code>BP_RemakeServerService</code> para
+                          enviar/receber mensagens. Para o minimapa, adicione um
+                          <code>SceneCapture2D</code> posicionado acima do mundo e
+                          overlays para NPCs/eventos.
                         </li>
                         <li>
-                          Incluir viewport 3D dedicado para preview de itens e
-                          personagens.
+                          Conecte cada widget ao <code>BP_RemakePlayerState</code>
+                          via bindings (HP, Mana, Buffs) e use os dispatchers
+                          <em>OnInventorySlotUpdated</em>, <em>OnQuestUpdated</em>
+                          para atualizar tooltips, garantindo que qualquer
+                          mudança replicada apareça instantaneamente.
                         </li>
                       </ol>
                     </div>
@@ -785,22 +976,39 @@
                     data-bs-parent="#receitasAccordion"
                   >
                     <div class="accordion-body">
+                      <p>
+                        <strong>Objetivo:</strong> portar o comportamento do
+                        JoinServer/DataServer para os serviços UE5 e garantir que
+                        dados críticos sejam replicados e persistidos.
+                      </p>
                       <ol>
                         <li>
-                          Configurar <code>BP_SessionManager</code> para lidar com
-                          autenticação (JoinServer) e persistência (DataServer).
+                          Configure o <code>BP_SessionManager</code> como
+                          <em>GameInstanceSubsystem</em> com estados
+                          <em>LoginState</em> (Idle, Authenticating, Connected).
+                          Implemente funções <em>RequestLogin</em>,
+                          <em>HandleJoinResponse</em> e <em>HandleDisconnect</em>,
+                          imitando as mensagens trocadas com o JoinServer.
                         </li>
                         <li>
-                          Implementar replicação seletiva de inventário/quests via
-                          <em>Fast Array Serializer</em>.
+                          Crie o <code>BP_PersistenceService</code> com métodos
+                          <em>Server</em> para salvar PlayerState, inventário e
+                          quests. Ele deve serializar as structs em JSON ou gRPC e
+                          enviá-las ao backend (substituindo o DataServer).
                         </li>
                         <li>
-                          Gravar progresso usando <code>SaveGame</code> + backend
-                          REST/gRPC conforme necessidade.
+                          Use <em>FastArraySerializer</em> para
+                          <code>FItemInstanceArray</code> e
+                          <code>FQuestStateArray</code>, garantindo replicação
+                          seletiva apenas quando houver mudanças. Isso espelha os
+                          pacotes compactos enviados pelo protocolo original.
                         </li>
                         <li>
-                          Executar testes dedicados com múltiplos clientes para
-                          validar latência e rollback de ações.
+                          Implemente backups usando <code>SaveGame</code> locais
+                          para desenvolvimento e configure testes com múltiplos
+                          clientes lançando o editor em <em>Listen Server</em> +
+                          <em>Clients</em> via <code>RunUAT</code> para medir
+                          latência, rollback e tolerância a perda de pacotes.
                         </li>
                       </ol>
                     </div>
@@ -823,22 +1031,41 @@
                     data-bs-parent="#receitasAccordion"
                   >
                     <div class="accordion-body">
+                      <p>
+                        <strong>Objetivo:</strong> oferecer o mesmo controle ao
+                        vivo que os GMs tinham usando ferramentas externas,
+                        agora dentro do editor UE5.
+                      </p>
                       <ol>
                         <li>
-                          Integrar <em>Analytics Blueprint Library</em> para
-                          métricas de gameplay.
+                          Integre a <em>Analytics Blueprint Library</em> ou EOS
+                          Stats para registrar eventos de gameplay. Crie o
+                          <code>BP_AnalyticsService</code> com funções
+                          <em>TrackEvent</em> (Kill, ItemDrop, QuestComplete) e
+                          chame-o a partir dos serviços criados nas receitas
+                          anteriores.
                         </li>
                         <li>
-                          Criar <code>Editor Utility Widgets</code> para editar
-                          DataTables e disparar eventos ao vivo.
+                          Desenvolva <code>Editor Utility Widgets</code> para
+                          editar DataTables (itens, monstros, eventos) e para
+                          disparar eventos (ex.: iniciar Castle Siege). Inclua
+                          botões que chamam diretamente funções do
+                          <code>BP_EventScheduler</code> no PIE/Standalone.
                         </li>
                         <li>
-                          Configurar <code>BP_LiveEventManager</code> consumindo
-                          <code>DA_LiveEvent</code> e broadcast para o mundo.
+                          Configure o <code>BP_LiveEventManager</code> consumindo
+                          <code>DA_LiveEvent</code> com campos de duração,
+                          recompensa e scripts customizados. Ele deve enviar
+                          notificações para o HUD e atualizar o
+                          <code>BP_EconomyService</code> quando itens de evento
+                          forem adicionados às lojas.
                         </li>
                         <li>
-                          Automatizar balanceamento via <em>Curve Tables</em> com
-                          recarga em runtime.
+                          Automatize balanceamento carregando <em>Curve Tables</em>
+                          em runtime através do <code>BP_ConfigSubsystem</code>.
+                          Ao publicar uma nova curva, o sistema deve emitir o
+                          evento <em>OnBalanceUpdated</em>, permitindo ajustes sem
+                          recompilar o projeto.
                         </li>
                       </ol>
                     </div>
@@ -861,22 +1088,39 @@
                     data-bs-parent="#receitasAccordion"
                   >
                     <div class="accordion-body">
+                      <p>
+                        <strong>Objetivo:</strong> garantir que o remake possa ser
+                        testado e publicado com a mesma confiabilidade exigida no
+                        MuServer.
+                      </p>
                       <ol>
                         <li>
-                          Criar testes funcionais (Functional Testing Framework)
-                          cobrindo inventário, combate, quests e eventos.
+                          Use o Functional Testing Framework para criar testes
+                          automatizados: <code>FT_RemakeInventory</code>
+                          (inserção/movimentação), <code>FT_RemakeCombat</code>
+                          (ataques PvE/PvP), <code>FT_RemakeQuest</code> e
+                          <code>FT_RemakeEvents</code>. Cada teste deve spawnar
+                          personagens e executar as mesmas sequências descritas
+                          nas receitas correspondentes.
                         </li>
                         <li>
-                          Montar <code>Automation Tool</code> + scripts de Editor
-                          Utility para executar suítes completas.
+                          Monte scripts do <code>Automation Tool</code> que rodem
+                          os testes via <code>RunUAT BuildCookRun</code> com a flag
+                          <code>-RunAutomationTests</code>. Adicione Editor Utility
+                          Widgets para disparar a suíte completa com um clique.
                         </li>
                         <li>
-                          Configurar pipelines CI/CD exportando comandos do
-                          <em>UnrealBuildTool</em> para cada plataforma alvo.
+                          Configure pipelines CI/CD (GitHub Actions, Jenkins ou
+                          Azure DevOps) executando <code>UnrealBuildTool</code>
+                          para Win64 + Linux Server. Inclua etapas para empacotar
+                          o cliente, o servidor dedicado e enviar builds para o
+                          SteamCMD/Epic.
                         </li>
                         <li>
-                          Documentar perfis do Project Launcher e planos de
-                          rollback pós-lançamento.
+                          Documente perfis do Project Launcher para desenvolvimento
+                          e produção, listando argumentos de linha de comando,
+                          chaves de depuração e planos de rollback (snapshot do
+                          backend + downgrade do build).
                         </li>
                       </ol>
                     </div>
