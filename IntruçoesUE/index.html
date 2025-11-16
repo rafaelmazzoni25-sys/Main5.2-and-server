@@ -1,0 +1,898 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Instruções Remake UE5 - Source Main 5.2 + MuServer Update 15</title>
+    <link
+      href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css"
+      rel="stylesheet"
+      integrity="sha384-QWTKZyjpPEjISv5WaRU9OFeRpok6YctnYmDr5pNlyT2bRjXh0JMhjY6hW+ALEwIH"
+      crossorigin="anonymous"
+    />
+    <style>
+      body {
+        background: #0a0f1a;
+        color: #f5f7fb;
+      }
+      .bg-panel {
+        background: rgba(255, 255, 255, 0.05);
+        border-radius: 1rem;
+        border: 1px solid rgba(255, 255, 255, 0.08);
+      }
+      .section-title {
+        letter-spacing: 0.08em;
+        font-size: 0.9rem;
+        text-transform: uppercase;
+        color: #7bc6ff;
+      }
+      .hero {
+        background: linear-gradient(135deg, #1f2a44, #0a0f1a 65%);
+        border-radius: 1.5rem;
+        padding: 2.5rem;
+        margin-bottom: 2rem;
+        box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+      }
+      .timeline-step {
+        border-left: 4px solid #00d2ff;
+        padding-left: 1rem;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container py-5">
+      <div class="hero text-white">
+        <p class="section-title mb-2">Resumo da Missão</p>
+        <h1 class="display-6 fw-bold">
+          Integração Total entre Source Main 5.2 e MuServer Update 15 na Unreal
+          Engine 5
+        </h1>
+        <p class="lead mt-3">
+          Leia integralmente os dois projetos, entenda como cliente e servidor se
+          relacionam e identifique a primeira etapa essencial para iniciar o
+          remake completo dentro da UE5, reconstruindo ambos os lados sem perder
+          lógica, comunicação ou funcionalidades originais.
+        </p>
+      </div>
+
+      <div class="row g-4">
+        <div class="col-lg-6">
+          <div class="bg-panel p-4 h-100">
+            <p class="section-title">Cliente - Source Main 5.2</p>
+            <h2 class="h4">O que observar durante a leitura</h2>
+            <ul class="mt-3">
+              <li>
+                <strong>Winmain.cpp</strong>: ciclo de vida, inicialização de
+                gerenciadores globais, áudio e configuração de janela.
+              </li>
+              <li>
+                <strong>CNewUIMainFrameWindow &amp; UI Manager</strong>:
+                estrutura dos HUDs, registro de widgets 2D/3D, tooltips e
+                dependências gráficas.
+              </li>
+              <li>
+                <strong>CCharacterManager</strong>: enums de classes, contrato de
+                dados compartilhado com o servidor e traduções de estados.
+              </li>
+              <li>
+                <strong>Arquivos auxiliares (inventory, attack, efeitos)</strong>
+                para entender o impacto de Data Tables e do Gameplay Ability
+                System no remake.
+              </li>
+            </ul>
+          </div>
+        </div>
+        <div class="col-lg-6">
+          <div class="bg-panel p-4 h-100">
+            <p class="section-title">Servidor - MuServer Update 15</p>
+            <h2 class="h4">Pontos críticos na análise</h2>
+            <ul class="mt-3">
+              <li>
+                <strong>GameMain.cpp</strong>: bootstrap, mutex, inicialização de
+                tabelas e conexões com JoinServer e DataServer.
+              </li>
+              <li>
+                <strong>User.cpp</strong>: estados globais, modos especiais,
+                bandeiras de eventos e loops de orquestração.
+              </li>
+              <li>
+                <strong>Attack.cpp</strong>: matriz de validações PvP/PvE e
+                dependências de mapas, eventos e flags replicáveis.
+              </li>
+              <li>
+                <strong>Documentação auxiliar</strong>: especificações de eventos
+                (Blood Castle, Castle Siege) e sistemas (off-attack, store).
+              </li>
+            </ul>
+          </div>
+        </div>
+      </div>
+
+      <section class="mt-5">
+        <div class="bg-panel p-4">
+          <p class="section-title">Objetivo do Remake</p>
+          <h2 class="h4">Reconstruir cliente e servidor dentro da Unreal Engine 5</h2>
+          <p class="mb-0">
+            Toda a lógica, comunicação e funcionalidade devem ser adaptadas ao
+            ecossistema da UE5 (GameInstance, Subsystems, Data Assets, Gameplay
+            Ability System, Online Subsystem), mantendo o contrato original entre
+            o executável (Source Main 5.2) e o servidor (MuServer Update 15).
+          </p>
+        </div>
+      </section>
+
+      <section class="mt-5">
+        <div class="bg-panel p-4">
+          <p class="section-title">Ponta do Fio — Etapa Inicial Obrigatória</p>
+          <h2 class="h4">Etapa 0 - Fundamentos do Projeto e Subsystems</h2>
+          <div class="timeline-step mt-4">
+            <p>
+              Baseado em <strong>Winmain.cpp</strong> (cliente) e
+              <strong>GameMain.cpp</strong> (servidor), reproduza o bootstrap dos
+              dois lados dentro da UE5.
+            </p>
+            <ol class="mt-3">
+              <li>
+                <strong>GameInstance + Subsystems</strong>:
+                <ul>
+                  <li>
+                    Crie o <code>BP_RemakeGameInstance</code> e Subsystems para
+                    UI, Assets, Rede e Áudio.
+                  </li>
+                  <li>
+                    Implemente a carga de configurações e Data Tables (itens,
+                    monstros, skills, classes) logo ao iniciar a aplicação.
+                  </li>
+                </ul>
+              </li>
+              <li>
+                <strong>Serviços dedicados do servidor</strong>:
+                <ul>
+                  <li>
+                    Configure serviços que emulem JoinServer e DataServer,
+                    garantindo separação entre autenticação e persistência.
+                  </li>
+                  <li>
+                    Estruture estados globais e loops de eventos para serem
+                    alimentados depois pelas funcionalidades específicas.
+                  </li>
+                </ul>
+              </li>
+              <li>
+                <strong>Contrato de dados unificado</strong>:
+                <ul>
+                  <li>
+                    Defina enums, Data Tables e Primary Assets compartilhados
+                    para classes, inventários, skills e eventos, garantindo
+                    paridade com os dois projetos originais.
+                  </li>
+                  <li>
+                    Valide replicação e serialização em ambos os lados antes de
+                    avançar para HUD, combate ou eventos.
+                  </li>
+                </ul>
+              </li>
+            </ol>
+            <p class="mt-3 mb-0">
+              Somente após concluir esta fundação é seguro seguir para as Etapas
+              subsequentes (HUD, inventário, combate, eventos, economias). Essa é
+              a “ponta do fio” que libera uma sequência cronológica coerente para
+              o remake completo na UE5.
+            </p>
+          </div>
+        </div>
+      </section>
+
+      <section class="mt-5">
+        <div class="bg-panel p-4">
+          <p class="section-title">Mapa Completo do Caminho</p>
+          <h2 class="h4">Roadmap Cronológico do Remake (Etapas 0 a 11)</h2>
+          <p>
+            Utilize o painel abaixo para visualizar todas as entregas previstas e
+            como cada etapa desbloqueia a seguinte. Essa visão consolida o
+            "Blueprint Fidelity Crosswalk" em um formato navegável para o time.
+          </p>
+          <div class="row row-cols-1 row-cols-md-2 row-cols-xl-3 g-4 mt-2">
+            <div class="col">
+              <div class="p-3 bg-dark rounded h-100">
+                <h3 class="h6 text-info">Etapa 0 — Fundamentos</h3>
+                <p class="small mb-1">GameInstance, Subsystems e Data Tables.</p>
+                <ul class="small mb-0">
+                  <li>Carregar assets críticos logo no boot.</li>
+                  <li>Serviços Join/Data virtuais.</li>
+                  <li>Contrato de dados compartilhado.</li>
+                </ul>
+              </div>
+            </div>
+            <div class="col">
+              <div class="p-3 bg-dark rounded h-100">
+                <h3 class="h6 text-info">Etapa 1 — Personagem</h3>
+                <p class="small mb-1">Blueprint do jogador e Ability System.</p>
+                <ul class="small mb-0">
+                  <li>BP_RemakeCharacter com atributos.</li>
+                  <li>PlayerState replicado.</li>
+                  <li>Dispatchers para HUD/eventos.</li>
+                </ul>
+              </div>
+            </div>
+            <div class="col">
+              <div class="p-3 bg-dark rounded h-100">
+                <h3 class="h6 text-info">Etapa 2 — Input &amp; Câmera</h3>
+                <p class="small mb-1">Enhanced Input + rigs orbitais.</p>
+                <ul class="small mb-0">
+                  <li>Mapas para teclado/gamepad.</li>
+                  <li>Alternância câmera gameplay/inventário.</li>
+                  <li>Bindings replicáveis para GAS.</li>
+                </ul>
+              </div>
+            </div>
+            <div class="col">
+              <div class="p-3 bg-dark rounded h-100">
+                <h3 class="h6 text-info">Etapa 3 — Movimentação</h3>
+                <p class="small mb-1">Locomoção avançada e navegação.</p>
+                <ul class="small mb-0">
+                  <li>BlendSpaces com RootMotion.</li>
+                  <li>Dash, evade e pathfinding.</li>
+                  <li>Sync com estados do servidor.</li>
+                </ul>
+              </div>
+            </div>
+            <div class="col">
+              <div class="p-3 bg-dark rounded h-100">
+                <h3 class="h6 text-info">Etapa 4 — Combate</h3>
+                <p class="small mb-1">Abilities, cálculos e efeitos.</p>
+                <ul class="small mb-0">
+                  <li>Árvore de habilidades PvE/PvP.</li>
+                  <li>Checks de mapa/evento (Attack.cpp).</li>
+                  <li>Feedback audiovisual excelente.</li>
+                </ul>
+              </div>
+            </div>
+            <div class="col">
+              <div class="p-3 bg-dark rounded h-100">
+                <h3 class="h6 text-info">Etapa 5 — Itens e Inventário</h3>
+                <p class="small mb-1">Preview 3D e crafting.</p>
+                <ul class="small mb-0">
+                  <li>Instâncias de item replicadas.</li>
+                  <li>HUD 3D do inventário.</li>
+                  <li>Receitas de crafting e upgrades.</li>
+                </ul>
+              </div>
+            </div>
+            <div class="col">
+              <div class="p-3 bg-dark rounded h-100">
+                <h3 class="h6 text-info">Etapa 6 — Quests &amp; Economia</h3>
+                <p class="small mb-1">Missões, XP e drops.</p>
+                <ul class="small mb-0">
+                  <li>Sistema de objetivos configurável.</li>
+                  <li>Tabelas de drop vinculadas.</li>
+                  <li>Economia ligada a lojas/off-store.</li>
+                </ul>
+              </div>
+            </div>
+            <div class="col">
+              <div class="p-3 bg-dark rounded h-100">
+                <h3 class="h6 text-info">Etapa 7 — Mundo &amp; Spawns</h3>
+                <p class="small mb-1">Eventos dinâmicos e bosses.</p>
+                <ul class="small mb-0">
+                  <li>Geradores de monstros por mapa.</li>
+                  <li>Instâncias para Blood Castle etc.</li>
+                  <li>Hooks para Live Events.</li>
+                </ul>
+              </div>
+            </div>
+            <div class="col">
+              <div class="p-3 bg-dark rounded h-100">
+                <h3 class="h6 text-info">Etapa 8 — UI &amp; HUD</h3>
+                <p class="small mb-1">Widgets 2D/3D e integração GAS.</p>
+                <ul class="small mb-0">
+                  <li>MainFrame inspirado no UI Manager.</li>
+                  <li>Inventário, chat e tooltips.</li>
+                  <li>Viewport dedicado para preview.</li>
+                </ul>
+              </div>
+            </div>
+            <div class="col">
+              <div class="p-3 bg-dark rounded h-100">
+                <h3 class="h6 text-info">Etapa 9 — Rede &amp; Persistência</h3>
+                <p class="small mb-1">Back-end autoritativo.</p>
+                <ul class="small mb-0">
+                  <li>Replicação avançada (GAS + itens).</li>
+                  <li>Serviços Join/Data dentro da UE5.</li>
+                  <li>SaveGame + backend dedicado.</li>
+                </ul>
+              </div>
+            </div>
+            <div class="col">
+              <div class="p-3 bg-dark rounded h-100">
+                <h3 class="h6 text-info">Etapa 10 — Live Ops</h3>
+                <p class="small mb-1">Ferramentas e telemetria.</p>
+                <ul class="small mb-0">
+                  <li>Analytics Blueprint Library.</li>
+                  <li>Editor Utilities para DataTables.</li>
+                  <li>Gerente de eventos ao vivo.</li>
+                </ul>
+              </div>
+            </div>
+            <div class="col">
+              <div class="p-3 bg-dark rounded h-100">
+                <h3 class="h6 text-info">Etapa 11 — QA &amp; Deploy</h3>
+                <p class="small mb-1">Automação e builds.</p>
+                <ul class="small mb-0">
+                  <li>Testes funcionais em Blueprint.</li>
+                  <li>Automation Tool + CI.</li>
+                  <li>Perfis de empacotamento.</li>
+                </ul>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="mt-5">
+        <div class="bg-panel p-4">
+          <p class="section-title">Controle Operacional</p>
+          <ul class="nav nav-pills" id="opsTabs" role="tablist">
+            <li class="nav-item" role="presentation">
+              <button
+                class="nav-link active"
+                id="checklist-tab"
+                data-bs-toggle="tab"
+                data-bs-target="#tab-checklist"
+                type="button"
+                role="tab"
+              >
+                Checklist e Pré-Requisitos
+              </button>
+            </li>
+            <li class="nav-item" role="presentation">
+              <button
+                class="nav-link"
+                id="receitas-tab"
+                data-bs-toggle="tab"
+                data-bs-target="#tab-receitas"
+                type="button"
+                role="tab"
+              >
+                Receitas de Bolo (Passo a Passo)
+              </button>
+            </li>
+          </ul>
+          <div class="tab-content mt-4" id="opsTabsContent">
+            <div
+              class="tab-pane fade show active"
+              id="tab-checklist"
+              role="tabpanel"
+              aria-labelledby="checklist-tab"
+            >
+              <div class="row g-3">
+                <div class="col-md-6">
+                  <div class="p-3 bg-dark h-100 rounded">
+                    <h3 class="h6">Antes de iniciar</h3>
+                    <ul class="mb-0">
+                      <li>Ler todos os arquivos-chave do cliente e servidor.</li>
+                      <li>Mapear dependências descritas no Blueprint Crosswalk.</li>
+                      <li>Alinhar requisitos de comunicação (Sockets/EOS).</li>
+                    </ul>
+                  </div>
+                </div>
+                <div class="col-md-6">
+                  <div class="p-3 bg-dark h-100 rounded">
+                    <h3 class="h6">Resultados da Etapa 0</h3>
+                    <ul class="mb-0">
+                      <li>GameInstance/Subsystems ativos e replicando dados.</li>
+                      <li>Serviços Join/Data virtualizados dentro da UE5.</li>
+                      <li>
+                        Data Tables e enums sincronizados entre cliente/servidor.
+                      </li>
+                    </ul>
+                  </div>
+                </div>
+                <div class="col-12">
+                  <div class="p-3 bg-dark rounded">
+                    <h3 class="h6">Critérios para avançar pelas Etapas 1-11</h3>
+                    <ol class="small mb-0">
+                      <li>
+                        Validar logs limpos a cada incremento (use BFL_RemakeLogger).
+                      </li>
+                      <li>
+                        Registrar dependências cruzadas (ex.: combate requer inventário).
+                      </li>
+                      <li>
+                        Documentar decisões no repositório `/ProjetoUnrealEngine`.
+                      </li>
+                    </ol>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div
+              class="tab-pane fade"
+              id="tab-receitas"
+              role="tabpanel"
+              aria-labelledby="receitas-tab"
+            >
+              <div class="accordion" id="receitasAccordion">
+                <div class="accordion-item bg-dark text-white">
+                  <h2 class="accordion-header" id="receita0">
+                    <button
+                      class="accordion-button collapsed"
+                      type="button"
+                      data-bs-toggle="collapse"
+                      data-bs-target="#receita0Body"
+                    >
+                      Receita 0 — Fundação (Etapa 0 + 0A)
+                    </button>
+                  </h2>
+                  <div
+                    id="receita0Body"
+                    class="accordion-collapse collapse"
+                    data-bs-parent="#receitasAccordion"
+                  >
+                    <div class="accordion-body">
+                      <p>
+                        Combine os guias <code>00_ModulesAndStartup</code> e
+                        <code>00A_BlueprintCookbook</code> para erguer o núcleo.
+                      </p>
+                      <ol>
+                        <li>
+                          Criar <code>BP_RemakeGameInstance</code> com evento
+                          <em>Init</em> carregando <code>DT_Items/Skills/Monsters</code>
+                          + assets marcados em <code>Primary Asset Labels</code>.
+                        </li>
+                        <li>
+                          Registrar <code>BP_RemakeEngineSubsystem</code> e
+                          expor função <em>GetStreamableManager</em> para todo o
+                          projeto.
+                        </li>
+                        <li>
+                          Implementar <code>BP_ConfigSubsystem</code> que lê
+                          <code>DA_RemakeSettings</code> e overrides do INI,
+                          disparando <em>OnSettingsUpdated</em>.
+                        </li>
+                        <li>
+                          Instalar biblioteca <code>BFL_RemakeLogger</code> com
+                          <em>Ensure Data Table Loaded</em> usada no boot.
+                        </li>
+                        <li>
+                          Definir <code>BP_RemakeGameMode</code> e
+                          <code>BP_RemakePlayerState</code> como padrão em Maps &amp;
+                          Modes.
+                        </li>
+                      </ol>
+                    </div>
+                  </div>
+                </div>
+                <div class="accordion-item bg-dark text-white">
+                  <h2 class="accordion-header" id="receita1">
+                    <button
+                      class="accordion-button collapsed"
+                      type="button"
+                      data-bs-toggle="collapse"
+                      data-bs-target="#receita1Body"
+                    >
+                      Receita 1 — Personagem Jogador (Etapa 1)
+                    </button>
+                  </h2>
+                  <div
+                    id="receita1Body"
+                    class="accordion-collapse collapse"
+                    data-bs-parent="#receitasAccordion"
+                  >
+                    <div class="accordion-body">
+                      <ol>
+                        <li>
+                          Criar <code>BP_RemakeCharacter</code> com malha
+                          base/AnimBP placeholder e componentes <em>Camera</em>,
+                          <em>SpringArm</em> e <em>AbilitySystem</em> replicado.
+                        </li>
+                        <li>
+                          Adicionar componente de atributos e função
+                          <em>Initialize Attributes</em> lendo DataTables.
+                        </li>
+                        <li>
+                          Configurar <em>GrantDefaultAbilities</em> para
+                          movimento/combos básicos (alimentará Etapa 4).
+                        </li>
+                        <li>
+                          Criar interfaces <code>BPI_InventoryCarrier</code> e
+                          dispatchers de eventos (Downed/Revived) expostos ao HUD.
+                        </li>
+                      </ol>
+                    </div>
+                  </div>
+                </div>
+                <div class="accordion-item bg-dark text-white">
+                  <h2 class="accordion-header" id="receita2">
+                    <button
+                      class="accordion-button collapsed"
+                      type="button"
+                      data-bs-toggle="collapse"
+                      data-bs-target="#receita2Body"
+                    >
+                      Receita 2 — Input &amp; Câmera (Etapa 2)
+                    </button>
+                  </h2>
+                  <div
+                    id="receita2Body"
+                    class="accordion-collapse collapse"
+                    data-bs-parent="#receitasAccordion"
+                  >
+                    <div class="accordion-body">
+                      <ol>
+                        <li>
+                          Criar <code>IMC_RemakeGameplay</code> usando Enhanced
+                          Input; mapear ações de movimento, alvo, inventário e
+                          chat.
+                        </li>
+                        <li>
+                          No <code>BP_RemakePlayerController</code>, usar
+                          <em>Add Mapping Context</em> e encaminhar eventos para o
+                          Ability System (Input Tagging).
+                        </li>
+                        <li>
+                          Criar câmera orbital com <code>Camera Component</code>
+                          adicional para inventário 3D, alternando via timeline.
+                        </li>
+                        <li>
+                          Salvar presets em DataAssets para facilitar ajustes no
+                          futuro (ex.: sensibilidade por classe).
+                        </li>
+                      </ol>
+                    </div>
+                  </div>
+                </div>
+                <div class="accordion-item bg-dark text-white">
+                  <h2 class="accordion-header" id="receita3">
+                    <button
+                      class="accordion-button collapsed"
+                      type="button"
+                      data-bs-toggle="collapse"
+                      data-bs-target="#receita3Body"
+                    >
+                      Receita 3 — Movimentação e Navegação (Etapa 3)
+                    </button>
+                  </h2>
+                  <div
+                    id="receita3Body"
+                    class="accordion-collapse collapse"
+                    data-bs-parent="#receitasAccordion"
+                  >
+                    <div class="accordion-body">
+                      <ol>
+                        <li>
+                          Criar BlendSpaces/State Machines refletindo animações de
+                          corrida, parada, dash e voo (se aplicável).
+                        </li>
+                        <li>
+                          Configurar <em>CharacterMovementComponent</em> para
+                          suportar <em>NavMovement</em> + <em>RootMotion</em>.
+                        </li>
+                        <li>
+                          Implementar <em>DashAbility</em> usando GAS e travas de
+                          cooldown, sincronizando com o servidor.
+                        </li>
+                        <li>
+                          Integrar com <code>NavigationSystemV1</code> para bots e
+                          seguidores, replicando as rotinas do servidor original.
+                        </li>
+                      </ol>
+                    </div>
+                  </div>
+                </div>
+                <div class="accordion-item bg-dark text-white">
+                  <h2 class="accordion-header" id="receita4">
+                    <button
+                      class="accordion-button collapsed"
+                      type="button"
+                      data-bs-toggle="collapse"
+                      data-bs-target="#receita4Body"
+                    >
+                      Receita 4 — Combate e Skills (Etapa 4)
+                    </button>
+                  </h2>
+                  <div
+                    id="receita4Body"
+                    class="accordion-collapse collapse"
+                    data-bs-parent="#receitasAccordion"
+                  >
+                    <div class="accordion-body">
+                      <ol>
+                        <li>
+                          Modelar <em>GameplayEffects</em> para dano, buff e
+                          crowd-control seguindo matriz de Attack.cpp.
+                        </li>
+                        <li>
+                          Criar <code>GA_BasicAttack</code>,
+                          <code>GA_SkillSlotX</code> com custos definidos em
+                          DataTables.
+                        </li>
+                        <li>
+                          Implementar checagens de mapa/evento antes de aplicar
+                          dano (interfaces <code>BPI_EventAuthority</code>).
+                        </li>
+                        <li>
+                          Conectar efeitos visuais (Niagara) e áudio referenciando
+                          `Source Main 5.2`.
+                        </li>
+                      </ol>
+                    </div>
+                  </div>
+                </div>
+                <div class="accordion-item bg-dark text-white">
+                  <h2 class="accordion-header" id="receita5">
+                    <button
+                      class="accordion-button collapsed"
+                      type="button"
+                      data-bs-toggle="collapse"
+                      data-bs-target="#receita5Body"
+                    >
+                      Receita 5 — Itens e Inventário (Etapa 5)
+                    </button>
+                  </h2>
+                  <div
+                    id="receita5Body"
+                    class="accordion-collapse collapse"
+                    data-bs-parent="#receitasAccordion"
+                  >
+                    <div class="accordion-body">
+                      <ol>
+                        <li>
+                          Criar DataAssets <code>DA_ItemDefinition</code> com stats,
+                          sockets e efeitos excelentes.
+                        </li>
+                        <li>
+                          Implementar <code>BP_InventoryComponent</code> (Array de
+                          <em>ItemInstance</em>) com replicação.
+                        </li>
+                        <li>
+                          Construir widget 3D inspirado em
+                          <code>inventory_hud_3d_rendering.cpp</code> para preview.
+                        </li>
+                        <li>
+                          Adicionar crafting/refinação usando <em>Data Table</em>
+                          de receitas e integração com GAS para buffs temporários.
+                        </li>
+                      </ol>
+                    </div>
+                  </div>
+                </div>
+                <div class="accordion-item bg-dark text-white">
+                  <h2 class="accordion-header" id="receita6">
+                    <button
+                      class="accordion-button collapsed"
+                      type="button"
+                      data-bs-toggle="collapse"
+                      data-bs-target="#receita6Body"
+                    >
+                      Receita 6 — Quests, Progressão e Economia (Etapa 6)
+                    </button>
+                  </h2>
+                  <div
+                    id="receita6Body"
+                    class="accordion-collapse collapse"
+                    data-bs-parent="#receitasAccordion"
+                  >
+                    <div class="accordion-body">
+                      <ol>
+                        <li>
+                          Definir <code>DT_QuestChains</code> com objetivos e
+                          recompensas escaláveis.
+                        </li>
+                        <li>
+                          Criar componente <code>BP_QuestLogComponent</code>
+                          replicado conectado ao PlayerState.
+                        </li>
+                        <li>
+                          Implementar serviços de economia (lojas, off-store) com
+                          <em>Server RPCs</em> validando moedas.
+                        </li>
+                        <li>
+                          Integrar drop tables aos spawners (Etapa 7) para manter
+                          paridade com o MuServer.
+                        </li>
+                      </ol>
+                    </div>
+                  </div>
+                </div>
+                <div class="accordion-item bg-dark text-white">
+                  <h2 class="accordion-header" id="receita7">
+                    <button
+                      class="accordion-button collapsed"
+                      type="button"
+                      data-bs-toggle="collapse"
+                      data-bs-target="#receita7Body"
+                    >
+                      Receita 7 — Mundo, Spawns e Eventos (Etapa 7)
+                    </button>
+                  </h2>
+                  <div
+                    id="receita7Body"
+                    class="accordion-collapse collapse"
+                    data-bs-parent="#receitasAccordion"
+                  >
+                    <div class="accordion-body">
+                      <ol>
+                        <li>
+                          Criar <code>BP_SpawnManager</code> que lê DataTables de
+                          monstros por mapa e instancia controladores dedicados.
+                        </li>
+                        <li>
+                          Implementar eventos cronometros (Blood Castle, Devil
+                          Square) com <code>BP_EventScheduler</code> replicado.
+                        </li>
+                        <li>
+                          Configurar bosses com <em>AI Controllers</em> e hooks
+                          para Live Ops (Etapa 10).
+                        </li>
+                      </ol>
+                    </div>
+                  </div>
+                </div>
+                <div class="accordion-item bg-dark text-white">
+                  <h2 class="accordion-header" id="receita8">
+                    <button
+                      class="accordion-button collapsed"
+                      type="button"
+                      data-bs-toggle="collapse"
+                      data-bs-target="#receita8Body"
+                    >
+                      Receita 8 — UI, HUD e Visualização 3D (Etapa 8)
+                    </button>
+                  </h2>
+                  <div
+                    id="receita8Body"
+                    class="accordion-collapse collapse"
+                    data-bs-parent="#receitasAccordion"
+                  >
+                    <div class="accordion-body">
+                      <ol>
+                        <li>
+                          Construir <code>BP_MainFrameHUD</code> inspirado em
+                          <code>CNewUIMainFrameWindow</code> com registrador de
+                          widgets.
+                        </li>
+                        <li>
+                          Criar <code>BP_UIManagerSubsystem</code> para spawnar
+                          widgets e sincronizar estados 2D/3D.
+                        </li>
+                        <li>
+                          Implementar chat, inventário e tooltips com DataBinding
+                          ao PlayerState/Inventory.
+                        </li>
+                        <li>
+                          Incluir viewport 3D dedicado para preview de itens e
+                          personagens.
+                        </li>
+                      </ol>
+                    </div>
+                  </div>
+                </div>
+                <div class="accordion-item bg-dark text-white">
+                  <h2 class="accordion-header" id="receita9">
+                    <button
+                      class="accordion-button collapsed"
+                      type="button"
+                      data-bs-toggle="collapse"
+                      data-bs-target="#receita9Body"
+                    >
+                      Receita 9 — Networking e Persistência (Etapa 9)
+                    </button>
+                  </h2>
+                  <div
+                    id="receita9Body"
+                    class="accordion-collapse collapse"
+                    data-bs-parent="#receitasAccordion"
+                  >
+                    <div class="accordion-body">
+                      <ol>
+                        <li>
+                          Configurar <code>BP_SessionManager</code> para lidar com
+                          autenticação (JoinServer) e persistência (DataServer).
+                        </li>
+                        <li>
+                          Implementar replicação seletiva de inventário/quests via
+                          <em>Fast Array Serializer</em>.
+                        </li>
+                        <li>
+                          Gravar progresso usando <code>SaveGame</code> + backend
+                          REST/gRPC conforme necessidade.
+                        </li>
+                        <li>
+                          Executar testes dedicados com múltiplos clientes para
+                          validar latência e rollback de ações.
+                        </li>
+                      </ol>
+                    </div>
+                  </div>
+                </div>
+                <div class="accordion-item bg-dark text-white">
+                  <h2 class="accordion-header" id="receita10">
+                    <button
+                      class="accordion-button collapsed"
+                      type="button"
+                      data-bs-toggle="collapse"
+                      data-bs-target="#receita10Body"
+                    >
+                      Receita 10 — Live Ops e Ferramentas (Etapa 10)
+                    </button>
+                  </h2>
+                  <div
+                    id="receita10Body"
+                    class="accordion-collapse collapse"
+                    data-bs-parent="#receitasAccordion"
+                  >
+                    <div class="accordion-body">
+                      <ol>
+                        <li>
+                          Integrar <em>Analytics Blueprint Library</em> para
+                          métricas de gameplay.
+                        </li>
+                        <li>
+                          Criar <code>Editor Utility Widgets</code> para editar
+                          DataTables e disparar eventos ao vivo.
+                        </li>
+                        <li>
+                          Configurar <code>BP_LiveEventManager</code> consumindo
+                          <code>DA_LiveEvent</code> e broadcast para o mundo.
+                        </li>
+                        <li>
+                          Automatizar balanceamento via <em>Curve Tables</em> com
+                          recarga em runtime.
+                        </li>
+                      </ol>
+                    </div>
+                  </div>
+                </div>
+                <div class="accordion-item bg-dark text-white">
+                  <h2 class="accordion-header" id="receita11">
+                    <button
+                      class="accordion-button collapsed"
+                      type="button"
+                      data-bs-toggle="collapse"
+                      data-bs-target="#receita11Body"
+                    >
+                      Receita 11 — QA, Automação e Deploy (Etapa 11)
+                    </button>
+                  </h2>
+                  <div
+                    id="receita11Body"
+                    class="accordion-collapse collapse"
+                    data-bs-parent="#receitasAccordion"
+                  >
+                    <div class="accordion-body">
+                      <ol>
+                        <li>
+                          Criar testes funcionais (Functional Testing Framework)
+                          cobrindo inventário, combate, quests e eventos.
+                        </li>
+                        <li>
+                          Montar <code>Automation Tool</code> + scripts de Editor
+                          Utility para executar suítes completas.
+                        </li>
+                        <li>
+                          Configurar pipelines CI/CD exportando comandos do
+                          <em>UnrealBuildTool</em> para cada plataforma alvo.
+                        </li>
+                        <li>
+                          Documentar perfis do Project Launcher e planos de
+                          rollback pós-lançamento.
+                        </li>
+                      </ol>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+    </div>
+
+    <script
+      src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"
+      integrity="sha384-YvpcrYf0tY3lHB60NNkmXc5s9fDVZLESaAA55NDzOxhy9GkcIdslK1eN7N6jIeHz"
+      crossorigin="anonymous"
+    ></script>
+  </body>
+</html>
