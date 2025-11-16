@@ -431,54 +431,57 @@
                   >
                     <div class="accordion-body">
                       <p>
-                        <strong>Objetivo:</strong> replicar o comportamento de
-                        <code>Winmain.cpp</code> + <code>GameMain.cpp</code>,
-                        garantindo que a UE5 inicialize os mesmos serviços e
-                        valide DataTables antes de qualquer mapa ser carregado.
+                        <strong>Objetivo:</strong> reproduzir 1:1 o bootstrap de
+                        <code>Winmain.cpp</code> e <code>GameMain.cpp</code>,
+                        garantindo que cada serviço essencial seja inicializado
+                        dentro da UE5 antes do primeiro mapa carregar.
                       </p>
-                      <ol>
+                      <ol class="ps-3">
                         <li>
-                          No <code>BP_RemakeGameInstance</code>, crie a função
-                          <em>BootSequence</em> que chama, na ordem: leitura de
-                          <code>DT_Items</code>, <code>DT_Skills</code>,
-                          <code>DT_Monsters</code>, <code>DT_ClassMap</code> e,
-                          em seguida, registra cada tabela no
-                          <code>BFL_RemakeLogger</code>. Essa função deve ser
-                          chamada no evento <em>Init</em>, exatamente como
-                          <code>Winmain</code> fazia com os gerenciadores globais.
+                          <strong>Passo 1 – Criar a GameInstance:</strong>
+                          <ul>
+                            <li>No Content Browser selecione <em>Add → Blueprint Class → All Classes → GameInstance</em> e nomeie como <code>BP_RemakeGameInstance</code>.</li>
+                            <li>Abra o blueprint, defina-o como GameInstance padrão em <em>Project Settings → Maps & Modes</em> e habilite <em>Start in VR</em> desativado para não interferir.</li>
+                          </ul>
                         </li>
                         <li>
-                          Adicione um <code>BP_RemakeEngineSubsystem</code> com a
-                          função pública <em>GetStreamableManager</em> e expose-a
-                          em Blueprint. Todos os carregamentos assíncronos (UI,
-                          HUDs, mapas) devem usar essa função para espelhar o
-                          <code>CResourceMng::LoadResource</code> do cliente.
+                          <strong>Passo 2 – Programar a BootSequence:</strong>
+                          <ul>
+                            <li>Dentro do Event Graph crie a função <em>BootSequence</em> contendo nós <code>Load Data Table Row</code> para <code>DT_Items</code>, <code>DT_Skills</code>, <code>DT_Monsters</code> e <code>DT_ClassMap</code> seguindo a ordem do <code>Winmain</code>.</li>
+                            <li>Encadeie cada carregamento a um <code>Print String</code> com tag “BootLog” e a um <code>DispatchBootProgress</code> (dispatcher) que substitui o logger original.</li>
+                            <li>No evento <em>Init</em> chame <em>BootSequence</em> seguido de <code>InitializeAudio</code> e <code>InitializeWindowMode</code> para espelhar as flags <code>SetMainWindowResolution</code>.</li>
+                          </ul>
                         </li>
                         <li>
-                          Implemente o <code>BP_ConfigSubsystem</code> com o
-                          método <em>ApplyServerSettings</em>: ele lê o
-                          <code>DA_RemakeSettings</code>, aplica overrides de
-                          arquivos <code>.ini</code> e emite um dispatcher
-                          <em>OnSettingsUpdated</em> que substitui os callbacks
-                          de <code>GameMainInit</code> ao trocar configurações em
-                          runtime.
+                          <strong>Passo 3 – Subsystems obrigatórios:</strong>
+                          <ul>
+                            <li>Crie <code>BP_RemakeEngineSubsystem</code> (classe <em>EngineSubsystem</em>) com função <em>GetStreamableManager</em> retornando um Streamable interno para ser reutilizado por HUD e mapas.</li>
+                            <li>Crie <code>BP_ConfigSubsystem</code> (GameInstanceSubsystem) contendo a função <em>ApplyServerSettings</em> que lê <code>DA_RemakeSettings</code> e dispara o dispatcher <em>OnSettingsUpdated</em> toda vez que o arquivo <code>Config/RemakeOverrides.ini</code> mudar.</li>
+                            <li>Adicione <code>BP_AudioSubsystem</code> com métodos <em>InitMP3Bus</em> e <em>PlayBGM</em> mapeando cada chamada existente em <code>wzAudio</code>.</li>
+                          </ul>
                         </li>
                         <li>
-                          Configure o <code>BP_RemakeServerService</code> como
-                          um <em>GameInstanceSubsystem</em> com as funções
-                          <em>ConnectJoinServer</em> e <em>ConnectDataServer</em>.
-                          Cada função deve abrir um canal (Socket/HTTP) e manter
-                          o estado <em>bIsJoinReady</em> / <em>bIsDataReady</em>,
-                          exatamente como o mutex + conexões de
-                          <code>GameMain.cpp</code>.
+                          <strong>Passo 4 – Serviços Join/Data Server:</strong>
+                          <ul>
+                            <li>Crie <code>BP_RemakeServerService</code> (GameInstanceSubsystem) com funções <em>ConnectJoinServer</em>, <em>ConnectDataServer</em> e <em>RetryConnection</em>.</li>
+                            <li>Para cada função use o nó <code>Create TCP Socket</code> (plugin Socket enabled) apontando para os endereços configurados em <code>DA_RemakeSettings</code>; armazene os estados <code>bJoinReady</code> e <code>bDataReady</code>.</li>
+                            <li>Implemente o evento <em>OnJoinHandshake</em> que envia o pacote <code>S_JOIN_SERVER_INFO</code> e aguarda confirmação antes de liberar o menu de seleção de personagens.</li>
+                          </ul>
                         </li>
                         <li>
-                          Defina <code>BP_RemakeGameMode</code>,
-                          <code>BP_RemakePlayerController</code> e
-                          <code>BP_RemakePlayerState</code> como padrões no
-                          projeto, criando funções <em>InitCharacter</em> e
-                          <em>InitServerMirror</em> para garantir que qualquer
-                          mapa carregado execute o mesmo setup inicial.
+                          <strong>Passo 5 – Contrato de dados compartilhado:</strong>
+                          <ul>
+                            <li>Importe os CSV encontrados em <code>/Dados</code> e gere DataTables baseadas em <code>FItemDefinition</code>, <code>FSkillDefinition</code>, <code>FMonsterStats</code> e <code>FClassDefinition</code>.</li>
+                            <li>Crie <code>PrimaryDataAssets</code> (<code>DA_ItemDefinition</code>, <code>DA_SkillDefinition</code> etc.) e utilize o <em>Asset Manager</em> para garantir IDs iguais nos dois lados.</li>
+                            <li>Implemente o <code>BP_DataSyncComponent</code> (Actor Component) que serializa/ desserializa structs usando <code>NetSerialize</code>, assegurando paridade com <code>OBJECTSTRUCT</code>.</li>
+                          </ul>
+                        </li>
+                        <li>
+                          <strong>Passo 6 – Validação:</strong>
+                          <ul>
+                            <li>Crie um mapa <code>TEST_Bootstrap.umap</code>, defina como mapa padrão e coloque um <code>BP_RemakeBootMonitor</code> que exibe na tela o resultado dos dispatchers.</li>
+                            <li>Somente avance para a Receita 1 depois que o log mostrar “Join/Data Ready” e todas as DataTables carregarem sem warnings.</li>
+                          </ul>
                         </li>
                       </ol>
                     </div>
@@ -502,50 +505,53 @@
                   >
                     <div class="accordion-body">
                       <p>
-                        <strong>Objetivo:</strong> reproduzir as rotinas de
-                        criação de personagem em <code>CharacterManager</code> e
-                        <code>CGameProcess</code>, entregando um avatar jogável
-                        pronto para receber inventário, habilidades e HUD.
+                        <strong>Objetivo:</strong> criar o avatar jogável que
+                        reflete <code>CharacterManager</code>, pronto para
+                        receber inventário, habilidades e status replicados.
                       </p>
-                      <ol>
+                      <ol class="ps-3">
                         <li>
-                          Crie o <code>BP_RemakeCharacter</code> e anexe os
-                          componentes <em>Camera</em>, <em>SpringArm</em>,
-                          <em>AbilitySystemComponent</em>,
-                          <em>InventoryComponent</em> e
-                          <em>StatusEffectComponent</em>. Configure a replicação
-                          de todos para corresponder às estruturas
-                          <code>OBJECTSTRUCT</code> do servidor.
+                          <strong>Passo 1 – Blueprint de personagem:</strong>
+                          <ul>
+                            <li>Use <em>Add → Blueprint Class → Character</em> e nomeie <code>BP_RemakeCharacter</code>.</li>
+                            <li>Anexe componentes <em>SpringArm</em>, <em>Camera</em>, <em>AbilitySystemComponent</em>, <em>InventoryComponent</em>, <em>StatusEffectComponent</em> e marque-os como <em>Replicates</em>.</li>
+                            <li>No <em>Class Defaults</em>, habilite <em>Use Controller Rotation Yaw</em> falso e ajuste <em>Character Movement → Rotation Rate</em> para 480 para combinar com o cliente original.</li>
+                          </ul>
                         </li>
                         <li>
-                          Na função <em>SpawnFromServerData</em>, receba uma
-                          struct <code>FRemakeCharacterSnapshot</code> (espelho
-                          de <code>LPOBJ</code>) e aplique raça, classe e
-                          aparência lendo <code>DT_ClassMap</code> e as texturas
-                          equivalentes usadas pelo cliente original.
+                          <strong>Passo 2 – Snapshot de dados:</strong>
+                          <ul>
+                            <li>Crie a struct <code>FRemakeCharacterSnapshot</code> (Data Assets) contendo campos equivalentes a <code>LPOBJ</code> (Classe, Level, Strength, Dexterity, etc.).</li>
+                            <li>Implemente a função <em>SpawnFromServerData</em> que recebe esse snapshot, aplica o Skeletal Mesh correto via mapa <code>Class → Mesh</code> e seta materiais/cores conforme a seleção original.</li>
+                          </ul>
                         </li>
                         <li>
-                          Implemente <em>InitializeAttributes</em>: para cada
-                          atributo (HP, MP, AG, SD), busque o valor base nas Data
-                          Tables, aplique bônus de itens e invoque o método
-                          <em>SyncAttributeWithServer</em> para comunicar o valor
-                          ao <code>BP_RemakeServerService</code>.
+                          <strong>Passo 3 – Atributos e sincronização:</strong>
+                          <ul>
+                            <li>Crie a função <em>InitializeAttributes</em> lendo as bases nas DataTables, adicionando bônus de itens equipados e escrevendo os valores em <code>AbilitySystemComponent</code>.</li>
+                            <li>Para cada alteração chame <code>BP_RemakeServerService → ServerSyncAttribute</code> enviando <code>FAttributePayload</code> que corresponde à função <code>GCSendCharacterInfo</code>.</li>
+                          </ul>
                         </li>
                         <li>
-                          No evento <em>BeginPlay</em>, chame
-                          <em>GrantDefaultAbilities</em> e garanta que os slots
-                          <code>GA_BasicAttack</code>, <code>GA_Dash</code> e
-                          <code>GA_ClassSkill</code> sejam atribuídos com base no
-                          enum <code>ECharacterClass</code> recebido, espelhando
-                          o switch de <code>GetCharacterClass</code>.
+                          <strong>Passo 4 – Habilidades padrão:</strong>
+                          <ul>
+                            <li>Implemente <em>GrantDefaultAbilities</em> adicionando <code>GA_BasicAttack</code>, <code>GA_Roll</code> e <code>GA_ClassSkill</code> através do node <code>Give Ability</code>.</li>
+                            <li>Use um <code>Switch on ECharacterClass</code> para selecionar o ID correto de skill, igual ao <code>GetCharacterClass</code> do cliente.</li>
+                          </ul>
                         </li>
                         <li>
-                          Crie a interface <code>BPI_InventoryCarrier</code> com
-                          as funções <em>GetInventoryGrid</em> e
-                          <em>OnInventorySlotUpdated</em>. Emita os dispatchers
-                          <em>OnDowned</em> e <em>OnRevived</em> para que o HUD
-                          reaja exatamente como <code>NewUIMainFrameWindow</code>
-                          escutava os eventos de morte/ressurreição no cliente.
+                          <strong>Passo 5 – Interfaces e eventos:</strong>
+                          <ul>
+                            <li>Implemente a interface <code>BPI_InventoryCarrier</code> com funções <em>GetInventoryGrid</em> e <em>OnInventorySlotUpdated</em>.</li>
+                            <li>Crie dispatchers <em>OnDowned</em> e <em>OnRevived</em> chamados quando o HP chega a zero ou volta a ser positivo; conecte esses dispatchers ao HUD para replicar o comportamento de <code>CNewUIMainFrameWindow</code>.</li>
+                          </ul>
+                        </li>
+                        <li>
+                          <strong>Passo 6 – Testes dirigidos:</strong>
+                          <ul>
+                            <li>No mapa <code>TEST_PlayerSetup</code> coloque um <code>PlayerStart</code> com GameMode configurado para usar <code>BP_RemakeCharacter</code>.</li>
+                            <li>Use o comando <code>ce SpawnSnapshot Classe=DarkWizard Level=50</code> (console) para garantir que o blueprint responde corretamente às mudanças de snapshot.</li>
+                          </ul>
                         </li>
                       </ol>
                     </div>
@@ -569,44 +575,51 @@
                   >
                     <div class="accordion-body">
                       <p>
-                        <strong>Objetivo:</strong> transcrever os fluxos de
-                        entrada e câmera do cliente (clique, teclado, atalhos de
-                        UI) para o sistema de Enhanced Input, mantendo todos os
-                        atalhos que ativavam HUDs, ataques e chats.
+                        <strong>Objetivo:</strong> clonar os atalhos de teclado,
+                        cliques e modos de câmera usados pelo cliente.
                       </p>
-                      <ol>
+                      <ol class="ps-3">
                         <li>
-                          Crie <code>IMC_RemakeGameplay</code> e, dentro dele,
-                          adicione <em>InputActions</em> separados para movimento
-                          WASD, clique de movimentação, clique de seleção,
-                          alternância de inventário (<code>V</code>), skill bar
-                          (<code>QWER</code>) e chat (<code>Enter</code>),
-                          espelhando os binds de <code>g_KeyTable</code> do
-                          cliente.
+                          <strong>Passo 1 – Mapping Context:</strong>
+                          <ul>
+                            <li>Crie <code>IMC_RemakeGameplay</code> e adicione <em>InputActions</em> separados para movimento WASD, clique de movimentação, clique de seleção, toggle do inventário (V), barras de skill (1–5), zoom do mapa (rodinha) e chat (Enter).</li>
+                            <li>Marque as ações como <em>Consume Input</em> e defina <em>Value Type</em> apropriado (Vector2D para movimento, Boolean para toggles) para espelhar <code>g_KeyTable</code>.</li>
+                          </ul>
                         </li>
                         <li>
-                          No <code>BP_RemakePlayerController</code>, execute
-                          <em>AddMappingContext</em> no evento <em>BeginPlay</em>
-                          e encaminhe cada InputAction para o Ability System via
-                          <em>InputTag</em> (ex.: <code>InputTag.Attack.Basic</code>),
-                          garantindo que o mesmo evento dispare animação no
-                          cliente e RPC no servidor.
+                          <strong>Passo 2 – Binding no PlayerController:</strong>
+                          <ul>
+                            <li>No <code>BP_RemakePlayerController</code> chame <code>Add Mapping Context</code> no <em>BeginPlay</em>.</li>
+                            <li>Para cada ação, encaminhe o evento para funções nomeadas (<code>HandleMoveInput</code>, <code>HandleInventoryToggle</code>) que disparam RPCs para o servidor quando necessário.</li>
+                          </ul>
                         </li>
                         <li>
-                          Modele dois componentes de câmera: <em>CamGameplay</em>
-                          (seguindo o personagem) e <em>CamInventory</em>
-                          (montada em um <code>SceneCapture2D</code>). Crie a
-                          timeline <em>ToggleInventoryCamera</em> para suavizar a
-                          transição, replicando o efeito de zoom/rotação do
-                          inventário 3D original.
+                          <strong>Passo 3 – Câmera gameplay:</strong>
+                          <ul>
+                            <li>Configure o <em>SpringArm</em> com <em>Target Arm Length</em> 650 e <em>Camera Lag</em> 10.</li>
+                            <li>Implemente a função <em>RotateCameraWithMouse</em> lendo <code>InputAction_Look</code> e aplicando <em>Add Controller Yaw Input</em> e <em>Add Controller Pitch Input</em>.</li>
+                          </ul>
                         </li>
                         <li>
-                          Adicione DataAssets
-                          <code>DA_InputPreset_[Classe]</code> contendo sensibilidade,
-                          velocidade de câmera e teclas alternativas. O
-                          <code>BP_ConfigSubsystem</code> deve carregar o preset
-                          correspondente quando a classe do personagem mudar,
-                          garantindo paridade com o menu de opções legado.
+                          <strong>Passo 4 – Câmera de inventário/HUD:</strong>
+                          <ul>
+                            <li>Adicione um <code>SceneCaptureComponent2D</code> extra ao personagem e mantenha desativado até que o inventário abra.</li>
+                            <li>Crie a timeline <em>ToggleInventoryCamera</em> que interpola o <em>Field of View</em> e liga/desliga o SceneCapture para reproduzir o zoom do cliente original.</li>
+                          </ul>
+                        </li>
+                        <li>
+                          <strong>Passo 5 – Perfis de input:</strong>
+                          <ul>
+                            <li>Crie <code>DA_InputPreset_[Classe]</code> armazenando sensibilidade, binds alternativos e velocidade de câmera.</li>
+                            <li>O <code>BP_ConfigSubsystem</code> deve expor <em>ApplyInputPreset</em> permitindo que o jogador troque perfis via menu de opções, refletindo a tela de atalhos do cliente.</li>
+                          </ul>
+                        </li>
+                        <li>
+                          <strong>Passo 6 – Checks:</strong>
+                          <ul>
+                            <li>No PIE teste <code>F1</code> para alternar câmera livre e valide se o log acusa as mesmas mensagens de <code>Winmain</code>.</li>
+                            <li>Registre cada atalho pressionado via <code>BFL_RemakeLogger</code> para garantir rastreabilidade.</li>
+                          </ul>
                         </li>
                       </ol>
                     </div>
@@ -630,41 +643,51 @@
                   >
                     <div class="accordion-body">
                       <p>
-                        <strong>Objetivo:</strong> entregar o mesmo “feel” de
-                        deslocamento visto em <code>CCharMove</code> e nas rotinas
-                        do servidor que validam movimento + caminho.
+                        <strong>Objetivo:</strong> replicar a sensação de
+                        movimento de <code>CCharMove</code> e todas as validações
+                        feitas pelo servidor.
                       </p>
-                      <ol>
+                      <ol class="ps-3">
                         <li>
-                          Construa um <code>ABP_RemakeLocomotion</code> contendo
-                          BlendSpaces de idle/corrida e um state machine com
-                          transições condicionadas pelos valores de velocidade e
-                          flags de voo/mount. Copie as curvas de aceleração do
-                          arquivo <code>CharacterDefine.h</code> para curvas do
-                          Unreal.
+                          <strong>Passo 1 – Animation Blueprint:</strong>
+                          <ul>
+                            <li>Crie <code>ABP_RemakeLocomotion</code> com BlendSpaces para Idle/Walk/Run e estados de dash e dano.</li>
+                            <li>Exponha variáveis <em>Speed</em>, <em>bIsCasting</em> e <em>bIsMounted</em> alimentadas a partir do personagem.</li>
+                          </ul>
                         </li>
                         <li>
-                          No <em>CharacterMovementComponent</em>, habilite
-                          <em>Use Controller Desired Rotation</em>, defina a
-                          fricção/velocidade máxima iguais aos valores de
-                          <code>MoveSpeed</code> e implemente a função
-                          <em>ServerValidateMove</em> para impedir teleporte fora
-                          da malha de navegação.
+                          <strong>Passo 2 – Character Movement:</strong>
+                          <ul>
+                            <li>Defina <em>Max Walk Speed</em> 550, <em>Acceleration</em> 2048 e <em>Braking Deceleration</em> 2048.</li>
+                            <li>Implemente a função <em>ApplyMovementMode</em> que lê <code>DT_ClassMap</code> e altera velocidade quando a classe ativa buffs equivalentes (wings, mount).</li>
+                          </ul>
                         </li>
                         <li>
-                          Recrie a <em>DashAbility</em> lendo os tempos de
-                          cooldown do arquivo <code>SkillDelay.cpp</code>. A
-                          habilidade deve executar um <em>RootMotionSource</em>
-                          com deslocamento e enviar um RPC confirmando a direção
-                          para o servidor.
+                          <strong>Passo 3 – Navegação e pathing:</strong>
+                          <ul>
+                            <li>Adicione <code>NavMeshBoundsVolume</code> aos mapas e configure <em>Runtime Generation</em> para Dynamic.</li>
+                            <li>Implemente <em>ServerTryMoveToLocation</em> no PlayerController, convertendo cliques em destinos e validando contra <code>BP_MapPermissionTable</code> para impedir passagem por áreas bloqueadas (Castle Siege).</li>
+                          </ul>
                         </li>
                         <li>
-                          Para bots/seguidores, crie o
-                          <code>BP_RemakePathTask</code> que usa
-                          <code>NavigationSystemV1</code> e atualiza o caminho a
-                          cada 300 ms, tal como o loop
-                          <code>gObjMonsterMove</code> fazia. Aplique a mesma
-                          lógica para escoltas/eventos do servidor.
+                          <strong>Passo 4 – Teleporte/Portais:</strong>
+                          <ul>
+                            <li>Crie <code>BP_PortalVolume</code> com trigger box e campos <em>DestinationMap</em> / <em>DestinationTransform</em>.</li>
+                            <li>No overlap execute <em>ServerRequestPortal</em> e só finalize quando o servidor devolver o pacote <code>S_MOVE_COMMAND</code> equivalente.</li>
+                          </ul>
+                        </li>
+                        <li>
+                          <strong>Passo 5 – Restrições de evento:</strong>
+                          <ul>
+                            <li>Integre o <code>BP_EventScheduler</code> (Receita 7) através da interface <code>BPI_EventAuthority</code> para aprovar ou negar movimentos em zonas exclusivas.</li>
+                          </ul>
+                        </li>
+                        <li>
+                          <strong>Passo 6 – Testes:</strong>
+                          <ul>
+                            <li>Use <code>pxvis nav</code> para visualizar navmesh e compare com o layout do cliente.</li>
+                            <li>Execute <code>Automation MoveSuite</code> para checar latência e limites.</li>
+                          </ul>
                         </li>
                       </ol>
                     </div>
@@ -688,40 +711,52 @@
                   >
                     <div class="accordion-body">
                       <p>
-                        <strong>Objetivo:</strong> reproduzir a pilha de validação
-                        e execução de <code>Attack.cpp</code>, mantendo o mesmo
-                        fluxo: validar cenário → calcular dano → enviar feedbacks.
+                        <strong>Objetivo:</strong> replicar todas as validações de
+                        <code>Attack.cpp</code> antes de aplicar dano e animar o
+                        feedback visual.
                       </p>
-                      <ol>
+                      <ol class="ps-3">
                         <li>
-                          Crie a função <em>ServerRequestAttack</em> em
-                          <code>BP_RemakePlayerController</code>, copiando as
-                          verificações de mapa/evento/PK de
-                          <code>gObjCheckAttackArea</code>. Use interfaces
-                          <code>BPI_EventAuthority</code> em cada evento carregado
-                          para aprovar ou negar o ataque antes de prosseguir.
+                          <strong>Passo 1 – Solicitação de ataque:</strong>
+                          <ul>
+                            <li>No <code>BP_RemakePlayerController</code> crie a função <em>ServerRequestAttack</em> (RPC Server, Reliable).</li>
+                            <li>Valide mapa, eventos e flags PK chamando <code>BPI_EventAuthority → CanPlayerAttack</code> e usando dados de <code>BP_EventScheduler</code>.</li>
+                          </ul>
                         </li>
                         <li>
-                          Modele <em>GameplayEffects</em> distintos para dano
-                          físico, dano mágico, buff defensivo e crowd-control.
-                          Cada efeito deve ler fórmulas de um
-                          <code>CurveTable_AttackMatrix</code> preenchido com os
-                          valores originais (MinDamage, MagicDamage, Resist).
+                          <strong>Passo 2 – Ability System:</strong>
+                          <ul>
+                            <li>Implemente <code>GA_SkillSlot01</code> … <code>GA_SkillSlot05</code> lendo <code>DT_Skills</code> para custo, alcance e fórmula.</li>
+                            <li>Use <code>GameplayEffectExecutionCalculation</code> personalizados (<code>EC_PhysicalDamage</code>, <code>EC_MagicalDamage</code>) para calcular dano com base nas curvas originais.</li>
+                          </ul>
                         </li>
                         <li>
-                          Para cada skill, crie uma <code>GA_SkillSlotX</code>
-                          que executa: (a) validação de custo (Mana/AG), (b)
-                          cálculo de dano através da função
-                          <em>ComputeServerDamage</em>, (c) aplicação do
-                          GameplayEffect correto, (d) emissão de multicast para
-                          os efeitos Niagara e sons equivalentes aos arquivos
-                          <code>EffectInfo.txt</code> e <code>wzAudio</code>.
+                          <strong>Passo 3 – Curvas e tabelas:</strong>
+                          <ul>
+                            <li>Crie <code>CurveTable_AttackMatrix</code> preenchido com os valores de MinDamage, MaxDamage, SkillMul e Resist recuperados do servidor.</li>
+                            <li>Dentro das execuções use <code>Curve Table Row Handle</code> para buscar a linha correspondente ao nível do jogador.</li>
+                          </ul>
                         </li>
                         <li>
-                          Implemente um <code>BP_DamageFeedService</code> que
-                          recebe todos os resultados e atualiza HUD/logs,
-                          substituindo <code>gDamageLog</code> e o painel de
-                          combate do cliente.
+                          <strong>Passo 4 – Feedback visual e áudio:</strong>
+                          <ul>
+                            <li>Associe cada skill a um <code>NiagaraSystem</code> e um som importados de acordo com <code>EffectInfo.txt</code> e <code>wzAudio</code>.</li>
+                            <li>Dispare-os via Multicast <code>ClientPlaySkillFX</code> garantindo que espectadores vejam o mesmo resultado.</li>
+                          </ul>
+                        </li>
+                        <li>
+                          <strong>Passo 5 – Painel de dano:</strong>
+                          <ul>
+                            <li>Implemente <code>BP_DamageFeedService</code> (HUD Subsystem) que recebe um <code>FCombatLogEntry</code> replicado e preenche <code>WBP_DamageFeed</code>.</li>
+                            <li>Adicione filtros (PvP/PvE, crítico, bloqueio) iguais aos do painel original.</li>
+                          </ul>
+                        </li>
+                        <li>
+                          <strong>Passo 6 – Testes:</strong>
+                          <ul>
+                            <li>Use o comando <code>ce SpawnDummy Level=50</code> para validar DPS e compare com o log do MuServer.</li>
+                            <li>Execute <code>GameplayDebugger</code> tecla <code>'</code> para verificar tags ativos.</li>
+                          </ul>
                         </li>
                       </ol>
                     </div>
@@ -745,49 +780,51 @@
                   >
                     <div class="accordion-body">
                       <p>
-                        <strong>Objetivo:</strong> clonar o comportamento dos
-                        arquivos <code>NewUIMyInventory.cpp</code>,
-                        <code>ItemAddOption.cpp</code> e <code>ItemSocket.cpp</code>,
-                        garantindo grid, arraste, sockets e opções excelentes.
+                        <strong>Objetivo:</strong> clonar o grid 8x12,
+                        movimentação de itens, sockets e opções excelentes do
+                        cliente.
                       </p>
-                      <ol>
+                      <ol class="ps-3">
                         <li>
-                          Gere DataAssets <code>DA_ItemDefinition</code> a partir
-                          das tabelas originais. Inclua campos para tamanho do
-                          grid (Width/Height), tipo (Armor/Jewel), sockets, flags
-                          excelentes e <em>RequiredClass</em>. Crie também o
-                          <code>DA_ItemSetDefinition</code> para bônus de set.
+                          <strong>Passo 1 – DataAssets:</strong>
+                          <ul>
+                            <li>Crie <code>DA_ItemDefinition</code> com campos <em>Width</em>, <em>Height</em>, <em>Type</em>, <em>RequiredClass</em>, <em>Sockets</em>, <em>ExcellentOptions</em> e <em>TooltipLines</em>.</li>
+                            <li>Automatize a importação usando <code>Editor Utility Widget → ImportItemsFromCSV</code>.</li>
+                          </ul>
                         </li>
                         <li>
-                          Implemente o <code>BP_InventoryComponent</code> com um
-                          <em>FastArraySerializer</em> de
-                          <code>FItemInstance</code>. Cada instância deve conter
-                          durabilidade, opções excelentes, nível, sockets e
-                          referência ao item base; replique as funções
-                          <code>gObjInventoryInsertItem</code> e
-                          <code>gObjInventoryMoveItem</code> como métodos
-                          <em>Server</em> + <em>Multicast</em>.
+                          <strong>Passo 2 – Inventory Component:</strong>
+                          <ul>
+                            <li>Implemente <code>BP_InventoryComponent</code> usando <em>FastArraySerializer</em> de <code>FItemInstance</code>.</li>
+                            <li>Crie funções <em>ServerInsertItem</em>, <em>ServerMoveItem</em> e <em>ServerDropItem</em> e mantenha validações idênticas às funções <code>gObjInventory*</code>.</li>
+                          </ul>
                         </li>
                         <li>
-                          Construa o widget <code>WBP_RemakeInventory</code> com a
-                          mesma grade 8x12. Suporte drag & drop, divisão de stack
-                          e tooltip detalhado (usando <code>WBP_ItemTooltip</code>)
-                          que leia os efeitos exatamente como o cliente original
-                          renderizava via <code>NewUICommonMessageBox</code>.
+                          <strong>Passo 3 – UI:</strong>
+                          <ul>
+                            <li>Construa <code>WBP_RemakeInventory</code> com <code>UniformGridPanel</code> 8x12.</li>
+                            <li>Implemente Drag &amp; Drop através de <code>OnDragDetected</code> e <code>OnDrop</code>; use <code>WBP_ItemTooltip</code> para replicar o estilo do cliente.</li>
+                          </ul>
                         </li>
                         <li>
-                          Adicione o preview 3D reutilizando o
-                          <code>SceneCaptureComponent2D</code> e a lógica descrita
-                          em <code>inventory_hud_3d_rendering.cpp</code>: para
-                          cada item equipado, gere o mesh correspondente e aplique
-                          o material original antes de renderizar o painel.
+                          <strong>Passo 4 – Preview 3D:</strong>
+                          <ul>
+                            <li>Adicione <code>SceneCaptureComponent2D</code> dedicado e troque o mesh exibido conforme o item selecionado, seguindo o guia <code>inventory_hud_3d_rendering.cpp</code>.</li>
+                          </ul>
                         </li>
                         <li>
-                          Crie o <code>BP_CraftingSubsystem</code> que lê uma
-                          <code>DT_CraftingRecipes</code> (Blood Castle, Chaos
-                          Machine etc.). Ele deve verificar requisitos, remover os
-                          itens corretos do inventário e spawnar resultados com as
-                          mesmas chances definidas em <code>ItemUpgrade.cpp</code>.
+                          <strong>Passo 5 – Crafting e upgrades:</strong>
+                          <ul>
+                            <li>Implemente <code>BP_CraftingSubsystem</code> que lê <code>DT_CraftingRecipes</code> (Chaos Machine, Jewel of Life etc.).</li>
+                            <li>Cada receita chama <em>ServerConsumeItems</em> e aplica probabilidades usando <code>CurveTable_CraftingChance</code>.</li>
+                          </ul>
+                        </li>
+                        <li>
+                          <strong>Passo 6 – Testes:</strong>
+                          <ul>
+                            <li>Monte testes automatizados <code>FT_RemakeInventory</code> para inserir, mover e combinar itens.</li>
+                            <li>Compare o resultado com screenshots do cliente original.</li>
+                          </ul>
                         </li>
                       </ol>
                     </div>
@@ -811,41 +848,52 @@
                   >
                     <div class="accordion-body">
                       <p>
-                        <strong>Objetivo:</strong> reproduzir as rotas de quests
-                        de <code>QuestInfo.dat</code> e os serviços econômicos de
-                        <code>NpcTalk.cpp</code> / <code>Shop.cpp</code>.
+                        <strong>Objetivo:</strong> portar <code>QuestInfo.dat</code>,
+                        <code>NpcTalk.cpp</code> e <code>Shop.cpp</code> para a
+                        UE5.
                       </p>
-                      <ol>
+                      <ol class="ps-3">
                         <li>
-                          Converta as informações dos arquivos originais em uma
-                          <code>DT_QuestChains</code> onde cada linha contenha:
-                          <em>QuestID</em>, pré-requisitos, objetivos (Kill/Item),
-                          NPC responsável e recompensas. Inclua colunas para
-                          experiência, zen, pontos de atributo e itens opcionais.
+                          <strong>Passo 1 – DataTables:</strong>
+                          <ul>
+                            <li>Converta cada quest em <code>DT_QuestChains</code> contendo pré-requisitos, objetivos (Kill/Collect), NPC responsável e recompensas.</li>
+                            <li>Crie <code>DT_ShopData</code> com linhas para itens, preços em Zen/Jewel/Event e limites de compra.</li>
+                          </ul>
                         </li>
                         <li>
-                          Crie o <code>BP_QuestLogComponent</code> ligado ao
-                          <code>BP_RemakePlayerState</code>. Ele precisa ter as
-                          funções <em>AcceptQuest</em>, <em>CompleteQuest</em> e
-                          <em>AbandonQuest</em> com validações em RPC (o servidor
-                          consulta a <code>DT_QuestChains</code> antes de aprovar
-                          qualquer alteração, assim como <code>CGQuest</code>).
+                          <strong>Passo 2 – Quest Component:</strong>
+                          <ul>
+                            <li>Adicione <code>BP_QuestLogComponent</code> ao <code>BP_RemakePlayerState</code>.</li>
+                            <li>Implemente <em>ServerAcceptQuest</em>, <em>ServerCompleteQuest</em> e <em>ServerAbandonQuest</em> consultando <code>DT_QuestChains</code> antes de alterar o estado.</li>
+                          </ul>
                         </li>
                         <li>
-                          Implemente o <code>BP_EconomyService</code> com métodos
-                          <em>Server</em> para abrir lojas, comprar e vender. Use
-                          structs <code>FShopItem</code> com preço em Zen, Jewel e
-                          Pontos de Evento, refletindo <code>ShopData.txt</code> e
-                          o sistema de <em>off-store</em>. Inclua verificações de
-                          estoque e limites diários.
+                          <strong>Passo 3 – Economia:</strong>
+                          <ul>
+                            <li>Crie <code>BP_EconomyService</code> com métodos <em>OpenShop</em>, <em>BuyItem</em>, <em>SellItem</em> e <em>UpdateZen</em>.</li>
+                            <li>Implemente suporte a <em>off-store</em>: permita que o jogador registre um inventário para venda mesmo offline salvando os dados em <code>DA_PersistedStore</code>.</li>
+                          </ul>
                         </li>
                         <li>
-                          Atualize o <code>BP_LootTable</code> consumido pelos
-                          spawners (Etapa 7) para aplicar as chances definidas em
-                          <code>ItemDropRate.txt</code>. Cada entrada deve apontar
-                          para um conjunto de <code>DA_ItemDefinition</code> e
-                          percentuais, garantindo que o loot do servidor UE5 seja
-                          idêntico ao do MuServer.
+                          <strong>Passo 4 – Loot tables:</strong>
+                          <ul>
+                            <li>Atualize <code>BP_LootTable</code> usado pelos spawners com as probabilidades de <code>ItemDropRate.txt</code>.</li>
+                            <li>Garanta que as chaves de drop sejam idênticas para que os eventos (ex.: Blood Castle) distribuam itens iguais.</li>
+                          </ul>
+                        </li>
+                        <li>
+                          <strong>Passo 5 – UI de quests/loja:</strong>
+                          <ul>
+                            <li>Monte <code>WBP_QuestJournal</code> e <code>WBP_ShopWindow</code> replicando o layout do cliente.</li>
+                            <li>Conecte os botões a RPCs do componente para impedir compras/client completions falsos.</li>
+                          </ul>
+                        </li>
+                        <li>
+                          <strong>Passo 6 – Verificação:</strong>
+                          <ul>
+                            <li>Use comandos <code>ce AddQuest</code> e <code>ce CompleteQuest</code> para validar XP e recompensas.</li>
+                            <li>Execute transações repetidas para verificar sincronização de Zen com o servidor.</li>
+                          </ul>
                         </li>
                       </ol>
                     </div>
@@ -869,32 +917,51 @@
                   >
                     <div class="accordion-body">
                       <p>
-                        <strong>Objetivo:</strong> mover a lógica de spawns e
-                        eventos de <code>GameServer\/Monster.cpp</code>,
-                        <code>BloodCastle.cpp</code> e similares para sistemas UE5.
+                        <strong>Objetivo:</strong> mover para UE5 a lógica de
+                        <code>Monster.cpp</code>, <code>BloodCastle.cpp</code> e
+                        equivalentes.
                       </p>
-                      <ol>
+                      <ol class="ps-3">
                         <li>
-                          Crie o <code>BP_SpawnManager</code> (Authority-only) que
-                          percorre a <code>DT_MapSpawns</code>. Para cada entrada,
-                          instancie um <code>BP_SpawnController</code> que mantém
-                          limite de monstros ativos, respawn timer e drop table,
-                          espelhando as structs <code>MAPMONSTERSET</code>.
+                          <strong>Passo 1 – SpawnManager:</strong>
+                          <ul>
+                            <li>Crie <code>BP_SpawnManager</code> (Authority-only) que lê <code>DT_MapSpawns</code> no <em>BeginPlay</em>.</li>
+                            <li>Para cada linha instancie <code>BP_SpawnController</code> responsável por manter limite de monstros e timers de respawn.</li>
+                          </ul>
                         </li>
                         <li>
-                          Desenvolva o <code>BP_EventScheduler</code> e registre
-                          eventos como Blood Castle, Devil Square e Chaos Castle.
-                          Cada evento deve ter estados (Preparação, Execução,
-                          Resultado) iguais aos enumerados em
-                          <code>BloodCastle.cpp</code>. Use <em>Multicast</em> para
-                          avisar o HUD.
+                          <strong>Passo 2 – EventScheduler:</strong>
+                          <ul>
+                            <li>Implemente <code>BP_EventScheduler</code> com estados (Preparação, Execução, Resultado) e horários configurados via <code>DT_EventCalendar</code>.</li>
+                            <li>Exponha eventos <em>OnEventStarted</em>, <em>OnEventFinished</em> e conecte ao HUD.</li>
+                          </ul>
                         </li>
                         <li>
-                          Para bosses, crie <em>AIControllers</em> específicos que
-                          carregam Behavior Trees com fases (HP thresholds) e
-                          habilidades definidas em <code>DT_BossPatterns</code>.
-                          Garanta integração com o <code>BP_EventScheduler</code>
-                          para disparar cutscenes, portas e recompensas.
+                          <strong>Passo 3 – Bosses e AI:</strong>
+                          <ul>
+                            <li>Para cada chefe crie um <em>AIController</em> dedicado com Behavior Tree que lê <code>DT_BossPatterns</code>.</li>
+                            <li>Implemente fases baseadas em porcentagem de HP, chamando habilidades específicas e spawnando adds.</li>
+                          </ul>
+                        </li>
+                        <li>
+                          <strong>Passo 4 – Portões e instâncias:</strong>
+                          <ul>
+                            <li>Reproduza as checagens de entrada (nível mínimo, quantidade de party) criando <code>BP_EventGate</code> com interface <code>BPI_EventAuthority</code>.</li>
+                            <li>No servidor valide a party antes de teleportar todos para a instância.</li>
+                          </ul>
+                        </li>
+                        <li>
+                          <strong>Passo 5 – Drops específicos:</strong>
+                          <ul>
+                            <li>Associe <code>DA_EventReward</code> aos eventos para distribuir itens corretos (ex.: arma do Blood Castle).</li>
+                          </ul>
+                        </li>
+                        <li>
+                          <strong>Passo 6 – Monitoramento:</strong>
+                          <ul>
+                            <li>Adicione widget <code>WBP_EventTimeline</code> exibindo contagem regressiva e estados.</li>
+                            <li>Gere logs no <code>BP_EventScheduler</code> para auditar.</li>
+                          </ul>
                         </li>
                       </ol>
                     </div>
@@ -918,42 +985,51 @@
                   >
                     <div class="accordion-body">
                       <p>
-                        <strong>Objetivo:</strong> replicar todo o HUD construído
-                        em <code>CNewUIMainFrameWindow</code>, incluindo barra
-                        superior, chat, minimapa, botões de eventos e painel 3D.
+                        <strong>Objetivo:</strong> reconstruir o HUD de
+                        <code>CNewUIMainFrameWindow</code> e widgets auxiliares.
                       </p>
-                      <ol>
+                      <ol class="ps-3">
                         <li>
-                          Crie o <code>BP_MainFrameHUD</code> com regiões
-                          nomeadas (TopBar, SkillBar, StatusPanels, ChatDock). Em
-                          cada região, instancie os widgets equivalentes
-                          (<code>WBP_StatusBar</code>, <code>WBP_SkillSlots</code>,
-                          etc.) e conecte-os ao <code>BP_UIManagerSubsystem</code>
-                          para poder registrá-los dinamicamente como o UI Manager
-                          original fazia.
+                          <strong>Passo 1 – HUD raiz:</strong>
+                          <ul>
+                            <li>Crie <code>WBP_RemakeHUD</code> contendo slots para barra superior, chat, barras de HP/MP/AG e mini-mapa.</li>
+                            <li>No <code>BP_RemakePlayerController</code> invoque <code>Create Widget</code> e adicione ao viewport assim que o personagem spawnar.</li>
+                          </ul>
                         </li>
                         <li>
-                          Implemente o <code>BP_UIManagerSubsystem</code> com as
-                          funções <em>PushWidget</em>, <em>PopWidget</em> e
-                          <em>ToggleWidget</em>. Ele deve manter um mapa de
-                          <code>WidgetID → Instance</code>, acionando animações e
-                          garantindo que apenas um painel exclusivo esteja aberto
-                          por vez (inventário/character), como no cliente legado.
+                          <strong>Passo 2 – Barra superior:</strong>
+                          <ul>
+                            <li>Implemente <code>WBP_StatusBars</code> com <code>ProgressBar</code> e texto numérico.</li>
+                            <li>Conecte aos atributos do Ability System usando <code>Bind to Attribute Change</code>.</li>
+                          </ul>
                         </li>
                         <li>
-                          Recrie o chat e minimapa: crie o
-                          <code>WBP_RemakeChat</code> com canais (Normal, Guild,
-                          Whisper) e use o <code>BP_RemakeServerService</code> para
-                          enviar/receber mensagens. Para o minimapa, adicione um
-                          <code>SceneCapture2D</code> posicionado acima do mundo e
-                          overlays para NPCs/eventos.
+                          <strong>Passo 3 – Mini-mapa:</strong>
+                          <ul>
+                            <li>Adicione <code>SceneCaptureComponent2D</code> fixo acima do personagem e renderize para <em>Render Target</em>.</li>
+                            <li>Replique as coordenadas do servidor para desenhar ícones como no cliente.</li>
+                          </ul>
                         </li>
                         <li>
-                          Conecte cada widget ao <code>BP_RemakePlayerState</code>
-                          via bindings (HP, Mana, Buffs) e use os dispatchers
-                          <em>OnInventorySlotUpdated</em>, <em>OnQuestUpdated</em>
-                          para atualizar tooltips, garantindo que qualquer
-                          mudança replicada apareça instantaneamente.
+                          <strong>Passo 4 – Chat e log:</strong>
+                          <ul>
+                            <li>Monte <code>WBP_ChatPanel</code> com abas (Geral, Guild, Party, System).</li>
+                            <li>Conecte-o ao <code>BP_RemakeServerService</code> enviando pacotes <code>CGChatRecv</code> equivalentes.</li>
+                          </ul>
+                        </li>
+                        <li>
+                          <strong>Passo 5 – Overlay 3D:</strong>
+                          <ul>
+                            <li>Utilize <code>Widget Component</code> anexado aos personagens para mostrar barras de HP e nicknames.</li>
+                            <li>Garanta que a replicação respeita as mesmas regras de visibilidade do cliente (duelos, eventos).</li>
+                          </ul>
+                        </li>
+                        <li>
+                          <strong>Passo 6 – Hotkeys HUD:</strong>
+                          <ul>
+                            <li>Adicione botões/ícones com <em>InputAction</em> conectados às funções do PlayerController para abrir cada painel.</li>
+                            <li>Use <code>Widget Switcher</code> para alternar entre telas como Options, Friends, Guild.</li>
+                          </ul>
                         </li>
                       </ol>
                     </div>
@@ -977,38 +1053,51 @@
                   >
                     <div class="accordion-body">
                       <p>
-                        <strong>Objetivo:</strong> portar o comportamento do
-                        JoinServer/DataServer para os serviços UE5 e garantir que
-                        dados críticos sejam replicados e persistidos.
+                        <strong>Objetivo:</strong> garantir que as conexões
+                        Join/Data e o salvamento de personagens funcionem igual ao
+                        MuServer.
                       </p>
-                      <ol>
+                      <ol class="ps-3">
                         <li>
-                          Configure o <code>BP_SessionManager</code> como
-                          <em>GameInstanceSubsystem</em> com estados
-                          <em>LoginState</em> (Idle, Authenticating, Connected).
-                          Implemente funções <em>RequestLogin</em>,
-                          <em>HandleJoinResponse</em> e <em>HandleDisconnect</em>,
-                          imitando as mensagens trocadas com o JoinServer.
+                          <strong>Passo 1 – Sessão inicial:</strong>
+                          <ul>
+                            <li>No <code>BP_RemakeServerService</code> implemente <em>ServerHandshake</em> enviando <code>S_JOIN_AUTH</code> para o JoinServer.</li>
+                            <li>Aguarde o pacote <code>JMSG_CONNECTRESULT</code> e apenas então habilite o menu de seleção.</li>
+                          </ul>
                         </li>
                         <li>
-                          Crie o <code>BP_PersistenceService</code> com métodos
-                          <em>Server</em> para salvar PlayerState, inventário e
-                          quests. Ele deve serializar as structs em JSON ou gRPC e
-                          enviá-las ao backend (substituindo o DataServer).
+                          <strong>Passo 2 – Seleção e criação:</strong>
+                          <ul>
+                            <li>Construa <code>WBP_CharacterSelect</code> e conecte aos RPCs <em>RequestCharacterList</em> e <em>RequestCreateCharacter</em>.</li>
+                            <li>Cada operação deve serializar <code>FRemakeCharacterSnapshot</code> e validar campos como classe e nome exatamente como o servidor.</li>
+                          </ul>
                         </li>
                         <li>
-                          Use <em>FastArraySerializer</em> para
-                          <code>FItemInstanceArray</code> e
-                          <code>FQuestStateArray</code>, garantindo replicação
-                          seletiva apenas quando houver mudanças. Isso espelha os
-                          pacotes compactos enviados pelo protocolo original.
+                          <strong>Passo 3 – Persistência:</strong>
+                          <ul>
+                            <li>Implemente <code>BP_DataPersistenceSubsystem</code> que grava snapshots em banco (SQLite/Postgres) ou arquivos JSON quando o jogador desloga.</li>
+                            <li>Crie filas <em>SaveQueue</em> e <em>LoadQueue</em> para espelhar o DataServer e impedir perda de dados.</li>
+                          </ul>
                         </li>
                         <li>
-                          Implemente backups usando <code>SaveGame</code> locais
-                          para desenvolvimento e configure testes com múltiplos
-                          clientes lançando o editor em <em>Listen Server</em> +
-                          <em>Clients</em> via <code>RunUAT</code> para medir
-                          latência, rollback e tolerância a perda de pacotes.
+                          <strong>Passo 4 – Replicação fina:</strong>
+                          <ul>
+                            <li>Marque no <code>BP_RemakePlayerState</code> todas as variáveis críticas (Zen, PKStatus, MapID) como <em>Replicated</em> e sobrescreva <code>GetLifetimeReplicatedProps</code>.</li>
+                            <li>Implemente compressão customizada (NetSerialize) para pacotes de inventário e stats grandes.</li>
+                          </ul>
+                        </li>
+                        <li>
+                          <strong>Passo 5 – Reconexão:</strong>
+                          <ul>
+                            <li>Crie lógica de reconexão automática: ao detectar desconexão tente reconectar e reaplicar snapshot parcial recebido do DataServer.</li>
+                          </ul>
+                        </li>
+                        <li>
+                          <strong>Passo 6 – Testes:</strong>
+                          <ul>
+                            <li>Simule queda de rede usando <code>Net PktLag=200 PktLoss=5</code> e garanta que o salvamento continua consistente.</li>
+                            <li>Gere logs de auditoria para cada pacote recebido.</li>
+                          </ul>
                         </li>
                       </ol>
                     </div>
@@ -1032,40 +1121,49 @@
                   >
                     <div class="accordion-body">
                       <p>
-                        <strong>Objetivo:</strong> oferecer o mesmo controle ao
-                        vivo que os GMs tinham usando ferramentas externas,
-                        agora dentro do editor UE5.
+                        <strong>Objetivo:</strong> dar ao time de operação os
+                        mesmos poderes de administração do servidor clássico.
                       </p>
-                      <ol>
+                      <ol class="ps-3">
                         <li>
-                          Integre a <em>Analytics Blueprint Library</em> ou EOS
-                          Stats para registrar eventos de gameplay. Crie o
-                          <code>BP_AnalyticsService</code> com funções
-                          <em>TrackEvent</em> (Kill, ItemDrop, QuestComplete) e
-                          chame-o a partir dos serviços criados nas receitas
-                          anteriores.
+                          <strong>Passo 1 – Analytics:</strong>
+                          <ul>
+                            <li>Integre a <em>Analytics Blueprint Library</em> ou EOS Stats e crie <code>BP_AnalyticsService</code>.</li>
+                            <li>Adicione funções <em>TrackEvent</em>, <em>TrackCurrency</em> e <em>TrackFunnel</em>, chamando-as a partir de combate, loot e quests.</li>
+                          </ul>
                         </li>
                         <li>
-                          Desenvolva <code>Editor Utility Widgets</code> para
-                          editar DataTables (itens, monstros, eventos) e para
-                          disparar eventos (ex.: iniciar Castle Siege). Inclua
-                          botões que chamam diretamente funções do
-                          <code>BP_EventScheduler</code> no PIE/Standalone.
+                          <strong>Passo 2 – Painel de GM:</strong>
+                          <ul>
+                            <li>Crie um <code>Editor Utility Widget</code> chamado <code>EUW_RemakeGMPanel</code> com botões para spawnar mobs, distribuir itens e iniciar eventos.</li>
+                            <li>Os botões chamam funções RPC no <code>BP_EventScheduler</code> e no <code>BP_SpawnManager</code>.</li>
+                          </ul>
                         </li>
                         <li>
-                          Configure o <code>BP_LiveEventManager</code> consumindo
-                          <code>DA_LiveEvent</code> com campos de duração,
-                          recompensa e scripts customizados. Ele deve enviar
-                          notificações para o HUD e atualizar o
-                          <code>BP_EconomyService</code> quando itens de evento
-                          forem adicionados às lojas.
+                          <strong>Passo 3 – Live Events configuráveis:</strong>
+                          <ul>
+                            <li>Implemente <code>BP_LiveEventManager</code> que lê <code>DA_LiveEvent</code> contendo duração, recompensas e scripts.</li>
+                            <li>Permita ativação/desativação em runtime usando console commands <code>le start EventName</code>.</li>
+                          </ul>
                         </li>
                         <li>
-                          Automatize balanceamento carregando <em>Curve Tables</em>
-                          em runtime através do <code>BP_ConfigSubsystem</code>.
-                          Ao publicar uma nova curva, o sistema deve emitir o
-                          evento <em>OnBalanceUpdated</em>, permitindo ajustes sem
-                          recompilar o projeto.
+                          <strong>Passo 4 – Balanceamento dinâmico:</strong>
+                          <ul>
+                            <li>Carregue <code>CurveTable_Balance</code> a partir de arquivos externos via <code>BP_ConfigSubsystem</code>.</li>
+                            <li>Ao atualizar a curva dispare <em>OnBalanceUpdated</em> para que abilities recalcularem danos sem recompilar.</li>
+                          </ul>
+                        </li>
+                        <li>
+                          <strong>Passo 5 – Logs e auditoria:</strong>
+                          <ul>
+                            <li>Implemente <code>BP_AuditService</code> gravando comandos de GM, transações de players e eventos críticos em arquivos CSV ou banco.</li>
+                          </ul>
+                        </li>
+                        <li>
+                          <strong>Passo 6 – Treinamento:</strong>
+                          <ul>
+                            <li>Documente cada ferramenta em vídeos/gifs anexados ao EUW.</li>
+                          </ul>
                         </li>
                       </ol>
                     </div>
@@ -1090,37 +1188,47 @@
                     <div class="accordion-body">
                       <p>
                         <strong>Objetivo:</strong> garantir que o remake possa ser
-                        testado e publicado com a mesma confiabilidade exigida no
-                        MuServer.
+                        testado e publicado com repetibilidade.
                       </p>
-                      <ol>
+                      <ol class="ps-3">
                         <li>
-                          Use o Functional Testing Framework para criar testes
-                          automatizados: <code>FT_RemakeInventory</code>
-                          (inserção/movimentação), <code>FT_RemakeCombat</code>
-                          (ataques PvE/PvP), <code>FT_RemakeQuest</code> e
-                          <code>FT_RemakeEvents</code>. Cada teste deve spawnar
-                          personagens e executar as mesmas sequências descritas
-                          nas receitas correspondentes.
+                          <strong>Passo 1 – Functional Tests:</strong>
+                          <ul>
+                            <li>Crie mapas de teste <code>FT_RemakeInventory</code>, <code>FT_RemakeCombat</code>, <code>FT_RemakeQuest</code> e <code>FT_RemakeEvents</code> usando o <em>Functional Testing Framework</em>.</li>
+                            <li>Cada teste deve spawnar personagens, executar comandos e validar resultados por <code>Assert Equal</code>.</li>
+                          </ul>
                         </li>
                         <li>
-                          Monte scripts do <code>Automation Tool</code> que rodem
-                          os testes via <code>RunUAT BuildCookRun</code> com a flag
-                          <code>-RunAutomationTests</code>. Adicione Editor Utility
-                          Widgets para disparar a suíte completa com um clique.
+                          <strong>Passo 2 – Automation Tool:</strong>
+                          <ul>
+                            <li>Configure scripts do <code>AutomationTool</code> para rodar <code>RunUAT BuildCookRun -RunAutomationTests</code>.</li>
+                            <li>Integre com <code>Editor Utility Widget</code> para disparar a suíte com um clique.</li>
+                          </ul>
                         </li>
                         <li>
-                          Configure pipelines CI/CD (GitHub Actions, Jenkins ou
-                          Azure DevOps) executando <code>UnrealBuildTool</code>
-                          para Win64 + Linux Server. Inclua etapas para empacotar
-                          o cliente, o servidor dedicado e enviar builds para o
-                          SteamCMD/Epic.
+                          <strong>Passo 3 – CI/CD:</strong>
+                          <ul>
+                            <li>Monte pipelines (GitHub Actions/Jenkins) que executem <code>UnrealBuildTool</code> para Client e Dedicated Server.</li>
+                            <li>Configure etapas para empacotar e enviar builds ao SteamCMD/Epic.</li>
+                          </ul>
                         </li>
                         <li>
-                          Documente perfis do Project Launcher para desenvolvimento
-                          e produção, listando argumentos de linha de comando,
-                          chaves de depuração e planos de rollback (snapshot do
-                          backend + downgrade do build).
+                          <strong>Passo 4 – Deploy profiles:</strong>
+                          <ul>
+                            <li>Crie perfis no Project Launcher (Development, Staging, Production) com argumentos equivalentes aos usados nos servidores originais.</li>
+                          </ul>
+                        </li>
+                        <li>
+                          <strong>Passo 5 – Monitoramento de performance:</strong>
+                          <ul>
+                            <li>Adicione <code>Stat UnitGraph</code> e <code>Stat GPU</code> aos builds e configure alertas quando FPS cair abaixo de 60.</li>
+                          </ul>
+                        </li>
+                        <li>
+                          <strong>Passo 6 – Plano de rollback:</strong>
+                          <ul>
+                            <li>Documente snapshots do banco/persistência e scripts para restaurar versões anteriores do servidor.</li>
+                          </ul>
                         </li>
                       </ol>
                     </div>
