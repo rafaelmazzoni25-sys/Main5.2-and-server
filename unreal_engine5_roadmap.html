@@ -482,6 +482,267 @@
           </div>
         </div>
       </section>
+
+      <section class="mb-5">
+        <div class="row g-4">
+          <div class="col-lg-6">
+            <div class="bg-white rounded-4 shadow-sm p-4 h-100">
+              <p class="text-uppercase text-muted small mb-1">Source Main 5.2</p>
+              <h3 class="mb-3">Matriz de reconstrução do cliente</h3>
+              <div class="accordion" id="accordionMain52">
+                <div class="accordion-item">
+                  <h2 class="accordion-header" id="headingMainRender">
+                    <button
+                      class="accordion-button"
+                      type="button"
+                      data-bs-toggle="collapse"
+                      data-bs-target="#collapseMainRender"
+                      aria-expanded="true"
+                      aria-controls="collapseMainRender"
+                    >
+                      Renderização, viewport e input
+                    </button>
+                  </h2>
+                  <div
+                    id="collapseMainRender"
+                    class="accordion-collapse collapse show"
+                    aria-labelledby="headingMainRender"
+                    data-bs-parent="#accordionMain52"
+                  >
+                    <div class="accordion-body small">
+                      <ol class="ps-3 mb-0">
+                        <li>Recrie <code>BlackWin.cpp</code> em uma subclasse de <code>UGameViewportClient</code> e mova o loop de mensagens Win32 para <code>Tick()</code>.</li>
+                        <li>Mapeie <code>CDirection.*</code>, <code>CameraMove.*</code> e <code>WeatherRender.cpp</code> para <em>Enhanced Input</em> e <code>USceneCaptureComponent</code> em UE5.</li>
+                        <li>Transforme <code>CSMapServer.*</code> e <code>Builder.*</code> em níveis <strong>World Partition</strong> com <em>Data Layers</em> para as variantes (dia/noite).</li>
+                        <li>Implemente streaming de assets usando <code>FStreamableManager</code> e automatize a conversão dos arquivos <code>.OZ*</code> com scripts de <code>FerramentasExport/</code>.</li>
+                        <li>Ative <em>Nanite</em>/<em>Lumen</em> e valide shaders herdados de <code>FxSetColor.*</code> convertendo-os para <em>Material Functions</em>.</li>
+                      </ol>
+                    </div>
+                  </div>
+                </div>
+                <div class="accordion-item">
+                  <h2 class="accordion-header" id="headingMainUi">
+                    <button
+                      class="accordion-button collapsed"
+                      type="button"
+                      data-bs-toggle="collapse"
+                      data-bs-target="#collapseMainUi"
+                      aria-expanded="false"
+                      aria-controls="collapseMainUi"
+                    >
+                      Interface, HUD e inventário
+                    </button>
+                  </h2>
+                  <div
+                    id="collapseMainUi"
+                    class="accordion-collapse collapse"
+                    aria-labelledby="headingMainUi"
+                    data-bs-parent="#accordionMain52"
+                  >
+                    <div class="accordion-body small">
+                      <ol class="ps-3 mb-0">
+                        <li>Modele widgets UMG baseados nos arquivos <code>Button.*</code>, <code>CBTMessageBox.*</code>, <code>CGFxMainUi.*</code>, <code>CharMakeWin.*</code> e <code>CharSelMainWin.*</code>.</li>
+                        <li>Converta <code>dados_blueprint_dashboard.*</code> em <code>PrimaryDataAssets</code> para estilos, sons e referências de ícones.</li>
+                        <li>Recrie <code>CharInfoBalloonMng.*</code> usando <code>UWidgetComponent</code> ligados ao <code>PlayerState</code>.</li>
+                        <li>Implemente inventário, baú e loja (arquivos <code>CSParts.*</code>, <code>CSItemOption.*</code>, <code>CashShop.*</code>) como componentes replicados (<code>UInventoryComponent</code>, <code>UShopComponent</code>).</li>
+                        <li>Automatize validações de UI com <em>Functional Testing</em> + <code>AutomationDriver</code> cobrindo cada botão citado na tabela acima.</li>
+                      </ol>
+                    </div>
+                  </div>
+                </div>
+                <div class="accordion-item">
+                  <h2 class="accordion-header" id="headingMainGameplay">
+                    <button
+                      class="accordion-button collapsed"
+                      type="button"
+                      data-bs-toggle="collapse"
+                      data-bs-target="#collapseMainGameplay"
+                      aria-expanded="false"
+                      aria-controls="collapseMainGameplay"
+                    >
+                      Gameplay, personagens e efeitos
+                    </button>
+                  </h2>
+                  <div
+                    id="collapseMainGameplay"
+                    class="accordion-collapse collapse"
+                    aria-labelledby="headingMainGameplay"
+                    data-bs-parent="#accordionMain52"
+                  >
+                    <div class="accordion-body small">
+                      <ol class="ps-3 mb-0">
+                        <li>Construa <code>DataAssets</code> para classes de personagem com base em <code>CharacterManager.*</code>, <code>BoneManager.*</code>, <code>CSCreateCharacter.*</code>.</li>
+                        <li>Implemente Control Rig/IK retargeter e sockets mencionados em <code>BoneManager.*</code> para armas/pets.</li>
+                        <li>Converta <code>CSPetSystem.*</code>, <code>ChangeRingManager.*</code> e <code>CKANTURUDirection.*</code> em componentes <code>UActorComponent</code> replicados.</li>
+                        <li>Reescreva eventos <code>CSChaosCastle.*</code>, <code>CSDevilSquare.*</code>, <code>BloodCastle.*</code> como <code>UWorldSubsystem</code> + <code>AGameState</code> específicos e registre-os em <em>Game Feature Plugins</em>.</li>
+                        <li>Refaça partículas/efeitos (<code>FxObjManager.*</code>, <code>FxSetColor.*</code>) em Niagara usando <code>UNiagaraParameterCollection</code>.</li>
+                      </ol>
+                    </div>
+                  </div>
+                </div>
+                <div class="accordion-item">
+                  <h2 class="accordion-header" id="headingMainTools">
+                    <button
+                      class="accordion-button collapsed"
+                      type="button"
+                      data-bs-toggle="collapse"
+                      data-bs-target="#collapseMainTools"
+                      aria-expanded="false"
+                      aria-controls="collapseMainTools"
+                    >
+                      Ferramentas, QA e pipelines
+                    </button>
+                  </h2>
+                  <div
+                    id="collapseMainTools"
+                    class="accordion-collapse collapse"
+                    aria-labelledby="headingMainTools"
+                    data-bs-parent="#accordionMain52"
+                  >
+                    <div class="accordion-body small">
+                      <ol class="ps-3 mb-0">
+                        <li>Padronize exportadores de <code>FerramentasExport/</code> (malhas, partículas, CSV) e integre-os como <code>Editor Utility Widgets</code>.</li>
+                        <li>Crie testes <em>Gauntlet</em> que executam os roteiros de <code>SpriteHud</code> e <code>dados_blueprint_dashboard</code> para garantir paridade visual.</li>
+                        <li>Automatize builds com <code>BuildGraph</code> + GitHub Actions e registre artefatos (cliente, servidor dedicado, ferramentas).</li>
+                        <li>Implemente logging estruturado (substitui <code>LogProc.*</code>) usando <code>UE_LOGFMT</code> + export para OpenTelemetry.</li>
+                        <li>Documente cada fase no JSON exportado e publique em <code>unreal_recreation_plan.html</code> para rastreabilidade.</li>
+                      </ol>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="col-lg-6">
+            <div class="bg-white rounded-4 shadow-sm p-4 h-100">
+              <p class="text-uppercase text-muted small mb-1">Source MuServer Update 15</p>
+              <h3 class="mb-3">Matriz de reconstrução dos serviços</h3>
+              <div class="accordion" id="accordionServer">
+                <div class="accordion-item">
+                  <h2 class="accordion-header" id="headingConnect">
+                    <button
+                      class="accordion-button"
+                      type="button"
+                      data-bs-toggle="collapse"
+                      data-bs-target="#collapseConnect"
+                      aria-expanded="true"
+                      aria-controls="collapseConnect"
+                    >
+                      ConnectServer & JoinServer
+                    </button>
+                  </h2>
+                  <div
+                    id="collapseConnect"
+                    class="accordion-collapse collapse show"
+                    aria-labelledby="headingConnect"
+                    data-bs-parent="#accordionServer"
+                  >
+                    <div class="accordion-body small">
+                      <ol class="ps-3 mb-0">
+                        <li>Reescreva <code>ConnectServer/SocketManager.*</code> e <code>JoinServer/JSProtocol.*</code> usando <code>asio</code> ou Unreal Dedicated.</li>
+                        <li>Documente pacotes de <code>ProtocolDefines.h</code> e exponha endpoints REST/gRPC para o cliente UE5 validar login/seleção de personagem.</li>
+                        <li>Implemente balanceamento de carga entre shards replicando o comportamento de <code>ServerListManager.*</code>.</li>
+                        <li>Adapte a criptografia (XOR/MD5) para TLS + tokens JWT emitidos pelo serviço.</li>
+                        <li>Automatize testes de handshake usando <code>pytest</code> ou <code>Gauntlet</code> headless.</li>
+                      </ol>
+                    </div>
+                  </div>
+                </div>
+                <div class="accordion-item">
+                  <h2 class="accordion-header" id="headingData">
+                    <button
+                      class="accordion-button collapsed"
+                      type="button"
+                      data-bs-toggle="collapse"
+                      data-bs-target="#collapseData"
+                      aria-expanded="false"
+                      aria-controls="collapseData"
+                    >
+                      DataServer & persistência
+                    </button>
+                  </h2>
+                  <div
+                    id="collapseData"
+                    class="accordion-collapse collapse"
+                    aria-labelledby="headingData"
+                    data-bs-parent="#accordionServer"
+                  >
+                    <div class="accordion-body small">
+                      <ol class="ps-3 mb-0">
+                        <li>Mapeie <code>DataServer/Protocol.*</code> e <code>DataServer/DSQueryManager.*</code> para uma camada ORM moderna (PostgreSQL + <code>libpqxx</code> ou Unreal <code>DataInterface</code>).</li>
+                        <li>Construa microsserviço de inventário sincronizado com as estruturas UE5 (<code>UInventoryComponent</code>, DataTables).</li>
+                        <li>Implemente replicação de rankings/eventos usando Redis Streams, substituindo os broadcasts de <code>DSQueue.*</code>.</li>
+                        <li>Gere migrações SQL a partir dos schemas <code>MuServer_Season_5_Update_15/DB</code>.</li>
+                        <li>Expose APIs para persistir configurações de eventos (Castle Siege, Crywolf) consultadas pelos <code>UWorldSubsystems</code>.</li>
+                      </ol>
+                    </div>
+                  </div>
+                </div>
+                <div class="accordion-item">
+                  <h2 class="accordion-header" id="headingGameServer">
+                    <button
+                      class="accordion-button collapsed"
+                      type="button"
+                      data-bs-toggle="collapse"
+                      data-bs-target="#collapseGameServer"
+                      aria-expanded="false"
+                      aria-controls="collapseGameServer"
+                    >
+                      GameServer e eventos
+                    </button>
+                  </h2>
+                  <div
+                    id="collapseGameServer"
+                    class="accordion-collapse collapse"
+                    aria-labelledby="headingGameServer"
+                    data-bs-parent="#accordionServer"
+                  >
+                    <div class="accordion-body small">
+                      <ol class="ps-3 mb-0">
+                        <li>Separe os módulos <code>BloodCastle.*</code>, <code>ChaosCastle.*</code>, <code>CastleSiege.*</code>, <code>ArcaBattle.*</code> em serviços independentes com filas gRPC.</li>
+                        <li>Portar <code>CommandManager.*</code>, <code>Attack.*</code>, <code>SkillManager.*</code> como bibliotecas compartilhadas acessadas por UE5 via <code>Gameplay Ability System</code>.</li>
+                        <li>Atualize o <code>GameServer/GameServer/EventItemBagManager.*</code> para gerar <em>loot tables</em> consumidas por DataAssets do cliente.</li>
+                        <li>Implemente simulações determinísticas para <code>BattleSoccer</code> e <code>IllusionTemple</code> com testes automatizados.</li>
+                        <li>Sincronize estado via <em>Pub/Sub</em> (Kafka) garantindo que UE5 receba notificações em tempo real.</li>
+                      </ol>
+                    </div>
+                  </div>
+                </div>
+                <div class="accordion-item">
+                  <h2 class="accordion-header" id="headingOps">
+                    <button
+                      class="accordion-button collapsed"
+                      type="button"
+                      data-bs-toggle="collapse"
+                      data-bs-target="#collapseOps"
+                      aria-expanded="false"
+                      aria-controls="collapseOps"
+                    >
+                      Observabilidade e operações
+                    </button>
+                  </h2>
+                  <div
+                    id="collapseOps"
+                    class="accordion-collapse collapse"
+                    aria-labelledby="headingOps"
+                    data-bs-parent="#accordionServer"
+                  >
+                    <div class="accordion-body small">
+                      <ol class="ps-3 mb-0">
+                        <li>Modernize os utilitários em <code>Util/</code> (logger, profiler, crash handler) e exponha métricas no formato OpenTelemetry.</li>
+                        <li>Crie scripts de provisionamento (Ansible/Terraform) baseados nas configurações existentes em <code>MuServer_Season_5_Update_15/Configs</code>.</li>
+                        <li>Implemente pipelines CI/CD que compilam os serviços C++17 e os pacotes <em>Dedicated Server</em> UE5.</li>
+                        <li>Adapte o <code>FerramentasExport/Monitor</code> para dashboards Grafana + Alertmanager.</li>
+                        <li>Documente procedimentos de rollback e backup para cada serviço, vinculando-os às ações do roadmap.</li>
+                      </ol>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
     </main>
 
     <script
@@ -491,18 +752,18 @@
     ></script>
     <script>
       const instructions = {
-        fase0: `Fase 0 — Auditoria e preparação\n\n1. Clone as pastas "Source Main 5.2" e "Source MuServer Update 15" para um repositório Git monorepo.\n2. Gere inventário de includes e dependências usando "clang-scan-deps" apontando para "Source Main 5.2/source".\n3. Execute scripts de "FerramentasExport" para extrair animações, texturas (.OZJ/.OZT) e CSVs de balanceamento.\n4. Crie documentação das janelas legadas (ex.: Button, CharMakeWin) mapeando IDs e eventos Win32 para equivalentes UMG.\n5. No lado servidor, rode "Doxygen" ou "Understand" em "GameServer/GameServer" para obter diagramas de relacionamento.\n6. Defina requisitos técnicos UE5+: versão mínima 5.4, target platform Windows + Linux Dedicated, build system Git LFS para assets.`,
-        fase1: `Fase 1 — Fundamentos do cliente UE5\n\n1. Crie um projeto UE5 em C++ e configure "GameInstance" (classe derivada de UGameInstance) responsável por inicializar sockets.\n2. Traduza o loop principal de "BlackWin.cpp" para UGameViewportClient e substitua mensagens Win32 por eventos do Slate.\n3. Migre o sistema de câmeras de "CameraMove.*" e "CDirection.*" para Enhanced Input, criando Mappings para mouse/teclado/gamepad.\n4. Para cada mapa em "CSMapServer.*", crie um Level principal e subníveis de streaming com World Partition habilitado.\n5. Use "Builder.*" como referência para pipeline de assets e substitua por "LyraStarterGame" plugins para movimentação básica.`,
-        fase2: `Fase 2 — UI, HUD e inventário\n\n1. Catalogar todos os elementos de interface (Button, CBTMessageBox, CGFxMainUi, CharInfoBalloon) e produzir um backlog de widgets UMG.\n2. Criar um módulo "UI" em UE5 contendo Data Assets para textos, sons e estilos (referencie CGFxFontConfigParser).\n3. Implementar o fluxo de login e seleção de personagem dentro de um "UCommonActivatableWidget", reaproveitando lógica de CharSelMainWin/CharMakeWin.\n4. Recriar o HUD principal (CGFxMainUi) usando Blueprints comunicando-se com PlayerController.\n5. Inventário: converter estruturas de CSParts/CSItemOption para DataTables, implementar drag/drop com UDragDropOperation e tooltips gerados dinamicamente.\n6. Conectar mensagens do servidor via WebSocket/UDP e refletir notificações em widgets (CharInfoBalloonMng).`,
-        fase3: `Fase 3 — Personagens e gameplay\n\n1. Importe modelos originais usando "Builder" + ferramentas de exportação, retarget para o esqueleto UE5 Manny/Quinn.\n2. Migre "CharacterManager" para um subsystem que instancia personagens via DataAssets (stats, skills).\n3. "BoneManager" define anexos de armas/armaduras — converta para sockets e Control Rigs.\n4. Portar "CSPetSystem" e "ChangeRingManager" para componentes replicados que atualizam montarias/pets.\n5. Traduzir eventos especiais (CSChaosCastle, CSEventMatch, CMVP1stDirection) para GameModes dedicados e registrar no GameFeatureData.\n6. Implementar efeitos de água e terrenos (CSWaterTerrain) usando Material Functions + Niagara.`,
-        fase4: `Fase 4 — Servidores dedicados\n\n1. Para cada projeto (ConnectServer, DataServer, GameServer, JoinServer) defina um contêiner Docker com toolchain MSVC/Clang.\n2. Reescreva módulos críticos: Attack, Command, ChaosBox, BloodCastle, CastleSiege, CashShop, ComboSkill em serviços C++17/Unreal Dedicated conforme necessidade de gameplay.\n3. Introduza gRPC ou WebSockets para comunicar UE5 → serviços, mantendo protocolos legados documentados.\n4. Utilize "Util" para bibliotecas comuns (logging, config) e adapte para spdlog + toml++ econ.\n5. Sincronize persistência via DataServer (SQL Server → PostgreSQL/MySQL) usando ORM (oatpp, soci).\n6. Configure replicação em tempo real com Redis Streams ou Kafka para broadcast de eventos.`,
-        fase5: `Fase 5 — QA, operações e hand-off\n\n1. Automatize builds com Unreal Build Tool + BuildGraph, gerando pacotes cliente, servidor dedicado e ferramentas.\n2. Crie testes funcionais utilizando Gauntlet e automações de gameplay para mapas chave (Chaos Castle, Blood Castle).\n3. Configure monitoramento (Prometheus/Grafana) lendo métricas exportadas pelos serviços reescritos e counters do UE5.\n4. Gere documentação final no formato HTML/PDF integrando diagramas e o JSON exportado deste roadmap.\n5. Treine a equipe com walkthrough filmado, scripts CLI e backup de assets no ProjetoUnrealEngine/.\n6. Estabeleça processo de publicação (Steam/Epic) com integração ao pipeline CI.`,
-        btn_ui_base: `Botão: Construir UI Base\n\n1. Converter Button.cpp/h para um "Widget Blueprint" (WB_ButtonLegacy) utilizando estados (normal, hover, disabled).\n2. Criar um "Subsystem" para internacionalização baseado em CGFxFontConfigParser e armazenar fontes/cores via Data Assets.\n3. Fluxo de login: traduzir CharSelMainWin/CharMakeWin para "UCommonActivatableWidget" com eventos de validação e chamadas REST ao JoinServer.\n4. Implementar CGFxMainUi como HUD composto: barras, chat, minimapa; utilize Layered UI (Viewport + Widgets).\n5. Testar navegação com Gamepad e teclado replicando IDs de botões originais.`,
-        btn_inventory: `Botão: Inventário & Tooltips\n\n1. Importar estrutura de dados de CSParts/CSItemOption/CSResourceManager para DataTables.\n2. Criar um componente "UInventoryComponent" em C++ para armazenar slots, seguindo a lógica de arranjo do cliente clássico.\n3. Implementar arrastar/soltar com UDragDropOperation, validando regras (tamanho, classe) com Blueprint Functions.\n4. Tooltips: usar CComGem/CSItemOption para gerar descrições ricas com ícones Slate.\n5. Integrar com servidor através de RPCs confiáveis (Lyra/Gameplay Ability System).`,
-        btn_character: `Botão: Personagens & rigs\n\n1. Converter CharacterManager para fábrica de DataAssets de personagens (stats, animações).\n2. Portar BoneManager para Control Rig e retargeter, mantendo sockets para armas e partículas.\n3. Implementar CSPetSystem e ChangeRingManager como Actor Components replicados.\n4. Animações especiais (CKANTURUDirection, CMVP1stDirection) viram "Level Sequences" acionadas via Gameplay Tags.`,
-        btn_events: `Botão: Eventos PvE/PvP\n\n1. Para cada evento (ChaosCastle, BloodCastle, CastleSiege) crie um UWorldSubsystem que controla fases, timers e spawn tables.\n2. Migre scripts de ArcaBattle, BattleSoccer, Crywolf para GameModes dedicados com GameState replicado.\n3. Use DataAssets para recompensas, puxando tabelas dos CSVs originais via FerramentasExport.\n4. Conecte o estado do evento com servidores dedicados via gRPC.`,
-        btn_network: `Botão: Rede e protocolo\n\n1. Documente todos os pacotes definindo estruturas "#pragma pack" encontradas em Command.cpp/Attack.cpp.\n2. Crie um módulo de rede UE5 que encapsula TCP/UDP (FSocketSubsystem) e suporte HTTP (FHttpModule) para autenticação.\n3. Estabeleça handshake compatível com ConnectServer/JoinServer e mantenha encriptação XOR original até migrar para TLS.\n4. Integre DataServer para persistência de inventário e ranking via endpoints REST/gRPC.`,
-        btn_ops: `Botão: Ops & Deploy\n\n1. Reaproveite scripts em Util/ e FerramentasExport/ para gerar seed data e logs.\n2. Montar pipelines GitHub Actions para BuildGraph, testes Gauntlet e upload automático para S3/SteamPipe.\n3. Criar dashboards (Grafana) e alertas (Prometheus Alertmanager) com métricas UE5 + servidores dedicados.\n4. Empacotar documentação (incluindo JSON exportado) em um portal interno.`,
+        fase0: `Fase 0 — Auditoria e preparação\n\n1. Clone as pastas "Source Main 5.2" e "Source MuServer Update 15" em um monorepo com Git LFS habilitado.\n2. Rode "clang-scan-deps" + "Doxygen" em "Source Main 5.2/source" e "GameServer/GameServer" para gerar diagramas.\n3. Utilize "FerramentasExport" para extrair animações, partículas (.OZJ/.OZT) e CSVs de balanceamento para DataTables.\n4. Catalogue dependências Win32/DX9 (BlackWin, WeatherRender, CGFx*) e os protocolos dos servidores (Connect/Data/Game/Join).\n5. Defina targets UE5 (5.4+, Windows + Linux Dedicated), pipeline BuildGraph e política de branch para cliente/servidores.\n6. Configure ambientes Docker/WSL para recompilar os projetos originais e validar o comportamento antes da migração.\n7. Gere backlog de funcionalidades cruzando cada arquivo legado com o módulo UE5 equivalente usando esta página como referência.`,
+        fase1: `Fase 1 — Fundamentos do cliente UE5\n\n1. Crie o projeto UE5 C++ com módulos "Client", "UI" e "Gameplay" separados.\n2. Substitua o loop de "BlackWin.cpp" por um "UGameViewportClient" custom que inicializa o Slate.\n3. Migre câmeras/inputs de "CameraMove.*" e "CDirection.*" para Enhanced Input (contextos para mouse, teclado e gamepad).\n4. Para cada entrada em "CSMapServerList.txt", gere um mapa World Partition com Data Layers para variantes de evento.\n5. Carregue assets convertidos do "Builder" usando <code>FStreamableManager</code> e scripts Editor Utility que importam malhas/texturas.\n6. Estruture <code>UGameInstance</code> + <code>UOnlineSubsystem</code> custom para sockets/RPCs, substituindo <code>CLogin</code> e conexões diretas.\n7. Habilite Pixel Streaming para validar UI remotamente e registre métricas de FPS + latência no painel Ops.`,
+        fase2: `Fase 2 — UI, HUD e inventário\n\n1. Gere inventário dos widgets legados (Button, CBTMessageBox, CGFxMainUi, CharSelMainWin, CharMakeWin, CharInfoBalloon) e vincule-os a UMG/Slate.\n2. Construa "PrimaryDataAssets" com os temas/sons referenciados em "dados_blueprint_dashboard.*".\n3. Reimplemente o fluxo de login/seleção usando "UCommonActivatableWidget" + "CommonInput" com chamadas HTTP ao JoinServer UE5.\n4. Monte HUD (CGFxMainUi) como widgets compostos (barra de vida, chat, minimapa, quest tracker).\n5. Converta <code>CSParts.*</code>, <code>CSItemOption.*</code>, <code>ItemExcellentOption.*</code> em DataTables e crie <code>UInventoryComponent</code> replicado com drag/drop.\n6. Refaça tooltips e comparações usando <code>UDataTableFunctionLibrary</code> + texturas importadas de <code>CComGem.*</code>.\n7. Sincronize notificações em tempo real (CharInfoBalloonMng) por meio de mensagens WebSocket/UDP encapsuladas no módulo de rede UE5.`,
+        fase3: `Fase 3 — Personagens e gameplay\n\n1. Converta modelos exportados pelo "Builder" para Skeletal Mesh + Control Rig (UE5 Manny/Quinn).\n2. Migre "CharacterManager" para um subsystem que instancia personagens com base em DataAssets (stats, skills, FX).\n3. Recrie "BoneManager" em Control Rig, com sockets definidos para cada peça de armadura/pet.\n4. Portar "CSPetSystem", "ChangeRingManager" e "CKANTURUDirection" para componentes replicados (montarias, transformações).\n5. Traduza eventos "CSChaosCastle", "BloodCastle", "CastleSiege", "IllusionTemple" para GameModes + GameStates dedicados usando Gameplay Tags.\n6. Reaproveite "ComboSkill.cpp" e "SkillManager" implementando Gameplay Ability System, incluindo cooldowns e efeitos Niagara.\n7. Utilize <code>CSWaterTerrain</code> e <code>WeatherRender</code> como base para materiais dinâmicos (chuva, neblina) com <code>Material Parameter Collections</code>.`,
+        fase4: `Fase 4 — Servidores dedicados\n\n1. Containerize ConnectServer, JoinServer, DataServer e GameServer usando imagens MSVC/Clang com Conan/vcpkg.\n2. Reescreva módulos críticos (Attack, Command, ChaosBox, CashShop, BloodCastle, CastleSiege, ComboSkill) como microsserviços C++17 com gRPC/REST.\n3. Utilize "Util" para bases comuns (logger, config) e migre para spdlog + toml++ com OpenTelemetry.\n4. Sincronize persistência via DataServer (SQL Server → PostgreSQL/MySQL) usando ORM (oatpp, SOCI) e migrações automatizadas.\n5. Garanta compatibilidade com o cliente clássico mantendo tradutores de pacotes (#pragma pack) e adicionando gateways HTTP/WS para UE5.\n6. Configure replicação de eventos em tempo real com Redis Streams ou Kafka e integre notificações com os Subsystems UE5.\n7. Documente rotas, portas e dependências na nova matriz de reconstrução desta página.`,
+        fase5: `Fase 5 — QA, operações e hand-off\n\n1. Automatize builds (cliente UE5 + servidores dedicados) com BuildGraph, Gauntlet e GitHub Actions.\n2. Crie testes funcionais cobrindo mapas/eventos (Chaos Castle, Blood Castle, Castle Siege) e fluxos de UI (login, inventário, cash shop).\n3. Configure observabilidade (Prometheus/Grafana/OpenTelemetry) lendo métricas UE5 + serviços reescritos.\n4. Gere documentação final (HTML/PDF) vinculando códigos legados → módulos UE5 usando o JSON exportado.\n5. Prepare treinamentos (vídeos, scripts CLI, playbooks) armazenados em ProjetoUnrealEngine/.\n6. Defina processos de publicação (Steam/Epic) com pacotes, branch freeze e rollback.\n7. Execute hand-off com checklist assinado cobrindo cliente e servidores.`,
+        btn_ui_base: `Botão: Construir UI Base\n\n1. Converter Button.cpp/h para um "Widget Blueprint" (WB_ButtonLegacy) com estados e animações Slate.\n2. Criar um Subsystem de internacionalização baseado em CGFxFontConfigParser e armazenar fontes/cores como DataAssets.\n3. Fluxo de login: traduzir CharSelMainWin/CharMakeWin para "UCommonActivatableWidget" com validações síncronas/assíncronas.\n4. Implementar CGFxMainUi como HUD composto (barras, chat, minimapa, atalho de eventos) com camadas Z-order.\n5. Conectar HTTP/WS ao novo JoinServer (pré-login) e atualizar estados visuais conforme respostas.\n6. Configurar testes de navegação (Keyboard/Gamepad) usando AutomationDriver replicando IDs dos botões originais.`,
+        btn_inventory: `Botão: Inventário & Tooltips\n\n1. Importar CSParts/CSItemOption/CSResourceManager para DataTables com GUIDs equivalentes.\n2. Criar um "UInventoryComponent" replicado que respeita lógica de slots/tamanho do cliente clássico.\n3. Implementar drag & drop com UDragDropOperation, incluindo validação por Blueprint Function Library.\n4. Reescrever tooltips com dados de CComGem e ícones Slate, exibindo bônus Excellent/Socket.\n5. Conectar RPCs confiáveis ao DataServer (via JoinServer gateway) para atualizar inventário/persistência.\n6. Automatizar testes (Gauntlet + Functional Testing) movendo itens, equipando e checando tooltips.`,
+        btn_character: `Botão: Personagens & rigs\n\n1. Converter CharacterManager para fábrica de DataAssets (stats, animações, FX).\n2. Portar BoneManager para Control Rig com sockets nomeados conforme arquivos originais.\n3. Implementar CSPetSystem/ChangeRingManager como Actor Components replicados (pets, montarias, transformações).\n4. Migrar CKANTURUDirection, CMVP1stDirection e animações únicas para Level Sequences acionadas via Gameplay Tags.\n5. Validar rigs/pets usando IK Retargeter e testes automatizados.`,
+        btn_events: `Botão: Eventos PvE/PvP\n\n1. Para cada evento (ChaosCastle, BloodCastle, CastleSiege, IllusionTemple, ArcaBattle) crie UWorldSubsystem + GameMode especializado.\n2. Migre scripts de BattleSoccer, Crywolf e DevilSquare mantendo fases/timers em GameState replicado.\n3. Use DataAssets para recompensas e configurações, preenchendo a partir dos CSVs exportados em FerramentasExport.\n4. Conecte o estado dos eventos com serviços dedicados via gRPC/Kafka para sincronizar ranking, recompensas e broadcast.\n5. Gere testes automatizados simulando ondas e objetivos usando Gauntlet.`,
+        btn_network: `Botão: Rede e protocolo\n\n1. Documente pacotes (Command.cpp, Attack.cpp, ProtocolDefines.h) definindo structs alinhadas.\n2. Crie módulo de rede UE5 para TCP/UDP (FSocketSubsystem) e HTTP (FHttpModule) com handshake compatível.\n3. Aplique criptografia XOR original até migrar para TLS, mantendo fallback para clientes legados.\n4. Integre JoinServer/DataServer via REST/gRPC, expondo métodos para login, inventário, guild, eventos.\n5. Crie testes de carga simulando múltiplos clientes (Lyra/Pixel Streaming).`,
+        btn_ops: `Botão: Ops & Deploy\n\n1. Reaproveite scripts em Util/ e FerramentasExport/ para gerar seed data e logs.\n2. Montar pipelines GitHub Actions (BuildGraph + testes Gauntlet) com publicação automática (S3/SteamPipe).\n3. Criar dashboards Grafana/Alertmanager lendo métricas UE5 + servidores dedicados via OpenTelemetry.\n4. Empacotar documentação (HTML/JSON) em portal interno e vincular com runbooks.\n5. Ensaiar procedimentos de rollback/deploy azul-verde conforme definido na matriz de operações.`,
       };
 
       document.querySelectorAll("[data-action]").forEach((btn) => {
