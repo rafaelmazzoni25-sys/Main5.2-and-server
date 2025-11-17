@@ -69,10 +69,10 @@ void GCCertificaltionHelper::Debug_GameChuMyDataSetBuffer( void )
 
 
 //----------------------------------------------------------------------------------------
-// Function: ½ÇÇà ÆÄ¶ó¹ÌÅÍ ÀÎÁõÇÑ´Ù.
-// Input   : ÆÄ¶ó¹ÌÅÍ ¹®ÀÚ¿­
-// Output  : °á°ú°ª ( 0: Á¤»ó,			  1: Àß¸øµÈ¾ÏÈ£È­°ª,	10: ½Ã°£ÃÊ°ú, 100:ÆÄ½Ì ½ÇÆÐ, 
-//					101: »ç¿ëÀÚÁ¤º¸ºÎÁ·, 102: ÆÄ¶ó¹ÌÅÍ°ª¿À·ù,  1000: ¾Ë¼ö¾ø´Â¿¡·¯
+	g_ErrorReport.Write( "[FOR_WORK] PARAM: %s\n", _szCmdLine );
+// Input   : íŒŒë¼ë¯¸í„° ë¬¸ìžì—´
+// Output  : ê²°ê³¼ê°’ ( 0: ì •ìƒ,			  1: ìž˜ëª»ëœì•”í˜¸í™”ê°’,	10: ì‹œê°„ì´ˆê³¼, 100:íŒŒì‹± ì‹¤íŒ¨, 
+//					101: ì‚¬ìš©ìžì •ë³´ë¶€ì¡±, 102: íŒŒë¼ë¯¸í„°ê°’ì˜¤ë¥˜,  1000: ì•Œìˆ˜ì—†ëŠ”ì—ëŸ¬
 //------------------------------------------------------------------------[lem_2010.10.11]-
 void GCCertificaltionHelper::Set_GameChuMyData( PSTR _szCmdLine )
 {
@@ -87,11 +87,11 @@ void GCCertificaltionHelper::Set_GameChuMyData( PSTR _szCmdLine )
 	g_ErrorReport.Write( " >>>>>>>>> PARAM: %s   <<<<<<<<\n", _szCmdLine );
 #endif // FOR_WORK
 
-	// ¹®ÀÚ¿­ À¯´ÏÄÚµå·Î º¯È¯
+	// ë¬¸ìžì—´ ìœ ë‹ˆì½”ë“œë¡œ ë³€í™˜
 	MultiByteToWideChar(CP_ACP, 0, _szCmdLine, -1, szTemp, strlen(_szCmdLine) );
 	wCmdLine = szTemp;
 	
-	// ÆÄ¶ó¹ÌÅÍ °ª ºÐ¸®
+	// íŒŒë¼ë¯¸í„° ê°’ ë¶„ë¦¬
  	size			= wCmdLine.find_first_of(wSpace);
 	m_wParam		= wCmdLine.substr(0, size);
 	m_wStatIndex	= wCmdLine.substr(size+1);
@@ -100,7 +100,7 @@ void GCCertificaltionHelper::Set_GameChuMyData( PSTR _szCmdLine )
 	//Debug_GameChuMyDataSetBuffer();
 #endif
 	
-	// charÇü ÀúÀå
+	// charí˜• ì €ìž¥
 	nLength =	m_wParam.length();
     WideCharToMultiByte(CP_ACP, 0, m_wParam.c_str(), -1, m_szParam, nLength, 0, 0);
 
@@ -109,7 +109,7 @@ void GCCertificaltionHelper::Set_GameChuMyData( PSTR _szCmdLine )
 
 	nResult			= CheckCertification(m_wParam.c_str(), m_wStatIndex.c_str(), g_ServerKey.c_str(), &m_UserData, 600);
 
-	// nResult °ªÀÌ 0ÀÌ¸é Á¤»ó ·Î±×ÀÎ, °ÔÀÓÃò À¥½ºÅ¸ÅÍ·Î ½ÃÀÛÇÑ À¯ÀúÀÌ´Ù.
+	// nResult ê°’ì´ 0ì´ë©´ ì •ìƒ ë¡œê·¸ì¸, ê²Œìž„ì¸„ ì›¹ìŠ¤íƒ€í„°ë¡œ ì‹œìž‘í•œ ìœ ì €ì´ë‹¤.
 	if( nResult == 0 )	m_bGameChu = true;
 	else
 	{
