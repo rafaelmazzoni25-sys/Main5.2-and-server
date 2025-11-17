@@ -186,7 +186,7 @@
       <section class="mt-5">
         <div class="bg-panel p-4">
           <p class="section-title">Mapa Completo do Caminho</p>
-          <h2 class="h4">Roadmap Cronológico do Remake (Etapas 0 a 11)</h2>
+          <h2 class="h4">Roadmap Cronológico do Remake (Etapas 0 a 16)</h2>
           <p>
             Utilize o painel abaixo para visualizar todas as entregas previstas e
             como cada etapa desbloqueia a seguinte. Essa visão consolida o
@@ -322,6 +322,61 @@
                   <li>Testes funcionais em Blueprint.</li>
                   <li>Automation Tool + CI.</li>
                   <li>Perfis de empacotamento.</li>
+                </ul>
+              </div>
+            </div>
+            <div class="col">
+              <div class="p-3 bg-dark rounded h-100">
+                <h3 class="h6 text-info">Etapa 12 — Áudio &amp; Cinemáticas</h3>
+                <p class="small mb-1">Atmosfera, cutscenes e mixagem.</p>
+                <ul class="small mb-0">
+                  <li>SoundWaves equivalentes ao wzAudio.</li>
+                  <li>Sequências para login e eventos.</li>
+                  <li>Diretor de ambience e Niagara.</li>
+                </ul>
+              </div>
+            </div>
+            <div class="col">
+              <div class="p-3 bg-dark rounded h-100">
+                <h3 class="h6 text-info">Etapa 13 — Sistemas Sociais</h3>
+                <p class="small mb-1">Party, guild, correio e rankings.</p>
+                <ul class="small mb-0">
+                  <li>Serviços com FastArraySerializer.</li>
+                  <li>Chat avançado e macros.</li>
+                  <li>Widgets de ranking/painel social.</li>
+                </ul>
+              </div>
+            </div>
+            <div class="col">
+              <div class="p-3 bg-dark rounded h-100">
+                <h3 class="h6 text-info">Etapa 14 — Segurança &amp; Anti-Cheat</h3>
+                <p class="small mb-1">Políticas autoritativas.</p>
+                <ul class="small mb-0">
+                  <li>RPCs validados por servidor.</li>
+                  <li>Packets assinados/criptografados.</li>
+                  <li>Auditoria e alertas em tempo real.</li>
+                </ul>
+              </div>
+            </div>
+            <div class="col">
+              <div class="p-3 bg-dark rounded h-100">
+                <h3 class="h6 text-info">Etapa 15 — Localização &amp; Acessibilidade</h3>
+                <p class="small mb-1">UI multi-idioma e opções de uso.</p>
+                <ul class="small mb-0">
+                  <li>String Tables e Localization Dashboard.</li>
+                  <li>Perfis de contraste, fontes e input.</li>
+                  <li>Suporte completo a IME e voice chat.</li>
+                </ul>
+              </div>
+            </div>
+            <div class="col">
+              <div class="p-3 bg-dark rounded h-100">
+                <h3 class="h6 text-info">Etapa 16 — Observabilidade &amp; Suporte</h3>
+                <p class="small mb-1">Telemetria e ferramentas internas.</p>
+                <ul class="small mb-0">
+                  <li>Dashboards de performance.</li>
+                  <li>Ferramentas de GM in-engine.</li>
+                  <li>Runbooks e alertas automatizados.</li>
                 </ul>
               </div>
             </div>
@@ -2005,6 +2060,392 @@
                               <td>Executar comandos <code>ce ForceGuildWar</code> e registrar evidências</td>
                               <td>Console PIE + captura de tela</td>
                               <td>Resultados combinam com comportamento do MuServer.</td>
+                            </tr>
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                <div class="accordion-item bg-dark text-white">
+                  <h2 class="accordion-header" id="receita14">
+                    <button
+                      class="accordion-button collapsed"
+                      type="button"
+                      data-bs-toggle="collapse"
+                      data-bs-target="#receita14Body"
+                    >
+                      Receita 14 — Segurança, Anti-Cheat e Auditoria
+                    </button>
+                  </h2>
+                  <div
+                    id="receita14Body"
+                    class="accordion-collapse collapse"
+                    data-bs-parent="#receitasAccordion"
+                  >
+                    <div class="accordion-body">
+                      <p>
+                        <strong>Objetivo:</strong> reproduzir todas as
+                        validações e defesas do cliente/servidor clássico,
+                        garantindo que o lado UE5 continue autoritativo e
+                        resistente a hacks de velocidade, injeções ou pacotes
+                        forjados.
+                      </p>
+                      <ol class="ps-3">
+                        <li>
+                          <strong>Passo 1 – Gateway de segurança:</strong>
+                          <ul>
+                            <li>Implemente <code>BP_SecurityGateway</code>
+                            (classe <em>GameModeSubsystem</em>) com filas de
+                            auditoria e uma função <code>IssueStrike</code>.</li>
+                            <li>Registre o subsistema em
+                            <code>BP_RemakeGameMode</code> para interceptar
+                            conexões logo após o login.</li>
+                          </ul>
+                        </li>
+                        <li>
+                          <strong>Passo 2 – Validação de RPCs:</strong>
+                          <ul>
+                            <li>Adicione ao
+                            <code>BP_RemakePlayerController</code> uma função
+                            <code>AuthorityValidateAction</code> que consulta as
+                            flags de mapa/evento (Attack.cpp) antes de aceitar
+                            qualquer habilidade ou uso de item.</li>
+                            <li>Faça cada RPC chamá-la e registre o resultado em
+                            <code>BFL_RemakeLogger</code> com nível “SEC”.</li>
+                          </ul>
+                        </li>
+                        <li>
+                          <strong>Passo 3 – Anti-speed/teleport:</strong>
+                          <ul>
+                            <li>Instale <code>BP_AntiSpeedComponent</code> nos
+                            personagens e compare o deslocamento informado com a
+                            simulação do servidor via
+                            <code>FNetworkPredictionData_Server_Character</code>.</li>
+                            <li>Bloqueie discrepâncias acima do limiar definido
+                            em <code>DA_SecurityTuning</code>.</li>
+                          </ul>
+                        </li>
+                        <li>
+                          <strong>Passo 4 – Criptografia de pacotes:</strong>
+                          <ul>
+                            <li>Configure um
+                            <code>PacketHandlerComponentFactory</code> customizado
+                            para aplicar AES-256 sobre os pacotes sensíveis,
+                            reproduzindo a proteção do cliente antigo.</li>
+                            <li>Sincronize a troca de chaves com o serviço Join
+                            através do <code>BP_RemakeServerService</code>.</li>
+                          </ul>
+                        </li>
+                        <li>
+                          <strong>Passo 5 – Integridade de arquivos:</strong>
+                          <ul>
+                            <li>Habilite <code>bUsePakFilePruner</code> e crie um
+                            comando <code>remake.VerifyPaks</code> que chama
+                            <code>IPlatformFilePak::FindFileInPakFiles</code> para
+                            comparar hashes com o manifest original.</li>
+                            <li>Bloqueie o boot caso qualquer asset crítico não
+                            corresponda ao hash.</li>
+                          </ul>
+                        </li>
+                        <li>
+                          <strong>Passo 6 – Alertas e auditoria:</strong>
+                          <ul>
+                            <li>Envie eventos para o
+                            <code>BP_AnalyticsSubsystem</code> (Receita 10) com
+                            payload contendo jogador, mapa e tipo de violação.</li>
+                            <li>Automatize ações disciplinares usando um Editor
+                            Utility Widget <code>EUW_StrikeConsole</code>.</li>
+                          </ul>
+                        </li>
+                      </ol>
+                      <div class="table-responsive mt-4">
+                        <table class="table table-dark table-striped align-middle small">
+                          <thead>
+                            <tr>
+                              <th>Tarefa na UE5</th>
+                              <th>Menu / Ferramenta</th>
+                              <th>Resultado esperado</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            <tr>
+                              <td>Registrar o <code>BP_SecurityGateway</code></td>
+                              <td>Blueprint GameModeSubsystem</td>
+                              <td>Todas as conexões são auditadas e podem receber strikes.</td>
+                            </tr>
+                            <tr>
+                              <td>Adicionar <code>AuthorityValidateAction</code> aos RPCs</td>
+                              <td>Blueprint PlayerController</td>
+                              <td>Combate e itens obedecem às regras dos mapas/eventos.</td>
+                            </tr>
+                            <tr>
+                              <td>Configurar <code>PacketHandlerComponentFactory</code> custom</td>
+                              <td>C++/Blueprint + DefaultEngine.ini</td>
+                              <td>Pacotes críticos saem criptografados e autenticados.</td>
+                            </tr>
+                            <tr>
+                              <td>Criar comando <code>remake.VerifyPaks</code></td>
+                              <td>Editor Utility + Console Command</td>
+                              <td>Boot interrompido se hashes divergirem.</td>
+                            </tr>
+                            <tr>
+                              <td>Publicar alertas no <code>BP_AnalyticsSubsystem</code></td>
+                              <td>GameInstanceSubsystem</td>
+                              <td>Dashboard recebe métricas de violações em tempo real.</td>
+                            </tr>
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                <div class="accordion-item bg-dark text-white">
+                  <h2 class="accordion-header" id="receita15">
+                    <button
+                      class="accordion-button collapsed"
+                      type="button"
+                      data-bs-toggle="collapse"
+                      data-bs-target="#receita15Body"
+                    >
+                      Receita 15 — Localização e Acessibilidade
+                    </button>
+                  </h2>
+                  <div
+                    id="receita15Body"
+                    class="accordion-collapse collapse"
+                    data-bs-parent="#receitasAccordion"
+                  >
+                    <div class="accordion-body">
+                      <p>
+                        <strong>Objetivo:</strong> garantir que cada interface,
+                        áudio e input possa ser adaptado a vários idiomas e
+                        necessidades especiais sem perder fidelidade ao cliente
+                        original.
+                      </p>
+                      <ol class="ps-3">
+                        <li>
+                          <strong>Passo 1 – Catalogar textos:</strong>
+                          <ul>
+                            <li>Importe os arquivos de texto do cliente (PT, EN,
+                            ES) para <em>String Tables</em> nomeadas
+                            <code>ST_RemakeUI</code>,
+                            <code>ST_RemakeItems</code> e
+                            <code>ST_RemakeSystem</code>.</li>
+                            <li>Substitua todos os textos fixos nos widgets por
+                            <code>String Table Entry</code>.</li>
+                          </ul>
+                        </li>
+                        <li>
+                          <strong>Passo 2 – Localization Dashboard:</strong>
+                          <ul>
+                            <li>No menu <em>Window → Localization Dashboard</em>
+                            crie um alvo por idioma e execute <em>Gather Text</em>
+                            semanalmente.</li>
+                            <li>Ative o modo <em>Preview</em> para validar
+                            truncamentos no HUD.</li>
+                          </ul>
+                        </li>
+                        <li>
+                          <strong>Passo 3 – Fontes e IME:</strong>
+                          <ul>
+                            <li>Configure <code>Composite Fonts</code> com
+                            fallback para caracteres coreanos/chineses, como no
+                            cliente clássico.</li>
+                            <li>Habilite suporte a IME no chat via
+                            <code>SlateApplication::SetSlateTextInputMethodSystem</code>.</li>
+                          </ul>
+                        </li>
+                        <li>
+                          <strong>Passo 4 – Acessibilidade visual:</strong>
+                          <ul>
+                            <li>Crie <code>WBP_AccessibilityOverlay</code> com
+                            ajustes de contraste, escalonamento de fonte e modo
+                            daltônico.</li>
+                            <li>Mapeie essas preferências para
+                            <code>Saved/AccessibilityOptions.sav</code>.</li>
+                          </ul>
+                        </li>
+                        <li>
+                          <strong>Passo 5 – Acessibilidade auditiva e input:</strong>
+                          <ul>
+                            <li>Implemente legendas automáticas no Sequencer e
+                            sons críticos duplicados com vibração (gamepad).</li>
+                            <li>Adicione remapeamento completo de teclas em
+                            <code>BP_InputProfileManager</code>, permitindo salvar
+                            perfis separados por personagem.</li>
+                          </ul>
+                        </li>
+                        <li>
+                          <strong>Passo 6 – QA linguístico:</strong>
+                          <ul>
+                            <li>Use o comando <code>ce CycleLocale</code> para
+                            navegar rapidamente entre idiomas durante testes.</li>
+                            <li>Compare prints com o executável original para
+                            garantir traduções idênticas.</li>
+                          </ul>
+                        </li>
+                      </ol>
+                      <div class="table-responsive mt-4">
+                        <table class="table table-dark table-striped align-middle small">
+                          <thead>
+                            <tr>
+                              <th>Tarefa na UE5</th>
+                              <th>Menu / Ferramenta</th>
+                              <th>Resultado esperado</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            <tr>
+                              <td>Criar String Tables para UI/itens/sistema</td>
+                              <td>Content Browser → Miscellaneous → String Table</td>
+                              <td>Todos os textos são referenciados por ID único.</td>
+                            </tr>
+                            <tr>
+                              <td>Configurar Localization Dashboard</td>
+                              <td><em>Window → Localization Dashboard</em></td>
+                              <td>Arquivos PO são exportados para cada idioma suportado.</td>
+                            </tr>
+                            <tr>
+                              <td>Montar <code>Composite Fonts</code> com fallback</td>
+                              <td>Project Settings → Engine → Slate</td>
+                              <td>Chat e HUD exibem caracteres internacionais.</td>
+                            </tr>
+                            <tr>
+                              <td>Construir <code>WBP_AccessibilityOverlay</code></td>
+                              <td>UMG Designer</td>
+                              <td>Jogador ajusta contraste, fontes e filtros em runtime.</td>
+                            </tr>
+                            <tr>
+                              <td>Implementar remapeamento via <code>BP_InputProfileManager</code></td>
+                              <td>Blueprint Subsystem + Enhanced Input</td>
+                              <td>Configurações de input salvam múltiplos perfis.</td>
+                            </tr>
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                <div class="accordion-item bg-dark text-white">
+                  <h2 class="accordion-header" id="receita16">
+                    <button
+                      class="accordion-button collapsed"
+                      type="button"
+                      data-bs-toggle="collapse"
+                      data-bs-target="#receita16Body"
+                    >
+                      Receita 16 — Observabilidade, Runbooks e Ferramentas de Suporte
+                    </button>
+                  </h2>
+                  <div
+                    id="receita16Body"
+                    class="accordion-collapse collapse"
+                    data-bs-parent="#receitasAccordion"
+                  >
+                    <div class="accordion-body">
+                      <p>
+                        <strong>Objetivo:</strong> fornecer ao time de operação
+                        e suporte a mesma visibilidade e controle do ecossistema
+                        original, com dashboards, comandos e runbooks integrados
+                        ao editor e ao jogo em produção.
+                      </p>
+                      <ol class="ps-3">
+                        <li>
+                          <strong>Passo 1 – Telemetria unificada:</strong>
+                          <ul>
+                            <li>Crie <code>BP_ObservabilitySubsystem</code> com
+                            APIs para enviar métricas (CPU, RTT, usuários) para
+                            o backend escolhido.</li>
+                            <li>Expose funções <em>BlueprintCallable</em> para
+                            que outros subsistemas enviem eventos padronizados.</li>
+                          </ul>
+                        </li>
+                        <li>
+                          <strong>Passo 2 – Painéis em tempo real:</strong>
+                          <ul>
+                            <li>Construa <code>WBP_LiveDashboard</code> usando
+                            <code>Retainer Box</code> e gráficos (ex. Victory
+                            Charts) para exibir filas, eventos e alertas.</li>
+                            <li>Disponibilize o widget como Editor Utility para
+                            rodar fora do jogo.</li>
+                          </ul>
+                        </li>
+                        <li>
+                          <strong>Passo 3 – Ferramentas de GM:</strong>
+                          <ul>
+                            <li>Atualize o <code>EUW_RemakeGMPanel</code> com
+                            macros para spawn, buffs e inspeção de inventário.</li>
+                            <li>Registre todas as ações em <code>BP_SecurityGateway</code>
+                            (Receita 14) para rastreabilidade.</li>
+                          </ul>
+                        </li>
+                        <li>
+                          <strong>Passo 4 – Runbooks automatizados:</strong>
+                          <ul>
+                            <li>Crie um repositório <code>/tools/runbooks</code>
+                            com scripts Python/Batch que chamam a
+                            <code>AutomationTool</code> para reiniciar eventos ou
+                            reindexar DataTables.</li>
+                            <li>Exponha-os dentro do editor via
+                            <code>EUW_RunbookLauncher</code>.</li>
+                          </ul>
+                        </li>
+                        <li>
+                          <strong>Passo 5 – Perf e logs:</strong>
+                          <ul>
+                            <li>Automatize capturas de <code>Stat UnitGraph</code>
+                            e <code>MemReport</code> ao pressionar
+                            <code>F11</code> no build de QA.</li>
+                            <li>Envie os relatórios para um bucket configurado
+                            em <code>DA_ObservabilitySettings</code>.</li>
+                          </ul>
+                        </li>
+                        <li>
+                          <strong>Passo 6 – Treinamento do suporte:</strong>
+                          <ul>
+                            <li>Grave vídeos curtos (Sequencer) demonstrando
+                            como operar cada ferramenta e vincule-os no widget
+                            <code>WBP_KnowledgeBase</code>.</li>
+                            <li>Agende revisões trimestrais para manter os
+                            runbooks atualizados.</li>
+                          </ul>
+                        </li>
+                      </ol>
+                      <div class="table-responsive mt-4">
+                        <table class="table table-dark table-striped align-middle small">
+                          <thead>
+                            <tr>
+                              <th>Tarefa na UE5</th>
+                              <th>Menu / Ferramenta</th>
+                              <th>Resultado esperado</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            <tr>
+                              <td>Implementar <code>BP_ObservabilitySubsystem</code></td>
+                              <td>GameInstanceSubsystem Blueprint/C++</td>
+                              <td>Telemetria centraliza métricas de todos os sistemas.</td>
+                            </tr>
+                            <tr>
+                              <td>Construir <code>WBP_LiveDashboard</code></td>
+                              <td>UMG + Editor Utility Widget</td>
+                              <td>Operações monitoram eventos e filas em tempo real.</td>
+                            </tr>
+                            <tr>
+                              <td>Expandir <code>EUW_RemakeGMPanel</code></td>
+                              <td>Editor Utility Widget</td>
+                              <td>GMs conseguem aplicar comandos e logs automaticamente.</td>
+                            </tr>
+                            <tr>
+                              <td>Criar scripts em <code>/tools/runbooks</code></td>
+                              <td>Python + AutomationTool</td>
+                              <td>Procedimentos críticos viram botões no editor.</td>
+                            </tr>
+                            <tr>
+                              <td>Automatizar coleta de <code>Stat UnitGraph</code></td>
+                              <td>Console Command + Observer Component</td>
+                              <td>Perfis de desempenho ficam arquivados para auditoria.</td>
                             </tr>
                           </tbody>
                         </table>
