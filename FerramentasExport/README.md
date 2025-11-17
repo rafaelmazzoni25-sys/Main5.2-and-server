@@ -150,3 +150,20 @@ Para CSV os mesmos campos são gerados como colunas, prontos para importação d
 4. **Re-sincronização:** sempre que atualizar os arquivos `.obj` basta executar novamente o script; os formatos são determinísticos, facilitando diffs e revisão.
 
 Consulte o cabeçalho `ZzzLodTerrain.h` para mais detalhes sobre `MapFileDecrypt`/`TERRAIN_SCALE` e `UIMapName.cpp` para entender como os nomes amigáveis foram mapeados.
+
+## Ideias de próximas ferramentas
+
+Se quiser expandir o pipeline para outros dados legados do cliente/servidor, estas sugestões ajudam a cobrir todo o fluxo de
+conteúdo necessário para reproduzir as experiências do Mu no Unreal:
+
+1. **Conversor de NPCs/monstros (`MonsterSetBase.txt`).** Leitura do arquivo legado, normalização dos campos (mapa, coordenadas,
+   direção, tipo de spawn, range, horário) e exportação direta para DataTables com `FTransform`/`FSpawnRule`. Complementa o
+   `unreal_world_exporter.py`, permitindo instanciar os mesmos mobs e NPCs nos mapas UE5.
+2. **Ferramenta de zonas/portais (`MoveReq.txt`, `Gate.txt`).** Unifica as definições de áreas navegáveis, requisitos de nível e
+   destinos, gerando `DataTables` ou `DataAssets` para dirigir o sistema de viagem rápida no Unreal (Blueprints de Portais).
+3. **Conversor de efeitos/itens especiais (e.g. `wing_option`, `excellent_option`).** Serializa tabelas de opções adicionais e
+   vínculos com `item.txt`, garantindo que as mesmas regras de cálculo de atributos/FX sejam refletidas no lado UE5 sem
+   reescrever lógica manualmente.
+
+Cada uma dessas ferramentas seguiria o mesmo padrão das atuais (CLI em Python, saída JSON/CSV, documentação na pasta), o que
+mantém o pipeline previsível e amigável para integração contínua.
