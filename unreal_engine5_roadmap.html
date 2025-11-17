@@ -334,8 +334,161 @@
           </div>
         </div>
       </section>
+
+      <section class="mb-5">
+        <div class="bg-white rounded-4 shadow-sm p-4">
+          <div class="d-flex flex-column flex-lg-row align-items-lg-center justify-content-between gap-3 mb-4">
+            <div>
+              <p class="text-uppercase text-muted small mb-1">Aba dedicada</p>
+              <h3 class="mb-0">Instruções completas para UE5+</h3>
+            </div>
+            <ul class="nav nav-pills" id="instructionTabs" role="tablist">
+              <li class="nav-item" role="presentation">
+                <button
+                  class="nav-link active"
+                  id="tab-roteiro"
+                  data-bs-toggle="pill"
+                  data-bs-target="#pane-roteiro"
+                  type="button"
+                  role="tab"
+                  aria-controls="pane-roteiro"
+                  aria-selected="true"
+                >
+                  Roadmap resumido
+                </button>
+              </li>
+              <li class="nav-item" role="presentation">
+                <button
+                  class="nav-link"
+                  id="tab-detalhado"
+                  data-bs-toggle="pill"
+                  data-bs-target="#pane-detalhado"
+                  type="button"
+                  role="tab"
+                  aria-controls="pane-detalhado"
+                  aria-selected="false"
+                >
+                  Passo a passo UE5+
+                </button>
+              </li>
+            </ul>
+          </div>
+          <div class="tab-content" id="instructionTabsContent">
+            <div class="tab-pane fade show active" id="pane-roteiro" role="tabpanel" aria-labelledby="tab-roteiro">
+              <div class="row g-4">
+                <div class="col-lg-4">
+                  <div class="border rounded-4 p-3 h-100">
+                    <h5 class="text-primary">Descoberta</h5>
+                    <p class="mb-1 small text-muted">Fonte: FerramentasExport/, Source Main 5.2/source</p>
+                    <ul class="mb-0 small">
+                      <li>Inventariar dependências DX9, sockets, assets .OZ*</li>
+                      <li>Documentar protocolos Connect/Data/Game</li>
+                      <li>Planejar arquitetura UE5 + serviços</li>
+                    </ul>
+                  </div>
+                </div>
+                <div class="col-lg-4">
+                  <div class="border rounded-4 p-3 h-100">
+                    <h5 class="text-primary">Construção</h5>
+                    <p class="mb-1 small text-muted">Fonte: Builder.*, CGFx*, CharacterManager.*</p>
+                    <ul class="mb-0 small">
+                      <li>Migrar loop de render/inputs</li>
+                      <li>Recriar HUD, inventário, pets</li>
+                      <li>Portar eventos PvE/PvP para subsistemas</li>
+                    </ul>
+                  </div>
+                </div>
+                <div class="col-lg-4">
+                  <div class="border rounded-4 p-3 h-100">
+                    <h5 class="text-primary">Serviços & Ops</h5>
+                    <p class="mb-1 small text-muted">Fonte: Source MuServer Update 15/*</p>
+                    <ul class="mb-0 small">
+                      <li>Reescrever módulos GameServer em microserviços</li>
+                      <li>Sincronizar DataServer/JoinServer com UE5</li>
+                      <li>Automatizar CI/CD e monitoramento</li>
+                    </ul>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div class="tab-pane fade" id="pane-detalhado" role="tabpanel" aria-labelledby="tab-detalhado">
+              <div class="row g-4">
+                <div class="col-lg-6">
+                  <ol class="mb-0 small ps-3">
+                    <li class="mb-3">
+                      <strong>Preparação do projeto UE5</strong>: criar workspace monorepo (pastas <code>Source Main 5.2</code>,
+                      <code>Source MuServer Update 15</code>, <code>ProjetoUnrealEngine</code>), configurar Git LFS para assets e
+                      gerar documentação automática via <code>clang-scan-deps</code> e <code>Doxygen</code>.
+                    </li>
+                    <li class="mb-3">
+                      <strong>Base do cliente</strong>: instanciar classes <code>UGameInstance</code>, <code>UGameViewportClient</code>,
+                      <code>APlayerController</code> e mapear inputs dos arquivos <code>CDirection.*</code>,
+                      <code>CameraMove.*</code> e <code>BlackWin.*</code> para Enhanced Input e Subsystems.
+                    </li>
+                    <li class="mb-3">
+                      <strong>Interface e HUD</strong>: traduzir <code>Button.*</code>, <code>CGFxMainUi.*</code>,
+                      <code>CharMakeWin.*</code> e <code>CharSelMainWin.*</code> para widgets UMG/Slate, utilizando Data Assets derivados
+                      de <code>dados_blueprint_dashboard.*</code> para manter consistência visual.
+                    </li>
+                    <li class="mb-3">
+                      <strong>Inventário e itens</strong>: converter estruturas de <code>CSParts.*</code>, <code>CSItemOption.*</code>,
+                      <code>ItemExcellentOption.*</code> em <code>UDataTables</code>, criar <code>UInventoryComponent</code> replicado e
+                      conectar RPCs às chamadas do novo JoinServer/DataServer.
+                    </li>
+                    <li class="mb-3">
+                      <strong>Personagens e gameplay</strong>: importar rigs do diretório <code>source/Character</code> usando Control Rig,
+                      portar <code>CharacterManager.*</code>, <code>BoneManager.*</code>, <code>CSPetSystem.*</code> para componentes e
+                      reimplementar eventos (<code>CSChaosCastle.*</code>, <code>BloodCastle.*</code>, <code>CastleSiege.*</code>) como
+                      <code>UWorldSubsystem</code> + <code>AGameMode</code> dedicados.
+                    </li>
+                    <li class="mb-3">
+                      <strong>Rede</strong>: refatorar protocolos definidos em <code>ConnectServer/Protocol.*</code> e
+                      <code>GameServer/GameServer/Command.*</code> para uma camada unificada (HTTP para autenticação, UDP/TCP para gameplay),
+                      mantendo compatibilidade com clientes clássicos via parsers binários.
+                    </li>
+                    <li class="mb-3">
+                      <strong>Servidores dedicados</strong>: reescrever <code>GameServer</code>, <code>DataServer</code>, <code>JoinServer</code>
+                      e <code>ConnectServer</code> como microserviços C++17/gRPC; encapsular módulos (<code>CashShop.*</code>,
+                      <code>ChaosBox.*</code>, <code>Command.*</code>) em bibliotecas compartilhadas e expor APIs para o cliente UE5.
+                    </li>
+                    <li class="mb-3">
+                      <strong>Ferramentas e pipelines</strong>: portar utilitários de <code>FerramentasExport/</code> para automatizar
+                      conversão de assets, configurar BuildGraph/Gauntlet/GitHub Actions e integrar telemetria (Prometheus/Grafana) usando
+                      dados de <code>Util/LogProc.*</code>.
+                    </li>
+                    <li class="mb-3">
+                      <strong>QA final</strong>: validar mapas, inventários e eventos replicando roteiros originais, armazenar registros no
+                      painel deste roadmap (export JSON) e preparar documentação final para hand-off.
+                    </li>
+                  </ol>
+                </div>
+                <div class="col-lg-6">
+                  <div class="bg-light border rounded-4 p-3 h-100">
+                    <h5 class="mb-3">Checklists acionáveis dentro da Unreal Engine 5+</h5>
+                    <ul class="small ps-3 mb-0">
+                      <li class="mb-2">Criar níveis equivalentes aos mapas listados em <code>CSMapServerList.txt</code> usando World Partition.</li>
+                      <li class="mb-2">Configurar Data Assets para cada evento (BloodCastle, ChaosCastle, Crywolf) usando dados CSV exportados.</li>
+                      <li class="mb-2">Implementar Gameplay Ability System para combos definidos em <code>ComboSkill.cpp</code>.</li>
+                      <li class="mb-2">Migrar partículas/efeitos (ex.: <code>FxSetColor.*</code>, <code>FxObjManager.*</code>) para Niagara.</li>
+                      <li class="mb-2">Criar Blueprint Function Libraries que encapsulam regras de <code>CSItemOption.*</code> e <code>ItemSkill.*</code>.</li>
+                      <li class="mb-2">Integrar chats e logs usando <code>AGFxChatWnd</code> como base e o sistema de canais do UE5.</li>
+                      <li class="mb-2">Habilitar Pixel Streaming/Multiplayer para testes de UI remota durante o desenvolvimento.</li>
+                      <li class="mb-0">Registrar cada entrega no painel JSON exportável para manter rastreabilidade entre código legado e UE5.</li>
+                    </ul>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
     </main>
 
+    <script
+      src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"
+      integrity="sha384-YvpcrYf0tY3lHB60NNkmXc5s9fDVZLESaAA55NDzOxhy9GkcIdslK1eN7N6jIeHz"
+      crossorigin="anonymous"
+    ></script>
     <script>
       const instructions = {
         fase0: `Fase 0 — Auditoria e preparação\n\n1. Clone as pastas "Source Main 5.2" e "Source MuServer Update 15" para um repositório Git monorepo.\n2. Gere inventário de includes e dependências usando "clang-scan-deps" apontando para "Source Main 5.2/source".\n3. Execute scripts de "FerramentasExport" para extrair animações, texturas (.OZJ/.OZT) e CSVs de balanceamento.\n4. Crie documentação das janelas legadas (ex.: Button, CharMakeWin) mapeando IDs e eventos Win32 para equivalentes UMG.\n5. No lado servidor, rode "Doxygen" ou "Understand" em "GameServer/GameServer" para obter diagramas de relacionamento.\n6. Defina requisitos técnicos UE5+: versão mínima 5.4, target platform Windows + Linux Dedicated, build system Git LFS para assets.`,
