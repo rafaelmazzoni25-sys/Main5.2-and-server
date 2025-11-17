@@ -1474,6 +1474,273 @@
                           </tbody>
                         </table>
                       </div>
+                      <div class="mt-5">
+                        <h5 class="text-info">Mapa de Coordenadas e Texturas Originais</h5>
+                        <p class="small">
+                          Utilize o <strong>Layout Transform</strong> do UMG no modo
+                          <em>Absolute</em> e replique os offsets numéricos usados em
+                          <code>NewUIMainFrameWindow::RenderFrame</code>,
+                          <code>RenderLifeMana</code>, <code>RenderGuageAG/SD</code> e
+                          <code>SetButtonInfo</code> para obter a mesma composição do
+                          cliente OpenGL.
+                        </p>
+                        <div class="table-responsive">
+                          <table class="table table-sm table-bordered table-dark align-middle">
+                            <thead>
+                              <tr>
+                                <th>Componente</th>
+                                <th>Textura Original</th>
+                                <th>Coordenadas (x, y, w, h)</th>
+                                <th>Como aplicar na UE5</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              <tr>
+                                <td>Frame esquerdo</td>
+                                <td><code>Interface/newui_menu01.jpg</code></td>
+                                <td>(0, 429, 256, 51)</td>
+                                <td>
+                                  Defina um <em>Image</em> ancorado no canto superior
+                                  esquerdo e fixe largura/altura para 256×51 px.
+                                </td>
+                              </tr>
+                              <tr>
+                                <td>Frame central</td>
+                                <td><code>Interface/newui_menu02.jpg</code></td>
+                                <td>(256, 429, 128, 51)</td>
+                                <td>
+                                  Posicione imediatamente após o painel esquerdo
+                                  (offset X = 256 px) para manter o encaixe perfeito.
+                                </td>
+                              </tr>
+                              <tr>
+                                <td>Frame direito</td>
+                                <td><code>Interface/newui_menu03.jpg</code></td>
+                                <td>(384, 429, 256, 51)</td>
+                                <td>
+                                  Use <code>SizeBox</code> 256×51 px alinhado à direita
+                                  para fechar a barra como no cliente.
+                                </td>
+                              </tr>
+                              <tr>
+                                <td>HP</td>
+                                <td><code>Interface/newui_menu_red.jpg</code></td>
+                                <td>(158, 432, 45, 39)</td>
+                                <td>
+                                  Configure um <em>ProgressBar</em> vertical usando esse
+                                  sprite e aplique máscara com material <em>Fill</em>
+                                  invertido para drenar de cima para baixo.
+                                </td>
+                              </tr>
+                              <tr>
+                                <td>Mana</td>
+                                <td><code>Interface/newui_menu_blue.jpg</code></td>
+                                <td>(437, 432, 45, 39)</td>
+                                <td>
+                                  O <em>Material Parameter Collection</em> deve alimentar
+                                  a fração de preenchimento (0–1) igual ao cálculo de
+                                  <code>wMana / wManaMax</code>.
+                                </td>
+                              </tr>
+                              <tr>
+                                <td>AG / Skill</td>
+                                <td><code>Interface/newui_menu_ag.jpg</code></td>
+                                <td>(420, 431, 16, 39)</td>
+                                <td>
+                                  Em um <em>Border</em> 16×39 px, aplique o sprite e use
+                                  <em>Retainer Box</em> com material de recorte vertical.
+                                </td>
+                              </tr>
+                              <tr>
+                                <td>SD</td>
+                                <td><code>Interface/newui_menu_sd.jpg</code></td>
+                                <td>(204, 431, 16, 39)</td>
+                                <td>
+                                  Configure binding para <code>Shield</code> igual ao
+                                  cálculo de <code>wShield / wMaxShield</code> e mantenha
+                                  o tooltip com valores absolutos.</td>
+                              </tr>
+                              <tr>
+                                <td>Exp bar</td>
+                                <td><code>Interface/newui_exbar.jpg</code></td>
+                                <td>(2, 473, 629, 4)</td>
+                                <td>
+                                  Use <code>Image</code> com <em>Draw As: Box</em> e
+                                  ajuste o <em>Tiling</em> horizontal para simular a
+                                  divisão em 10 segmentos.
+                                </td>
+                              </tr>
+                              <tr>
+                                <td>Botão CShop</td>
+                                <td><code>Interface/partCharge1/newui_menu_Bt05.jpg</code></td>
+                                <td>(489, 429, 30, 41)</td>
+                                <td>
+                                  Ancore no canto inferior direito do HUD e conecte ao
+                                  <code>BP_CashShopPanel</code> com highlight piscando
+                                  quando <code>GlobalText[2277]</code> estiver ativo.
+                                </td>
+                              </tr>
+                              <tr>
+                                <td>Botão Character</td>
+                                <td><code>Interface/newui_menu_Bt01.jpg</code></td>
+                                <td>(519, 429, 30, 41)</td>
+                                <td>
+                                  Ative o blink sempre que <code>QuestMng</code> tiver
+                                  pendência (timer a cada 500 ms).
+                                </td>
+                              </tr>
+                              <tr>
+                                <td>Botão Inventory</td>
+                                <td><code>Interface/newui_menu_Bt02.jpg</code></td>
+                                <td>(549, 429, 30, 41)</td>
+                                <td>Chame <code>ToggleInventory()</code> no Controller.</td>
+                              </tr>
+                              <tr>
+                                <td>Botão Friend</td>
+                                <td><code>Interface/newui_menu_Bt03.jpg</code></td>
+                                <td>(579, 429, 30, 41)</td>
+                                <td>
+                                  Ative estado alternativo quando o canal de correio
+                                  sinalizar novas mensagens (blink 12/24 frames).
+                                </td>
+                              </tr>
+                              <tr>
+                                <td>Botão Windows</td>
+                                <td><code>Interface/newui_menu_Bt04.jpg</code></td>
+                                <td>(609, 429, 30, 41)</td>
+                                <td>
+                                  Mapear para abrir <code>WBP_SystemMenu</code> e
+                                  bloquear input durante <em>Chaos Castle</em>, igual ao
+                                  original.
+                                </td>
+                              </tr>
+                            </tbody>
+                          </table>
+                        </div>
+                        <div class="row row-cols-1 row-cols-md-3 g-3 mt-3">
+                          <div class="col">
+                            <figure class="text-center">
+                              <img
+                                src="assets/newui_menu01.jpg"
+                                class="img-fluid rounded border border-info"
+                                alt="Sprite newui_menu01"
+                              />
+                              <figcaption class="small mt-2">
+                                Base esquerda (0–256 px)
+                              </figcaption>
+                            </figure>
+                          </div>
+                          <div class="col">
+                            <figure class="text-center">
+                              <img
+                                src="assets/newui_menu02-03.jpg"
+                                class="img-fluid rounded border border-info"
+                                alt="Sprite newui_menu02-03"
+                              />
+                              <figcaption class="small mt-2">
+                                Extensão central + overlay skill list
+                              </figcaption>
+                            </figure>
+                          </div>
+                          <div class="col">
+                            <figure class="text-center">
+                              <img
+                                src="assets/newui_menu_Bt01.jpg"
+                                class="img-fluid rounded border border-info"
+                                alt="Sprite botão Character"
+                              />
+                              <figcaption class="small mt-2">
+                                Botões 30×41 px (sequência 489–609 px)
+                              </figcaption>
+                            </figure>
+                          </div>
+                        </div>
+                        <div class="row row-cols-1 row-cols-md-3 g-3 mt-1">
+                          <div class="col">
+                            <figure class="text-center">
+                              <img
+                                src="assets/newui_menu_red.jpg"
+                                class="img-fluid rounded border border-info"
+                                alt="Sprite barra HP"
+                              />
+                              <figcaption class="small mt-2">
+                                HP vertical (45×39 px)
+                              </figcaption>
+                            </figure>
+                          </div>
+                          <div class="col">
+                            <figure class="text-center">
+                              <img
+                                src="assets/newui_menu_blue.jpg"
+                                class="img-fluid rounded border border-info"
+                                alt="Sprite barra Mana"
+                              />
+                              <figcaption class="small mt-2">
+                                Mana vertical (45×39 px)
+                              </figcaption>
+                            </figure>
+                          </div>
+                          <div class="col">
+                            <figure class="text-center">
+                              <img
+                                src="assets/newui_exbar.jpg"
+                                class="img-fluid rounded border border-info"
+                                alt="Sprite barra de experiência"
+                              />
+                              <figcaption class="small mt-2">
+                                XP 629×4 px (10 segmentos)
+                              </figcaption>
+                            </figure>
+                          </div>
+                        </div>
+                        <div class="alert alert-info text-dark mt-4">
+                          <h6 class="text-uppercase fw-bold mb-2">
+                            Lista de arquivos esperados na pasta
+                            <code>IntruçoesUE/assets</code>
+                          </h6>
+                          <p class="mb-3">
+                            Este repositório não inclui os binários originais.
+                            Para visualizar corretamente o painel acima, suba os
+                            sprites legados com os nomes listados abaixo. Basta
+                            criar a pasta <code>assets</code> ao lado deste
+                            <code>index.html</code> e copiar os arquivos
+                            correspondentes a partir do cliente clássico.
+                          </p>
+                          <div class="row">
+                            <div class="col-md-6">
+                              <ul class="small mb-0">
+                                <li><code>newui_menu01.jpg</code></li>
+                                <li><code>newui_menu02-03.jpg</code></li>
+                                <li><code>newui_menu_Bt01.jpg</code></li>
+                                <li><code>newui_menu_Bt02.jpg</code></li>
+                                <li><code>newui_menu_Bt03.jpg</code></li>
+                                <li><code>newui_menu_Bt04.jpg</code></li>
+                                <li><code>newui_menu_Bt05.jpg</code></li>
+                                <li><code>newui_menu_red.jpg</code></li>
+                              </ul>
+                            </div>
+                            <div class="col-md-6">
+                              <ul class="small mb-0">
+                                <li><code>newui_menu_blue.jpg</code></li>
+                                <li><code>newui_menu_ag.jpg</code></li>
+                                <li><code>newui_menu_sd.jpg</code></li>
+                                <li><code>newui_exbar.jpg</code></li>
+                                <li><code>newui_menu01_mask.png</code> (opcional
+                                para máscaras HDR)</li>
+                                <li><code>newui_chat_window.jpg</code></li>
+                                <li><code>newui_minimap_frame.jpg</code></li>
+                                <li><code>newui_status_tooltip.png</code></li>
+                              </ul>
+                            </div>
+                          </div>
+                          <p class="small mt-3 mb-0">
+                            Siga estes nomes exatamente para que os elementos do
+                            HUD encontrem as texturas ao carregar a página. Você
+                            pode adicionar versões em PNG ou TGA mantendo o
+                            mesmo prefixo caso prefira múltiplos formatos.
+                          </p>
+                        </div>
+                      </div>
                     </div>
                   </div>
                 </div>
