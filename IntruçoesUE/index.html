@@ -186,7 +186,7 @@
       <section class="mt-5">
         <div class="bg-panel p-4">
           <p class="section-title">Mapa Completo do Caminho</p>
-          <h2 class="h4">Roadmap Cronológico do Remake (Etapas 0 a 11)</h2>
+          <h2 class="h4">Roadmap Cronológico do Remake (Etapas 0 a 16)</h2>
           <p>
             Utilize o painel abaixo para visualizar todas as entregas previstas e
             como cada etapa desbloqueia a seguinte. Essa visão consolida o
@@ -322,6 +322,61 @@
                   <li>Testes funcionais em Blueprint.</li>
                   <li>Automation Tool + CI.</li>
                   <li>Perfis de empacotamento.</li>
+                </ul>
+              </div>
+            </div>
+            <div class="col">
+              <div class="p-3 bg-dark rounded h-100">
+                <h3 class="h6 text-info">Etapa 12 — Áudio &amp; Cinemáticas</h3>
+                <p class="small mb-1">Atmosfera, cutscenes e mixagem.</p>
+                <ul class="small mb-0">
+                  <li>SoundWaves equivalentes ao wzAudio.</li>
+                  <li>Sequências para login e eventos.</li>
+                  <li>Diretor de ambience e Niagara.</li>
+                </ul>
+              </div>
+            </div>
+            <div class="col">
+              <div class="p-3 bg-dark rounded h-100">
+                <h3 class="h6 text-info">Etapa 13 — Sistemas Sociais</h3>
+                <p class="small mb-1">Party, guild, correio e rankings.</p>
+                <ul class="small mb-0">
+                  <li>Serviços com FastArraySerializer.</li>
+                  <li>Chat avançado e macros.</li>
+                  <li>Widgets de ranking/painel social.</li>
+                </ul>
+              </div>
+            </div>
+            <div class="col">
+              <div class="p-3 bg-dark rounded h-100">
+                <h3 class="h6 text-info">Etapa 14 — Segurança &amp; Anti-Cheat</h3>
+                <p class="small mb-1">Políticas autoritativas.</p>
+                <ul class="small mb-0">
+                  <li>RPCs validados por servidor.</li>
+                  <li>Packets assinados/criptografados.</li>
+                  <li>Auditoria e alertas em tempo real.</li>
+                </ul>
+              </div>
+            </div>
+            <div class="col">
+              <div class="p-3 bg-dark rounded h-100">
+                <h3 class="h6 text-info">Etapa 15 — Localização &amp; Acessibilidade</h3>
+                <p class="small mb-1">UI multi-idioma e opções de uso.</p>
+                <ul class="small mb-0">
+                  <li>String Tables e Localization Dashboard.</li>
+                  <li>Perfis de contraste, fontes e input.</li>
+                  <li>Suporte completo a IME e voice chat.</li>
+                </ul>
+              </div>
+            </div>
+            <div class="col">
+              <div class="p-3 bg-dark rounded h-100">
+                <h3 class="h6 text-info">Etapa 16 — Observabilidade &amp; Suporte</h3>
+                <p class="small mb-1">Telemetria e ferramentas internas.</p>
+                <ul class="small mb-0">
+                  <li>Dashboards de performance.</li>
+                  <li>Ferramentas de GM in-engine.</li>
+                  <li>Runbooks e alertas automatizados.</li>
                 </ul>
               </div>
             </div>
@@ -484,6 +539,49 @@
                           </ul>
                         </li>
                       </ol>
+                      <div class="table-responsive mt-4">
+                        <table class="table table-dark table-striped align-middle small">
+                          <thead>
+                            <tr>
+                              <th>Tarefa na UE5</th>
+                              <th>Menu / Ferramenta</th>
+                              <th>Resultado esperado</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            <tr>
+                              <td>Registrar o <code>BP_RemakeGameInstance</code> como padrão</td>
+                              <td><em>Edit → Project Settings → Maps &amp; Modes</em></td>
+                              <td>O projeto usa o blueprint personalizado em qualquer mapa carregado.</td>
+                            </tr>
+                            <tr>
+                              <td>Programar a função <em>BootSequence</em> com carregamento sequencial</td>
+                              <td>Event Graph do <code>BP_RemakeGameInstance</code></td>
+                              <td>Logs “BootLog” exibem cada DataTable carregada sem warnings.</td>
+                            </tr>
+                            <tr>
+                              <td>Criar os Subsystems Engine/GameInstance/Aúdio</td>
+                              <td><em>Add → Blueprint Class → EngineSubsystem/GameInstanceSubsystem</em></td>
+                              <td>Serviços de assets, configs e áudio disponíveis para todos os níveis.</td>
+                            </tr>
+                            <tr>
+                              <td>Configurar <code>BP_RemakeServerService</code> e habilitar plug-in Sockets</td>
+                              <td><em>Edit → Plugins → Sockets</em> e Blueprint do serviço</td>
+                              <td>Join/Data Server reportam <code>bJoinReady</code> e <code>bDataReady</code> = true.</td>
+                            </tr>
+                            <tr>
+                              <td>Importar CSVs em DataTables e Primary Data Assets</td>
+                              <td>Content Browser → <em>Import</em> → Data Table / Primary Asset</td>
+                              <td>Assets <code>DT_Items</code>, <code>DT_Skills</code>, <code>DT_Monsters</code> e afins criados.</td>
+                            </tr>
+                            <tr>
+                              <td>Validar o mapa <code>TEST_Bootstrap</code> com o monitor</td>
+                              <td>Abra <code>TEST_Bootstrap.umap</code> e pressione Play</td>
+                              <td>Painel <code>BP_RemakeBootMonitor</code> exibe “Join/Data Ready”.</td>
+                            </tr>
+                          </tbody>
+                        </table>
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -554,6 +652,49 @@
                           </ul>
                         </li>
                       </ol>
+                      <div class="table-responsive mt-4">
+                        <table class="table table-dark table-striped align-middle small">
+                          <thead>
+                            <tr>
+                              <th>Tarefa na UE5</th>
+                              <th>Menu / Ferramenta</th>
+                              <th>Resultado esperado</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            <tr>
+                              <td>Criar <code>BP_RemakeCharacter</code> derivado de <em>Character</em></td>
+                              <td>Content Browser → <em>Add → Blueprint Class</em></td>
+                              <td>Blueprint com mesh placeholder e componentes básicos.</td>
+                            </tr>
+                            <tr>
+                              <td>Anexar <code>AbilitySystemComponent</code> e <code>AttributeSet</code></td>
+                              <td>Componentes do blueprint</td>
+                              <td>GAS pronto para receber habilidades e efeitos replicados.</td>
+                            </tr>
+                            <tr>
+                              <td>Configurar <code>BP_RemakePlayerState</code> como classe padrão</td>
+                              <td><em>Project Settings → Maps &amp; Modes → GameMode Override</em></td>
+                              <td>PlayerState custom recebe atributos, quests e inventário.</td>
+                            </tr>
+                            <tr>
+                              <td>Implementar seleção de classe usando <code>WBP_ClassSelect</code></td>
+                              <td>Widget Blueprint com <em>Designer</em> + <em>Graph</em></td>
+                              <td>Botões acionam RPC <code>ServerChooseClass</code> no PlayerController.</td>
+                            </tr>
+                            <tr>
+                              <td>Instalar <code>BP_StatusEffectComponent</code> e binds para HUD</td>
+                              <td>Componentes adicionais do personagem</td>
+                              <td>Dispatcher atualiza barras de HP/MP sempre que atributo mudar.</td>
+                            </tr>
+                            <tr>
+                              <td>Gerar curva <code>CurveTable_LevelStats</code> e ligar ao AttributeSet</td>
+                              <td>Content Browser → <em>Add → Curve → Curve Table</em></td>
+                              <td>Valores por nível iguais aos do <code>CharacterManager</code>.</td>
+                            </tr>
+                          </tbody>
+                        </table>
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -622,6 +763,49 @@
                           </ul>
                         </li>
                       </ol>
+                      <div class="table-responsive mt-4">
+                        <table class="table table-dark table-striped align-middle small">
+                          <thead>
+                            <tr>
+                              <th>Tarefa na UE5</th>
+                              <th>Menu / Ferramenta</th>
+                              <th>Resultado esperado</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            <tr>
+                              <td>Gerar todas as <code>InputActions</code> e o <code>IMC_RemakeGameplay</code></td>
+                              <td>Content Browser → <em>Add → Input</em></td>
+                              <td>Ações de movimento, skills, chat e HUD existem e possuem valores corretos.</td>
+                            </tr>
+                            <tr>
+                              <td>Anexar o Mapping Context ao <code>BP_RemakePlayerController</code></td>
+                              <td>Event Graph → nó <code>Add Mapping Context</code></td>
+                              <td>Todos os atalhos respondem ao pressionar teclas durante o PIE.</td>
+                            </tr>
+                            <tr>
+                              <td>Configurar o <em>SpringArm</em> e a câmera principal</td>
+                              <td>Componentes do <code>BP_RemakeCharacter</code></td>
+                              <td>Camera orbitando o personagem com distância, lag e limites idênticos ao cliente.</td>
+                            </tr>
+                            <tr>
+                              <td>Criar <code>SceneCaptureComponent2D</code> exclusivo para inventário</td>
+                              <td>Componentes → <em>Add</em> → Scene Capture 2D</td>
+                              <td>Inventário alterna para preview sem afetar a câmera de gameplay.</td>
+                            </tr>
+                            <tr>
+                              <td>Salvar presets em <code>DA_InputPreset_*</code> e ligar ao menu de opções</td>
+                              <td>Data Assets + <code>WBP_OptionsInput</code></td>
+                              <td>Usuário troca binds/sensibilidade em runtime com replicação.</td>
+                            </tr>
+                            <tr>
+                              <td>Rodar testes com <code>BFL_RemakeLogger</code> ligado</td>
+                              <td>PIE → Console <code>log UEInput</code></td>
+                              <td>Logs mostram cada tecla acionada e nenhuma ação fica sem binding.</td>
+                            </tr>
+                          </tbody>
+                        </table>
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -690,6 +874,49 @@
                           </ul>
                         </li>
                       </ol>
+                      <div class="table-responsive mt-4">
+                        <table class="table table-dark table-striped align-middle small">
+                          <thead>
+                            <tr>
+                              <th>Tarefa na UE5</th>
+                              <th>Menu / Ferramenta</th>
+                              <th>Resultado esperado</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            <tr>
+                              <td>Configurar <code>ABP_RemakeLocomotion</code> com BlendSpaces</td>
+                              <td>Animation Blueprint Editor</td>
+                              <td>Estados Idle/Walk/Run/Dash trocam conforme variáveis de movimento.</td>
+                            </tr>
+                            <tr>
+                              <td>Ajustar parâmetros do <em>Character Movement</em></td>
+                              <td>Detalhes do <code>BP_RemakeCharacter</code></td>
+                              <td>Velocidades correspondem aos valores originais para cada classe.</td>
+                            </tr>
+                            <tr>
+                              <td>Adicionar <code>NavMeshBoundsVolume</code> e habilitar geração dinâmica</td>
+                              <td>Viewport do mapa → <em>Place Actors</em></td>
+                              <td>Comando <code>Show Navigation</code> revela navmesh cobrindo áreas válidas.</td>
+                            </tr>
+                            <tr>
+                              <td>Implementar RPC <code>ServerTryMoveToLocation</code></td>
+                              <td>Graph do <code>BP_RemakePlayerController</code></td>
+                              <td>Cliques no chão resultam em movimentos validados pelo servidor.</td>
+                            </tr>
+                            <tr>
+                              <td>Configurar portais com <code>BP_PortalTrigger</code></td>
+                              <td>Blueprint Actor + Level Blueprint</td>
+                              <td>Atalhos e teletransportes respeitam permissões de mapa/evento.</td>
+                            </tr>
+                            <tr>
+                              <td>Executar <code>ce MovementProfile</code> para comparar trajetórias</td>
+                              <td>Console durante PIE</td>
+                              <td>Logs mostram tempo de deslocamento equivalente ao do servidor original.</td>
+                            </tr>
+                          </tbody>
+                        </table>
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -759,6 +986,49 @@
                           </ul>
                         </li>
                       </ol>
+                      <div class="table-responsive mt-4">
+                        <table class="table table-dark table-striped align-middle small">
+                          <thead>
+                            <tr>
+                              <th>Tarefa na UE5</th>
+                              <th>Menu / Ferramenta</th>
+                              <th>Resultado esperado</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            <tr>
+                              <td>Criar RPC <code>ServerRequestAttack</code> no PlayerController</td>
+                              <td>Graph do <code>BP_RemakePlayerController</code></td>
+                              <td>Chamadas de ataque passam por validações de mapa/evento antes de atingir o servidor.</td>
+                            </tr>
+                            <tr>
+                              <td>Implementar <code>GA_SkillSlot01-05</code> e efeitos associados</td>
+                              <td>Gameplay Ability Editor</td>
+                              <td>Cada slot dispara custo, cooldown e animações corretas.</td>
+                            </tr>
+                            <tr>
+                              <td>Configurar <code>CurveTable_AttackMatrix</code> com valores do MuServer</td>
+                              <td>Curve Table Editor</td>
+                              <td>Execuções usam curvas originais para dano físico/mágico.</td>
+                            </tr>
+                            <tr>
+                              <td>Associar FX e sons em <code>DataAssets_SkillFX</code></td>
+                              <td>Content Browser → Niagara / Sound Cue</td>
+                              <td>Multicast <code>ClientPlaySkillFX</code> sincroniza partículas e áudio.</td>
+                            </tr>
+                            <tr>
+                              <td>Construir <code>BP_DamageFeedService</code> e widget <code>WBP_DamageFeed</code></td>
+                              <td>Blueprint Subsystem + UMG</td>
+                              <td>Log de dano mostra crit, bloqueio e origem igual ao cliente clássico.</td>
+                            </tr>
+                            <tr>
+                              <td>Executar testes com <code>ce SpawnDummy</code> e <code>GameplayDebugger</code></td>
+                              <td>Console PIE</td>
+                              <td>DPS reportado bate com o log do MuServer Update 15.</td>
+                            </tr>
+                          </tbody>
+                        </table>
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -827,6 +1097,49 @@
                           </ul>
                         </li>
                       </ol>
+                      <div class="table-responsive mt-4">
+                        <table class="table table-dark table-striped align-middle small">
+                          <thead>
+                            <tr>
+                              <th>Tarefa na UE5</th>
+                              <th>Menu / Ferramenta</th>
+                              <th>Resultado esperado</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            <tr>
+                              <td>Gerar <code>DA_ItemDefinition</code> e importar CSV</td>
+                              <td>Content Browser → <em>Add → Miscellaneous → Data Asset</em></td>
+                              <td>Todas as linhas trazem largura, altura, sockets e opções excelentes.</td>
+                            </tr>
+                            <tr>
+                              <td>Construir <code>BP_InventoryComponent</code> baseado em <em>FastArraySerializer</em></td>
+                              <td>Blueprint Actor Component</td>
+                              <td>Instâncias replicam slots ocupados e atualizam clientes em tempo real.</td>
+                            </tr>
+                            <tr>
+                              <td>Montar <code>WBP_RemakeInventory</code> com <em>UniformGridPanel</em> 8x12</td>
+                              <td>UMG Designer</td>
+                              <td>Itens podem ser arrastados, soltos e mostram tooltip 1:1.</td>
+                            </tr>
+                            <tr>
+                              <td>Adicionar preview 3D via <code>SceneCaptureComponent2D</code></td>
+                              <td>Blueprint <code>WBP_ItemPreview</code></td>
+                              <td>Malhas equipáveis são renderizadas no painel como no cliente original.</td>
+                            </tr>
+                            <tr>
+                              <td>Implementar <code>BP_CraftingSubsystem</code> e DataTable de receitas</td>
+                              <td>Subsystem + DataTable Editor</td>
+                              <td>Chaos Machine, upgrades e jewel application respeitam probabilidades.</td>
+                            </tr>
+                            <tr>
+                              <td>Executar testes <code>FT_RemakeInventory</code></td>
+                              <td>Functional Testing Map</td>
+                              <td>Inserir/mover/combinar itens gera resultados idênticos ao cliente clássico.</td>
+                            </tr>
+                          </tbody>
+                        </table>
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -896,6 +1209,49 @@
                           </ul>
                         </li>
                       </ol>
+                      <div class="table-responsive mt-4">
+                        <table class="table table-dark table-striped align-middle small">
+                          <thead>
+                            <tr>
+                              <th>Tarefa na UE5</th>
+                              <th>Menu / Ferramenta</th>
+                              <th>Resultado esperado</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            <tr>
+                              <td>Converter <code>QuestInfo.dat</code> em <code>DT_QuestChains</code></td>
+                              <td>Data Table Editor</td>
+                              <td>Objetivos, NPCs e recompensas possuem IDs iguais ao servidor.</td>
+                            </tr>
+                            <tr>
+                              <td>Anexar <code>BP_QuestLogComponent</code> ao PlayerState</td>
+                              <td>Componentes do <code>BP_RemakePlayerState</code></td>
+                              <td>Component gerencia aceitações, progresso e conclusão com RPCs.</td>
+                            </tr>
+                            <tr>
+                              <td>Criar <code>BP_EconomyService</code> para lojas, Zen e off-store</td>
+                              <td>GameInstanceSubsystem</td>
+                              <td>Compras/vendas atualizam saldo e inventário como no Shop.cpp.</td>
+                            </tr>
+                            <tr>
+                              <td>Atualizar <code>BP_LootTable</code> com probabilidades originais</td>
+                              <td>Blueprint DataTable helper</td>
+                              <td>Drops por mapa/evento seguem <code>ItemDropRate.txt</code>.</td>
+                            </tr>
+                            <tr>
+                              <td>Construir <code>WBP_QuestJournal</code> e <code>WBP_ShopWindow</code></td>
+                              <td>UMG Designer</td>
+                              <td>Jogador aceita quests, compra/vende itens com feedback replicado.</td>
+                            </tr>
+                            <tr>
+                              <td>Executar comandos <code>ce AddQuest</code> / <code>ce CompleteQuest</code></td>
+                              <td>Console PIE</td>
+                              <td>XP, Zen e recompensas combinam com valores do MuServer.</td>
+                            </tr>
+                          </tbody>
+                        </table>
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -964,6 +1320,49 @@
                           </ul>
                         </li>
                       </ol>
+                      <div class="table-responsive mt-4">
+                        <table class="table table-dark table-striped align-middle small">
+                          <thead>
+                            <tr>
+                              <th>Tarefa na UE5</th>
+                              <th>Menu / Ferramenta</th>
+                              <th>Resultado esperado</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            <tr>
+                              <td>Criar <code>BP_SpawnManager</code> com filas por mapa</td>
+                              <td>World Subsystem</td>
+                              <td>Spawns respeitam limites de monstros e respawn timers do MuServer.</td>
+                            </tr>
+                            <tr>
+                              <td>Configurar instâncias (Blood Castle, Devil Square)</td>
+                              <td>World Partition / Level Instance</td>
+                              <td>Eventos criam níveis temporários e migram jogadores automaticamente.</td>
+                            </tr>
+                            <tr>
+                              <td>Programar <code>BP_EventScheduler</code> para cronogramas</td>
+                              <td>GameState Subsystem</td>
+                              <td>Timers anunciam eventos, abrem portões e distribuem recompensas.</td>
+                            </tr>
+                            <tr>
+                              <td>Adicionar <code>BP_MapPermissionTable</code> para controle de acesso</td>
+                              <td>Data Table + Blueprint Function Library</td>
+                              <td>Players bloqueados recebem mensagens equivalentes a <code>MapServerMove</code>.</td>
+                            </tr>
+                            <tr>
+                              <td>Implementar GM tools para spawn manual</td>
+                              <td><code>EUW_RemakeGMPanel</code></td>
+                              <td>Botão spawn mob cria ator replicado com loot table correta.</td>
+                            </tr>
+                            <tr>
+                              <td>Testar com <code>ce ForceEvent BloodCastle</code></td>
+                              <td>Console PIE</td>
+                              <td>Logs confirmam entrada, objetivos e recompensas iguais ao servidor.</td>
+                            </tr>
+                          </tbody>
+                        </table>
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -1032,6 +1431,49 @@
                           </ul>
                         </li>
                       </ol>
+                      <div class="table-responsive mt-4">
+                        <table class="table table-dark table-striped align-middle small">
+                          <thead>
+                            <tr>
+                              <th>Tarefa na UE5</th>
+                              <th>Menu / Ferramenta</th>
+                              <th>Resultado esperado</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            <tr>
+                              <td>Construir <code>BP_UIRootSubsystem</code> inspirado em <code>CNewUIManager</code></td>
+                              <td>GameInstanceSubsystem</td>
+                              <td>Subsystem registra widgets e controla camadas 2D/3D.</td>
+                            </tr>
+                            <tr>
+                              <td>Criar <code>WBP_MainFrame</code> com slots para inventário, chat e barras</td>
+                              <td>UMG Designer</td>
+                              <td>Layout reproduz <code>CNewUIMainFrameWindow</code>.</td>
+                            </tr>
+                            <tr>
+                              <td>Integrar chat replicado usando <code>WBP_Chat</code> + <code>BP_ChatService</code></td>
+                              <td>Widget + GameStateSubsystem</td>
+                              <td>Canais Geral/Party/Guild replicam mensagens e filtros.</td>
+                            </tr>
+                            <tr>
+                              <td>Implementar tooltips dinâmicos <code>WBP_ItemTooltip</code></td>
+                              <td>UMG + Data Binding</td>
+                              <td>Tooltip lê DataAssets e mostra cores/efeitos iguais ao cliente.</td>
+                            </tr>
+                            <tr>
+                              <td>Configurar viewport dedicado para previews (<code>WBP_ViewportPortal</code>)</td>
+                              <td>Widget + <code>SceneCaptureComponent2D</code></td>
+                              <td>HUD alterna para render target sem interromper gameplay.</td>
+                            </tr>
+                            <tr>
+                              <td>Validar com <code>Stat Slate</code> e <code>Widget Reflector</code></td>
+                              <td>Window → Developer Tools</td>
+                              <td>Performance e foco das janelas correspondem ao executável original.</td>
+                            </tr>
+                          </tbody>
+                        </table>
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -1100,6 +1542,49 @@
                           </ul>
                         </li>
                       </ol>
+                      <div class="table-responsive mt-4">
+                        <table class="table table-dark table-striped align-middle small">
+                          <thead>
+                            <tr>
+                              <th>Tarefa na UE5</th>
+                              <th>Menu / Ferramenta</th>
+                              <th>Resultado esperado</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            <tr>
+                              <td>Habilitar plug-ins OnlineSubsystem (EOS ou Steam) e Sockets</td>
+                              <td><em>Edit → Plugins</em></td>
+                              <td>Projeto suporta conexões dedicadas e RPCs confiáveis.</td>
+                            </tr>
+                            <tr>
+                              <td>Aplicar replicação avançada em GAS e inventário</td>
+                              <td>Blueprint Details → Replication / AbilitySystemComponent</td>
+                              <td>Estados de habilidades, itens e buffs sincronizados com servidor autoritativo.</td>
+                            </tr>
+                            <tr>
+                              <td>Implementar pipeline Join/Data Server dentro da UE5</td>
+                              <td><code>BP_RemakeServerService</code></td>
+                              <td>Handshakes e snapshots persistem personagens como no MuServer.</td>
+                            </tr>
+                            <tr>
+                              <td>Configurar salvamento em <code>SaveGame</code> + backend dedicado</td>
+                              <td>Blueprint SaveGame + HTTP/Database interface</td>
+                              <td>Desconexões gravam inventário, posição e progresso instantaneamente.</td>
+                            </tr>
+                            <tr>
+                              <td>Adicionar auditoria <code>BP_AuditService</code></td>
+                              <td>GameInstanceSubsystem</td>
+                              <td>Cada pacote recebido é logado para comparação com MuServer logs.</td>
+                            </tr>
+                            <tr>
+                              <td>Testar reconexão com <code>Net PktLag</code> e <code>PktLoss</code></td>
+                              <td>Console PIE</td>
+                              <td>Cliente retorna ao estado salvo sem duplicar itens ou XP.</td>
+                            </tr>
+                          </tbody>
+                        </table>
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -1166,6 +1651,49 @@
                           </ul>
                         </li>
                       </ol>
+                      <div class="table-responsive mt-4">
+                        <table class="table table-dark table-striped align-middle small">
+                          <thead>
+                            <tr>
+                              <th>Tarefa na UE5</th>
+                              <th>Menu / Ferramenta</th>
+                              <th>Resultado esperado</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            <tr>
+                              <td>Configurar <code>BP_AnalyticsService</code> com provider escolhido</td>
+                              <td>Blueprint Function Library + Project Settings → Analytics</td>
+                              <td>Eventos de combate, loot e economia são enviados em tempo real.</td>
+                            </tr>
+                            <tr>
+                              <td>Construir <code>EUW_RemakeGMPanel</code> com botões administrativos</td>
+                              <td>Editor Utility Widget</td>
+                              <td>Equipe Live Ops consegue spawnar mobs, distribuir itens e iniciar eventos.</td>
+                            </tr>
+                            <tr>
+                              <td>Gerir <code>BP_LiveEventManager</code> e <code>DA_LiveEvent</code></td>
+                              <td>Subsystem + Data Asset</td>
+                              <td>Eventos podem ser ativados/desativados e editados sem recompilar.</td>
+                            </tr>
+                            <tr>
+                              <td>Expor curvas de balanceamento para recarga dinâmica</td>
+                              <td><code>CurveTable_Balance</code> + ConfigSubsystem</td>
+                              <td>Alterações em curva atualizam dano/XP instantaneamente.</td>
+                            </tr>
+                            <tr>
+                              <td>Registrar auditoria via <code>BP_AuditService</code></td>
+                              <td>Subsystem / File Writer</td>
+                              <td>Logs CSV ou DB guardam cada ação administrativa.</td>
+                            </tr>
+                            <tr>
+                              <td>Produzir tutoriais (vídeo/gif) anexados ao EUW</td>
+                              <td>EUW → botões com <em>Open Documentation</em></td>
+                              <td>Operadores sabem executar rotinas sem consultar desenvolvedores.</td>
+                            </tr>
+                          </tbody>
+                        </table>
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -1231,6 +1759,697 @@
                           </ul>
                         </li>
                       </ol>
+                      <div class="table-responsive mt-4">
+                        <table class="table table-dark table-striped align-middle small">
+                          <thead>
+                            <tr>
+                              <th>Tarefa na UE5</th>
+                              <th>Menu / Ferramenta</th>
+                              <th>Resultado esperado</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            <tr>
+                              <td>Montar mapas do Functional Testing Framework</td>
+                              <td><em>Window → Developer Tools → Session Frontend</em></td>
+                              <td>Casos de teste automatizados para inventário, combate e eventos.</td>
+                            </tr>
+                            <tr>
+                              <td>Preparar scripts <code>AutomationTool</code> (<code>RunUAT BuildCookRun</code>)</td>
+                              <td>Terminal / Scripts em <code>/ProjetoUnrealEngine/Build</code></td>
+                              <td>Builds executam testes antes de cozinhar pacotes.</td>
+                            </tr>
+                            <tr>
+                              <td>Configurar pipeline CI/CD (GitHub Actions/Jenkins)</td>
+                              <td>Arquivo YAML ou Jenkinsfile</td>
+                              <td>Builds automáticos para Client e Dedicated Server.</td>
+                            </tr>
+                            <tr>
+                              <td>Criar perfis no Project Launcher</td>
+                              <td><em>Window → Project Launcher</em></td>
+                              <td>Perfis Development/Staging/Production com parâmetros equivalentes.</td>
+                            </tr>
+                            <tr>
+                              <td>Adicionar monitoração <code>Stat UnitGraph</code> / <code>Stat GPU</code></td>
+                              <td>Console e arquivos <code>DefaultEngine.ini</code></td>
+                              <td>Builds exportam métricas de desempenho para análise.</td>
+                            </tr>
+                            <tr>
+                              <td>Documentar plano de rollback com snapshots</td>
+                              <td>README / Scripts shell</td>
+                              <td>Procedimento claro para restaurar banco e configurações anteriores.</td>
+                            </tr>
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                <div class="accordion-item bg-dark text-white">
+                  <h2 class="accordion-header" id="receita12">
+                    <button
+                      class="accordion-button collapsed"
+                      type="button"
+                      data-bs-toggle="collapse"
+                      data-bs-target="#receita12Body"
+                    >
+                      Receita 12 — Áudio, Cinemáticas e Atmosfera
+                    </button>
+                  </h2>
+                  <div
+                    id="receita12Body"
+                    class="accordion-collapse collapse"
+                    data-bs-parent="#receitasAccordion"
+                  >
+                    <div class="accordion-body">
+                      <p>
+                        <strong>Objetivo:</strong> transportar o design de áudio
+                        (<code>wzAudio</code>) e as cutscenes do login/eventos
+                        para o sequenciador da UE5.
+                      </p>
+                      <ol class="ps-3">
+                        <li>
+                          <strong>Passo 1 – Importação de trilhas e SFX:</strong>
+                          <ul>
+                            <li>Normalize os MP3 originais para 48 kHz e gere
+                            <code>SoundWave</code> com <em>Streaming</em>
+                            habilitado.</li>
+                            <li>Organize em pastas <code>BGM</code>, <code>SFX</code>
+                            e <code>Voice</code> respeitando os mesmos nomes dos
+                            arquivos originais para facilitar referenciamento.</li>
+                          </ul>
+                        </li>
+                        <li>
+                          <strong>Passo 2 – Sound Classes e Mix:</strong>
+                          <ul>
+                            <li>Recrie a hierarquia <code>BGM</code>,
+                            <code>Effects</code>, <code>UI</code> e
+                            <code>Voice</code> em <em>Audio Mixer</em>.</li>
+                            <li>Mapeie os sliders do menu de opções para
+                            <em>SoundMix Class Overrides</em>, permitindo salvar
+                            o volume individual.</li>
+                          </ul>
+                        </li>
+                        <li>
+                          <strong>Passo 3 – Player de BGM e crossfade:</strong>
+                          <ul>
+                            <li>Crie <code>BP_BGMController</code> com duas
+                            fontes de áudio e implemente <em>CrossFade</em>
+                            usando <code>AudioComponent Fade</code>.</li>
+                            <li>Ligue cada mapa/evento a uma entrada da
+                            <code>DT_BGMPlaylist</code> para repetir o mesmo
+                            comportamento do cliente.</li>
+                          </ul>
+                        </li>
+                        <li>
+                          <strong>Passo 4 – Cutscenes e Sequencer:</strong>
+                          <ul>
+                            <li>Monte sequências para o login, seleção de
+                            personagem, vitória em eventos e bosses.</li>
+                            <li>Use <em>Level Sequence</em> com <em>Camera Cuts</em>
+                            e eventos de áudio sincronizados para refletir as
+                            cenas pré-renderizadas do original.</li>
+                          </ul>
+                        </li>
+                        <li>
+                          <strong>Passo 5 – Ambientes e efeitos:</strong>
+                          <ul>
+                            <li>Implemente <code>BP_AmbientSoundDirector</code>
+                            que lê <code>DT_Ambience</code> contendo clima,
+                            partículas e loops de ambiente.</li>
+                            <li>Acione sistemas Niagara para chuva, neve,
+                            neblina ou brilhos de itens excelentes conforme os
+                            mapas de origem.</li>
+                          </ul>
+                        </li>
+                        <li>
+                          <strong>Passo 6 – QA de áudio:</strong>
+                          <ul>
+                            <li>Habilite <code>Stat SoundWaves</code> e
+                            <code>Stat SoundMixes</code> para confirmar o número
+                            de vozes.</li>
+                            <li>Compare o loudness LUFS com o executável
+                            original usando referência do <code>wzAudio</code>.</li>
+                          </ul>
+                        </li>
+                      </ol>
+                      <div class="table-responsive mt-4">
+                        <table class="table table-dark table-striped align-middle small">
+                          <thead>
+                            <tr>
+                              <th>Tarefa na UE5</th>
+                              <th>Menu / Ferramenta</th>
+                              <th>Resultado esperado</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            <tr>
+                              <td>Importar e normalizar BGM/SFX</td>
+                              <td>Content Browser → <em>Import</em></td>
+                              <td>SoundWaves possuem nomes originais e estão prontos para streaming.</td>
+                            </tr>
+                            <tr>
+                              <td>Definir SoundClasses e SoundMix</td>
+                              <td><em>Window → Audio Mixer</em></td>
+                              <td>Menu de opções controla volumes individuais.</td>
+                            </tr>
+                            <tr>
+                              <td>Programar <code>BP_BGMController</code></td>
+                              <td>Blueprint Actor</td>
+                              <td>Crossfades suaves entre músicas de mapas/eventos.</td>
+                            </tr>
+                            <tr>
+                              <td>Montar sequências no Level Sequencer</td>
+                              <td><em>Cinematics → Add Level Sequence</em></td>
+                              <td>Cenas de login/eventos replicam cortes e câmeras do original.</td>
+                            </tr>
+                            <tr>
+                              <td>Configurar <code>BP_AmbientSoundDirector</code> e Niagara</td>
+                              <td>Blueprint + Niagara Editor</td>
+                              <td>Climas e efeitos atmosféricos mudam com o mapa.</td>
+                            </tr>
+                            <tr>
+                              <td>Rodar <code>Stat SoundWaves</code>/<code>SoundMixes</code></td>
+                              <td>Console PIE</td>
+                              <td>Contagem de vozes e loudness correspondem ao cliente clássico.</td>
+                            </tr>
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                <div class="accordion-item bg-dark text-white">
+                  <h2 class="accordion-header" id="receita13">
+                    <button
+                      class="accordion-button collapsed"
+                      type="button"
+                      data-bs-toggle="collapse"
+                      data-bs-target="#receita13Body"
+                    >
+                      Receita 13 — Sistemas Sociais e Comunidade
+                    </button>
+                  </h2>
+                  <div
+                    id="receita13Body"
+                    class="accordion-collapse collapse"
+                    data-bs-parent="#receitasAccordion"
+                  >
+                    <div class="accordion-body">
+                      <p>
+                        <strong>Objetivo:</strong> migrar party, guild,
+                        mensagens rápidas e rankings para o ecossistema UE5 sem
+                        perder os contratos do MuServer.
+                      </p>
+                      <ol class="ps-3">
+                        <li>
+                          <strong>Passo 1 – Party Service:</strong>
+                          <ul>
+                            <li>Crie <code>BP_PartyService</code>
+                            (GameStateSubsystem) responsável por convites,
+                            compartilhamento de XP e ícones de alvo.</li>
+                            <li>Implementar RPCs
+                            <code>ServerInviteToParty</code>,
+                            <code>ServerKickFromParty</code> e
+                            <code>ServerPromoteLeader</code>.</li>
+                          </ul>
+                        </li>
+                        <li>
+                          <strong>Passo 2 – Guild Manager:</strong>
+                          <ul>
+                            <li>Estruture <code>BP_GuildService</code> com
+                            replicação via <code>FastArraySerializer</code>.</li>
+                            <li>Mapeie permissões, cofres de itens e mensagens
+                            do dia usando <code>DT_GuildRanks</code>.</li>
+                          </ul>
+                        </li>
+                        <li>
+                          <strong>Passo 3 – Chat avançado:</strong>
+                          <ul>
+                            <li>Estenda o <code>BP_ChatService</code> para
+                            suportar macros, whispers e comandos GM.</li>
+                            <li>Crie filtros para evitar spam e permita mutar
+                            jogadores replicando flags do servidor.</li>
+                          </ul>
+                        </li>
+                        <li>
+                          <strong>Passo 4 – Correio e trocas:</strong>
+                          <ul>
+                            <li>Construa <code>BP_RemakeMailService</code>
+                            baseado em DataAssets persistentes.</li>
+                            <li>Implemente UI para anexar itens e Zen,
+                            validando contra duplicações como o MuServer.</li>
+                          </ul>
+                        </li>
+                        <li>
+                          <strong>Passo 5 – Rankings e eventos sociais:</strong>
+                          <ul>
+                            <li>Adapte <code>BP_RankingBoard</code> para ler
+                            estatísticas do backend (Castle Siege, PvP, Guild).</li>
+                            <li>Exponha widgets <code>WBP_Ranking</code> e
+                            <code>WBP_GuildInfo</code> com paginação.</li>
+                          </ul>
+                        </li>
+                        <li>
+                          <strong>Passo 6 – Testes:</strong>
+                          <ul>
+                            <li>Use comandos <code>ce ForceGuildWar</code> e
+                            <code>ce TestPartyXP</code> para validar divisões de
+                            experiência.</li>
+                            <li>Registre screenshots comparando com as janelas
+                            do cliente antigo.</li>
+                          </ul>
+                        </li>
+                      </ol>
+                      <div class="table-responsive mt-4">
+                        <table class="table table-dark table-striped align-middle small">
+                          <thead>
+                            <tr>
+                              <th>Tarefa na UE5</th>
+                              <th>Menu / Ferramenta</th>
+                              <th>Resultado esperado</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            <tr>
+                              <td>Programar <code>BP_PartyService</code></td>
+                              <td>GameStateSubsystem Blueprint</td>
+                              <td>Convites e buffs de party replicam estado para todos os membros.</td>
+                            </tr>
+                            <tr>
+                              <td>Implementar <code>BP_GuildService</code> e DataTables de ranks</td>
+                              <td>Subsystem + Data Table</td>
+                              <td>Estrutura de guildas suporta hierarquia, cofres e mensagens.</td>
+                            </tr>
+                            <tr>
+                              <td>Expandir <code>BP_ChatService</code> com macros/whisper</td>
+                              <td>GameStateSubsystem + UMG</td>
+                              <td>Jogadores usam /w, /p, /g e filtros sem perder mensagens.</td>
+                            </tr>
+                            <tr>
+                              <td>Construir <code>BP_RemakeMailService</code> e UI correspondente</td>
+                              <td>Subsystem + <code>WBP_Mailbox</code></td>
+                              <td>Correio envia/recebe itens e Zen com logs de auditoria.</td>
+                            </tr>
+                            <tr>
+                              <td>Desenvolver <code>BP_RankingBoard</code> + widgets de ranking</td>
+                              <td>Blueprint Actor / Subsystem + UMG</td>
+                              <td>Tabelas exibem dados de Castle Siege, PvP e Guild conforme backend.</td>
+                            </tr>
+                            <tr>
+                              <td>Executar comandos <code>ce ForceGuildWar</code> e registrar evidências</td>
+                              <td>Console PIE + captura de tela</td>
+                              <td>Resultados combinam com comportamento do MuServer.</td>
+                            </tr>
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                <div class="accordion-item bg-dark text-white">
+                  <h2 class="accordion-header" id="receita14">
+                    <button
+                      class="accordion-button collapsed"
+                      type="button"
+                      data-bs-toggle="collapse"
+                      data-bs-target="#receita14Body"
+                    >
+                      Receita 14 — Segurança, Anti-Cheat e Auditoria
+                    </button>
+                  </h2>
+                  <div
+                    id="receita14Body"
+                    class="accordion-collapse collapse"
+                    data-bs-parent="#receitasAccordion"
+                  >
+                    <div class="accordion-body">
+                      <p>
+                        <strong>Objetivo:</strong> reproduzir todas as
+                        validações e defesas do cliente/servidor clássico,
+                        garantindo que o lado UE5 continue autoritativo e
+                        resistente a hacks de velocidade, injeções ou pacotes
+                        forjados.
+                      </p>
+                      <ol class="ps-3">
+                        <li>
+                          <strong>Passo 1 – Gateway de segurança:</strong>
+                          <ul>
+                            <li>Implemente <code>BP_SecurityGateway</code>
+                            (classe <em>GameModeSubsystem</em>) com filas de
+                            auditoria e uma função <code>IssueStrike</code>.</li>
+                            <li>Registre o subsistema em
+                            <code>BP_RemakeGameMode</code> para interceptar
+                            conexões logo após o login.</li>
+                          </ul>
+                        </li>
+                        <li>
+                          <strong>Passo 2 – Validação de RPCs:</strong>
+                          <ul>
+                            <li>Adicione ao
+                            <code>BP_RemakePlayerController</code> uma função
+                            <code>AuthorityValidateAction</code> que consulta as
+                            flags de mapa/evento (Attack.cpp) antes de aceitar
+                            qualquer habilidade ou uso de item.</li>
+                            <li>Faça cada RPC chamá-la e registre o resultado em
+                            <code>BFL_RemakeLogger</code> com nível “SEC”.</li>
+                          </ul>
+                        </li>
+                        <li>
+                          <strong>Passo 3 – Anti-speed/teleport:</strong>
+                          <ul>
+                            <li>Instale <code>BP_AntiSpeedComponent</code> nos
+                            personagens e compare o deslocamento informado com a
+                            simulação do servidor via
+                            <code>FNetworkPredictionData_Server_Character</code>.</li>
+                            <li>Bloqueie discrepâncias acima do limiar definido
+                            em <code>DA_SecurityTuning</code>.</li>
+                          </ul>
+                        </li>
+                        <li>
+                          <strong>Passo 4 – Criptografia de pacotes:</strong>
+                          <ul>
+                            <li>Configure um
+                            <code>PacketHandlerComponentFactory</code> customizado
+                            para aplicar AES-256 sobre os pacotes sensíveis,
+                            reproduzindo a proteção do cliente antigo.</li>
+                            <li>Sincronize a troca de chaves com o serviço Join
+                            através do <code>BP_RemakeServerService</code>.</li>
+                          </ul>
+                        </li>
+                        <li>
+                          <strong>Passo 5 – Integridade de arquivos:</strong>
+                          <ul>
+                            <li>Habilite <code>bUsePakFilePruner</code> e crie um
+                            comando <code>remake.VerifyPaks</code> que chama
+                            <code>IPlatformFilePak::FindFileInPakFiles</code> para
+                            comparar hashes com o manifest original.</li>
+                            <li>Bloqueie o boot caso qualquer asset crítico não
+                            corresponda ao hash.</li>
+                          </ul>
+                        </li>
+                        <li>
+                          <strong>Passo 6 – Alertas e auditoria:</strong>
+                          <ul>
+                            <li>Envie eventos para o
+                            <code>BP_AnalyticsSubsystem</code> (Receita 10) com
+                            payload contendo jogador, mapa e tipo de violação.</li>
+                            <li>Automatize ações disciplinares usando um Editor
+                            Utility Widget <code>EUW_StrikeConsole</code>.</li>
+                          </ul>
+                        </li>
+                      </ol>
+                      <div class="table-responsive mt-4">
+                        <table class="table table-dark table-striped align-middle small">
+                          <thead>
+                            <tr>
+                              <th>Tarefa na UE5</th>
+                              <th>Menu / Ferramenta</th>
+                              <th>Resultado esperado</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            <tr>
+                              <td>Registrar o <code>BP_SecurityGateway</code></td>
+                              <td>Blueprint GameModeSubsystem</td>
+                              <td>Todas as conexões são auditadas e podem receber strikes.</td>
+                            </tr>
+                            <tr>
+                              <td>Adicionar <code>AuthorityValidateAction</code> aos RPCs</td>
+                              <td>Blueprint PlayerController</td>
+                              <td>Combate e itens obedecem às regras dos mapas/eventos.</td>
+                            </tr>
+                            <tr>
+                              <td>Configurar <code>PacketHandlerComponentFactory</code> custom</td>
+                              <td>C++/Blueprint + DefaultEngine.ini</td>
+                              <td>Pacotes críticos saem criptografados e autenticados.</td>
+                            </tr>
+                            <tr>
+                              <td>Criar comando <code>remake.VerifyPaks</code></td>
+                              <td>Editor Utility + Console Command</td>
+                              <td>Boot interrompido se hashes divergirem.</td>
+                            </tr>
+                            <tr>
+                              <td>Publicar alertas no <code>BP_AnalyticsSubsystem</code></td>
+                              <td>GameInstanceSubsystem</td>
+                              <td>Dashboard recebe métricas de violações em tempo real.</td>
+                            </tr>
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                <div class="accordion-item bg-dark text-white">
+                  <h2 class="accordion-header" id="receita15">
+                    <button
+                      class="accordion-button collapsed"
+                      type="button"
+                      data-bs-toggle="collapse"
+                      data-bs-target="#receita15Body"
+                    >
+                      Receita 15 — Localização e Acessibilidade
+                    </button>
+                  </h2>
+                  <div
+                    id="receita15Body"
+                    class="accordion-collapse collapse"
+                    data-bs-parent="#receitasAccordion"
+                  >
+                    <div class="accordion-body">
+                      <p>
+                        <strong>Objetivo:</strong> garantir que cada interface,
+                        áudio e input possa ser adaptado a vários idiomas e
+                        necessidades especiais sem perder fidelidade ao cliente
+                        original.
+                      </p>
+                      <ol class="ps-3">
+                        <li>
+                          <strong>Passo 1 – Catalogar textos:</strong>
+                          <ul>
+                            <li>Importe os arquivos de texto do cliente (PT, EN,
+                            ES) para <em>String Tables</em> nomeadas
+                            <code>ST_RemakeUI</code>,
+                            <code>ST_RemakeItems</code> e
+                            <code>ST_RemakeSystem</code>.</li>
+                            <li>Substitua todos os textos fixos nos widgets por
+                            <code>String Table Entry</code>.</li>
+                          </ul>
+                        </li>
+                        <li>
+                          <strong>Passo 2 – Localization Dashboard:</strong>
+                          <ul>
+                            <li>No menu <em>Window → Localization Dashboard</em>
+                            crie um alvo por idioma e execute <em>Gather Text</em>
+                            semanalmente.</li>
+                            <li>Ative o modo <em>Preview</em> para validar
+                            truncamentos no HUD.</li>
+                          </ul>
+                        </li>
+                        <li>
+                          <strong>Passo 3 – Fontes e IME:</strong>
+                          <ul>
+                            <li>Configure <code>Composite Fonts</code> com
+                            fallback para caracteres coreanos/chineses, como no
+                            cliente clássico.</li>
+                            <li>Habilite suporte a IME no chat via
+                            <code>SlateApplication::SetSlateTextInputMethodSystem</code>.</li>
+                          </ul>
+                        </li>
+                        <li>
+                          <strong>Passo 4 – Acessibilidade visual:</strong>
+                          <ul>
+                            <li>Crie <code>WBP_AccessibilityOverlay</code> com
+                            ajustes de contraste, escalonamento de fonte e modo
+                            daltônico.</li>
+                            <li>Mapeie essas preferências para
+                            <code>Saved/AccessibilityOptions.sav</code>.</li>
+                          </ul>
+                        </li>
+                        <li>
+                          <strong>Passo 5 – Acessibilidade auditiva e input:</strong>
+                          <ul>
+                            <li>Implemente legendas automáticas no Sequencer e
+                            sons críticos duplicados com vibração (gamepad).</li>
+                            <li>Adicione remapeamento completo de teclas em
+                            <code>BP_InputProfileManager</code>, permitindo salvar
+                            perfis separados por personagem.</li>
+                          </ul>
+                        </li>
+                        <li>
+                          <strong>Passo 6 – QA linguístico:</strong>
+                          <ul>
+                            <li>Use o comando <code>ce CycleLocale</code> para
+                            navegar rapidamente entre idiomas durante testes.</li>
+                            <li>Compare prints com o executável original para
+                            garantir traduções idênticas.</li>
+                          </ul>
+                        </li>
+                      </ol>
+                      <div class="table-responsive mt-4">
+                        <table class="table table-dark table-striped align-middle small">
+                          <thead>
+                            <tr>
+                              <th>Tarefa na UE5</th>
+                              <th>Menu / Ferramenta</th>
+                              <th>Resultado esperado</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            <tr>
+                              <td>Criar String Tables para UI/itens/sistema</td>
+                              <td>Content Browser → Miscellaneous → String Table</td>
+                              <td>Todos os textos são referenciados por ID único.</td>
+                            </tr>
+                            <tr>
+                              <td>Configurar Localization Dashboard</td>
+                              <td><em>Window → Localization Dashboard</em></td>
+                              <td>Arquivos PO são exportados para cada idioma suportado.</td>
+                            </tr>
+                            <tr>
+                              <td>Montar <code>Composite Fonts</code> com fallback</td>
+                              <td>Project Settings → Engine → Slate</td>
+                              <td>Chat e HUD exibem caracteres internacionais.</td>
+                            </tr>
+                            <tr>
+                              <td>Construir <code>WBP_AccessibilityOverlay</code></td>
+                              <td>UMG Designer</td>
+                              <td>Jogador ajusta contraste, fontes e filtros em runtime.</td>
+                            </tr>
+                            <tr>
+                              <td>Implementar remapeamento via <code>BP_InputProfileManager</code></td>
+                              <td>Blueprint Subsystem + Enhanced Input</td>
+                              <td>Configurações de input salvam múltiplos perfis.</td>
+                            </tr>
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                <div class="accordion-item bg-dark text-white">
+                  <h2 class="accordion-header" id="receita16">
+                    <button
+                      class="accordion-button collapsed"
+                      type="button"
+                      data-bs-toggle="collapse"
+                      data-bs-target="#receita16Body"
+                    >
+                      Receita 16 — Observabilidade, Runbooks e Ferramentas de Suporte
+                    </button>
+                  </h2>
+                  <div
+                    id="receita16Body"
+                    class="accordion-collapse collapse"
+                    data-bs-parent="#receitasAccordion"
+                  >
+                    <div class="accordion-body">
+                      <p>
+                        <strong>Objetivo:</strong> fornecer ao time de operação
+                        e suporte a mesma visibilidade e controle do ecossistema
+                        original, com dashboards, comandos e runbooks integrados
+                        ao editor e ao jogo em produção.
+                      </p>
+                      <ol class="ps-3">
+                        <li>
+                          <strong>Passo 1 – Telemetria unificada:</strong>
+                          <ul>
+                            <li>Crie <code>BP_ObservabilitySubsystem</code> com
+                            APIs para enviar métricas (CPU, RTT, usuários) para
+                            o backend escolhido.</li>
+                            <li>Expose funções <em>BlueprintCallable</em> para
+                            que outros subsistemas enviem eventos padronizados.</li>
+                          </ul>
+                        </li>
+                        <li>
+                          <strong>Passo 2 – Painéis em tempo real:</strong>
+                          <ul>
+                            <li>Construa <code>WBP_LiveDashboard</code> usando
+                            <code>Retainer Box</code> e gráficos (ex. Victory
+                            Charts) para exibir filas, eventos e alertas.</li>
+                            <li>Disponibilize o widget como Editor Utility para
+                            rodar fora do jogo.</li>
+                          </ul>
+                        </li>
+                        <li>
+                          <strong>Passo 3 – Ferramentas de GM:</strong>
+                          <ul>
+                            <li>Atualize o <code>EUW_RemakeGMPanel</code> com
+                            macros para spawn, buffs e inspeção de inventário.</li>
+                            <li>Registre todas as ações em <code>BP_SecurityGateway</code>
+                            (Receita 14) para rastreabilidade.</li>
+                          </ul>
+                        </li>
+                        <li>
+                          <strong>Passo 4 – Runbooks automatizados:</strong>
+                          <ul>
+                            <li>Crie um repositório <code>/tools/runbooks</code>
+                            com scripts Python/Batch que chamam a
+                            <code>AutomationTool</code> para reiniciar eventos ou
+                            reindexar DataTables.</li>
+                            <li>Exponha-os dentro do editor via
+                            <code>EUW_RunbookLauncher</code>.</li>
+                          </ul>
+                        </li>
+                        <li>
+                          <strong>Passo 5 – Perf e logs:</strong>
+                          <ul>
+                            <li>Automatize capturas de <code>Stat UnitGraph</code>
+                            e <code>MemReport</code> ao pressionar
+                            <code>F11</code> no build de QA.</li>
+                            <li>Envie os relatórios para um bucket configurado
+                            em <code>DA_ObservabilitySettings</code>.</li>
+                          </ul>
+                        </li>
+                        <li>
+                          <strong>Passo 6 – Treinamento do suporte:</strong>
+                          <ul>
+                            <li>Grave vídeos curtos (Sequencer) demonstrando
+                            como operar cada ferramenta e vincule-os no widget
+                            <code>WBP_KnowledgeBase</code>.</li>
+                            <li>Agende revisões trimestrais para manter os
+                            runbooks atualizados.</li>
+                          </ul>
+                        </li>
+                      </ol>
+                      <div class="table-responsive mt-4">
+                        <table class="table table-dark table-striped align-middle small">
+                          <thead>
+                            <tr>
+                              <th>Tarefa na UE5</th>
+                              <th>Menu / Ferramenta</th>
+                              <th>Resultado esperado</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            <tr>
+                              <td>Implementar <code>BP_ObservabilitySubsystem</code></td>
+                              <td>GameInstanceSubsystem Blueprint/C++</td>
+                              <td>Telemetria centraliza métricas de todos os sistemas.</td>
+                            </tr>
+                            <tr>
+                              <td>Construir <code>WBP_LiveDashboard</code></td>
+                              <td>UMG + Editor Utility Widget</td>
+                              <td>Operações monitoram eventos e filas em tempo real.</td>
+                            </tr>
+                            <tr>
+                              <td>Expandir <code>EUW_RemakeGMPanel</code></td>
+                              <td>Editor Utility Widget</td>
+                              <td>GMs conseguem aplicar comandos e logs automaticamente.</td>
+                            </tr>
+                            <tr>
+                              <td>Criar scripts em <code>/tools/runbooks</code></td>
+                              <td>Python + AutomationTool</td>
+                              <td>Procedimentos críticos viram botões no editor.</td>
+                            </tr>
+                            <tr>
+                              <td>Automatizar coleta de <code>Stat UnitGraph</code></td>
+                              <td>Console Command + Observer Component</td>
+                              <td>Perfis de desempenho ficam arquivados para auditoria.</td>
+                            </tr>
+                          </tbody>
+                        </table>
+                      </div>
                     </div>
                   </div>
                 </div>
