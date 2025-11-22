@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Guia de Recriação UE5</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  <style>
+    body { padding-top: 70px; }
+    .tab-section { display: none; }
+    .tab-section.active { display: block; }
+    .section-title { margin-top: 1.5rem; }
+    code { background: #f8f9fa; padding: 2px 4px; border-radius: 4px; }
+  </style>
+</head>
+<body>
+  <nav class="navbar navbar-expand-lg navbar-dark bg-dark fixed-top">
+    <div class="container-fluid">
+      <a class="navbar-brand" href="#">Unreal Engine 5 – Migração</a>
+      <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav" aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
+        <span class="navbar-toggler-icon"></span>
+      </button>
+      <div class="collapse navbar-collapse" id="navbarNav">
+        <ul class="navbar-nav ms-auto">
+          <li class="nav-item">
+            <a class="nav-link active" href="#" data-target="roadmap">Roadmap Cronológico</a>
+          </li>
+          <li class="nav-item">
+            <a class="nav-link" href="#" data-target="instructions">Instruções Técnicas</a>
+          </li>
+        </ul>
+      </div>
+    </div>
+  </nav>
+
+  <main class="container">
+    <section id="roadmap" class="tab-section active">
+      <h1>Roadmap Cronológico</h1>
+      <p class="text-muted">Sequência sugerida para portar o cliente/servidor legado para UE5 usando arquitetura server-authoritative e Replication (RPCs/RepNotify/variáveis replicadas). Ignore totalmente o envio manual de pacotes do código antigo.</p>
+      <ol class="list-group list-group-numbered">
+        <li class="list-group-item">
+          <h5>Core &amp; Networking</h5>
+          <p>Configurar <code>UGameInstance</code>, <code>AGameMode</code> (somente servidor) e <code>APlayerController</code> para login/handshake inicial via RPCs e variáveis replicadas.</p>
+          <ul class="mb-0">
+            <li>Checklist: criação de <code>UGameInstance</code> custom, GameMode dedicado, PlayerState com structs replicadas.</li>
+            <li>Entrega mínima: login funcional com validação server-side e HUD reativo por RepNotify.</li>
+          </ul>
+        </li>
+        <li class="list-group-item">
+          <h5>Seleção &amp; Lobby</h5>
+          <p>Criar mapa de login e fluxos de seleção de sala/personagem carregando dados simulados ou tabelados, sempre replicados do servidor.</p>
+          <ul class="mb-0">
+            <li>Checklist: tabela de salas/servers, <code>OnRep</code> para slots de personagem e botões de criar/deletar com RPC.</li>
+            <li>Entrega mínima: troca de mapa (lobby &rarr; mundo) via <code>ServerTravel</code> com personagem escolhido replicado.</li>
+          </ul>
+        </li>
+        <li class="list-group-item">
+          <h5>Mundo &amp; Movimentação</h5>
+          <p>Preparar catálogos de mapas, NavMesh e movimentação replicada; implementar <em>Gate/Warp</em> como RPC server-side com validação baseada nas tabelas legadas.</p>
+          <ul class="mb-0">
+            <li>Checklist: DataTable de mapas/gates, NavMesh funcional, <code>ServerMoveTo</code> validando caminho.</li>
+            <li>Entrega mínima: player consegue caminhar/teleportar com correções server-authoritative visíveis.</li>
+          </ul>
+        </li>
+        <li class="list-group-item">
+          <h5>Dados &amp; RPG</h5>
+          <p>Estruturar atributos, XP e level up com structs replicadas e lógicas de progressão derivadas das fórmulas do código antigo.</p>
+          <ul class="mb-0">
+            <li>Checklist: <code>FCharacterStats</code> replicado, fórmulas de XP/level up portadas, eventos de level up multicast.</li>
+            <li>Entrega mínima: ganhar XP de mock (missão/mob) e subir nível refletindo atributos/FX.</li>
+          </ul>
+        </li>
+        <li class="list-group-item">
+          <h5>Inventário &amp; Itens</h5>
+          <p>Modelar itens como <code>DataAssets</code>, inventário/baú replicados, troca de malhas visuais e regras de uso conforme o legado.</p>
+          <ul class="mb-0">
+            <li>Checklist: <code>UInventoryComponent</code> replicado, DataAssets preenchidos, UI de grid reagindo a <code>OnRep</code>.</li>
+            <li>Entrega mínima: pickup/usar/equipar itens com validação de requisitos e atualização visual.</li>
+          </ul>
+        </li>
+        <li class="list-group-item">
+          <h5>Combate &amp; AI</h5>
+          <p>Spawning de mobs no servidor, AI controller/behavior tree, sistema de skills/dano e drop de itens replicados.</p>
+          <ul class="mb-0">
+            <li>Checklist: tabelas de mobs, Behavior Tree básico, GAS configurado, replicação de HP/estado.</li>
+            <li>Entrega mínima: mob ataca/jogador responde e loot dropa com regras de distância/antiflood.</li>
+          </ul>
+        </li>
+        <li class="list-group-item">
+          <h5>Economia</h5>
+          <p>NPC Shops, Trade e CashShop com RPCs e validação server-side, reutilizando tabelas de preços/impostos do legado.</p>
+          <ul class="mb-0">
+            <li>Checklist: DataTable de preços/impostos, UI de shop replicada, sessão de trade replicada.</li>
+            <li>Entrega mínima: compra/venda/trade concluindo com logs server-side.</li>
+          </ul>
+        </li>
+      </ol>
+    </section>
+
+    <section id="instructions" class="tab-section">
+      <h1>Instruções Técnicas</h1>
+      <p class="text-muted">Para cada sistema, veja o de/para entre a lógica C++ antiga (fórmulas, tabelas, regras) e a arquitetura replicada da Unreal. Não porte a camada de sockets/pacotes.</p>
+
+      <h2 class="section-title">1. Core &amp; Networking</h2>
+      <ul>
+        <li><strong>GameInstance como ponto de bootstrap:</strong> O legado inicializa estados globais e envia cabeçalhos de conexão. No UE5, mova essa orquestração para uma subclasse de <code>UGameInstance</code> que armazena configurações (servidor escolhido, idioma, opções). Use um RPC confiável no <code>PlayerController</code> para realizar o handshake de login em vez de pacotes <em>ad hoc</em>. O servidor valida credenciais em C++ e replica um <code>FPlayerLoginState</code> (struct replicada) com <code>RepNotify</code> para atualizar a UI do cliente.</li>
+        <li><strong>GameMode server-only:</strong> No código antigo o servidor decide sucesso/erro de login. Em UE5, mantenha <code>AGameMode</code> apenas no servidor e exponha funções <code>ExecLogin(ServerRPC)</code> e <code>ClientLoginResult(ClientRPC)</code>. O cliente nunca seta variáveis de sessão diretamente; apenas invoca RPCs.</li>
+        <li><strong>PlayerController e HUD:</strong> A UI de login/seleção que antes lia diretamente input agora chama métodos do <code>APlayerController</code> (ou <code>UUserWidget</code> via <code>BlueprintCallable</code>) para enviar RPCs ao servidor. Use <code>OnRep</code> para alterar widgets conforme o estado do login (conectando, sucesso, erro).</li>
+        <li><strong>Fila de reconexão e heartbeats:</strong> O legado monitora desconexões por tempo de socket. Em UE5, implemente <em>heartbeats</em> periódicos (ServerRPC + <code>OnRep_LastHeartbeat</code>) para detectar timeouts e forçar <code>SeamlessTravel</code> para lobby em caso de queda.</li>
+        <li><strong>Logs e equivalência com legado:</strong> Crie um helper C++ que gera logs no formato do servidor antigo (IDs, resultado de login, IP). Isso facilita comparar comportamento com sessões reais do legado sem reimplementar pacotes.</li>
+      </ul>
+
+      <h2 class="section-title">2. Seleção &amp; Lobby</h2>
+      <ul>
+        <li><strong>Mapa de Login e Seleção de Sala:</strong> No legado, o usuário escolhe servidor/sala antes de entrar. Em UE5, abra um mapa de lobby (carregado por <code>OpenLevel</code>) que instancia um widget de lista de salas. A lista vem de uma tabela (ex-<code>w_MapHeaders</code> ou configs) replicada via <code>FServerInfo</code> array em <code>GameState</code>. Selecionar sala envia <code>ServerSelectWorld(ServerRPC)</code>; o servidor responde com <code>ClientWorldAccepted</code>.</li>
+        <li><strong>Seleção de Personagem:</strong> As structs antigas retornavam slots com classe, level e visual. Converta essas structs em um <code>FCharacterSlotData</code> replicado pelo servidor no <code>PlayerState</code>. O widget de seleção lê via <code>OnRep_CharacterSlots</code>. Botões de criar/deletar chamam RPCs que editam a lista no servidor e replicam o resultado.</li>
+        <li><strong>Transição para o mundo:</strong> Ao confirmar personagem, o servidor chama <code>ServerTravel</code> ou <code>SeamlessTravel</code>. Antes de viajar, o <code>PlayerController</code> recebe via <code>ClientRPC</code> os dados iniciais (atributos base, inventário vazio ou mock) serializados de tabelas legadas.</li>
+        <li><strong>Sincronização de tempo e clima:</strong> O legado envia pacotes de tempo; em UE5, replique um <code>FWorldTimeState</code> no <code>GameState</code> para hora/clima e use <code>OnRep</code> para acionar <code>MaterialParameterCollection</code> que ajusta iluminação.</li>
+      </ul>
+
+      <h2 class="section-title">3. Mundo &amp; Movimentação</h2>
+      <ul>
+        <li><strong>Catálogo de mapas e streaming:</strong> Em vez de instanciar classes de mapa manualmente, crie um <code>DataTable</code> de mapas (ID &rarr; <code>ULevel</code>/DataLayer). O servidor escolhe o subnível a streamar e replica o ID atual no <code>GameState</code>. Clientes usam <code>OnRep_CurrentMapId</code> para carregar o nível correspondente.</li>
+        <li><strong>NavMesh e movimento replicado:</strong> A lógica antiga quantiza direções (<code>DirTable</code>) e empacota passos. Em UE5, confie no <code>CharacterMovementComponent</code>: o cliente apenas solicita destino com <code>ServerMoveTo(ServerRPC)</code>; o servidor valida no NavMesh e move (ou ajusta) usando <code>AAIController</code> ou <code>MoveToLocation</code>. O <code>MovementComponent</code> já replica posição/rotações; use <code>OnRep</code> para eventos como início/fim de dash.</li>
+        <li><strong>Gate/Warp:</strong> A tabela <code>CMoveCommandData</code> descreve requisitos. Migre para <code>DataTable</code> (level dest, level mínimo, custo, coords). Triggers no mapa chamam <code>ServerRequestWarp</code>, o GameMode valida contra a tabela e usa <code>ServerTravel</code> ou teleporte instantâneo (<code>SetActorLocation</code>) aplicando custo. Clientes apenas reagem a <code>ClientWarpResult</code>.</li>
+        <li><strong>Segurança de movimentação:</strong> Para evitar <em>speed hack</em>, compare <code>ClientTimeStamp</code> com distância percorrida no servidor (equivalente ao anti-cheat do legado) e aplique correção suave usando <code>ClientAdjustPosition</code>.</li>
+      </ul>
+
+      <h2 class="section-title">4. Dados &amp; RPG</h2>
+      <ul>
+        <li><strong>Structs de atributos replicados:</strong> O legado usa campos em <code>CHARACTER</code> (Str, Agi, Vit, Energy, Command, level, dinheiro). Crie um <code>FCharacterStats</code> marcado com <code>UPROPERTY(ReplicatedUsing=OnRep_Stats)</code> no <code>PlayerState</code>. Apenas o servidor altera; o cliente recebe por RepNotify e atualiza HUD.</li>
+        <li><strong>XP e Level Up:</strong> Reaproveite as fórmulas/tabelas de XP (ex.: <code>EXPERIENCE_COMMON</code>, <code>EXPERIENCE_QUEST</code>). No servidor, mantenha um <code>FExperienceProgress</code> replicado. Funções <code>ServerAddExperience</code> aplicam bônus por fonte, verificam limites (<code>MAX_CHARACTER_LEVEL</code>=400) e disparam <code>OnLevelUp</code> multicast para FX e UI.</li>
+        <li><strong>Visual de equipamentos e asas:</strong> Arrays como <code>wingLeft/wingRight</code> definem sockets. Em UE5, configure sockets equivalentes e replique apenas o identificador de item equipado (ex.: <code>EquippedWingId</code>). <code>OnRep_EquippedWing</code> troca a <code>USkeletalMesh</code> ou spawn de <code>NiagaraComponent</code>, evitando replicar meshes inteiras.</li>
+        <li><strong>Buffs/Estados temporários:</strong> Buffs do legado (ex.: poções, scrolls) viram <code>GameplayEffects</code> com duração. Replicar tags ativas no <code>PlayerState</code>; aplicar/remover apenas pelo servidor e usar <code>OnRep</code> para atualizar HUD e VFX.</li>
+      </ul>
+
+      <h2 class="section-title">5. Inventário &amp; Itens</h2>
+      <ul>
+        <li><strong>Itens como DataAssets:</strong> Converta as colunas de <code>ZzzInventory</code> em um <code>UPrimaryDataAsset</code> (<code>FItemDefinition</code>) contendo requisitos, tipo, raridade e VFX. IDs do legado viram <code>PrimaryAssetId</code>. O servidor instancia <code>FItemInstance</code> (stack, durabilidade, options) e replica arrays.</li>
+        <li><strong>Inventário replicado:</strong> Crie um <code>UInventoryComponent</code> com <code>TArray&lt;FItemInstance&gt;</code> marcado como <code>ReplicatedUsing=OnRep_Inventory</code>. Operações de mover/usar item são RPCs servidor-side; o servidor valida regras do legado (<code>IsTradeBan</code>, <code>IsDropBan</code>, slots extras). UI em UMG escuta <code>OnRep</code> e redesenha a grid (<code>UniformGridPanel</code>).</li>
+        <li><strong>Warehouse/Baú:</strong> Mantenha componente separado (<code>UStorageComponent</code>) replicado apenas quando a janela abre. A lógica antiga bloqueava inventário durante shop; replique com flags replicadas (<code>bIsShopOpen</code>) que desabilitam drag/drop via Bindings no Widget.</li>
+        <li><strong>Equipamentos visuais:</strong> O servidor é dono do estado de equipamento. Ao equipar, chame <code>ServerEquipItem</code>; quando válido, o servidor atualiza atributos e replica um <code>FEquipmentVisuals</code> (IDs) para que o <code>Character</code> troque malhas nos sockets.</li>
+        <li><strong>Logs e auditoria de itens:</strong> Reproduza a auditoria do legado registrando <em>quem/onde/quando</em> para cada criação/consumo de item. Use <code>ServerRPC</code> para qualquer alteração e gere logs no servidor (CSV/JSON) para confronto com o comportamento antigo.</li>
+      </ul>
+
+      <h2 class="section-title">6. Combate &amp; AI</h2>
+      <ul>
+        <li><strong>Spawning e AI server-side:</strong> Em vez de spawnar via tabelas em cliente, use o servidor para ler a planilha de mobs (HP, move speed, agressividade) e spawnar <code>APawn</code> com <code>AAIController</code>. Replicar apenas estado necessário (HP, estado de alvo, animação atual via tags).</li>
+        <li><strong>Sistema de skills/dano:</strong> Reaproveite fórmulas do legado (dano físico, mágico, taxa de crítico). Implementar via <code>GameplayAbilitySystem</code>: habilidades chamam <code>ServerActivateAbility</code>, o servidor calcula dano e envia <code>NetMulticast</code> para VFX. Use <code>ReplicatedUsing</code> para barras de HP/MP.</li>
+        <li><strong>Sincronização de ação:</strong> Estados <code>ACTION_ATTACK</code>, <code>ACTION_MOVE</code>, <code>ACTION_DIE</code> viram <code>GameplayTags</code> replicadas no <code>Character</code>. <code>OnRep_ActionTag</code> toca a montagem/animação apropriada. Evite pacotes de posição; confie no <code>CharacterMovementComponent</code> e ajuste com <code>ServerCheckClientError</code> se necessário.</li>
+        <li><strong>Drop de itens:</strong> Quando um mob morre, o servidor consulta as tabelas de drop do legado e spawna <code>AActor</code> de loot com <code>UReplicatedDynamicMeshComponent</code> simples e <code>UBoxComponent</code> para <em>pickup</em>. O claim é via <code>ServerPickupItem</code> com validação de distância e peso.</li>
+        <li><strong>Antiflood e cooldown:</strong> O legado limita uso de skills por tempo. No UE5, adicione controles no servidor (cooldown per-skill no GAS, <code>ServerRPC</code> com <code>CheckCooldown</code>) e retorne <code>ClientCooldownRejected</code> se violado.</li>
+      </ul>
+
+      <h2 class="section-title">7. Economia</h2>
+      <ul>
+        <li><strong>NPC Shops:</strong> Inventários de NPCs são tabelas do legado carregadas no servidor. Ao abrir shop, o servidor replica um <code>FShopStock</code> (itens e preços) para o <code>PlayerController</code>. Compras chamam <code>ServerBuyItem</code> e o servidor verifica <code>MAX_MONEY</code> e impostos (<code>g_nTaxRate</code>, <code>g_nChaosTaxRate</code>) antes de debitar.</li>
+        <li><strong>Trade jogador-jogador:</strong> Implementar sessão de trade como um objeto replicado (<code>APlayerTradeSession</code>) que mantém slots e confirmações. Toda mudança de slot é RPC server-side; o servidor replica o estado para ambos os clientes. Confirmação dupla dispara transferência e logs.</li>
+        <li><strong>CashShop e Jewels:</strong> Itens premium seguem a mesma lógica de DataAsset. Compras são RPCs servidor-side; o servidor aplica bônus (ex.: Jewels de upgrade) via <code>GameplayEffect</code> garantindo que as regras de falha/sucesso do legado sejam respeitadas e replicando apenas o resultado (novo nível do item, FX via multicast).</li>
+        <li><strong>Impostos dinâmicos e eventos:</strong> Se o legado varia tax rates por evento, replique <code>FTaxState</code> no <code>GameState</code> e use <code>OnRep</code> para UI de shop. Eventos de desconto podem ser aplicados via <code>ServerRPC</code> acionado por GM tools.</li>
+      </ul>
+
+      <h2 class="section-title">8. Testes e Depuração</h2>
+      <ul>
+        <li><strong>Validação cruzada com logs do legado:</strong> Rode casos simples (login, pickup, level up) registrando CSV no servidor UE5 e compare com sessões do servidor antigo para garantir paridade.</li>
+        <li><strong>Checagens de replicação:</strong> Use <code>Net PktLag</code> e <code>Net PktLoss</code> no editor para validar comportamento com latência e perda; priorize <code>Reliable</code> apenas para eventos críticos (login, compra).</li>
+        <li><strong>Automação mínima:</strong> Crie testes funcionais em <code>Spec</code> ou <code>Gauntlet</code> que percorrem login &rarr; seleção &rarr; combate &rarr; compra para evitar regressões de RPC.</li>
+      </ul>
+    </section>
+  </main>
+
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+  <script>
+    document.querySelectorAll('.nav-link').forEach(function(link) {
+      link.addEventListener('click', function (event) {
+        event.preventDefault();
+        const targetId = this.getAttribute('data-target');
+
+        document.querySelectorAll('.nav-link').forEach(l => l.classList.remove('active'));
+        this.classList.add('active');
+
+        document.querySelectorAll('.tab-section').forEach(section => {
+          section.classList.remove('active');
+          if(section.id === targetId) {
+            section.classList.add('active');
+          }
+        });
+      });
+    });
+  </script>
+</body>
+</html>
