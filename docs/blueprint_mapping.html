@@ -23,6 +23,8 @@
           <li class="nav-item"><a class="nav-link" href="#sec-bootstrap">Bootstrap & Áudio</a></li>
           <li class="nav-item"><a class="nav-link" href="#sec-input">Input 1:1</a></li>
           <li class="nav-item"><a class="nav-link" href="#sec-assets">Assets BMD (FBX)/Texture</a></li>
+          <li class="nav-item"><a class="nav-link" href="#sec-coords">ADAPTAÇÃO: Coordenadas</a></li>
+          <li class="nav-item"><a class="nav-link" href="#sec-character">Personagem Modular</a></li>
           <li class="nav-item"><a class="nav-link" href="#sec-network">Rede & Protocolos</a></li>
           <li class="nav-item"><a class="nav-link" href="#sec-server">Servidor & Timers</a></li>
         </ul>
@@ -106,6 +108,72 @@
             <li>Crie <strong>Animation Blueprint</strong> com DataTable de ações; cada linha define <code>Loop</code> (bool), <code>PlayRate</code> (float) e número de frames.</li>
             <li>Ao importar cada FBX, crie uma Sequence por ação e ajuste <em>Rate Scale</em> para <code>PlaySpeed</code>. Marque <em>Loop Animation</em> quando <code>Loop=true</code>.</li>
             <li>Na <em>State Machine</em>, use enum <code>eActionType</code> (servidor) como chave para selecionar a Sequence correspondente (ex.: <code>ACTION_MOVE1</code> para movimento).</li>
+          </ol>
+        </div>
+      </div>
+    </section>
+
+    <section id="sec-coords" class="mb-5">
+      <h2 class="mb-3">ADAPTAÇÃO OBRIGATÓRIA: Conversão de Coordenadas</h2>
+      <div class="card">
+        <div class="card-body">
+          <h5 class="card-title">Mapeamento Z-up (OpenGL) ➜ UE5</h5>
+          <p class="card-text">O cliente legado renderiza via OpenGL e traduz a câmera com <code>glTranslatef(-Pos[0], -Pos[1], -Pos[2])</code>, indicando um sistema onde <code>Position[0]=X</code> (direita), <code>Position[1]=Y</code> (cima), <code>Position[2]=Z</code> (profundidade para frente).【F:Source Main 5.2/source/UIWindows.cpp†L1786-L1795】 Na UE5, o sistema é <strong>Left-handed</strong> com <code>X=frente</code>, <code>Y=lado</code>, <code>Z=cima</code>.</p>
+          <ol>
+            <li><span class="badge badge-adapt text-light">ADAPTAÇÃO OBRIGATÓRIA PARA UE5: Rotação de Eixos</span> Aplique rotação de +90° em X e +90° em Z para alinhar: <code>UE.X = Legacy.Z</code>, <code>UE.Y = Legacy.X</code>, <code>UE.Z = Legacy.Y</code>. Em Blueprint, implemente macro <strong>BP_ConvertLegacyVec3</strong> (Vector ➜ Vector) com <em>Make Vector</em> rearranjando componentes e <em>Negate Float</em> quando necessário para manter a mão esquerda.</li>
+            <li>Para rotadores, use <em>Make Rot From ZX</em> combinando <code>Yaw = LegacyRotY</code>, <code>Pitch = LegacyRotZ</code>, <code>Roll = LegacyRotX</code> e aplique <em>Add Rotator</em> (Yaw +90, Roll -90).</li>
+            <li>Fluxo de nós (macro): <em>Input LegacyVector</em> ➜ <em>Break Vector</em> (X,Y,Z) ➜ <em>Make Vector</em> (X = Z, Y = X, Z = Y) ➜ opcional <em>Float * -1</em> no novo Y se notar inversão de sentido lateral.</li>
+            <li>Use a macro antes de alimentar <em>SetWorldLocation</em>, <em>Add Movement Input</em> e <em>SpawnActor</em> para todos os dados vindos de rede/arquivos do legado.</li>
+          </ol>
+        </div>
+      </div>
+    </section>
+
+    <section id="sec-character" class="mb-5">
+      <h2 class="mb-3">Sistema Modular de Personagem</h2>
+      <div class="card mb-3">
+        <div class="card-body">
+          <h5 class="card-title">Slots e Partes (BodyPart/Weapon/Wing)</h5>
+          <p class="card-text">O legado mantém arrays <code>BodyPart[MAX_BODYPART]</code>, <code>Weapon[2]</code>, <code>Wing</code>, <code>Helper</code> e <code>Flag</code> com campos <code>Type</code>, <code>Level</code>, <code>LinkBone</code> e <code>CurrentAction</code> para cada parte.【F:Source Main 5.2/source/w_CharacterInfo.h†L214-L244】 O Script_Item define <code>m_byItemSlot</code> que indica o slot de uso (cabeça, armadura, arma etc.).【F:Source Main 5.2/source/_struct.h†L20-L36】</p>
+          <ol>
+            <li>Crie em UE5 um <strong>DataTable</strong> (RowStruct <code>FItemSlotRow</code>) com colunas <code>ItemID</code>, <code>Slot</code> (enum cabeça, armadura, asa, armaD, armaE), <code>Mesh</code> (Skeletal/Static), <code>MaterialOverrides</code>, <code>SocketName</code>.</li>
+            <li>Crie <strong>Blueprint Enum</strong> <code>EBP_ItemSlot</code> com a ordem do legado (<code>HEAD</code>, <code>ARMOR</code>, <code>WEAPON_R</code>, <code>WEAPON_L</code>, <code>WING</code>, <code>HELPER</code>, <code>FLAG</code>).</li>
+            <li>No <strong>Character Blueprint</strong>, mantenha mapa <code>EquippedMeshes (Slot ➜ SceneComponent)</code> e <code>EquippedItems (Slot ➜ ItemID)</code>.</li>
+          </ol>
+        </div>
+      </div>
+      <div class="card mb-3">
+        <div class="card-body">
+          <h5 class="card-title">Sockets no Skeletal Mesh</h5>
+          <p class="card-text">Use o Mesh base para definir sockets equivalentes aos ossos do legado (<code>LinkBone</code>):</p>
+          <ol>
+            <li>Abra o Skeletal Mesh do personagem e adicione sockets: <code>Head_Socket</code> (osso cabeça), <code>Body_Socket</code> (spine), <code>WeaponR_Socket</code>/<code>WeaponL_Socket</code> (mãos), <code>Wing_Socket</code> (spine upper), <code>Helper_Socket</code> e <code>Flag_Socket</code>.</li>
+            <li>Em Blueprint, crie função <strong>BP_AttachPart(Slot, Mesh, Materials)</strong>: usa <em>Add Component</em> (Static ou Skeletal), <em>Set Static/Skeletal Mesh</em>, <em>Set Material</em> e <em>AttachToComponent</em> com <code>SocketName</code> vindo da linha do DataTable.</li>
+            <li>Fluxo de nós: <em>BP_AttachPart</em> ➜ <em>Switch on EBP_ItemSlot</em> ➜ define SocketName ➜ <em>Add Component</em> ➜ <em>AttachToComponent</em> (Keep Relative) ➜ salva em <code>EquippedMeshes</code> ➜ atualiza <code>EquippedItems</code>.</li>
+          </ol>
+        </div>
+      </div>
+      <div class="card mb-3">
+        <div class="card-body">
+          <h5 class="card-title">Swap/Attach com Replicação</h5>
+          <p class="card-text">Ao equipar, o legado preenche <code>BodyPart</code>/<code>Weapon</code> e atualiza <code>CurrentAction</code>. Replique usando RepNotify ou Multicast.</p>
+          <ol>
+            <li>No <strong>Inventory Widget</strong>, ao mover item para slot, chame <em>Server RPC</em> <code>Server_SetEquipment(ItemID, Slot)</code>.</li>
+            <li>Em C++ (último recurso), declare <code>UPROPERTY(ReplicatedUsing=OnRep_Equipment)</code> um mapa <code>TMap<EBP_ItemSlot, int32> ReplicatedEquipment</code> e implemente <code>void OnRep_Equipment()</code> chamando <code>BP_RebuildEquipment()</code>. Justificativa: replicação de mapas não é confiável apenas em Blueprint.</li>
+            <li><em>BP_RebuildEquipment</em> percorre <code>ReplicatedEquipment</code>, consulta DataTable e chama <code>BP_AttachPart</code>. Para remover, se um Slot mudar para vazio, chame <em>DestroyComponent</em> no componente salvo.</li>
+            <li>Para armas duplas, respeite <code>Weapon[2]</code> do legado: se <code>Slot==WEAPON_L</code> ou <code>WEAPON_R</code>, escolha socket respectivo e atualize apenas aquele componente.</li>
+            <li>Fluxo de replicação: <em>OnDropItemIntoSlot</em> (Widget) ➜ <em>Server_SetEquipment</em> ➜ (Server) atualiza <code>ReplicatedEquipment</code> ➜ (Server) chama <em>Multicast</em> <code>MC_PlayEquipFX(Slot)</code> para efeitos visuais ➜ <code>OnRep_Equipment</code> (clientes) ➜ <code>BP_RebuildEquipment</code> (spawn/attach).</li>
+          </ol>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-body">
+          <h5 class="card-title">Mapeamento de IDs ➜ Assets</h5>
+          <p class="card-text">Use a tabela do legado (<code>Script_Item</code>) com campos <code>m_byItemSlot</code>, <code>Damage</code>, <code>Defense</code> para popular o DataTable de assets e manter fidelidade.</p>
+          <ol>
+            <li>Pipeline: ao carregar o jogo, leia DataTable <code>DT_ItemSlots</code> (convertido do CSV legado) ➜ preencha mapa <code>ItemID ➜ Slot, Mesh, Materials</code> no <strong>GameInstance</strong>.</li>
+            <li>Quando um item entra no inventário, salve <code>ItemID</code>; ao equipar, faça lookup para recuperar <code>Slot</code> e <code>SocketName</code> e chame <code>Server_SetEquipment</code>.</li>
+            <li>Para Wing/Helper/Flag, mantenha ordem do legado (<code>Wing</code>, <code>Helper</code>, <code>Flag</code>) garantindo attach nos sockets apropriados.</li>
           </ol>
         </div>
       </div>
