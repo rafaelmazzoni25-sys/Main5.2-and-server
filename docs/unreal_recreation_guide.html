@@ -1,0 +1,284 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Guia Definitivo de Recriação UE5</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  <style>
+    body { padding-top: 80px; }
+    .tab-section { display: none; }
+    .tab-section.active { display: block; }
+    .section-title { margin-top: 1.5rem; }
+    pre code { white-space: pre-wrap; }
+  </style>
+</head>
+<body>
+  <nav class="navbar navbar-expand-lg navbar-dark bg-dark fixed-top shadow">
+    <div class="container-fluid">
+      <a class="navbar-brand fw-bold" href="#">UE5 Migração Server-Authoritative</a>
+      <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav" aria-controls="navbarNav" aria-expanded="false" aria-label="Alternar navegação">
+        <span class="navbar-toggler-icon"></span>
+      </button>
+      <div class="collapse navbar-collapse" id="navbarNav">
+        <ul class="navbar-nav me-auto mb-2 mb-lg-0" id="tabMenu">
+          <li class="nav-item"><a class="nav-link active" data-target="tab-config" href="#">Configuração Inicial</a></li>
+          <li class="nav-item dropdown">
+            <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown">Sistemas Core</a>
+            <ul class="dropdown-menu">
+              <li><a class="dropdown-item tab-link" data-target="tab-core" href="#">Core & Login</a></li>
+              <li><a class="dropdown-item tab-link" data-target="tab-lobby" href="#">Seleção & Lobby</a></li>
+            </ul>
+          </li>
+          <li class="nav-item dropdown">
+            <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown">Gameplay</a>
+            <ul class="dropdown-menu">
+              <li><a class="dropdown-item tab-link" data-target="tab-world" href="#">Mundo & Movimentação</a></li>
+              <li><a class="dropdown-item tab-link" data-target="tab-rpg" href="#">Dados & RPG</a></li>
+              <li><a class="dropdown-item tab-link" data-target="tab-combate" href="#">Combate & Skills</a></li>
+              <li><a class="dropdown-item tab-link" data-target="tab-npc" href="#">NPCs & Lojas</a></li>
+            </ul>
+          </li>
+          <li class="nav-item dropdown">
+            <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown">UI/UX</a>
+            <ul class="dropdown-menu">
+              <li><a class="dropdown-item tab-link" data-target="tab-ui" href="#">HUD & Status</a></li>
+              <li><a class="dropdown-item tab-link" data-target="tab-inventario" href="#">Inventário</a></li>
+              <li><a class="dropdown-item tab-link" data-target="tab-enums" href="#">Enums do Legado</a></li>
+            </ul>
+          </li>
+          <li class="nav-item dropdown">
+            <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown">Database/Itens</a>
+            <ul class="dropdown-menu">
+              <li><a class="dropdown-item tab-link" data-target="tab-items" href="#">Sistema de Itens</a></li>
+              <li><a class="dropdown-item tab-link" data-target="tab-database" href="#">Mapeamento de Arquivos Legados</a></li>
+            </ul>
+          </li>
+          <li class="nav-item"><a class="nav-link tab-link" data-target="tab-checklist" href="#">Checklist & Testes</a></li>
+        </ul>
+      </div>
+    </div>
+  </nav>
+
+  <main class="container pb-5">
+    <section id="tab-config" class="tab-section active">
+      <h2 class="section-title">Configuração Inicial</h2>
+      <ol class="list-group list-group-numbered mb-3">
+        <li class="list-group-item">
+          <strong>Projeto Multiplayer UE5</strong><br>
+          Abra a Unreal > New Project > Games > Blank > habilite C++, Multiplayer e Starter Content. Nas Project Settings: defina <em>Enable Net Dormancy</em> e <em>Use Dedicated Server</em> para builds de servidor.
+        </li>
+        <li class="list-group-item">
+          <strong>Submódulos e Estrutura</strong><br>
+          Crie pastas <code>Source/Server</code>, <code>Source/Client</code> e <code>Content/UI</code>. No <code>DefaultEngine.ini</code> ajuste <code>NetDriverDefinitions</code> para <code>OnlineSubsystemNull</code> (mock) e defina <code>WorldSettings -> GlobalDefaultGameMode</code> para <code>AGM_ServerAuthoritative</code>.
+        </li>
+        <li class="list-group-item">
+          <strong>Classes base</strong><br>
+          Adicione classes C++: <code>UGI_MMORPG</code> (GameInstance), <code>AGM_ServerAuthoritative</code> (GameMode), <code>APlayerStateRPG</code>, <code>APlayerControllerLobby</code>, <code>ACharacterRPG</code>. Compile antes de criar Blueprints derivados.
+        </li>
+      </ol>
+      <p class="mb-0"><strong>Cookbook rápido</strong>: Clique direito no Content Browser → <em>Blueprint Class</em> → selecione sua classe C++ para gerar versões Blueprint (ex.: <code>BP_CharacterRPG</code>).</p>
+    </section>
+
+    <section id="tab-core" class="tab-section">
+      <h2 class="section-title">Sistemas Core: Login & Autenticação</h2>
+      <ol class="list-group list-group-numbered">
+        <li class="list-group-item">
+          <strong>UI de Login</strong><br>
+          Content Browser → User Interface → Widget Blueprint → <code>WBP_Login</code>. Abra e: Canvas Panel → adicione <em>Image</em> de fundo (1920x1080), um <em>Vertical Box</em> centralizado com campos <em>Text Box</em> (usuário) e <em>Password Box</em> (senha), botão <em>Login</em>. Binding: no botão, chame <code>PC->Server_RequestLogin(User, Pass)</code> (RPC Server).
+        </li>
+        <li class="list-group-item">
+          <strong>RPCs de Handshake</strong><br>
+          Em <code>APlayerControllerLobby</code>:<pre><code class="language-cpp">UFUNCTION(Server, Reliable)
+void Server_RequestLogin(const FString&amp; User, const FString&amp; Pass);
+
+UFUNCTION(Client, Reliable)
+void Client_LoginResult(bool bOk, const FString&amp; Message);
+</code></pre>
+          Na implementação, valide com dados mock (array local) e chame <code>Client_LoginResult</code>. Em caso de sucesso, abra o mapa de Lobby via <code>ClientTravel</code>.
+        </li>
+        <li class="list-group-item">
+          <strong>Spawn do Pawn</strong><br>
+          GameMode: sobrescreva <code>ChoosePlayerStart</code> para retornar um <em>PlayerStart</em> por slot. Em <code>PostLogin</code>, chame <code>SpawnDefaultPawnFor</code> e possua o <code>ACharacterRPG</code>. Configure <em>bReplicates</em> e <em>UseControllerRotationYaw</em> no Character.
+        </li>
+        <li class="list-group-item">
+          <strong>Persistência temporária</strong><br>
+          Em <code>UGI_MMORPG</code>, mantenha structs simples (UserId, CharList). Use <em>SaveGame</em> somente para cache local; toda autoridade fica no servidor dedicado.
+        </li>
+      </ol>
+    </section>
+
+    <section id="tab-lobby" class="tab-section">
+      <h2 class="section-title">Seleção & Lobby</h2>
+      <ol class="list-group list-group-numbered">
+        <li class="list-group-item">
+          <strong>Mapa de Login</strong>: Crie um mapa <code>Login_P</code> com um <em>Level Script</em> que instancia <code>WBP_Login</code> no BeginPlay do PlayerController.
+        </li>
+        <li class="list-group-item">
+          <strong>Seleção de Sala</strong>: Widget <code>WBP_ServerSelect</code> com <em>ListView</em>. Cada linha chama <code>Server_SetDesiredServer(Id)</code> (RPC Server) e o servidor aplica <code>ServerTravel</code> para o mapa de Lobby correspondente.
+        </li>
+        <li class="list-group-item">
+            <strong>Seleção de Personagem</strong>: Widget <code>WBP_CharacterSelect</code> com <em>Uniform Grid</em> (4 colunas, 320x420 cards). Cada card: preview 3D (Level Sequence ou <em>SceneCapture2D</em>), botões <em>Selecionar</em>/<em>Deletar</em>. No botão Selecionar, chame <code>Server_SelectCharacter(CharId)</code> que seta as replicated vars do <code>APlayerStateRPG</code> e chama <code>ClientTravel</code> para o mapa do mundo.</li>
+      </ol>
+    </section>
+
+    <section id="tab-world" class="tab-section">
+      <h2 class="section-title">Gameplay: Mundo & Movimentação</h2>
+      <ol class="list-group list-group-numbered">
+        <li class="list-group-item"><strong>Geração/Streaming de Mapas</strong>: Use World Partition. Crie subníveis para cidades e campos. No GameMode, carregue via <code>UGameplayStatics::OpenLevel</code> no servidor e clientes replicam automaticamente.</li>
+        <li class="list-group-item"><strong>Navegação</strong>: Adicione <code>NavMeshBoundsVolume</code> cobrindo o cenário. Character: habilite <em>Use Controller Desired Rotation</em> e <em>Orient Rotation to Movement</em>. Para click-to-move, no PlayerController em <code>OnLeftClick</code> faça <code>Server_MoveToLocation(Hit.Location)</code> usando <code>AIController::MoveTo</code>.</li>
+        <li class="list-group-item"><strong>Gates/Warps</strong>: Coloque <code>BoxTrigger</code> com componente <code>UGateDestination</code> (struct MapName, SpawnTag). Ao overlap do servidor, chame <code>ServerTravel</code> ou <code>Teleport</code> para destinos intra-mapa.</li>
+      </ol>
+    </section>
+
+    <section id="tab-rpg" class="tab-section">
+      <h2 class="section-title">Gameplay: Dados & RPG</h2>
+      <p>Use structs replicadas em <code>APlayerStateRPG</code> com <code>ReplicatedUsing</code> para atualizar HUD.</p>
+      <h5>Level Up (fórmula do legado)</h5>
+      <ul>
+        <li>Incrementa nível se <code>Experience + AddExperience &gt;= NextExperience</code>, adicionando <code>LevelUpPoint</code> por classe e bônus pós nível 220.<sup class="text-muted">(Ver código)</sup></li>
+        <li>Atualiza vida/mana/escudo para valores máximos recalculados.</li>
+      </ul>
+      <pre><code class="language-cpp">// Em APlayerStateRPG
+UPROPERTY(ReplicatedUsing=OnRep_Exp) int64 Experience;
+UPROPERTY(Replicated) int32 LevelUpPoints;
+
+UFUNCTION(Server, Reliable)
+void Server_AddExperience(int64 Delta) {
+    Experience += Delta;
+    while (Experience &gt;= NextExp) {
+        Level++;
+        LevelUpPoints += BasePointsPerClass[ClassId];
+        if (Level &gt; 220 && bQuest220Concluida) LevelUpPoints += PlusStatPoint;
+        Experience -= NextExp;
+        RecalcNextExp();
+    }
+    OnRep_Exp();
+}
+</code></pre>
+      <p>Blueprint: use nós <em>WhileLoop</em>, <em>GreaterEqual (int64)</em>, incrementando Level e pontos. Fórmula e checkpoints seguem o legado.<sup class="text-muted">(Ver código)</sup></p>
+      <h5>Distribuição de Pontos</h5>
+      <p>Valide se há pontos disponíveis antes de aplicar em STR/AGI/VIT/ENE/LDR (conferindo limite máximo por <em>AccountLevel</em>).</p>
+    </section>
+
+    <section id="tab-inventario" class="tab-section">
+      <h2 class="section-title">UI/UX: Inventário e Drag &amp; Drop</h2>
+      <ol class="list-group list-group-numbered">
+        <li class="list-group-item"><strong>Widget</strong>: Content Browser → User Interface → <code>WBP_Inventory</code>. Canvas 1024x768, adicione <em>Border</em> 900x640 central, dentro um <em>Uniform Grid Panel</em> 8x5 (slots de 64px). Habilite DPI Scaling (Project Settings &gt; User Interface).</li>
+        <li class="list-group-item"><strong>Slot Blueprint</strong>: <code>WBP_ItemSlot</code> com <em>Image</em> (64x64) e overlay para highlight. Implemente interfaces <code>OnDragDetected</code>, <code>OnDrop</code>. No drop, chame <code>Server_MoveItem(SrcIndex, DstIndex)</code> (RPC Server) para ajustar array replicado.</li>
+        <li class="list-group-item"><strong>Estrutura</strong>: Em C++ crie <code>FItemInstance</code> (Id, Quantity, Durability, Sockets). Array <code>TArray&lt;FItemInstance&gt; InventorySlots</code> replicado com <code>OnRep_Inventory</code> atualizando UI.</li>
+        <li class="list-group-item"><strong>Arrastar</strong>: No <code>OnDrop</code> do slot, valide tamanho do item (1x1, 1x2) antes de enviar RPC. Se falhar, mostre tooltip "Espaço insuficiente".</li>
+      </ol>
+    </section>
+
+    <section id="tab-ui" class="tab-section">
+      <h2 class="section-title">UI/UX: HUD, Status, CashShop</h2>
+      <ul class="list-group mb-3">
+        <li class="list-group-item"><strong>HUD Base</strong>: <code>WBP_HUD</code> 1920x1080, Canvas. Adicione barras: HP (400x24), Mana (320x18), EXP (600x12) ancoradas inferior. Mini-mapa 220x220 (topo direito). Hotbar 10 slots de 64px com espaçamento 4px.</li>
+        <li class="list-group-item"><strong>Status</strong>: Widget <code>WBP_Status</code> 640x720. Use <em>Grid</em> 2 colunas para STR/AGI/VIT/ENE/LDR com botões +. Conecte ao RPC <code>Server_AddStat(StatType, Amount)</code>.</li>
+        <li class="list-group-item"><strong>Warehouse</strong>: 10x6 slots (64px) em modal <code>WBP_Warehouse</code>. Só abre quando o servidor confirma interação com NPC Baú.</li>
+        <li class="list-group-item"><strong>CashShop</strong>: Widget 1280x720 com abas (Tabs) para categorias. Cards 256x320 com imagem, descrição e botão Comprar. Chamadas via <code>Server_BuyCashItem(ItemId)</code> validando moeda premium.</li>
+        <li class="list-group-item"><strong>Tooltips</strong>: Widget 420x240, fundo semitransparente, textos ancorados à posição do cursor. Preencha usando DataAsset do item.</li>
+      </ul>
+    </section>
+
+    <section id="tab-combate" class="tab-section">
+      <h2 class="section-title">Gameplay: Combate &amp; Skills (Server Authoritative)</h2>
+      <h5>Fórmula de Dano Físico (legado)</h5>
+      <p>Base: calcula min/max combinando armas (mão direita/esquerda), bônus de skill, efeitos, críticos e excelência, depois subtrai defesa do alvo.<sup class="text-muted">(Ver código)</sup></p>
+      <pre><code class="language-cpp">// Simplificação fiel ao legado
+int32 ServerCalcPhysicalDamage(const FAttackCtx&amp; Ctx) {
+    int32 DamageMin = Ctx.PhyMin + Ctx.SkillMin;
+    int32 DamageMax = Ctx.PhyMax + Ctx.SkillMax;
+    DamageMin += Ctx.AddPhys;
+    DamageMax += Ctx.AddPhys;
+    DamageMin = DamageMin * (100 + Ctx.MulPhys) / 100;
+    DamageMax = DamageMax * (100 + Ctx.MulPhys) / 100;
+    int32 Roll = FMath::RandRange(DamageMin, DamageMax);
+    if (Rand(100) &lt; CritRate) Roll = DamageMax + CritBonus;
+    if (Rand(100) &lt; ExcRate)  Roll = (DamageMax * 120 / 100) + ExcBonus;
+    Roll = FMath::Max(0, Roll - TargetDefense);
+    return Roll;
+}
+</code></pre>
+      <p>Blueprint: nós <em>Random Integer in Range</em>, <em>Float * Int</em>, <em>Subtract</em>, <em>Max</em>. Para crítico: <em>Random Integer</em> &lt; chance.</p>
+      <h5>Projéteis e Line Trace</h5>
+      <ol class="list-group list-group-numbered">
+        <li class="list-group-item"><strong>Line Trace</strong>: Em <code>BP_CharacterRPG</code> use <em>LineTraceByChannel</em> a partir da câmera. No hit, chame <code>Server_ApplySkill(Target, SkillId)</code>.</li>
+        <li class="list-group-item"><strong>Projéteis</strong>: Crie <code>BP_SkillProjectile</code> (Actor, MovementComponent). No spawn (RPC Server) configure velocidade. Em <code>OnHit</code>, servidor calcula dano e faz <code>NetMulticast_PlayHitFX</code>.</li>
+        <li class="list-group-item"><strong>Fenrir/Plasma</strong>: Para skills montaria use fórmula baseada nos atributos por classe (STR/DEX/VIT/ENE/LDR) antes de aplicar crítico/excelente.<sup class="text-muted">(Ver código)</sup></li>
+      </ol>
+    </section>
+
+    <section id="tab-npc" class="tab-section">
+      <h2 class="section-title">Gameplay: NPCs &amp; Lojas</h2>
+      <ol class="list-group list-group-numbered">
+        <li class="list-group-item"><strong>Interação</strong>: Coloque <code>BoxCollision</code> nos NPCs. No overlap (servidor), chame <code>Client_OpenShop(ShopId)</code>. Use <em>Actor Tag</em> para identificar tipo (Loja, Warehouse, Quest).</li>
+        <li class="list-group-item"><strong>UI de Loja</strong>: Widget <code>WBP_Shop</code> 960x640. Lista de itens (Grid 6x4). Botões Comprar/Vender chamam <code>Server_BuyItem(ItemId)</code> / <code>Server_SellItem(Slot)</code> validando moedas (Zen ou Cash).</li>
+        <li class="list-group-item"><strong>Validação</strong>: No servidor, cheque saldo antes de alterar inventário replicado. Use DataAssets para preço e moeda. Retorne sucesso/erro via <code>Client_ShowShopResult</code>.</li>
+      </ol>
+    </section>
+
+    <section id="tab-items" class="tab-section">
+      <h2 class="section-title">Database/Itens: Modelagem Completa</h2>
+      <ol class="list-group list-group-numbered">
+        <li class="list-group-item"><strong>DataAssets</strong>: Crie <code>PrimaryDataAsset</code> <code>DA_ItemBase</code> com campos: Id, Nome, Tipo (enum), Grade, DamageMin/Max, Defense, Slots (Largura, Altura), Preço, Efeitos (arrays de modifiers).</li>
+        <li class="list-group-item"><strong>Carregamento</strong>: Crie <code>UItemDatabase</code> singleton que carrega todos os DataAssets em <code>UGI_MMORPG::Init()</code>. Exponha <code>FindItemById</code>.</li>
+        <li class="list-group-item"><strong>Instâncias</strong>: Struct <code>FItemInstance</code> referencia <code>ItemId</code>, quantidade, durabilidade, level de upgrade e sockets. Replicar na PlayerState.</li>
+        <li class="list-group-item"><strong>Drop</strong>: No servidor, tabela de drop por MobId. Ao morrer, sorteie itens e adicione ao mundo como <code>BP_WorldItem</code> (Actor com <code>StaticMesh</code> e <code>SphereCollision</code>). No overlap, servidor chama <code>GiveItemToPlayer</code> e destrói o actor.</li>
+      </ol>
+    </section>
+
+    <section id="tab-database" class="tab-section">
+      <h2 class="section-title">Mapeamento de Arquivos Legados</h2>
+      <p>Use esta referência para localizar lógica no código C++ legado:</p>
+      <ul>
+        <li><strong>Experiência/Level</strong>: <code>GameServer/ObjectManager.cpp</code> — cálculo de level up e pontos de stat.</li>
+        <li><strong>Dano/Skills</strong>: <code>GameServer/Attack.cpp</code> — dano físico/mágico/curse, plasma (Fenrir).</li>
+        <li><strong>Itens</strong>: <code>GameServer/Item*.h/.cpp</code> — opções, durabilidade.</li>
+        <li><strong>NPC/Shop</strong>: <code>GameServer/Npc*.cpp</code>, <code>ShopManager</code>.</li>
+      </ul>
+    </section>
+
+    <section id="tab-enums" class="tab-section">
+      <h2 class="section-title">Enums do Legado</h2>
+      <p>Resumo (usar como Enum Blueprint):</p>
+      <ul>
+        <li><strong>UI</strong>: Janela Inventory, Warehouse, CashShop.</li>
+        <li><strong>Itens</strong>: Tipo (Weapon, Armor, Wing, Jewel), Raridade, SlotSize.</li>
+        <li><strong>Gameplay</strong>: Classe (DW, DK, FE, MG, DL, SU, RF), Resistências, Tipos de Skill.</li>
+        <li><strong>Economia</strong>: Moeda (Zen, Cash), Tipo de Loja (NPC, CashShop).</li>
+      </ul>
+    </section>
+
+    <section id="tab-checklist" class="tab-section">
+      <h2 class="section-title">Checklist &amp; Testes</h2>
+      <ul class="list-group">
+        <li class="list-group-item">Login: RPC Server/Client funcionando e troca de mapa após seleção.</li>
+        <li class="list-group-item">Inventário: mover item entre slots replica para outro cliente observador.</li>
+        <li class="list-group-item">Dano: comparar resultado do cálculo com fórmulas do legado para mesmos atributos.</li>
+        <li class="list-group-item">Loja: compra bloqueada quando saldo insuficiente.</li>
+      </ul>
+    </section>
+  </main>
+
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+  <script>
+    const tabLinks = document.querySelectorAll('.nav-link, .dropdown-item.tab-link');
+    const sections = document.querySelectorAll('.tab-section');
+    tabLinks.forEach(link => {
+      link.addEventListener('click', (e) => {
+        e.preventDefault();
+        const target = link.getAttribute('data-target');
+        if (!target) return;
+        sections.forEach(sec => sec.classList.remove('active'));
+        document.getElementById(target).classList.add('active');
+        tabLinks.forEach(l => l.classList.remove('active'));
+        link.classList.add('active');
+        const parent = link.closest('.dropdown');
+        if (parent) parent.querySelector('.nav-link').classList.add('active');
+      });
+    });
+  </script>
+</body>
+</html>
