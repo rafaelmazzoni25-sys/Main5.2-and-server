@@ -127,6 +127,9 @@ struct FItemData {
           Crie <code>FCharacterStats</code> com <code>Level</code>, <code>Experience</code>, <code>NextExperience</code>, <code>Strength</code>, <code>Dexterity</code>, <code>Vitality</code>, <code>Energy</code>, <code>Leadership</code>, além de <code>AttackSuccessRate</code> e <code>DefenseSuccessRate</code> para reconstruir o cálculo de acerto/erro (vide seção de fórmulas). Aplique <code>ReplicatedUsing=OnRep_Stats</code> e atualize widgets no <code>OnRep</code>.
         </li>
         <li class="list-group-item">
+          <strong>Mapeamento de OBJECTSTRUCT → USTRUCT</strong><br>
+          No legado, <code>OBJECTSTRUCT</code> guarda conexão, posição, stats e barras.【F:Source MuServer Update 15/GameServer/GameServer/User.h†L468-L540】 Crie <code>FCharacterRuntime</code> (BlueprintType) contendo apenas os campos de jogo (Level, Money, Str/Dex/Vit/Ene/Ldr, Life/Mana/BP/Shield, Map, X, Y). Marque variáveis de rede como <span class="badge bg-warning text-dark">ADAPTAÇÃO OBRIGATÓRIA PARA UE5</span> e remova <code>Socket</code>/<code>PerSocketContext</code> pois a replicação substitui sockets. Passos em C++: <ol class="mb-0"><li><em>Add &gt; New C++ Class</em> → None → nomeie <code>CharacterRuntime.h</code>.</li><li>Copie campos necessários com <code>UPROPERTY(Replicated)</code>.</li><li>Implemente <code>void GetLifetimeReplicatedProps</code> e chame <code>DOREPLIFETIME</code> para cada atributo.</li></ol> Em Blueprint, use <code>FCharacterRuntime</code> em <code>APlayerStateRPG</code> como variável replicada.</li>
+        <li class="list-group-item">
           <strong>DataAssets de Itens</strong><br>
           Content Browser → <em>Miscellaneous</em> → <em>Primary Data Asset</em> → derive <code>UItemDataAsset</code> com campos: <code>DisplayName</code>, <code>Mesh</code>, <code>Icon</code>, <code>GridSize</code>, <code>BaseDamageMin/Max</code>, <code>BaseDefense</code>, <code>Requirements</code>, <code>SpecialOptions</code>. Preencha cada asset migrando valores de <code>m_DamageMin/m_DamageMax/m_Defense/m_RequireStrength</code> etc. do legado.【F:Source MuServer Update 15/GameServer/GameServer/Item.h†L115-L144】
         </li>
@@ -152,15 +155,31 @@ struct FItemData {
         <p>No Blueprint do GameMode: em <em>BeginPlay</em>, carregue a CurveTable, salve em variável e use em uma função <code>Server_GrantXP(PlayerState, DeltaXP)</code> que consulta a curva e incrementa <code>Level</code>/<code>NextExperience</code> como no legado.【F:Source MuServer Update 15/GameServer/GameServer/User.cpp†L582-L598】</p>
       </div>
       <div class="mb-4">
+        <h5>Base de Dano por Classe (ObjectManager::CharacterCalc)</h5>
+        <p>As fórmulas 1:1 para mínimo/máximo e multiplicadores estão em <code>CharacterCalc</code>. Monte uma <strong>Function Library Blueprint</strong> (server-only) chamada <code>BPFL_CalcDamageBase</code> com um <strong>Select</strong> por classe e os divisores abaixo. Fluxo visual (per branch):</p>
+        <ol>
+          <li><em>Inputs</em>: Strength, Dexterity, Vitality, Energy, Leadership (todos inteiros), Classe (Enum), Right/LeftWeaponData (struct com <code>DamageMin/Max</code>).</li>
+          <li>Para <strong>Dark Wizard (DW)</strong>: use nós <em>Integer /</em> com <code>gServerInfo.m_DWPhysiDamageMinConstA</code> e <code>m_DWPhysiDamageMaxConstA</code> para ambos os lados; <em>Integer /</em> Energy pelos divisores mágicos/curse. Saída: <code>PhysiMin/MaxR/L</code>, <code>MagicMin/Max</code>, <code>CurseMin/Max</code>.</li>
+          <li><strong>Dark Knight (DK)</strong>: mesmos divisores físicos de DW mas mágicos/curse via <code>m_DKMagicDamageMin/MaxConstA</code> e multiplicador <code>DKDamageMultiplierRate = Clamp(200 + Energy / m_DKDamageMultiplierConstA, 0, MaxRate)</code>. Marque como <span class="badge bg-warning text-dark">ADAPTAÇÃO OBRIGATÓRIA PARA UE5</span> se usar <em>Clamp</em> float por ausência de inteiro saturado.</li>
+          <li><strong>Fairy Elf (FE)</strong>: branch condicional: se arma é arco (verifica <code>Right.ItemIndex</code> entre 4,0 e 4,14) use fórmula bow <code>(Strength / ConstA) + (Dexterity / ConstB)</code> para min/max; senão use <code>(Strength + Dexterity) / ConstA</code>. Sempre compute magia/curse com <code>Energy / m_FEMagicDamageMin/MaxConstA</code>. Use <em>Select</em> para grids de arma.</li>
+          <li><strong>Magic Gladiator (MG)</strong>: <code>(Strength / ConstA) + (Energy / ConstB)</code> para físico; magia/curse via <code>Energy / m_MGMagicDamageMin/MaxConstA</code>.</li>
+          <li><strong>Dark Lord (DL)</strong>: igual ao MG mas usando divisores <code>m_DLPhysiDamageMin/MaxConstA/B</code> e multiplicador <code>200 + Energy / m_DLDamageMultiplierConstA</code> com clamp pelo maxRate.</li>
+          <li><strong>Summoner (SU)</strong>: físico via <code>(Strength + Dexterity) / m_SUPhysiDamageMin/MaxConstA</code>; magia/curse via <code>Energy / m_SUMagicDamageMin/MaxConstA</code>.</li>
+          <li><strong>Rage Fighter (RF)</strong>: físico via <code>(Strength / ConstA) + (Vitality / ConstB)</code>; magia/curse via <code>Energy / m_RFMagicDamageMin/MaxConstA</code>; multiplicadores RF são três valores: <code>[50 + Vitality / ConstB, 50 + Energy / ConstC, 100 + Dexterity / ConstA + Energy / ConstC]</code> clamped pelo maxRate.</li>
+          <li>No final, some dano base das armas: se índice entre 5,0 e 5,255 some <code>DamageMin/Max</code> dividido por 2 (lanças), senão some normal. Reproduz <code>GetDamageMin/Max</code> do item.</li>
+        </ol>
+        <p>Use variáveis replicadas no <code>ACharacterRPG</code> para armazenar os resultados, chamando essa função no servidor após alocar pontos ou trocar itens, seguindo a ordem acima.【F:Source MuServer Update 15/GameServer/GameServer/ObjectManager.cpp†L3570-L3683】</p>
+      </div>
+      <div class="mb-4">
         <h5>Chance de Acerto (MissCheck)</h5>
         <p>Replique a fórmula: <code>AttackSuccessRate</code> recebe bônus e multiplicadores, aplica divisores, e compara com <code>DefenseSuccessRate</code>. Em Blueprints (Function Library server-only):</p>
         <ol>
           <li><em>Inputs</em>: <code>AttackSuccessRate</code>, <code>DefenseSuccessRate</code>, structs <code>EffectOption</code> de atacante/defensor.</li>
           <li>Somar <code>AddAttackSuccessRate</code> e multiplicar por <code>MulAttackSuccessRate/100</code>; subtrair divisão <code>DivAttackSuccessRate</code>; clamp a zero.</li>
           <li>Repetir para defesa (<code>AddDefenseSuccessRate</code>, <code>MulDefenseSuccessRate</code>, <code>DivDefenseSuccessRate</code>).</li>
-          <li>Se ataque &lt; defesa: 5% de acerto, senão role <code>Rand % AttackSuccessRate</code> &lt; defesa para miss.</li>
+          <li>Se ataque &lt; defesa: defina <code>miss=1</code> e role <code>Random 0-99</code> &gt;= 5 para confirmar miss; caso contrário, <code>miss=0</code> e compare <code>Random 0-(AttackSuccessRate-1)</code> com defesa.</li>
         </ol>
-        <p>Implemente como BlueprintCallable <code>ComputeHitResult</code> e retorne um booleano e tag de efeito; conecte ao <code>ApplyDamage</code> antes de executar GAS GameplayEvent.【F:Source MuServer Update 15/GameServer/GameServer/Attack.cpp†L1903-L1933】</p>
+        <p><strong>Blueprint passo a passo</strong>: crie função pura <code>Func_MissCheck</code> no <em>BPFL_Combat</em>. Nós: <em>Input AttackSuccessRate (int)</em> → <em>Add Int</em> com <code>AddAttackSuccessRate</code> → <em>Float *</em> com <code>MulAttackSuccessRate/100</code> → <em>Int -</em> com <code>DivAttackSuccessRate</code> → <em>Clamp (Min=0)</em>. Repita cadeia para defesa. Use <em>Branch</em> (Attack &lt; Defense); se true, set <code>miss=1</code> e faça <em>Random Integer In Range</em> 0-99 ≥5 → Branch decide retorno. Se false, set miss=0 e faça <em>Random Integer In Range</em> 0-(AttackSuccessRate-1) &lt; Defense. Retorne bool e acione RPC <code>NetMulticast_MissFx</code> em caso de miss. Fluxo 1:1 com <code>CAttack::MissCheck</code>.【F:Source MuServer Update 15/GameServer/GameServer/Attack.cpp†L1905-L1944】</p>
       </div>
       <div class="mb-4">
         <h5>Dano Físico</h5>
