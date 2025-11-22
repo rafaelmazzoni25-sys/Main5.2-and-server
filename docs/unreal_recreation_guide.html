@@ -31,12 +31,19 @@
             </ul>
           </li>
           <li class="nav-item dropdown">
+            <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown">Engenharia de Dados</a>
+            <ul class="dropdown-menu">
+              <li><a class="dropdown-item tab-link" data-target="tab-data-structs" href="#">USTRUCTs &amp; Enums</a></li>
+              <li><a class="dropdown-item tab-link" data-target="tab-data-formulas" href="#">Fórmulas &amp; Tabelas</a></li>
+            </ul>
+          </li>
+          <li class="nav-item dropdown">
             <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown">Gameplay</a>
             <ul class="dropdown-menu">
-              <li><a class="dropdown-item tab-link" data-target="tab-world" href="#">Mundo & Movimentação</a></li>
-              <li><a class="dropdown-item tab-link" data-target="tab-rpg" href="#">Dados & RPG</a></li>
-              <li><a class="dropdown-item tab-link" data-target="tab-combate" href="#">Combate & Skills</a></li>
-              <li><a class="dropdown-item tab-link" data-target="tab-npc" href="#">NPCs & Lojas</a></li>
+              <li><a class="dropdown-item tab-link" data-target="tab-world" href="#">Mundo &amp; Movimentação</a></li>
+              <li><a class="dropdown-item tab-link" data-target="tab-rpg" href="#">Dados &amp; RPG</a></li>
+              <li><a class="dropdown-item tab-link" data-target="tab-combate" href="#">Combate &amp; Skills</a></li>
+              <li><a class="dropdown-item tab-link" data-target="tab-npc" href="#">NPCs &amp; Lojas</a></li>
             </ul>
           </li>
           <li class="nav-item dropdown">
@@ -82,6 +89,103 @@
         </li>
       </ol>
       <p class="mb-0"><strong>Cookbook rápido</strong>: sempre que mencionar “crie widget”, use <em>Content Browser → User Interface → Widget Blueprint</em>, dê o nome sugerido, abra e monte a hierarquia exatamente como descrito em cada seção.</p>
+    </section>
+
+    <section id="tab-data-structs" class="tab-section">
+      <h2 class="section-title">Engenharia de Dados: USTRUCTs &amp; Enums</h2>
+      <p class="mb-3">Crie todos os tipos base em C++ antes de qualquer blueprint. Use <em>Add &gt; New C++ Class</em> e copie os trechos prontos.</p>
+      <ol class="list-group list-group-numbered mb-3">
+        <li class="list-group-item">
+          <strong>Dimensões de Inventário e Baú</strong><br>
+          Os tamanhos originais são <code>INVENTORY_WEAR_SIZE=12</code>, <code>INVENTORY_MAIN_SIZE=76</code>, expansão até <code>INVENTORY_FULL_SIZE=236</code>, e <code>INVENTORY_SIZE=237</code> (Season 7+). Warehouse chega a <code>WAREHOUSE_SIZE=240</code>. Crie um <code>USTRUCT</code> para armazenar slots e respeite esses limites ao construir arrays e UMG grids.【F:Source MuServer Update 15/GameServer/GameServer/Item.h†L7-L44】
+        </li>
+        <li class="list-group-item">
+          <strong>Enums migrados</strong><br>
+          Converta <code>eSpecialNumber</code> para um <em>Blueprint Enum</em> <code>EItemSpecial</code> mantendo índices (OPTION1, EXCELLENT1-6, COMMON1-5) para uso em tooltips e cálculo de bônus.【F:Source MuServer Update 15/GameServer/GameServer/Item.h†L46-L62】<br>
+          No Editor: Content Browser → <em>Blueprints</em> → <em>Enumeration</em> → nomeie <code>EBP_ItemSpecial</code> → adicione os 14 valores na mesma ordem.
+        </li>
+        <li class="list-group-item">
+          <strong>Struct de Item (UE5)</strong><br>
+          Crie <code>FItemData</code> em C++ com os campos que casam com o legado: <code>ItemIndex</code>, <code>Level</code>, <code>Slot</code>, <code>Durability</code>, <code>Options[14]</code>, <code>SocketOptions[5]</code>, <code>Harmony</code>, <code>Price</code>. Use <code>UPROPERTY(Replicated)</code> e <code>TArray&lt;uint8, TInlineAllocator&lt;14&gt;&gt;</code> para replicar igual ao array <code>m_SpecialValue[MAX_SPECIAL]</code> do legado.【F:Source MuServer Update 15/GameServer/GameServer/Item.h†L95-L120】
+          <pre><code class="language-cpp">USTRUCT(BlueprintType)
+struct FItemData {
+  GENERATED_BODY();
+  UPROPERTY(EditAnywhere, BlueprintReadWrite, Replicated) int32 ItemIndex = -1;
+  UPROPERTY(EditAnywhere, BlueprintReadWrite, Replicated) int32 Level = 0;
+  UPROPERTY(EditAnywhere, BlueprintReadWrite, Replicated) int32 Slot = -1;
+  UPROPERTY(EditAnywhere, BlueprintReadWrite, Replicated) float Durability = 0.f;
+  UPROPERTY(EditAnywhere, BlueprintReadWrite, Replicated) TArray&lt;uint8&gt; Options;
+  UPROPERTY(EditAnywhere, BlueprintReadWrite, Replicated) TArray&lt;uint8&gt; SocketOptions;
+  UPROPERTY(EditAnywhere, BlueprintReadWrite, Replicated) uint8 Harmony = 0;
+  UPROPERTY(EditAnywhere, BlueprintReadWrite, Replicated) int64 Price = 0;
+  bool operator==(const FItemData&amp; Other) const { return ItemIndex == Other.ItemIndex &amp;&amp; Slot == Other.Slot; }
+};</code></pre>
+          No construtor do <code>AGameState</code>, inicialize <code>Options.SetNum(14)</code> e <code>SocketOptions.SetNum(5)</code> para replicar tamanhos idênticos ao legado.
+        </li>
+        <li class="list-group-item">
+          <strong>Struct de Personagem</strong><br>
+          Crie <code>FCharacterStats</code> com <code>Level</code>, <code>Experience</code>, <code>NextExperience</code>, <code>Strength</code>, <code>Dexterity</code>, <code>Vitality</code>, <code>Energy</code>, <code>Leadership</code>, além de <code>AttackSuccessRate</code> e <code>DefenseSuccessRate</code> para reconstruir o cálculo de acerto/erro (vide seção de fórmulas). Aplique <code>ReplicatedUsing=OnRep_Stats</code> e atualize widgets no <code>OnRep</code>.
+        </li>
+        <li class="list-group-item">
+          <strong>DataAssets de Itens</strong><br>
+          Content Browser → <em>Miscellaneous</em> → <em>Primary Data Asset</em> → derive <code>UItemDataAsset</code> com campos: <code>DisplayName</code>, <code>Mesh</code>, <code>Icon</code>, <code>GridSize</code>, <code>BaseDamageMin/Max</code>, <code>BaseDefense</code>, <code>Requirements</code>, <code>SpecialOptions</code>. Preencha cada asset migrando valores de <code>m_DamageMin/m_DamageMax/m_Defense/m_RequireStrength</code> etc. do legado.【F:Source MuServer Update 15/GameServer/GameServer/Item.h†L115-L144】
+        </li>
+      </ol>
+    </section>
+
+    <section id="tab-data-formulas" class="tab-section">
+      <h2 class="section-title">Fórmulas &amp; Tabelas (Server-Only)</h2>
+      <p class="mb-3">Implemente as fórmulas exatamente como no C++ legado, usando funções server-side (RPC ou AbilitySystem) e replicando apenas os resultados.</p>
+      <div class="mb-4">
+        <h5>XP / Level Up</h5>
+        <p>A tabela original define <code>gLevelExperience[n] = (((n+9)*n)*n)*10</code> e, para níveis acima de 255, soma <code>((over+9)*over*over)*1000</code>. Configure uma <strong>CurveTable</strong> com essa curva (coluna <code>XPToNext</code>) e carregue no GameMode.</p>
+        <pre><code class="language-cpp">void UGI_MMORPG::BuildXpCurve(UCurveTable* Curve) {
+  FRichCurve* CurvePtr = Curve-&gt;FindRichCurve(TEXT("XPToNext"), true);
+  double Over = 1.0;
+  for(int32 Level=1; Level&lt;=MAX_LEVEL; ++Level) {
+    const double Base = (Level+9)*Level*Level*10.0;
+    const double Extra = (Level&gt;255) ? ((Over+9)*Over*Over*1000.0) : 0.0;
+    CurvePtr-&gt;AddKey(Level, Base+Extra);
+    if(Level&gt;255) { Over += 1.0; }
+  }
+}</code></pre>
+        <p>No Blueprint do GameMode: em <em>BeginPlay</em>, carregue a CurveTable, salve em variável e use em uma função <code>Server_GrantXP(PlayerState, DeltaXP)</code> que consulta a curva e incrementa <code>Level</code>/<code>NextExperience</code> como no legado.【F:Source MuServer Update 15/GameServer/GameServer/User.cpp†L582-L598】</p>
+      </div>
+      <div class="mb-4">
+        <h5>Chance de Acerto (MissCheck)</h5>
+        <p>Replique a fórmula: <code>AttackSuccessRate</code> recebe bônus e multiplicadores, aplica divisores, e compara com <code>DefenseSuccessRate</code>. Em Blueprints (Function Library server-only):</p>
+        <ol>
+          <li><em>Inputs</em>: <code>AttackSuccessRate</code>, <code>DefenseSuccessRate</code>, structs <code>EffectOption</code> de atacante/defensor.</li>
+          <li>Somar <code>AddAttackSuccessRate</code> e multiplicar por <code>MulAttackSuccessRate/100</code>; subtrair divisão <code>DivAttackSuccessRate</code>; clamp a zero.</li>
+          <li>Repetir para defesa (<code>AddDefenseSuccessRate</code>, <code>MulDefenseSuccessRate</code>, <code>DivDefenseSuccessRate</code>).</li>
+          <li>Se ataque &lt; defesa: 5% de acerto, senão role <code>Rand % AttackSuccessRate</code> &lt; defesa para miss.</li>
+        </ol>
+        <p>Implemente como BlueprintCallable <code>ComputeHitResult</code> e retorne um booleano e tag de efeito; conecte ao <code>ApplyDamage</code> antes de executar GAS GameplayEvent.【F:Source MuServer Update 15/GameServer/GameServer/Attack.cpp†L1903-L1933】</p>
+      </div>
+      <div class="mb-4">
+        <h5>Dano Físico</h5>
+        <p>Use a rotina <code>GetAttackDamage</code>: soma dano mínimo/máximo de cada mão, bônus de skill e multiplicadores de efeito; sorteia entre Min/Max; aplica crítico (100% do Max + bônus) e excelente (120% do Max). Subtrai a defesa do alvo no final.</p>
+        <pre><code class="language-cpp">int32 UCombatMath::CalcPhysicalDamage(const FCombatContext&amp; Ctx) {
+  int32 DamageMin = Ctx.PhysiMin + Ctx.SkillDamageMin;
+  int32 DamageMax = Ctx.PhysiMax + Ctx.SkillDamageMax;
+  DamageMin += Ctx.AddPhysiDamage + Ctx.AddMinPhysiDamage;
+  DamageMax += Ctx.AddPhysiDamage + Ctx.AddMaxPhysiDamage;
+  DamageMin = DamageMin + (DamageMin * Ctx.MulPhysiDamage) / 100 - (DamageMin * Ctx.DivPhysiDamage) / 100;
+  DamageMax = DamageMax + (DamageMax * Ctx.MulPhysiDamage) / 100 - (DamageMax * Ctx.DivPhysiDamage) / 100;
+  const int32 Roll = FMath::RandRange(0, FMath::Max(1, DamageMax - DamageMin));
+  int32 Damage = DamageMin + Roll;
+  if (FRand() * 100.f &lt; Ctx.CritChance) { Damage = DamageMax + Ctx.CritBonus; }
+  if (FRand() * 100.f &lt; Ctx.ExcChance) { Damage = (DamageMax * 120) / 100 + Ctx.ExcBonus; }
+  Damage -= Ctx.TargetDefense;
+  return FMath::Max(0, Damage);
+}</code></pre>
+        <p>No Ability do ataque: calcule <code>PhysiMin/Max</code> somando mãos e skill (SwordPower) como no legado e depois subtraia <code>TargetDefense</code>. Use <em>GameplayCue</em> para efeitos 2=Excellent, 3=Critical conforme os bits <code>(*effect)</code>.【F:Source MuServer Update 15/GameServer/GameServer/Attack.cpp†L2266-L2432】</p>
+      </div>
+      <div class="mb-4">
+        <h5>Dano Mágico / Cursed</h5>
+        <p>Para magias, acrescente <code>m_DamageMin/m_DamageMax</code> da skill, bônus do MasterSkillTree, <code>SkillDamageBonus</code> e multiplicadores de <code>EffectOption</code>; chance de crítico/excelente igual ao físico. Se usar arma mágica, aumente pelo <code>MagicDamageRate</code> do item.</p>
+        <p>No Blueprint, reproduza a lógica antes de aplicar <code>ApplyDamage</code> e suporte skills de carregamento como Nova adicionando <code>(NovaConstA*(NovaCount*NovaConstB)) + (Strength/NovaConstC)</code> ao dano base.【F:Source MuServer Update 15/GameServer/GameServer/Attack.cpp†L2435-L2472】</p>
+      </div>
     </section>
 
     <section id="tab-core" class="tab-section">
