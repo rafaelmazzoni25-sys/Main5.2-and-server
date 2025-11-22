@@ -56,6 +56,7 @@
           <ul class="mb-0">
             <li>Checklist: criação de <code>UGameInstance</code> custom, GameMode dedicado, PlayerState com structs replicadas.</li>
             <li>Entrega mínima: login funcional com validação server-side e HUD reativo por RepNotify.</li>
+            <li>Como fazer: no editor crie uma classe C++ <code>UGameInstance</code> (Add &rarr; New C++ Class) e marque <code>PrimaryAssetId</code> para tabelas. No <code>GameMode</code>, habilite <code>bUseSeamlessTravel</code> e defina <code>PlayerControllerClass</code>. No <code>PlayerController</code>, exponha <code>ServerLogin(FString User, FString Pass)</code> e valide no servidor, retornando <code>ClientLoginResult</code> para atualizar widgets.</li>
           </ul>
         </li>
         <li class="list-group-item">
@@ -64,6 +65,7 @@
           <ul class="mb-0">
             <li>Checklist: tabela de salas/servers, <code>OnRep</code> para slots de personagem e botões de criar/deletar com RPC.</li>
             <li>Entrega mínima: troca de mapa (lobby &rarr; mundo) via <code>ServerTravel</code> com personagem escolhido replicado.</li>
+            <li>Como fazer: crie um <em>Level</em> “LoginMap” e um Widget UMG com painel de servidores. Preencha via <code>DataTable</code> (Add &rarr; Misc &rarr; Data Table) derivada de <code>FServerRow</code>. No <code>PlayerController</code>, exponha <code>ClientReceiveServers</code> para popular a lista e um RPC <code>ServerSelectServer</code> que seta um struct replicado <code>FSelectedServer</code>. Para personagens, replique um array <code>TArray&lt;FCharacterSlot&gt;</code> e use <code>OnRep</code> para atualizar os botões de seleção.</li>
           </ul>
         </li>
         <li class="list-group-item">
@@ -72,6 +74,7 @@
           <ul class="mb-0">
             <li>Checklist: DataTable de mapas/gates, NavMesh funcional, <code>ServerMoveTo</code> validando caminho.</li>
             <li>Entrega mínima: player consegue caminhar/teleportar com correções server-authoritative visíveis.</li>
+            <li>Como fazer: em cada mapa, coloque um <code>NavMeshBoundsVolume</code> e habilite <code>Rebuild at Runtime</code>. Use <code>ACharacter</code> com <code>CharacterMovementComponent</code> replicado; ative <code>bUseControllerRotationYaw=false</code> para strafe. Crie um Actor <code>AWarpGate</code> com <code>UBoxComponent</code> trigger chamando <code>ServerRequestWarp(TargetGateId)</code>; o GameMode consulta a <code>DataTable</code> e chama <code>ServerTravel</code> ou <code>Teleport</code> com <code>SetActorLocation</code> validado.</li>
           </ul>
         </li>
         <li class="list-group-item">
@@ -80,6 +83,7 @@
           <ul class="mb-0">
             <li>Checklist: <code>FCharacterStats</code> replicado, fórmulas de XP/level up portadas, eventos de level up multicast.</li>
             <li>Entrega mínima: ganhar XP de mock (missão/mob) e subir nível refletindo atributos/FX.</li>
+            <li>Como fazer: defina <code>FCharacterStats</code> em <code>PlayerState</code> com <code>UPROPERTY(ReplicatedUsing=OnRep_Stats)</code>. Importe a tabela de XP do legado para um <code>DataTable</code> e implemente <code>ServerAddExperience(SourceTag, Amount)</code> no <code>PlayerController</code>. No <code>OnRep_Stats</code>, atualize o HUD UMG (ProgressBar e TextBlocks) via <code>BindWidget</code>.</li>
           </ul>
         </li>
         <li class="list-group-item">
@@ -88,6 +92,7 @@
           <ul class="mb-0">
             <li>Checklist: <code>UInventoryComponent</code> replicado, DataAssets preenchidos, UI de grid reagindo a <code>OnRep</code>.</li>
             <li>Entrega mínima: pickup/usar/equipar itens com validação de requisitos e atualização visual.</li>
+            <li>Como fazer: crie um <code>UInventoryComponent</code> C++ (Add &rarr; New C++ Class &rarr; Actor Component) e registre no <code>GetLifetimeReplicatedProps</code>. Exponha RPCs <code>ServerMoveItem</code>, <code>ServerUseItem</code>. Converta CSV do legado em <code>PrimaryDataAsset</code> via <code>Import Asset</code>. No Character Blueprint, associe sockets (Weapon, Shield, Wing) e no <code>OnRep_Equipment</code> troque <code>USkeletalMeshComponent</code> com <code>SetSkeletalMesh</code>.</li>
           </ul>
         </li>
         <li class="list-group-item">
@@ -96,6 +101,7 @@
           <ul class="mb-0">
             <li>Checklist: tabelas de mobs, Behavior Tree básico, GAS configurado, replicação de HP/estado.</li>
             <li>Entrega mínima: mob ataca/jogador responde e loot dropa com regras de distância/antiflood.</li>
+            <li>Como fazer: habilite o GAS (Plugin) e adicione <code>UAbilitySystemComponent</code> no Character. Crie <code>UDataTable</code> “DT_Mobs” com HP/Attack/MoveSpeed. No mapa, posicione um <code>ASpawnVolume</code> com <code>SpawnMob()</code> que instancia <code>AMonsterCharacter</code> e roda <code>RunBehaviorTree</code>. No <code>UCombatComponent</code>, implemente <code>ServerApplyDamage</code> lendo fórmulas do legado e dispare <code>NetMulticastPlayImpactFX</code>. Para drops, um <code>OnDeath</code> server-side cria <code>ALootActor</code> com <code>FLootEntry</code> replicado.</li>
           </ul>
         </li>
         <li class="list-group-item">
@@ -104,6 +110,7 @@
           <ul class="mb-0">
             <li>Checklist: DataTable de preços/impostos, UI de shop replicada, sessão de trade replicada.</li>
             <li>Entrega mínima: compra/venda/trade concluindo com logs server-side.</li>
+            <li>Como fazer: crie <code>UDataTable</code> para lojas (itens, preço, imposto). No NPC Blueprint, adicione <code>UWidgetInteraction</code> para abrir UI; o <code>PlayerController</code> chama <code>ServerOpenShop(NpcId)</code> e o GameMode replica <code>FShopStock</code>. Para trade, instancie um Actor replicado <code>APlayerTradeSession</code> contendo arrays de slots e RPCs <code>ServerAddTradeItem</code>/<code>ServerConfirmTrade</code>. No CashShop, use o mesmo fluxo mas aplicando <code>ServerConsumeCurrency</code> com validação.</li>
           </ul>
         </li>
       </ol>
@@ -188,6 +195,7 @@
         <li><strong>De:</strong> Arrays de slots e flags (<code>IsTradeBan</code>, <code>IsDropBan</code>). <strong>Para:</strong> <code>UInventoryComponent</code> replicado com <code>TArray&lt;FItemInstance&gt;</code> (slot, stack, durability, options). Use <code>UPROPERTY(ReplicatedUsing=OnRep_Inventory)</code>.</li>
         <li><strong>Warehouse/Baú:</strong> <code>UStorageComponent</code> separado, replicado apenas com <code>COND_OwnerOnly</code>. Flags de bloqueio (<code>bIsShopOpen</code>, <code>bIsTradeOpen</code>) replicadas no <code>PlayerState</code> para a UI desabilitar drag/drop.</li>
         <li><strong>Slots extras:</strong> Se o legado libera slots por evento, replique um <code>FInventoryCapacity</code> (tamanho atual/máximo) e atualize a UI via <code>OnRep</code>.</li>
+        <li><strong>Como configurar:</strong> No <code>UInventoryComponent</code>, implemente <code>GetLifetimeReplicatedProps</code>, chamando <code>DOREPLIFETIME</code> para o array. No Character Blueprint, adicione o componente e marque <code>Component Replicates</code>. Crie um <code>UUserWidget</code> que recebe uma referência ao componente e se registra em <code>OnRep_Inventory</code> para repintar a grade.</li>
       </ul>
       <h2 class="section-title">2. Operações (RPCs)</h2>
       <ul>
@@ -195,12 +203,14 @@
         <li><strong>Mover/Stackar:</strong> <code>ServerMoveItem(SrcSlot, DstSlot)</code> centraliza lógica de mescla, swap e limites de stack. Replique apenas o array final; HUD UMG reconstrói a grade no <code>OnRep</code>.</li>
         <li><strong>Usar/Equipar:</strong> <code>ServerUseItem(Slot)</code> verifica requisitos (level, classe, <code>IsDropBan</code>) e dispara efeitos (buffs/consumos) via <code>GameplayEffect</code>. Equipar chama <code>ServerEquipItem</code> e replica IDs visuais (<code>FEquipmentVisuals</code>).</li>
         <li><strong>Warehouse:</strong> <code>ServerMoveToStorage</code> e <code>ServerMoveFromStorage</code> respeitam taxas/custos do legado e usam <code>COND_OwnerOnly</code> para replicação.</li>
+        <li><strong>Como implementar:</strong> Para cada RPC, marque com <code>UFUNCTION(Server, Reliable)</code> e adicione funções <code>_Implementation</code>. No servidor, valide pré-condições (peso máximo, bloqueios) e retorne resultados via <code>ClientInventoryResult(EInventoryResult)</code>. Em Blueprints, exponha eventos <code>OnRep_Inventory</code> e <code>ClientInventoryResult</code> para tocar sons/FX de sucesso ou erro.</li>
       </ul>
       <h2 class="section-title">3. UI e feedback</h2>
       <ul>
         <li><strong>Grid:</strong> <code>UniformGridPanel</code> populado por <code>OnRep_Inventory</code>. Feedback de erro via <code>ClientInventoryResult</code> (ex.: inventário cheio).</li>
         <li><strong>Tooltips:</strong> Consomem o <code>FItemInstance</code> + <code>FItemDefinition</code> (DataAsset) para exibir requisitos e opções. Atualize automaticamente quando <code>OnRep_Inventory</code> disparar.</li>
         <li><strong>Logs/Auditoria:</strong> Cada alteração chama função server-side de log (JSON/CSV) para rastrear <em>quem/onde/quando</em>, espelhando o legado.</li>
+        <li><strong>Passo-a-passo no UMG:</strong> Crie Widget Blueprint “WBP_Inventory”. Adicione <code>UniformGridPanel</code>, <code>Overlay</code> para tooltips e Binding para o componente. No <code>Event Construct</code>, armazene a referência ao <code>UInventoryComponent</code>. Implemente evento custom <code>RefreshGrid</code> chamado por <code>OnRep_Inventory</code> para criar child widgets por slot e associar drag/drop.</li>
       </ul>
     </section>
 
@@ -212,12 +222,14 @@
         <li><strong>De:</strong> Spawns definidos em tabelas e acionados pelo servidor legado. <strong>Para:</strong> Spawners <code>AActor</code> no mapa que leem DataTables de mobs (HP, MoveSpeed, AggroRange, RespawnTime). O servidor chama <code>SpawnMob()</code> e agenda respawn com <code>FTimerManager</code>.</li>
         <li><strong>Randomização controlada:</strong> Use seeds do servidor para variações (nível, prefixos). Nunca deixe o cliente gerar spawn.</li>
         <li><strong>Visibilidade:</strong> Replicar somente estado essencial: HP, tag de ação, alvo atual (Actor pointer replicado), evitando replicar behavior tree.</li>
+        <li><strong>Como configurar spawner:</strong> Crie Blueprint “BP_SpawnVolume” derivado de <code>AActor</code> com <code>BoxComponent</code> e variáveis <code>MobId</code>, <code>SpawnCount</code>, <code>RespawnTime</code>. No <code>BeginPlay</code> (apenas servidor), leia <code>DT_Mobs</code> e chame <code>SpawnMob()</code>, guardando ponteiros em um array replicado de fraca referência (<code>TWeakObjectPtr</code> não replica, use <code>TArray&lt;TObjectPtr&lt;AActor&gt;&gt;</code> com <code>COND_None</code>).</li>
       </ul>
       <h2 class="section-title">2. AI</h2>
       <ul>
         <li><strong>Behavior Tree:</strong> Converta FSM simples do legado em Behavior Tree com Blackboard (estado: Idle, Patrol, Chase, Attack, Flee). <code>AAIController</code> roda apenas no servidor.</li>
         <li><strong>Navegação:</strong> Use <code>AI MoveTo</code> com NavMesh; clientes recebem posição replicada via <code>CharacterMovementComponent</code>.</li>
         <li><strong>Threat/Aggro:</strong> Mantenha lista de ameaça em C++ no servidor (dano recente, cura recebida). Escolha alvo por maior threat ou proximidade, replicando apenas o pointer do alvo.</li>
+        <li><strong>Como montar Behavior Tree:</strong> Crie Blackboard Keys <code>TargetActor</code>, <code>HasLineOfSight</code>, <code>HomeLocation</code>. No Behavior Tree, adicione sequência de Patrulha (MoveTo &rarr; Wait), transição para Perseguição quando <code>TargetActor</code> válido, e nó de <code>Task_ApplyDamage</code> custom chamando <code>ServerApplyDamage</code>. Use um <code>Service</code> que verifica distância e atualiza ameaça a cada 0.5s.</li>
       </ul>
       <h2 class="section-title">3. Combate &amp; Drops</h2>
       <ul>
@@ -225,6 +237,7 @@
         <li><strong>Morte:</strong> OnDeath no servidor chama tabela de drop do legado e spawn de <code>ALootActor</code> com <code>UBoxComponent</code>. Replicar um <code>FLootEntry</code> (ItemId, quantidade, raridade) para o dono elegível.</li>
         <li><strong>Proteção de loot:</strong> Respeite regras de posse (ex.: quem deu o último hit). Guarde <code>OwnerPlayerId</code> no drop e só permita pickup via <code>ServerPickupItem</code> se autorizado ou após tempo de liberação.</li>
         <li><strong>Antiflood/cooldown:</strong> Aplique checagem de ataque/skill no servidor com timestamps; rejeite uso fora do cooldown com <code>ClientCooldownRejected</code>.</li>
+        <li><strong>Passo-a-passo de loot:</strong> Em <code>ALootActor</code>, adicione <code>UStaticMeshComponent</code> simples para visual. Marque o Actor como replicado e defina <code>bNetUseOwnerRelevancy=true</code> se houver loot privado. No <code>BeginPlay</code>, atribua <code>FLootEntry</code> e um <code>FTimerHandle</code> para destruir após tempo limite. O <code>UBoxComponent</code> chama <code>ServerPickupItem</code> apenas para o PlayerController que sobrepõe e passa validações.</li>
       </ul>
     </section>
 
@@ -236,18 +249,21 @@
         <li><strong>De:</strong> Estruturas como <code>ITEM_ATTRIBUTE</code> e tabelas de drop/upgrade. <strong>Para:</strong> <code>UPrimaryDataAsset</code> (<code>UItemDefinition</code>) com campos: tipo (consumível, equipamento, joia), requisitos (classe/level/força), stats base, durabilidade, raridade, VFX/SFX.</li>
         <li><strong>IDs:</strong> Mapeie o ID do legado para <code>PrimaryAssetId</code>; use <code>FGameplayTag</code> para tipo/subtipo (Weapon/Sword, Armor/Plate).</li>
         <li><strong>Stacks e opções:</strong> Crie <code>FItemInstance</code> com quantidade, durability, opções/atributos randômicos. Marque como replicado e serializável.</li>
+        <li><strong>Como criar DataAssets:</strong> No Content Browser, Add &rarr; Misc &rarr; Primary Data Asset usando a classe <code>UItemDefinition</code>. Importe CSV do legado (File &rarr; Import Into Level) e selecione a classe de row <code>FItemDefinitionRow</code>. Preencha campos de requisitos, ícone e referências de mesh/FX.</li>
       </ul>
       <h2 class="section-title">2. Uso e efeitos</h2>
       <ul>
         <li><strong>Consumíveis:</strong> Viram <code>GameplayEffects</code> (cura, buff temporário). <code>ServerUseItem</code> aplica efeito e decrementa stack; <code>OnRep_Inventory</code> atualiza UI.</li>
         <li><strong>Equipamentos:</strong> Ao equipar, aplique modificadores persistentes (ex.: +Str, +Defense) via <code>GameplayEffect</code> com duração infinita. Visual é trocado usando IDs replicados para malhas e partículas.</li>
         <li><strong>Joias/Upgrades:</strong> Codifique probabilidades de sucesso/falha conforme tabela do legado. <code>ServerUpgradeItem</code> calcula resultado, consome recursos e replica novo nível/estado. Reaja no cliente com VFX multicast.</li>
+        <li><strong>Como mapear fórmulas:</strong> Crie uma classe helper <code>UItemMathLibrary</code> com funções estáticas <code>CalculateDamageBonus</code>, <code>CalculateUpgradeChance</code>. Copie as constantes do legado (ex.: <code>CHAOS_SUCCESS_RATE</code>) para <code>Config/DefaultGame.ini</code> ou <code>DataTable</code>. Chame essas funções somente no servidor dentro das RPCs de uso/upgrade.</li>
       </ul>
       <h2 class="section-title">3. Integrações</h2>
       <ul>
         <li><strong>Drop/loot:</strong> <code>ALootActor</code> referencia <code>FItemInstance</code> gerado pelas tabelas de drop. Pickup reutiliza a lógica de inventário.</li>
         <li><strong>Economia:</strong> NPC shops consomem <code>UItemDefinition</code>; preços/impostos do legado viram DataTables referenciadas pelo servidor.</li>
         <li><strong>Persistência:</strong> Salve apenas IDs e atributos variáveis do <code>FItemInstance</code> (stack, dura, options) em vez de serializar meshes.</li>
+        <li><strong>Checklist de integração:</strong> (1) Adicione coluna de preço/imposto na <code>DataTable</code> do item. (2) No <code>ShopManager</code> server-side, consuma <code>UItemDefinition</code> para montar <code>FShopStock</code>. (3) Em <code>ALootActor</code>, serialize apenas <code>ItemId</code> e atributos variáveis. (4) No salvamento, grave <code>ItemId</code>, quantidade e options como JSON para recriar <code>FItemInstance</code> ao carregar.</li>
       </ul>
     </section>
 
