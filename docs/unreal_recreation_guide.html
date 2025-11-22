@@ -28,6 +28,18 @@
           <li class="nav-item">
             <a class="nav-link" href="#" data-target="instructions">Instruções Técnicas</a>
           </li>
+          <li class="nav-item">
+            <a class="nav-link" href="#" data-target="inventory">Inventário (Legado ➜ UE5)</a>
+          </li>
+          <li class="nav-item">
+            <a class="nav-link" href="#" data-target="ai">AI/Mobs &amp; Drops</a>
+          </li>
+          <li class="nav-item">
+            <a class="nav-link" href="#" data-target="items">Sistema de Itens</a>
+          </li>
+          <li class="nav-item">
+            <a class="nav-link" href="#" data-target="legacy-mapping">Arquivos Legados Referenciados</a>
+          </li>
         </ul>
       </div>
     </div>
@@ -165,6 +177,119 @@
         <li><strong>Validação cruzada com logs do legado:</strong> Rode casos simples (login, pickup, level up) registrando CSV no servidor UE5 e compare com sessões do servidor antigo para garantir paridade.</li>
         <li><strong>Checagens de replicação:</strong> Use <code>Net PktLag</code> e <code>Net PktLoss</code> no editor para validar comportamento com latência e perda; priorize <code>Reliable</code> apenas para eventos críticos (login, compra).</li>
         <li><strong>Automação mínima:</strong> Crie testes funcionais em <code>Spec</code> ou <code>Gauntlet</code> que percorrem login &rarr; seleção &rarr; combate &rarr; compra para evitar regressões de RPC.</li>
+      </ul>
+    </section>
+
+    <section id="inventory" class="tab-section">
+      <h1>Inventário (Legado ➜ UE5)</h1>
+      <p class="text-muted">Migre a grade e a lógica do inventário/warehouse com replicação nativa, respeitando regras de trava/uso do código legado.</p>
+      <h2 class="section-title">1. Estrutura de dados</h2>
+      <ul>
+        <li><strong>De:</strong> Arrays de slots e flags (<code>IsTradeBan</code>, <code>IsDropBan</code>). <strong>Para:</strong> <code>UInventoryComponent</code> replicado com <code>TArray&lt;FItemInstance&gt;</code> (slot, stack, durability, options). Use <code>UPROPERTY(ReplicatedUsing=OnRep_Inventory)</code>.</li>
+        <li><strong>Warehouse/Baú:</strong> <code>UStorageComponent</code> separado, replicado apenas com <code>COND_OwnerOnly</code>. Flags de bloqueio (<code>bIsShopOpen</code>, <code>bIsTradeOpen</code>) replicadas no <code>PlayerState</code> para a UI desabilitar drag/drop.</li>
+        <li><strong>Slots extras:</strong> Se o legado libera slots por evento, replique um <code>FInventoryCapacity</code> (tamanho atual/máximo) e atualize a UI via <code>OnRep</code>.</li>
+      </ul>
+      <h2 class="section-title">2. Operações (RPCs)</h2>
+      <ul>
+        <li><strong>Pickup:</strong> <code>ServerPickupItem(AActor* Loot)</code> valida distância/peso e aplica <em>anti-double-pick</em> com <code>FGuid</code> por drop. No sucesso, adiciona ao inventário e chama <code>OnRep_Inventory</code>.</li>
+        <li><strong>Mover/Stackar:</strong> <code>ServerMoveItem(SrcSlot, DstSlot)</code> centraliza lógica de mescla, swap e limites de stack. Replique apenas o array final; HUD UMG reconstrói a grade no <code>OnRep</code>.</li>
+        <li><strong>Usar/Equipar:</strong> <code>ServerUseItem(Slot)</code> verifica requisitos (level, classe, <code>IsDropBan</code>) e dispara efeitos (buffs/consumos) via <code>GameplayEffect</code>. Equipar chama <code>ServerEquipItem</code> e replica IDs visuais (<code>FEquipmentVisuals</code>).</li>
+        <li><strong>Warehouse:</strong> <code>ServerMoveToStorage</code> e <code>ServerMoveFromStorage</code> respeitam taxas/custos do legado e usam <code>COND_OwnerOnly</code> para replicação.</li>
+      </ul>
+      <h2 class="section-title">3. UI e feedback</h2>
+      <ul>
+        <li><strong>Grid:</strong> <code>UniformGridPanel</code> populado por <code>OnRep_Inventory</code>. Feedback de erro via <code>ClientInventoryResult</code> (ex.: inventário cheio).</li>
+        <li><strong>Tooltips:</strong> Consomem o <code>FItemInstance</code> + <code>FItemDefinition</code> (DataAsset) para exibir requisitos e opções. Atualize automaticamente quando <code>OnRep_Inventory</code> disparar.</li>
+        <li><strong>Logs/Auditoria:</strong> Cada alteração chama função server-side de log (JSON/CSV) para rastrear <em>quem/onde/quando</em>, espelhando o legado.</li>
+      </ul>
+    </section>
+
+    <section id="ai" class="tab-section">
+      <h1>AI/Mobs &amp; Drops</h1>
+      <p class="text-muted">Implemente spawn/AI/drops de forma server-authoritative, reutilizando as tabelas do legado para atributos e loot.</p>
+      <h2 class="section-title">1. Spawning</h2>
+      <ul>
+        <li><strong>De:</strong> Spawns definidos em tabelas e acionados pelo servidor legado. <strong>Para:</strong> Spawners <code>AActor</code> no mapa que leem DataTables de mobs (HP, MoveSpeed, AggroRange, RespawnTime). O servidor chama <code>SpawnMob()</code> e agenda respawn com <code>FTimerManager</code>.</li>
+        <li><strong>Randomização controlada:</strong> Use seeds do servidor para variações (nível, prefixos). Nunca deixe o cliente gerar spawn.</li>
+        <li><strong>Visibilidade:</strong> Replicar somente estado essencial: HP, tag de ação, alvo atual (Actor pointer replicado), evitando replicar behavior tree.</li>
+      </ul>
+      <h2 class="section-title">2. AI</h2>
+      <ul>
+        <li><strong>Behavior Tree:</strong> Converta FSM simples do legado em Behavior Tree com Blackboard (estado: Idle, Patrol, Chase, Attack, Flee). <code>AAIController</code> roda apenas no servidor.</li>
+        <li><strong>Navegação:</strong> Use <code>AI MoveTo</code> com NavMesh; clientes recebem posição replicada via <code>CharacterMovementComponent</code>.</li>
+        <li><strong>Threat/Aggro:</strong> Mantenha lista de ameaça em C++ no servidor (dano recente, cura recebida). Escolha alvo por maior threat ou proximidade, replicando apenas o pointer do alvo.</li>
+      </ul>
+      <h2 class="section-title">3. Combate &amp; Drops</h2>
+      <ul>
+        <li><strong>Dano:</strong> Use fórmulas do legado (físico/mágico/crit) em um <code>UCombatComponent</code> server-side. RPC <code>ServerApplyDamage</code> recebe o Ability/Skill e executa cálculo; <code>NetMulticast</code> envia VFX/hit reactions.</li>
+        <li><strong>Morte:</strong> OnDeath no servidor chama tabela de drop do legado e spawn de <code>ALootActor</code> com <code>UBoxComponent</code>. Replicar um <code>FLootEntry</code> (ItemId, quantidade, raridade) para o dono elegível.</li>
+        <li><strong>Proteção de loot:</strong> Respeite regras de posse (ex.: quem deu o último hit). Guarde <code>OwnerPlayerId</code> no drop e só permita pickup via <code>ServerPickupItem</code> se autorizado ou após tempo de liberação.</li>
+        <li><strong>Antiflood/cooldown:</strong> Aplique checagem de ataque/skill no servidor com timestamps; rejeite uso fora do cooldown com <code>ClientCooldownRejected</code>.</li>
+      </ul>
+    </section>
+
+    <section id="items" class="tab-section">
+      <h1>Sistema de Itens</h1>
+      <p class="text-muted">Detalha a modelagem completa de itens e suas regras, convertendo colunas/tabelas do legado para DataAssets e instâncias replicadas.</p>
+      <h2 class="section-title">1. Definição</h2>
+      <ul>
+        <li><strong>De:</strong> Estruturas como <code>ITEM_ATTRIBUTE</code> e tabelas de drop/upgrade. <strong>Para:</strong> <code>UPrimaryDataAsset</code> (<code>UItemDefinition</code>) com campos: tipo (consumível, equipamento, joia), requisitos (classe/level/força), stats base, durabilidade, raridade, VFX/SFX.</li>
+        <li><strong>IDs:</strong> Mapeie o ID do legado para <code>PrimaryAssetId</code>; use <code>FGameplayTag</code> para tipo/subtipo (Weapon/Sword, Armor/Plate).</li>
+        <li><strong>Stacks e opções:</strong> Crie <code>FItemInstance</code> com quantidade, durability, opções/atributos randômicos. Marque como replicado e serializável.</li>
+      </ul>
+      <h2 class="section-title">2. Uso e efeitos</h2>
+      <ul>
+        <li><strong>Consumíveis:</strong> Viram <code>GameplayEffects</code> (cura, buff temporário). <code>ServerUseItem</code> aplica efeito e decrementa stack; <code>OnRep_Inventory</code> atualiza UI.</li>
+        <li><strong>Equipamentos:</strong> Ao equipar, aplique modificadores persistentes (ex.: +Str, +Defense) via <code>GameplayEffect</code> com duração infinita. Visual é trocado usando IDs replicados para malhas e partículas.</li>
+        <li><strong>Joias/Upgrades:</strong> Codifique probabilidades de sucesso/falha conforme tabela do legado. <code>ServerUpgradeItem</code> calcula resultado, consome recursos e replica novo nível/estado. Reaja no cliente com VFX multicast.</li>
+      </ul>
+      <h2 class="section-title">3. Integrações</h2>
+      <ul>
+        <li><strong>Drop/loot:</strong> <code>ALootActor</code> referencia <code>FItemInstance</code> gerado pelas tabelas de drop. Pickup reutiliza a lógica de inventário.</li>
+        <li><strong>Economia:</strong> NPC shops consomem <code>UItemDefinition</code>; preços/impostos do legado viram DataTables referenciadas pelo servidor.</li>
+        <li><strong>Persistência:</strong> Salve apenas IDs e atributos variáveis do <code>FItemInstance</code> (stack, dura, options) em vez de serializar meshes.</li>
+      </ul>
+    </section>
+
+    <section id="legacy-mapping" class="tab-section">
+      <h1>Arquivos do Código Legado Referenciados</h1>
+      <p class="text-muted">Use esta lista para localizar rapidamente os pontos do código original que inspiram cada guia. Caminhos relativos a <code>Source MuServer Update 15/GameServer/GameServer/</code>.</p>
+      <h2 class="section-title">Core, Login e Lobby</h2>
+      <ul>
+        <li><code>User.cpp</code> / <code>User.h</code>: autenticação, seleção de personagem e validações de estado de conexão.</li>
+        <li><code>Protocol.cpp</code> e <code>JSProtocol.cpp</code>: fluxo de handshake/login com JoinServer.</li>
+        <li><code>Connection.h</code>: gerenciamento de sockets/conexões que inspiram a migração para RPCs.</li>
+      </ul>
+      <h2 class="section-title">Mundo, Gate/Warp e Movimentação</h2>
+      <ul>
+        <li><code>MapManager.cpp</code>: cadastro de mapas, regras de entrada e checagens de terreno.</li>
+        <li><code>Gate.cpp</code> / <code>Gate.h</code>: definição de portões/warps e restrições de uso.</li>
+        <li><code>Move.h</code> e <code>ObjectManager.cpp</code>: lógica de movimentação e sincronização de objetos.</li>
+      </ul>
+      <h2 class="section-title">Dados de Personagem e Progressão</h2>
+      <ul>
+        <li><code>ExperienceTable.h</code> e <code>GameMain.cpp</code>: tabelas e cálculos de XP/level.</li>
+        <li><code>MasterSkillTree.cpp</code>: progressão avançada e efeitos passivos.</li>
+        <li><code>User.cpp</code>: manipulação de stats base, dinheiro e eventos de level up.</li>
+      </ul>
+      <h2 class="section-title">Inventário, Baú e Itens</h2>
+      <ul>
+        <li><code>EventInventory.cpp</code> / <code>EventInventory.h</code> e <code>InventoryEquipment.cpp</code>: grid, troca de slots e bloqueios de uso.</li>
+        <li><code>Item.cpp</code> / <code>Item.h</code> e <code>ItemMove.cpp</code>: criação, movimentação e validações de itens.</li>
+        <li><code>ItemBag.cpp</code>, <code>ItemBagEx.h</code> e <code>380ItemOption.cpp</code>: tabelas de drop, opções adicionais e regras especiais.</li>
+      </ul>
+      <h2 class="section-title">AI de Mobs, Skills e Drops</h2>
+      <ul>
+        <li><code>Monster.cpp</code> e <code>MonsterAIElement.cpp</code>: estados e tomada de decisão dos mobs.</li>
+        <li><code>MonsterAIMovePath.cpp</code> e <code>MonsterSkillManager.cpp</code>: rotas de movimentação e uso de habilidades.</li>
+        <li><code>Attack.cpp</code> e <code>ItemBag.cpp</code>: cálculo de dano e geração de loot após morte.</li>
+      </ul>
+      <h2 class="section-title">Economia, Trade e Shops</h2>
+      <ul>
+        <li><code>Shop.cpp</code> / <code>ShopManager.cpp</code>: estoques e preços de NPCs.</li>
+        <li><code>Trade.cpp</code> / <code>ItemValueTrade.cpp</code>: regras de troca entre jogadores e validações de itens.</li>
+        <li><code>CashShop.cpp</code> / <code>PersonalShop.cpp</code>: compras premium e lojas pessoais.</li>
+        <li><code>NpcTalk.cpp</code>: interação genérica com NPCs que leva a janelas de shop ou diálogos.</li>
       </ul>
     </section>
   </main>
