@@ -1,0 +1,555 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Guia de Recriação UE5</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  <style>
+    body { padding-top: 70px; }
+    .tab-section { display: none; }
+    .tab-section.active { display: block; }
+    .section-title { margin-top: 1.5rem; }
+    code { background: #f8f9fa; padding: 2px 4px; border-radius: 4px; }
+  </style>
+</head>
+<body>
+  <nav class="navbar navbar-expand-lg navbar-dark bg-dark fixed-top">
+    <div class="container-fluid">
+      <a class="navbar-brand" href="#">Unreal Engine 5 – Migração</a>
+      <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav" aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
+        <span class="navbar-toggler-icon"></span>
+      </button>
+      <div class="collapse navbar-collapse" id="navbarNav">
+        <ul class="navbar-nav ms-auto">
+          <li class="nav-item">
+            <a class="nav-link active" href="#" data-target="roadmap">Roadmap Cronológico</a>
+          </li>
+          <li class="nav-item">
+            <a class="nav-link" href="#" data-target="instructions">Instruções Técnicas</a>
+          </li>
+          <li class="nav-item">
+            <a class="nav-link" href="#" data-target="inventory">Inventário (Legado ➜ UE5)</a>
+          </li>
+          <li class="nav-item">
+            <a class="nav-link" href="#" data-target="ai">AI/Mobs &amp; Drops</a>
+          </li>
+          <li class="nav-item">
+            <a class="nav-link" href="#" data-target="items">Sistema de Itens</a>
+          </li>
+          <li class="nav-item">
+            <a class="nav-link" href="#" data-target="enums">Enums do Legado</a>
+          </li>
+          <li class="nav-item">
+            <a class="nav-link" href="#" data-target="legacy-mapping">Arquivos Legados Referenciados</a>
+          </li>
+        </ul>
+      </div>
+    </div>
+  </nav>
+
+  <main class="container">
+    <section id="roadmap" class="tab-section active">
+      <h1>Roadmap Cronológico</h1>
+      <p class="text-muted">Sequência sugerida para portar o cliente/servidor legado para UE5 usando arquitetura server-authoritative e Replication (RPCs/RepNotify/variáveis replicadas). Ignore totalmente o envio manual de pacotes do código antigo.</p>
+      <ol class="list-group list-group-numbered">
+        <li class="list-group-item">
+          <h5>Core &amp; Networking</h5>
+          <p>Configurar <code>UGameInstance</code>, <code>AGameMode</code> (somente servidor) e <code>APlayerController</code> para login/handshake inicial via RPCs e variáveis replicadas.</p>
+          <ul class="mb-0">
+            <li>Checklist: criação de <code>UGameInstance</code> custom, GameMode dedicado, PlayerState com structs replicadas.</li>
+            <li>Entrega mínima: login funcional com validação server-side e HUD reativo por RepNotify.</li>
+            <li>Como fazer: no editor crie uma classe C++ <code>UGameInstance</code> (Add &rarr; New C++ Class) e marque <code>PrimaryAssetId</code> para tabelas. No <code>GameMode</code>, habilite <code>bUseSeamlessTravel</code> e defina <code>PlayerControllerClass</code>. No <code>PlayerController</code>, exponha <code>ServerLogin(FString User, FString Pass)</code> e valide no servidor, retornando <code>ClientLoginResult</code> para atualizar widgets.</li>
+          </ul>
+        </li>
+        <li class="list-group-item">
+          <h5>Seleção &amp; Lobby</h5>
+          <p>Criar mapa de login e fluxos de seleção de sala/personagem carregando dados simulados ou tabelados, sempre replicados do servidor.</p>
+          <ul class="mb-0">
+            <li>Checklist: tabela de salas/servers, <code>OnRep</code> para slots de personagem e botões de criar/deletar com RPC.</li>
+            <li>Entrega mínima: troca de mapa (lobby &rarr; mundo) via <code>ServerTravel</code> com personagem escolhido replicado.</li>
+            <li>Como fazer: crie um <em>Level</em> “LoginMap” e um Widget UMG com painel de servidores. Preencha via <code>DataTable</code> (Add &rarr; Misc &rarr; Data Table) derivada de <code>FServerRow</code>. No <code>PlayerController</code>, exponha <code>ClientReceiveServers</code> para popular a lista e um RPC <code>ServerSelectServer</code> que seta um struct replicado <code>FSelectedServer</code>. Para personagens, replique um array <code>TArray&lt;FCharacterSlot&gt;</code> e use <code>OnRep</code> para atualizar os botões de seleção.</li>
+          </ul>
+        </li>
+        <li class="list-group-item">
+          <h5>Mundo &amp; Movimentação</h5>
+          <p>Preparar catálogos de mapas, NavMesh e movimentação replicada; implementar <em>Gate/Warp</em> como RPC server-side com validação baseada nas tabelas legadas.</p>
+          <ul class="mb-0">
+            <li>Checklist: DataTable de mapas/gates, NavMesh funcional, <code>ServerMoveTo</code> validando caminho.</li>
+            <li>Entrega mínima: player consegue caminhar/teleportar com correções server-authoritative visíveis.</li>
+            <li>Como fazer: em cada mapa, coloque um <code>NavMeshBoundsVolume</code> e habilite <code>Rebuild at Runtime</code>. Use <code>ACharacter</code> com <code>CharacterMovementComponent</code> replicado; ative <code>bUseControllerRotationYaw=false</code> para strafe. Crie um Actor <code>AWarpGate</code> com <code>UBoxComponent</code> trigger chamando <code>ServerRequestWarp(TargetGateId)</code>; o GameMode consulta a <code>DataTable</code> e chama <code>ServerTravel</code> ou <code>Teleport</code> com <code>SetActorLocation</code> validado.</li>
+          </ul>
+        </li>
+        <li class="list-group-item">
+          <h5>Dados &amp; RPG</h5>
+          <p>Estruturar atributos, XP e level up com structs replicadas e lógicas de progressão derivadas das fórmulas do código antigo.</p>
+          <ul class="mb-0">
+            <li>Checklist: <code>FCharacterStats</code> replicado, fórmulas de XP/level up portadas, eventos de level up multicast.</li>
+            <li>Entrega mínima: ganhar XP de mock (missão/mob) e subir nível refletindo atributos/FX.</li>
+            <li>Como fazer: defina <code>FCharacterStats</code> em <code>PlayerState</code> com <code>UPROPERTY(ReplicatedUsing=OnRep_Stats)</code>. Importe a tabela de XP do legado para um <code>DataTable</code> e implemente <code>ServerAddExperience(SourceTag, Amount)</code> no <code>PlayerController</code>. No <code>OnRep_Stats</code>, atualize o HUD UMG (ProgressBar e TextBlocks) via <code>BindWidget</code>.</li>
+          </ul>
+        </li>
+        <li class="list-group-item">
+          <h5>Inventário &amp; Itens</h5>
+          <p>Modelar itens como <code>DataAssets</code>, inventário/baú replicados, troca de malhas visuais e regras de uso conforme o legado.</p>
+          <ul class="mb-0">
+            <li>Checklist: <code>UInventoryComponent</code> replicado, DataAssets preenchidos, UI de grid reagindo a <code>OnRep</code>.</li>
+            <li>Entrega mínima: pickup/usar/equipar itens com validação de requisitos e atualização visual.</li>
+            <li>Como fazer: crie um <code>UInventoryComponent</code> C++ (Add &rarr; New C++ Class &rarr; Actor Component) e registre no <code>GetLifetimeReplicatedProps</code>. Exponha RPCs <code>ServerMoveItem</code>, <code>ServerUseItem</code>. Converta CSV do legado em <code>PrimaryDataAsset</code> via <code>Import Asset</code>. No Character Blueprint, associe sockets (Weapon, Shield, Wing) e no <code>OnRep_Equipment</code> troque <code>USkeletalMeshComponent</code> com <code>SetSkeletalMesh</code>.</li>
+          </ul>
+        </li>
+        <li class="list-group-item">
+          <h5>Combate &amp; AI</h5>
+          <p>Spawning de mobs no servidor, AI controller/behavior tree, sistema de skills/dano e drop de itens replicados.</p>
+          <ul class="mb-0">
+            <li>Checklist: tabelas de mobs, Behavior Tree básico, GAS configurado, replicação de HP/estado.</li>
+            <li>Entrega mínima: mob ataca/jogador responde e loot dropa com regras de distância/antiflood.</li>
+            <li>Como fazer: habilite o GAS (Plugin) e adicione <code>UAbilitySystemComponent</code> no Character. Crie <code>UDataTable</code> “DT_Mobs” com HP/Attack/MoveSpeed. No mapa, posicione um <code>ASpawnVolume</code> com <code>SpawnMob()</code> que instancia <code>AMonsterCharacter</code> e roda <code>RunBehaviorTree</code>. No <code>UCombatComponent</code>, implemente <code>ServerApplyDamage</code> lendo fórmulas do legado e dispare <code>NetMulticastPlayImpactFX</code>. Para drops, um <code>OnDeath</code> server-side cria <code>ALootActor</code> com <code>FLootEntry</code> replicado.</li>
+          </ul>
+        </li>
+        <li class="list-group-item">
+          <h5>Economia</h5>
+          <p>NPC Shops, Trade e CashShop com RPCs e validação server-side, reutilizando tabelas de preços/impostos do legado.</p>
+          <ul class="mb-0">
+            <li>Checklist: DataTable de preços/impostos, UI de shop replicada, sessão de trade replicada.</li>
+            <li>Entrega mínima: compra/venda/trade concluindo com logs server-side.</li>
+            <li>Como fazer: crie <code>UDataTable</code> para lojas (itens, preço, imposto). No NPC Blueprint, adicione <code>UWidgetInteraction</code> para abrir UI; o <code>PlayerController</code> chama <code>ServerOpenShop(NpcId)</code> e o GameMode replica <code>FShopStock</code>. Para trade, instancie um Actor replicado <code>APlayerTradeSession</code> contendo arrays de slots e RPCs <code>ServerAddTradeItem</code>/<code>ServerConfirmTrade</code>. No CashShop, use o mesmo fluxo mas aplicando <code>ServerConsumeCurrency</code> com validação.</li>
+          </ul>
+        </li>
+      </ol>
+    </section>
+
+    <section id="instructions" class="tab-section">
+      <h1>Instruções Técnicas</h1>
+      <p class="text-muted">Para cada sistema, veja o de/para entre a lógica C++ antiga (fórmulas, tabelas, regras) e a arquitetura replicada da Unreal. Não porte a camada de sockets/pacotes.</p>
+
+      <h2 class="section-title">1. Core &amp; Networking</h2>
+      <ul>
+        <li><strong>GameInstance como ponto de bootstrap:</strong> O legado inicializa estados globais e envia cabeçalhos de conexão. No UE5, mova essa orquestração para uma subclasse de <code>UGameInstance</code> que armazena configurações (servidor escolhido, idioma, opções). Use um RPC confiável no <code>PlayerController</code> para realizar o handshake de login em vez de pacotes <em>ad hoc</em>. O servidor valida credenciais em C++ e replica um <code>FPlayerLoginState</code> (struct replicada) com <code>RepNotify</code> para atualizar a UI do cliente.</li>
+        <li><strong>GameMode server-only:</strong> No código antigo o servidor decide sucesso/erro de login. Em UE5, mantenha <code>AGameMode</code> apenas no servidor e exponha funções <code>ExecLogin(ServerRPC)</code> e <code>ClientLoginResult(ClientRPC)</code>. O cliente nunca seta variáveis de sessão diretamente; apenas invoca RPCs.</li>
+        <li><strong>PlayerController e HUD:</strong> A UI de login/seleção que antes lia diretamente input agora chama métodos do <code>APlayerController</code> (ou <code>UUserWidget</code> via <code>BlueprintCallable</code>) para enviar RPCs ao servidor. Use <code>OnRep</code> para alterar widgets conforme o estado do login (conectando, sucesso, erro).</li>
+        <li><strong>Fila de reconexão e heartbeats:</strong> O legado monitora desconexões por tempo de socket. Em UE5, implemente <em>heartbeats</em> periódicos (ServerRPC + <code>OnRep_LastHeartbeat</code>) para detectar timeouts e forçar <code>SeamlessTravel</code> para lobby em caso de queda.</li>
+        <li><strong>Logs e equivalência com legado:</strong> Crie um helper C++ que gera logs no formato do servidor antigo (IDs, resultado de login, IP). Isso facilita comparar comportamento com sessões reais do legado sem reimplementar pacotes.</li>
+      </ul>
+
+      <h2 class="section-title">2. Seleção &amp; Lobby</h2>
+      <ul>
+        <li><strong>Mapa de Login e Seleção de Sala:</strong> No legado, o usuário escolhe servidor/sala antes de entrar. Em UE5, abra um mapa de lobby (carregado por <code>OpenLevel</code>) que instancia um widget de lista de salas. A lista vem de uma tabela (ex-<code>w_MapHeaders</code> ou configs) replicada via <code>FServerInfo</code> array em <code>GameState</code>. Selecionar sala envia <code>ServerSelectWorld(ServerRPC)</code>; o servidor responde com <code>ClientWorldAccepted</code>.</li>
+        <li><strong>Seleção de Personagem:</strong> As structs antigas retornavam slots com classe, level e visual. Converta essas structs em um <code>FCharacterSlotData</code> replicado pelo servidor no <code>PlayerState</code>. O widget de seleção lê via <code>OnRep_CharacterSlots</code>. Botões de criar/deletar chamam RPCs que editam a lista no servidor e replicam o resultado.</li>
+        <li><strong>Transição para o mundo:</strong> Ao confirmar personagem, o servidor chama <code>ServerTravel</code> ou <code>SeamlessTravel</code>. Antes de viajar, o <code>PlayerController</code> recebe via <code>ClientRPC</code> os dados iniciais (atributos base, inventário vazio ou mock) serializados de tabelas legadas.</li>
+        <li><strong>Sincronização de tempo e clima:</strong> O legado envia pacotes de tempo; em UE5, replique um <code>FWorldTimeState</code> no <code>GameState</code> para hora/clima e use <code>OnRep</code> para acionar <code>MaterialParameterCollection</code> que ajusta iluminação.</li>
+      </ul>
+
+      <h2 class="section-title">3. Mundo &amp; Movimentação</h2>
+      <ul>
+        <li><strong>Catálogo de mapas e streaming:</strong> Em vez de instanciar classes de mapa manualmente, crie um <code>DataTable</code> de mapas (ID &rarr; <code>ULevel</code>/DataLayer). O servidor escolhe o subnível a streamar e replica o ID atual no <code>GameState</code>. Clientes usam <code>OnRep_CurrentMapId</code> para carregar o nível correspondente.</li>
+        <li><strong>NavMesh e movimento replicado:</strong> A lógica antiga quantiza direções (<code>DirTable</code>) e empacota passos. Em UE5, confie no <code>CharacterMovementComponent</code>: o cliente apenas solicita destino com <code>ServerMoveTo(ServerRPC)</code>; o servidor valida no NavMesh e move (ou ajusta) usando <code>AAIController</code> ou <code>MoveToLocation</code>. O <code>MovementComponent</code> já replica posição/rotações; use <code>OnRep</code> para eventos como início/fim de dash.</li>
+        <li><strong>Gate/Warp:</strong> A tabela <code>CMoveCommandData</code> descreve requisitos. Migre para <code>DataTable</code> (level dest, level mínimo, custo, coords). Triggers no mapa chamam <code>ServerRequestWarp</code>, o GameMode valida contra a tabela e usa <code>ServerTravel</code> ou teleporte instantâneo (<code>SetActorLocation</code>) aplicando custo. Clientes apenas reagem a <code>ClientWarpResult</code>.</li>
+        <li><strong>Segurança de movimentação:</strong> Para evitar <em>speed hack</em>, compare <code>ClientTimeStamp</code> com distância percorrida no servidor (equivalente ao anti-cheat do legado) e aplique correção suave usando <code>ClientAdjustPosition</code>.</li>
+      </ul>
+
+      <h2 class="section-title">4. Dados &amp; RPG</h2>
+      <ul>
+        <li><strong>Structs de atributos replicados:</strong> O legado usa campos em <code>CHARACTER</code> (Str, Agi, Vit, Energy, Command, level, dinheiro). Crie um <code>FCharacterStats</code> marcado com <code>UPROPERTY(ReplicatedUsing=OnRep_Stats)</code> no <code>PlayerState</code>. Apenas o servidor altera; o cliente recebe por RepNotify e atualiza HUD.</li>
+        <li><strong>XP e Level Up:</strong> Reaproveite as fórmulas/tabelas de XP (ex.: <code>EXPERIENCE_COMMON</code>, <code>EXPERIENCE_QUEST</code>). No servidor, mantenha um <code>FExperienceProgress</code> replicado. Funções <code>ServerAddExperience</code> aplicam bônus por fonte, verificam limites (<code>MAX_CHARACTER_LEVEL</code>=400) e disparam <code>OnLevelUp</code> multicast para FX e UI.</li>
+        <li><strong>Visual de equipamentos e asas:</strong> Arrays como <code>wingLeft/wingRight</code> definem sockets. Em UE5, configure sockets equivalentes e replique apenas o identificador de item equipado (ex.: <code>EquippedWingId</code>). <code>OnRep_EquippedWing</code> troca a <code>USkeletalMesh</code> ou spawn de <code>NiagaraComponent</code>, evitando replicar meshes inteiras.</li>
+        <li><strong>Buffs/Estados temporários:</strong> Buffs do legado (ex.: poções, scrolls) viram <code>GameplayEffects</code> com duração. Replicar tags ativas no <code>PlayerState</code>; aplicar/remover apenas pelo servidor e usar <code>OnRep</code> para atualizar HUD e VFX.</li>
+      </ul>
+
+      <h2 class="section-title">5. Inventário &amp; Itens</h2>
+      <ul>
+        <li><strong>Itens como DataAssets:</strong> Converta as colunas de <code>ZzzInventory</code> em um <code>UPrimaryDataAsset</code> (<code>FItemDefinition</code>) contendo requisitos, tipo, raridade e VFX. IDs do legado viram <code>PrimaryAssetId</code>. O servidor instancia <code>FItemInstance</code> (stack, durabilidade, options) e replica arrays.</li>
+        <li><strong>Inventário replicado:</strong> Crie um <code>UInventoryComponent</code> com <code>TArray&lt;FItemInstance&gt;</code> marcado como <code>ReplicatedUsing=OnRep_Inventory</code>. Operações de mover/usar item são RPCs servidor-side; o servidor valida regras do legado (<code>IsTradeBan</code>, <code>IsDropBan</code>, slots extras). UI em UMG escuta <code>OnRep</code> e redesenha a grid (<code>UniformGridPanel</code>).</li>
+        <li><strong>Warehouse/Baú:</strong> Mantenha componente separado (<code>UStorageComponent</code>) replicado apenas quando a janela abre. A lógica antiga bloqueava inventário durante shop; replique com flags replicadas (<code>bIsShopOpen</code>) que desabilitam drag/drop via Bindings no Widget.</li>
+        <li><strong>Equipamentos visuais:</strong> O servidor é dono do estado de equipamento. Ao equipar, chame <code>ServerEquipItem</code>; quando válido, o servidor atualiza atributos e replica um <code>FEquipmentVisuals</code> (IDs) para que o <code>Character</code> troque malhas nos sockets.</li>
+        <li><strong>Logs e auditoria de itens:</strong> Reproduza a auditoria do legado registrando <em>quem/onde/quando</em> para cada criação/consumo de item. Use <code>ServerRPC</code> para qualquer alteração e gere logs no servidor (CSV/JSON) para confronto com o comportamento antigo.</li>
+      </ul>
+
+      <h2 class="section-title">6. Combate &amp; AI</h2>
+      <ul>
+        <li><strong>Spawning e AI server-side:</strong> Em vez de spawnar via tabelas em cliente, use o servidor para ler a planilha de mobs (HP, move speed, agressividade) e spawnar <code>APawn</code> com <code>AAIController</code>. Replicar apenas estado necessário (HP, estado de alvo, animação atual via tags).</li>
+        <li><strong>Sistema de skills/dano:</strong> Reaproveite fórmulas do legado (dano físico, mágico, taxa de crítico). Implementar via <code>GameplayAbilitySystem</code>: habilidades chamam <code>ServerActivateAbility</code>, o servidor calcula dano e envia <code>NetMulticast</code> para VFX. Use <code>ReplicatedUsing</code> para barras de HP/MP.</li>
+        <li><strong>Sincronização de ação:</strong> Estados <code>ACTION_ATTACK</code>, <code>ACTION_MOVE</code>, <code>ACTION_DIE</code> viram <code>GameplayTags</code> replicadas no <code>Character</code>. <code>OnRep_ActionTag</code> toca a montagem/animação apropriada. Evite pacotes de posição; confie no <code>CharacterMovementComponent</code> e ajuste com <code>ServerCheckClientError</code> se necessário.</li>
+        <li><strong>Drop de itens:</strong> Quando um mob morre, o servidor consulta as tabelas de drop do legado e spawna <code>AActor</code> de loot com <code>UReplicatedDynamicMeshComponent</code> simples e <code>UBoxComponent</code> para <em>pickup</em>. O claim é via <code>ServerPickupItem</code> com validação de distância e peso.</li>
+        <li><strong>Antiflood e cooldown:</strong> O legado limita uso de skills por tempo. No UE5, adicione controles no servidor (cooldown per-skill no GAS, <code>ServerRPC</code> com <code>CheckCooldown</code>) e retorne <code>ClientCooldownRejected</code> se violado.</li>
+      </ul>
+
+      <h2 class="section-title">7. Economia</h2>
+      <ul>
+        <li><strong>NPC Shops:</strong> Inventários de NPCs são tabelas do legado carregadas no servidor. Ao abrir shop, o servidor replica um <code>FShopStock</code> (itens e preços) para o <code>PlayerController</code>. Compras chamam <code>ServerBuyItem</code> e o servidor verifica <code>MAX_MONEY</code> e impostos (<code>g_nTaxRate</code>, <code>g_nChaosTaxRate</code>) antes de debitar.</li>
+        <li><strong>Trade jogador-jogador:</strong> Implementar sessão de trade como um objeto replicado (<code>APlayerTradeSession</code>) que mantém slots e confirmações. Toda mudança de slot é RPC server-side; o servidor replica o estado para ambos os clientes. Confirmação dupla dispara transferência e logs.</li>
+        <li><strong>CashShop e Jewels:</strong> Itens premium seguem a mesma lógica de DataAsset. Compras são RPCs servidor-side; o servidor aplica bônus (ex.: Jewels de upgrade) via <code>GameplayEffect</code> garantindo que as regras de falha/sucesso do legado sejam respeitadas e replicando apenas o resultado (novo nível do item, FX via multicast).</li>
+        <li><strong>Impostos dinâmicos e eventos:</strong> Se o legado varia tax rates por evento, replique <code>FTaxState</code> no <code>GameState</code> e use <code>OnRep</code> para UI de shop. Eventos de desconto podem ser aplicados via <code>ServerRPC</code> acionado por GM tools.</li>
+      </ul>
+
+      <h2 class="section-title">8. Testes e Depuração</h2>
+      <ul>
+        <li><strong>Validação cruzada com logs do legado:</strong> Rode casos simples (login, pickup, level up) registrando CSV no servidor UE5 e compare com sessões do servidor antigo para garantir paridade.</li>
+        <li><strong>Checagens de replicação:</strong> Use <code>Net PktLag</code> e <code>Net PktLoss</code> no editor para validar comportamento com latência e perda; priorize <code>Reliable</code> apenas para eventos críticos (login, compra).</li>
+        <li><strong>Automação mínima:</strong> Crie testes funcionais em <code>Spec</code> ou <code>Gauntlet</code> que percorrem login &rarr; seleção &rarr; combate &rarr; compra para evitar regressões de RPC.</li>
+      </ul>
+
+      <h2 class="section-title">9. Dimensões e Layouts de UI Legados</h2>
+      <p>Replique a ergonomia do cliente antigo definindo tamanhos e ancoragens equivalentes; ajuste por resolução usando <code>DPI Scaling</code> no Project Settings &rarr; User Interface.</p>
+      <ul>
+        <li><strong>HUD (barra inferior):</strong> Base 800×600 &rarr; faixa inferior 800×96 px (12% da tela). Health/Mana/SD: barras de 200×14 px com padding 12 px entre elas; painel de hotkeys 10 slots de 48×48 px com gap de 6 px. Em resoluções maiores, ancore em <em>Bottom Stretch</em> e mantenha altura relativa (0.12).</li>
+        <li><strong>Status/Character Window:</strong> Janela de ~280×360 px, separada em duas colunas (rótulo 110 px, valor 150 px). Botões de adicionar ponto: 20×20 px alinhados à direita; foto/preview do personagem em <code>SizeBox</code> de 140×180 px. Use <code>Canvas Panel</code> com <code>Slot</code> fixo e <code>ScaleBox</code> para manter proporção.</li>
+        <li><strong>Inventário:</strong> Janela ~360×440 px (ver detalhe na aba Inventário). Quando combinar com Status (layout do legado lado a lado), alinhe Inventário à esquerda e Status à direita com espaçamento de 12 px.</li>
+        <li><strong>Warehouse/Baú:</strong> Grade 8×15 com slots 32×32 px (total útil 256×480 px) dentro de painel 360×520 px. Adicione barra de rolagem vertical (<code>ScrollBox</code>) se usar mais de 15 linhas.</li>
+        <li><strong>CashShop:</strong> Overlay 640×480 px centralizado, dividido em três colunas: árvore de categorias 160 px (à esquerda), lista de itens 280 px (centro, cards 120×64 px), detalhe do item 180 px (direita). Header com saldo em 640×48 px, fonte 16 pt, ícones 24×24 px. Ative <code>Input Mode UI Only</code> e travamento do movimento enquanto aberto.</li>
+        <li><strong>Tooltips:</strong> Largura 240–260 px; título 14 pt bold, atributos 12 pt. Use <code>Vertical Box</code> com <code>Padding</code> 10–12 px e limite <code>Wrap Text At</code> em 220 px.</li>
+        <li><strong>Hotbar/Switch rápido:</strong> Se o legado exibia duas fileiras (10×2), crie duas <code>Horizontal Box</code> de 10 slots de 48×48 px e espaçamento de 6 px, ancoradas acima do chat (HUD inferior).</li>
+        <li><strong>Proporção e ancoragem:</strong> Para preservar dimensões legadas em qualquer resolução, envolva cada janela em <code>SizeBox</code> com <code>Override Width/Height</code> conforme os valores acima, e dentro use <code>ScaleBox</code> (Stretch To Fit, Preserve Aspect Ratio). Configure <code>DPI Curve</code> com 800→1.0, 1080→1.8, 1440→2.2, 2160→3.0 para manter legibilidade.</li>
+        <li><strong>Fluxo de recriação:</strong> (1) No UMG, crie Widgets independentes (HUD, Inventory, Status, CashShop). (2) Aplique <code>SizeBox</code> com dimensões do legado. (3) Ancore conforme posição original (ex.: Inventory no canto inferior direito com <code>Alignment</code> 1,1 e <code>Offset</code> negativo de 40 px). (4) Ative <code>Visibility</code> condicional por RepNotify (ex.: <code>bIsShopOpen</code>).</li>
+      </ul>
+    </section>
+
+    <section id="inventory" class="tab-section">
+      <h1>Inventário (Legado ➜ UE5)</h1>
+      <p class="text-muted">Migre a grade e a lógica do inventário/warehouse com replicação nativa, respeitando regras de trava/uso do código legado.</p>
+      <h2 class="section-title">1. Estrutura de dados</h2>
+      <ul>
+        <li><strong>De:</strong> Arrays de slots e flags (<code>IsTradeBan</code>, <code>IsDropBan</code>). <strong>Para:</strong> <code>UInventoryComponent</code> replicado com <code>TArray&lt;FItemInstance&gt;</code> (slot, stack, durability, options). Use <code>UPROPERTY(ReplicatedUsing=OnRep_Inventory)</code>.</li>
+        <li><strong>Warehouse/Baú:</strong> <code>UStorageComponent</code> separado, replicado apenas com <code>COND_OwnerOnly</code>. Flags de bloqueio (<code>bIsShopOpen</code>, <code>bIsTradeOpen</code>) replicadas no <code>PlayerState</code> para a UI desabilitar drag/drop.</li>
+        <li><strong>Slots extras:</strong> Se o legado libera slots por evento, replique um <code>FInventoryCapacity</code> (tamanho atual/máximo) e atualize a UI via <code>OnRep</code>.</li>
+        <li><strong>Como configurar:</strong> No <code>UInventoryComponent</code>, implemente <code>GetLifetimeReplicatedProps</code>, chamando <code>DOREPLIFETIME</code> para o array. No Character Blueprint, adicione o componente e marque <code>Component Replicates</code>. Crie um <code>UUserWidget</code> que recebe uma referência ao componente e se registra em <code>OnRep_Inventory</code> para repintar a grade.</li>
+      </ul>
+      <h2 class="section-title">2. Operações (RPCs)</h2>
+      <ul>
+        <li><strong>Pickup:</strong> <code>ServerPickupItem(AActor* Loot)</code> valida distância/peso e aplica <em>anti-double-pick</em> com <code>FGuid</code> por drop. No sucesso, adiciona ao inventário e chama <code>OnRep_Inventory</code>.</li>
+        <li><strong>Mover/Stackar:</strong> <code>ServerMoveItem(SrcSlot, DstSlot)</code> centraliza lógica de mescla, swap e limites de stack. Replique apenas o array final; HUD UMG reconstrói a grade no <code>OnRep</code>.</li>
+        <li><strong>Usar/Equipar:</strong> <code>ServerUseItem(Slot)</code> verifica requisitos (level, classe, <code>IsDropBan</code>) e dispara efeitos (buffs/consumos) via <code>GameplayEffect</code>. Equipar chama <code>ServerEquipItem</code> e replica IDs visuais (<code>FEquipmentVisuals</code>).</li>
+        <li><strong>Warehouse:</strong> <code>ServerMoveToStorage</code> e <code>ServerMoveFromStorage</code> respeitam taxas/custos do legado e usam <code>COND_OwnerOnly</code> para replicação.</li>
+        <li><strong>Como implementar:</strong> Para cada RPC, marque com <code>UFUNCTION(Server, Reliable)</code> e adicione funções <code>_Implementation</code>. No servidor, valide pré-condições (peso máximo, bloqueios) e retorne resultados via <code>ClientInventoryResult(EInventoryResult)</code>. Em Blueprints, exponha eventos <code>OnRep_Inventory</code> e <code>ClientInventoryResult</code> para tocar sons/FX de sucesso ou erro.</li>
+      </ul>
+      <h2 class="section-title">3. UI e feedback</h2>
+      <ul>
+        <li><strong>Grid:</strong> <code>UniformGridPanel</code> populado por <code>OnRep_Inventory</code>. Feedback de erro via <code>ClientInventoryResult</code> (ex.: inventário cheio).</li>
+        <li><strong>Tooltips:</strong> Consomem o <code>FItemInstance</code> + <code>FItemDefinition</code> (DataAsset) para exibir requisitos e opções. Atualize automaticamente quando <code>OnRep_Inventory</code> disparar.</li>
+        <li><strong>Logs/Auditoria:</strong> Cada alteração chama função server-side de log (JSON/CSV) para rastrear <em>quem/onde/quando</em>, espelhando o legado.</li>
+        <li><strong>Passo-a-passo no UMG:</strong> Crie Widget Blueprint “WBP_Inventory”. Adicione <code>UniformGridPanel</code>, <code>Overlay</code> para tooltips e Binding para o componente. No <code>Event Construct</code>, armazene a referência ao <code>UInventoryComponent</code>. Implemente evento custom <code>RefreshGrid</code> chamado por <code>OnRep_Inventory</code> para criar child widgets por slot e associar drag/drop.</li>
+        <li><strong>Dimensões legadas:</strong> Para base 800×600 do cliente antigo, use painel principal de ~360×440 px com bordas de 6–8 px. Grade 8×8 com slots de 32×32 px (ícones 30×30 + 1 px de padding). Em 1080p, aplique <code>DPI Scale</code> ≈ 1.8 ou ancore o SizeBox em percentuais para manter proporção. Tooltips: largura fixa 240–260 px, altura variável, com <code>Padding</code> 12 px e textos de 12–14 pt.</li>
+      </ul>
+    </section>
+
+    <section id="ai" class="tab-section">
+      <h1>AI/Mobs &amp; Drops</h1>
+      <p class="text-muted">Implemente spawn/AI/drops de forma server-authoritative, reutilizando as tabelas do legado para atributos e loot.</p>
+      <h2 class="section-title">1. Spawning</h2>
+      <ul>
+        <li><strong>De:</strong> Spawns definidos em tabelas e acionados pelo servidor legado. <strong>Para:</strong> Spawners <code>AActor</code> no mapa que leem DataTables de mobs (HP, MoveSpeed, AggroRange, RespawnTime). O servidor chama <code>SpawnMob()</code> e agenda respawn com <code>FTimerManager</code>.</li>
+        <li><strong>Randomização controlada:</strong> Use seeds do servidor para variações (nível, prefixos). Nunca deixe o cliente gerar spawn.</li>
+        <li><strong>Visibilidade:</strong> Replicar somente estado essencial: HP, tag de ação, alvo atual (Actor pointer replicado), evitando replicar behavior tree.</li>
+        <li><strong>Como configurar spawner:</strong> Crie Blueprint “BP_SpawnVolume” derivado de <code>AActor</code> com <code>BoxComponent</code> e variáveis <code>MobId</code>, <code>SpawnCount</code>, <code>RespawnTime</code>. No <code>BeginPlay</code> (apenas servidor), leia <code>DT_Mobs</code> e chame <code>SpawnMob()</code>, guardando ponteiros em um array replicado de fraca referência (<code>TWeakObjectPtr</code> não replica, use <code>TArray&lt;TObjectPtr&lt;AActor&gt;&gt;</code> com <code>COND_None</code>).</li>
+      </ul>
+      <h2 class="section-title">2. AI</h2>
+      <ul>
+        <li><strong>Behavior Tree:</strong> Converta FSM simples do legado em Behavior Tree com Blackboard (estado: Idle, Patrol, Chase, Attack, Flee). <code>AAIController</code> roda apenas no servidor.</li>
+        <li><strong>Navegação:</strong> Use <code>AI MoveTo</code> com NavMesh; clientes recebem posição replicada via <code>CharacterMovementComponent</code>.</li>
+        <li><strong>Threat/Aggro:</strong> Mantenha lista de ameaça em C++ no servidor (dano recente, cura recebida). Escolha alvo por maior threat ou proximidade, replicando apenas o pointer do alvo.</li>
+        <li><strong>Como montar Behavior Tree:</strong> Crie Blackboard Keys <code>TargetActor</code>, <code>HasLineOfSight</code>, <code>HomeLocation</code>. No Behavior Tree, adicione sequência de Patrulha (MoveTo &rarr; Wait), transição para Perseguição quando <code>TargetActor</code> válido, e nó de <code>Task_ApplyDamage</code> custom chamando <code>ServerApplyDamage</code>. Use um <code>Service</code> que verifica distância e atualiza ameaça a cada 0.5s.</li>
+      </ul>
+      <h2 class="section-title">3. Combate &amp; Drops</h2>
+      <ul>
+        <li><strong>Dano:</strong> Use fórmulas do legado (físico/mágico/crit) em um <code>UCombatComponent</code> server-side. RPC <code>ServerApplyDamage</code> recebe o Ability/Skill e executa cálculo; <code>NetMulticast</code> envia VFX/hit reactions.</li>
+        <li><strong>Morte:</strong> OnDeath no servidor chama tabela de drop do legado e spawn de <code>ALootActor</code> com <code>UBoxComponent</code>. Replicar um <code>FLootEntry</code> (ItemId, quantidade, raridade) para o dono elegível.</li>
+        <li><strong>Proteção de loot:</strong> Respeite regras de posse (ex.: quem deu o último hit). Guarde <code>OwnerPlayerId</code> no drop e só permita pickup via <code>ServerPickupItem</code> se autorizado ou após tempo de liberação.</li>
+        <li><strong>Antiflood/cooldown:</strong> Aplique checagem de ataque/skill no servidor com timestamps; rejeite uso fora do cooldown com <code>ClientCooldownRejected</code>.</li>
+        <li><strong>Passo-a-passo de loot:</strong> Em <code>ALootActor</code>, adicione <code>UStaticMeshComponent</code> simples para visual. Marque o Actor como replicado e defina <code>bNetUseOwnerRelevancy=true</code> se houver loot privado. No <code>BeginPlay</code>, atribua <code>FLootEntry</code> e um <code>FTimerHandle</code> para destruir após tempo limite. O <code>UBoxComponent</code> chama <code>ServerPickupItem</code> apenas para o PlayerController que sobrepõe e passa validações.</li>
+      </ul>
+    </section>
+
+    <section id="items" class="tab-section">
+      <h1>Sistema de Itens</h1>
+      <p class="text-muted">Detalha a modelagem completa de itens e suas regras, convertendo colunas/tabelas do legado para DataAssets e instâncias replicadas.</p>
+      <h2 class="section-title">1. Definição</h2>
+      <ul>
+        <li><strong>De:</strong> Estruturas como <code>ITEM_ATTRIBUTE</code> e tabelas de drop/upgrade. <strong>Para:</strong> <code>UPrimaryDataAsset</code> (<code>UItemDefinition</code>) com campos: tipo (consumível, equipamento, joia), requisitos (classe/level/força), stats base, durabilidade, raridade, VFX/SFX.</li>
+        <li><strong>IDs:</strong> Mapeie o ID do legado para <code>PrimaryAssetId</code>; use <code>FGameplayTag</code> para tipo/subtipo (Weapon/Sword, Armor/Plate).</li>
+        <li><strong>Stacks e opções:</strong> Crie <code>FItemInstance</code> com quantidade, durability, opções/atributos randômicos. Marque como replicado e serializável.</li>
+        <li><strong>Como criar DataAssets:</strong> No Content Browser, Add &rarr; Misc &rarr; Primary Data Asset usando a classe <code>UItemDefinition</code>. Importe CSV do legado (File &rarr; Import Into Level) e selecione a classe de row <code>FItemDefinitionRow</code>. Preencha campos de requisitos, ícone e referências de mesh/FX.</li>
+      </ul>
+      <h2 class="section-title">2. Uso e efeitos</h2>
+      <ul>
+        <li><strong>Consumíveis:</strong> Viram <code>GameplayEffects</code> (cura, buff temporário). <code>ServerUseItem</code> aplica efeito e decrementa stack; <code>OnRep_Inventory</code> atualiza UI.</li>
+        <li><strong>Equipamentos:</strong> Ao equipar, aplique modificadores persistentes (ex.: +Str, +Defense) via <code>GameplayEffect</code> com duração infinita. Visual é trocado usando IDs replicados para malhas e partículas.</li>
+        <li><strong>Joias/Upgrades:</strong> Codifique probabilidades de sucesso/falha conforme tabela do legado. <code>ServerUpgradeItem</code> calcula resultado, consome recursos e replica novo nível/estado. Reaja no cliente com VFX multicast.</li>
+        <li><strong>Como mapear fórmulas:</strong> Crie uma classe helper <code>UItemMathLibrary</code> com funções estáticas <code>CalculateDamageBonus</code>, <code>CalculateUpgradeChance</code>. Copie as constantes do legado (ex.: <code>CHAOS_SUCCESS_RATE</code>) para <code>Config/DefaultGame.ini</code> ou <code>DataTable</code>. Chame essas funções somente no servidor dentro das RPCs de uso/upgrade.</li>
+      </ul>
+      <h2 class="section-title">3. Integrações</h2>
+      <ul>
+        <li><strong>Drop/loot:</strong> <code>ALootActor</code> referencia <code>FItemInstance</code> gerado pelas tabelas de drop. Pickup reutiliza a lógica de inventário.</li>
+        <li><strong>Economia:</strong> NPC shops consomem <code>UItemDefinition</code>; preços/impostos do legado viram DataTables referenciadas pelo servidor.</li>
+        <li><strong>Persistência:</strong> Salve apenas IDs e atributos variáveis do <code>FItemInstance</code> (stack, dura, options) em vez de serializar meshes.</li>
+        <li><strong>Checklist de integração:</strong> (1) Adicione coluna de preço/imposto na <code>DataTable</code> do item. (2) No <code>ShopManager</code> server-side, consuma <code>UItemDefinition</code> para montar <code>FShopStock</code>. (3) Em <code>ALootActor</code>, serialize apenas <code>ItemId</code> e atributos variáveis. (4) No salvamento, grave <code>ItemId</code>, quantidade e options como JSON para recriar <code>FItemInstance</code> ao carregar.</li>
+      </ul>
+      <h2 class="section-title">4. Dimensões de UI de Itens</h2>
+      <ul>
+        <li><strong>Ícones:</strong> Padronize 32×32 px (ou 64×64 para HD) e habilite mipmaps para escalonamento suave. Use <code>Image</code> em <code>SizeBox</code> de mesmo tamanho para evitar deformação.</li>
+        <li><strong>Cards de listagem (Shop/CashShop):</strong> 120×64 px com margem 6 px; imagem 48×48 px à esquerda, textos alinhados à direita. Botão “Comprar” 72×28 px.</li>
+        <li><strong>Tooltip de item:</strong> 240–260 px de largura, blocos de texto com <code>Wrap Text At</code> 220 px; seções separadas por <code>Separator</code> de 1 px com margem 8 px.</li>
+        <li><strong>Preview 3D (equipamentos):</strong> <code>SceneCaptureComponent2D</code> renderizando para <code>RenderTarget</code> 256×256 px dentro de <code>Image</code> com <code>Brush</code> de textura; envolva em <code>Border</code> 280×280 px.</li>
+      </ul>
+    </section>
+
+    <section id="enums" class="tab-section">
+      <h1>Enums do Legado (Mapa ➜ UE5)</h1>
+      <p class="text-muted">Lista completa das <code>enum</code> encontradas em <code>Source Main 5.2</code> com o papel que cumprem. Use-as para nomear <em>GameplayTags</em>, <code>DataTables</code> e <code>enum class</code> em UE5 mantendo compatibilidade sem replicar código de rede antigo.</p>
+
+      <div class="accordion" id="enumAccordion">
+        <div class="accordion-item">
+          <h2 class="accordion-header" id="heading-ui">
+            <button class="accordion-button" type="button" data-bs-toggle="collapse" data-bs-target="#collapse-ui" aria-expanded="true" aria-controls="collapse-ui">
+              UI e Janelas (layouts, botões, listas de imagem)
+            </button>
+          </h2>
+          <div id="collapse-ui" class="accordion-collapse collapse show" aria-labelledby="heading-ui" data-bs-parent="#enumAccordion">
+            <div class="accordion-body">
+              <ul class="list-group list-group-flush">
+                <li class="list-group-item"><strong>CGFxFontConfigParser.h:</strong> <code>TokenType</code>, <code>ProviderType</code> — tokens/provedores ao parsear arquivos de fonte/atlas da UI.</li>
+                <li class="list-group-item"><strong>CGFxMainUi.h:</strong> <code>SKILLTEXTURETYPE</code> — seleção de páginas de textura de ícones de skill.</li>
+                <li class="list-group-item"><strong>CGFxProcess.h:</strong> <code>KeyModifiers</code>, <code>GFxRegistType</code> — mapeamento de modificadores de entrada e tipos de registro para widgets Scaleform.</li>
+                <li class="list-group-item"><strong>CreditWin.h / UIMapName.h:</strong> <code>SHOW_STATE</code> — estados de exibição de créditos ou do nome de mapa.</li>
+                <li class="list-group-item"><strong>MsgWin.h:</strong> <code>MSG_WIN_TYPE</code> — variantes de janelas de mensagem modais.</li>
+                <li class="list-group-item"><strong>ServerSelWin.h / ServerGroup.h:</strong> <code>SERVER_SELECT_WIN</code>, <code>SERVER_BTN_POSITION</code> — posições e estados dos botões da tela de seleção de servidor.</li>
+                <li class="list-group-item"><strong>UIBaseDef.h:</strong> <code>VERTEX_POS</code>, <code>CHANGE_PRAM</code> — vértices e parâmetros de transformação dos elementos da UI.</li>
+                <li class="list-group-item"><strong>UIControls.h:</strong> <code>UISTATES</code>, <code>UIOPTIONS</code>, <code>UI_MESSAGE_ENUM</code>, <code>UILISTBOX_SCROLL_TYPE</code>, <code>REQUEST_REWARD_CLASSIFY</code>, <code>IMAGE_LISTBOX_SIZE</code>, <code>IMAGE_RADIOBUTTON</code>, <code>SIZE_BTN</code>, <code>STATE_BUTTON</code> — estados genéricos de controles, tamanhos de listbox e estilos de botões.</li>
+                <li class="list-group-item"><strong>UIWindows.h:</strong> <code>UIWINDOWSTYLE</code>, <code>UIWINDOWSTYPE</code>, <code>UIADDWINDOWOPTION</code> — estilos e flags de janelas UMG.</li>
+                <li class="list-group-item"><strong>UIGuardsMan.h:</strong> <code>REG_STATUS</code> — status de registro em NPCs guardas.</li>
+                <li class="list-group-item"><strong>UIGuildInfo.h / UIGuildInfo.cpp:</strong> <code>GUILD_STATUS</code>, <code>GUILD_TYPE</code>, <code>GUILD_RELATIONSHIP</code>, <code>eAppointType</code> — estados e relações de guilda para paineis.</li>
+                <li class="list-group-item"><strong>UIGuildMaster.h:</strong> <code>eCurrentMode</code>, <code>eCurrentStep</code> — fluxo de criação/administração de guilda.</li>
+                <li class="list-group-item"><strong>UIJewelHarmony.h:</strong> <code>StrengthenItem</code> — etapas de reforço/joia na janela de harmony.</li>
+                <li class="list-group-item"><strong>UIPopup.h:</strong> <code>POPUP_ALIGN</code> — alinhamentos de popups.</li>
+                <li class="list-group-item"><strong>UISenatus.h:</strong> <code>NPC_NUMBERS</code>, <code>MAX_LEVELS</code>, <code>LEVEL_VALUES</code>, <code>TAX_RATES</code>, <code>NPCUPGRADE_VALUES</code> — níveis e taxas exibidos no painel de Senatus.</li>
+                <li class="list-group-item"><strong>NewUICommon.h:</strong> <code>KEY_STATE</code> — estados de tecla usados em hotkeys.</li>
+                <li class="list-group-item"><strong>NewUIButton.h:</strong> <code>BUTTON_STATE</code>, <code>RADIOGROUPEVENT</code> — estados de botão e eventos de radio group.</li>
+                <li class="list-group-item"><strong>NewUICastleWindow.h:</strong> <code>IMAGE_LIST</code>, <code>CASTLE_MSGBOX_REQUEST</code>, <code>CURR_OPEN_TAB_BUTTON</code> — atlas e tabs da janela de Castle Siege.</li>
+                <li class="list-group-item"><strong>NewUICatapultWindow.h:</strong> <code>IMAGE_LIST</code>, <code>CATAPULT_TYPE</code> — sprites e tipos de catapult em Siege.</li>
+                <li class="list-group-item"><strong>NewUICursedTempleEnter/Result/System.h:</strong> <code>IMAGE_LIST</code>, <code>UI_SIZE</code> — layouts e atlas do minigame Cursed Temple.</li>
+                <li class="list-group-item"><strong>NewUICryWolf.h / NewUIKanturuEvent.h:</strong> <code>IMAGE_LIST</code>, <code>MSGBOX_TYPE</code> — janelas de eventos Crywolf/Kanturu.</li>
+                <li class="list-group-item"><strong>NewUIBloodCastleEnter/Time/ChaosCastleTime.h:</strong> <code>IMAGE_LIST</code>, <code>BLOODCASTLE_TIME_WINDOW_SIZE</code>, <code>ENTERBC_WINDOW_SIZE</code>, <code>ENTERBC_ENTERBTN_STATE</code> — dimensões e estados de botões das janelas de evento.</li>
+                <li class="list-group-item"><strong>NewUIBattleSoccerScore.h:</strong> <code>IMAGE_LIST</code> — sprites do placar.</li>
+                <li class="list-group-item"><strong>NewUIBuffWindow.h:</strong> <code>IMAGE_LIST</code>, <code>BUFF_RENDER</code> — renderização de ícones de buff.</li>
+                <li class="list-group-item"><strong>NewUICharacterInfoWindow.h:</strong> <code>IMAGE_LIST</code> — atlas do painel de status.</li>
+                <li class="list-group-item"><strong>NewUIChatInputBox.h:</strong> <code>INPUT_MESSAGE_TYPE</code>, <code>INPUT_TOOLTIP_TYPE</code>, <code>IMAGE_LIST</code>, <code>EVENT_STATE</code> — estados do chat e tooltips.</li>
+                <li class="list-group-item"><strong>NewUIChatLogWindow.h:</strong> <code>MESSAGE_TYPE</code>, <code>IMAGE_LIST</code>, <code>EVENT_STATE</code> — filtros de log e eventos UI.</li>
+                <li class="list-group-item"><strong>NewUICommandWindow.h:</strong> <code>eIMAGE_LIST</code>, <code>eCOMMAND_WINDOW_SIZE</code> — atlas e dimensões do painel de comandos.</li>
+                <li class="list-group-item"><strong>NewUICommonMessageBox.h:</strong> <code>EVENT_STATE</code>, <code>BTN_SIZE_TYPE</code> — estados e tamanhos de botões em message boxes.</li>
+                <li class="list-group-item"><strong>NewUICustomMessageBox.h:</strong> <code>KEYPAD_TYPE</code>, <code>GUILD_STATUS</code> — tipo de teclado virtual e estados de guilda exibidos.</li>
+                <li class="list-group-item"><strong>NewUIDoppelGangerFrame/Window.h:</strong> <code>IMAGE_LIST</code>, <code>DOPPELGANGER_FRAME_WINDOW_SIZE</code> — atlas e tamanhos da interface do evento.</li>
+                <li class="list-group-item"><strong>NewUIDuelWatch* / NewUIDuelWindow.h:</strong> <code>IMAGE_LIST</code> — visuais das janelas de duelo/assistir.</li>
+                <li class="list-group-item"><strong>NewUIEmpireGuardianNPC/Timer.h:</strong> <code>EG_DAY_MAP_LIST</code>, <code>IMAGE_LIST</code>, <code>EMPIREGUARDIAN_TIME_WINDOW_SIZE</code> — mapas/dias e layouts do evento Empire Guardian.</li>
+                <li class="list-group-item"><strong>NewUIEnterDevilSquare.h:</strong> <code>IMAGE_LIST</code>, <code>ENTERDS_WINDOW_SIZE</code>, <code>ENTERDS_ENTERBTN_STATE</code> — UI de entrada no Devil Square.</li>
+                <li class="list-group-item"><strong>NewUIExchangeLuckyCoin.h / NewUIRegistrationLuckyCoin.h:</strong> <code>IMAGE_LIST</code>, <code>ENTERBC_WINDOW_SIZE</code> — telas de registro/troca de Lucky Coin.</li>
+                <li class="list-group-item"><strong>NewUIGateSwitchWindow.h / NewUIGatemanWindow.h:</strong> <code>IMAGE_LIST</code> — botões e ícones de gatekeeper.</li>
+                <li class="list-group-item"><strong>NewUIGensRanking.h:</strong> <code>IMAGE_LIST</code>, <code>IMAGE_SIZE</code>, <code>GENS_TYPE</code>, <code>IMAGE_INDEX</code>, <code>IMAGE_AREA</code> — layout do ranking Gens.</li>
+                <li class="list-group-item"><strong>NewUIGoldBowmanWindow/Lena.h:</strong> <code>IMAGE_LIST</code> — sprites das janelas de NPC Gold Bowman.</li>
+                <li class="list-group-item"><strong>NewUIGuardWindow.h:</strong> <code>IMAGE_LIST</code>, <code>CURR_OPEN_TAB_BUTTON</code> — tabs e atlas de guardas.</li>
+                <li class="list-group-item"><strong>NewUIGuildInfoWindow.h:</strong> <code>IMAGE_LIST</code>, <code>EVENT_STATE</code>, <code>BUTTON_EVENT</code> — estados e botões do painel de guilda.</li>
+                <li class="list-group-item"><strong>NewUIGuildMakeWindow.h:</strong> <code>IMAGE_LIST</code>, <code>GUILDMAKE_STATE</code> — fluxos de criação de guilda.</li>
+                <li class="list-group-item"><strong>NewUIHeroPositionInfo.h:</strong> <code>IMAGE_LIST</code>, <code>HERO_POSITION_INFO_BASE_WINDOW_SIZE</code> — base da janela de posições de heróis.</li>
+                <li class="list-group-item"><strong>NewUIInventoryCtrl.h:</strong> <code>TOOLTIP_TYPE</code>, <code>SQUARE_COLOR_STATE</code>, <code>EVENT_STATE</code>, <code>IMAGE_LIST</code> — tipos de tooltip, cores e estados da grid de inventário.</li>
+                <li class="list-group-item"><strong>NewUIItemEnduranceInfo.h:</strong> <code>IMAGE_LIST</code>, <code>IMAGE_SIZE</code>, <code>ITEM_DUR_ARROW_TYPE</code> — ícones e setas de durabilidade.</li>
+                <li class="list-group-item"><strong>NewUILuckyItemWnd.h:</strong> <code>eNEWUIFRAME</code>, <code>eIMGLIST</code>, <code>eLUCKYITEMTYPE</code>, <code>eLUCKYITEM</code> — categorias e frames para itens “Lucky”.</li>
+                <li class="list-group-item"><strong>NewUIMainFrameWindow.h:</strong> <code>KINDOFSKILL</code>, <code>EVENT_STATE</code>, <code>IMAGE_LIST</code> — tipos de skill exibidos no frame principal.</li>
+                <li class="list-group-item"><strong>NewUIMasterLevel.h:</strong> <code>IMAGE_LIST</code>, <code>MASTER_DATA</code>, <code>EVENT_STATE</code> — dados e eventos da UI de master level.</li>
+                <li class="list-group-item"><strong>NewUIMessageBox.h:</strong> <code>CALLBACK_RESULT</code>, <code>INSTANCE_STATE</code>, <code>EVENT_STATE</code>, <code>IMAGE_LIST</code> — resultados e estados das message boxes.</li>
+                <li class="list-group-item"><strong>NewUIMiniMap.h:</strong> <code>IMAGE_LIST</code>, <code>MASTER_DATA</code>, <code>EVENT_STATE</code> — estilos e modos do minimapa.</li>
+                <li class="list-group-item"><strong>NewUIMixInventory.h:</strong> <code>IMAGE_LIST</code>, <code>MIX_STATE</code> — passos do mix/chaos em UI.</li>
+                <li class="list-group-item"><strong>NewUIMoveCommandWindow.h:</strong> <code>IMAGE_LIST</code>, <code>MOVECOMMAND_MOUSE_EVENT</code> — eventos do comando de movimento.</li>
+                <li class="list-group-item"><strong>NewUIMyInventory.h:</strong> <code>IMAGE_LIST</code>, <code>REPAIR_MODE</code>, <code>MYSHOP_MODE</code>, <code>ITEM_OPTION</code> — modos da UI de inventário/loja pessoal.</li>
+                <li class="list-group-item"><strong>NewUIMyQuestInfoWindow.h:</strong> <code>IMAGE_LIST</code>, <code>TAB_BUTTON_INDEX</code> — abas do painel de quests.</li>
+                <li class="list-group-item"><strong>NewUIMyShopInventory.h:</strong> <code>IMAGE_LIST</code>, <code>SHOPTYEP</code> — modos da loja pessoal.</li>
+                <li class="list-group-item"><strong>NewUINPCDialogue.cpp / NewUINPCDialogue.h:</strong> <code>GENS_JOINING_ERR_CODE</code>, <code>GENS_SECEDE_ERR_CODE</code>, <code>GENS_REWARD_ERR_CODE</code>, <code>IMAGE_LIST</code>, <code>LOWER_VIEW_MODE</code> — erros e modos de visualização em diálogos de NPC.</li>
+                <li class="list-group-item"><strong>NewUINPCQuest.h / NewUINPCShop.h / NewUIOptionWindow.h:</strong> <code>IMAGE_LIST</code> — atlas genéricos de NPC/Options.</li>
+                <li class="list-group-item"><strong>NewUIPartyInfoWindow.h / NewUIPartyListWindow.h:</strong> <code>IMAGE_LIST</code>, <code>PARTY_WINDOW_SIZE</code>, <code>PARTY_BG_COLOR</code> — layout das janelas de party.</li>
+                <li class="list-group-item"><strong>NewUIPetInfoWindow.h:</strong> <code>IMAGE_LIST</code>, <code>CUR_OPEN_TAB_BUTTON</code>, <code>EVENT_STATE</code> — tabs e estados da UI de pet.</li>
+                <li class="list-group-item"><strong>NewUIPurchaseShopInventory.h:</strong> <code>IMAGE_LIST</code> — sprites do inventário de compra.</li>
+                <li class="list-group-item"><strong>NewUIQuestProgress.h / NewUIQuestProgressByEtc.h:</strong> <code>IMAGE_LIST</code>, <code>LOWER_VIEW_MODE</code> — modos de exibição de progresso de quest.</li>
+                <li class="list-group-item"><strong>NewUIQuickCommandWindow.h:</strong> <code>IMAGE_LIST</code> — atalhos rápidos.</li>
+                <li class="list-group-item"><strong>NewUIRenderNumber.h:</strong> <code>IMAGE_LIST</code> — atlas para números renderizados na UI.</li>
+                <li class="list-group-item"><strong>NewUIScrollBar.h:</strong> <code>KEnumTypeIMAGE_LIST</code>, <code>KEnumTypeSCROLLBTN</code>, <code>KEnumTypeSCROLLBAR_MOUSEBTN</code> — estados de scrollbars.</li>
+                <li class="list-group-item"><strong>NewUISeigeWarfare.h / NewUISiegeWarBase.h / NewUISiegeWarCommander.h:</strong> <code>SIEGEWAR_TYPE</code>, <code>IMAGE_LIST</code>, <code>FRAME_SIZE</code>, <code>MIMIMAP_COMMAND</code> — comandos e frames da UI de guerra.</li>
+                <li class="list-group-item"><strong>NewUIStorageInventory.h:</strong> <code>IMAGE_LIST</code>, <code>STORAGE_BUTTON</code> — botões do baú.</li>
+                <li class="list-group-item"><strong>NewUITrade.h:</strong> <code>IMAGE_LIST</code>, <code>TRADE_BUTTON</code> — botões do trade.</li>
+                <li class="list-group-item"><strong>NewUIUnitedMarketPlaceWindow.h / NewUIWindowMenu.h:</strong> <code>IMAGE_LIST</code> — atlas de marketplace e menu.</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+
+        <div class="accordion-item">
+          <h2 class="accordion-header" id="heading-items">
+            <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapse-items" aria-expanded="false" aria-controls="collapse-items">
+              Itens, Inventário, Mix e Socket
+            </button>
+          </h2>
+          <div id="collapse-items" class="accordion-collapse collapse" aria-labelledby="heading-items" data-bs-parent="#enumAccordion">
+            <div class="accordion-body">
+              <ul class="list-group list-group-flush">
+                <li class="list-group-item"><strong>ZzzInventory.h:</strong> <code>_COLUMN_TYPE</code>, <code>ITEMSETOPTION</code>, <code>SKILL_TOOLTIP_RENDER_POINT</code> — colunas de grid, opções de set e âncoras de tooltip.</li>
+                <li class="list-group-item"><strong>NewUIInventoryCtrl.h / NewUIStorageInventory.h / NewUIMyInventory.h / NewUIMixInventory.h:</strong> enums de slot (<code>SQUARE_COLOR_STATE</code>), botões (<code>STORAGE_BUTTON</code>), modos (<code>REPAIR_MODE</code>, <code>MYSHOP_MODE</code>, <code>MIX_STATE</code>) e opções (<code>ITEM_OPTION</code>) usados para sincronizar a UI de itens.</li>
+                <li class="list-group-item"><strong>SocketSystem.h:</strong> <code>_SOCKET_OPTION_TYPE</code>, <code>_SOCKET_OPTION_CATEGORY</code>, <code>_SOCKET_OPTIONS</code>, <code>_SOCKET_BONUS_OPTIONS</code> — categorias e bônus de opções de socket.</li>
+                <li class="list-group-item"><strong>MixMgr.h:</strong> <code>_SPECIAL_ITEM_RECIPE_</code>, <code>_MIX_TYPES_</code>, <code>_MIXRATE_OPS</code>, <code>_MIX_SOURCE_STATUS</code> — receitas de chaos mix, tipos e taxas.</li>
+                <li class="list-group-item"><strong>UIJewelHarmony.h / _enum.h:</strong> <code>StrengthenItem</code>, <code>eGEMTYPE</code>, <code>eGEMINDEXTYPE</code>, <code>_GEMTYPE</code>, <code>E_WINGMIXCHAR_SEQUENCE</code> — tipos de joias/wing mix e sequências de fortalecimento.</li>
+                <li class="list-group-item"><strong>_enum.h (itens):</strong> <code>ITEM_EX_SRC_TYPE</code>, <code>ITEM_COLORSTATE</code>, <code>eTYPEBOW</code> — fontes/exibição de itens e categorização de armas.</li>
+                <li class="list-group-item"><strong>GameShop (MsgBox*, InGameShopSystem):</strong> enums como <code>IMAGE_IGS_* </code>, <code>IMAGESIZE_IGS_* </code>, <code>IGS_*_POS</code>, <code>IGS_PACKAGE_GOODS_TYPE</code>, <code>IGS_PACKAGE_ATTRIBUTE_TYPE</code>, <code>IGS_PRODUCT_ATTRIBUTE_TYPE</code>, <code>IGS_ETC</code> — atlas, tamanhos e tipos de pacotes da CashShop.</li>
+                <li class="list-group-item"><strong>GameShop/NewUIInGameShop.h:</strong> <code>LISTBOX_INDEX</code>, <code>IMAGE_LIST</code>, <code>INGAMESHOP_TEXT_INFO</code>, <code>INGAMESHOP_IMAGES_POS</code>, <code>INGAMESHOP_IMAGES_SIZE</code>, <code>INGAMESHOP_DISPLAY_ITEMS</code> — índices e dimensões das listas da loja.</li>
+                <li class="list-group-item"><strong>GameShop/ShopListManager/Include.h:</strong> <code>FTP_SERVICE_MODE</code>, <code>FILE_ENCODE</code> — modos de distribuição/encoding de listas de shop.</li>
+                <li class="list-group-item"><strong>GameShop/ShopListManager/interface/DownloadInfo.h:</strong> <code>_DownloaderType</code> — origem dos downloads de catálogo.</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+
+        <div class="accordion-item">
+          <h2 class="accordion-header" id="heading-gameplay">
+            <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapse-gameplay" aria-expanded="false" aria-controls="collapse-gameplay">
+              Sistemas de Jogo, Eventos e Estados
+            </button>
+          </h2>
+          <div id="collapse-gameplay" class="accordion-collapse collapse" aria-labelledby="heading-gameplay" data-bs-parent="#enumAccordion">
+            <div class="accordion-body">
+              <ul class="list-group list-group-flush">
+                <li class="list-group-item"><strong>MapManager.h:</strong> <code>ENUM_WORLD</code> — IDs de mapas para warp/travel.</li>
+                <li class="list-group-item"><strong>PhysicsManager.h:</strong> <code>ENUM_COLLISION_TYPE</code> — tipos de colisão usados em movimentação/cheat-check.</li>
+                <li class="list-group-item"><strong>QuestMng.h / UIControls.h:</strong> <code>REQUEST_REWARD_CLASSIFY</code> — classificação de recompensas de quest.</li>
+                <li class="list-group-item"><strong>SkillManager.h:</strong> <code>ActionSkillType</code> — classificação das skills para tabelas e GAS.</li>
+                <li class="list-group-item"><strong>WSclient.h:</strong> <code>GUILD_REQ_COMMON_RESULT</code>, <code>QUEST_REQUEST_TYPE</code>, <code>QUEST_REWARD_TYPE</code>, <code>CASTLESIEGE_STATE</code> — resultados de guilda, tipos de quest e fases de Castle Siege.</li>
+                <li class="list-group-item"><strong>DuelMgr.h:</strong> <code>_DUEL_PLAYER_TYPE</code> — papéis em duelos.</li>
+                <li class="list-group-item"><strong>GMEmpireGuardian1.h:</strong> <code>WEATHER_TYPE</code> — clima do evento.</li>
+                <li class="list-group-item"><strong>GM_Raklion.h:</strong> <code>RAKLION_STATE</code>, <code>RAKLION_BATTLE_OF_SELUPAN_PATTERN</code> — fases e padrões do boss Raklion.</li>
+                <li class="list-group-item"><strong>MonkSystem.h:</strong> <code>ATTACK_FRAME</code> — frames de ataque do Monk.</li>
+                <li class="list-group-item"><strong>GCCertification.h:</strong> <code>eGAMECHURETURN</code> — códigos de retorno de certificação/anticheat.</li>
+                <li class="list-group-item"><strong>ProtocolAsio.h / ProtocolSend.h:</strong> <code>class</code>, <code>owner</code>, <code>ProtocolHead</code> — cabeçalhos/identificadores usados na antiga pilha de protocolo (agora referencia para naming de RPCs).</li>
+                <li class="list-group-item"><strong>ReadScript.h:</strong> <code>SMDToken</code> — tokens de parsing de scripts.</li>
+                <li class="list-group-item"><strong>_enum.h (sistemas e eventos):</strong> <code>eCursedTempleState</code>, <code>eCursedTempleTeam</code>, <code>INTERFACE_LIST</code>, <code>InfoTextType</code>, <code>ENUM_MUSIC</code>, <code>ENUM_KEYPADMODE</code>, <code>CLASS_TYPE</code>, <code>MonsterSkillType</code>, <code>PetCommandType</code>, <code>OptionType</code>, <code>POPUP_MESSAGE</code>, <code>PET_TYPE</code>, <code>PET_COMMAND</code>, <code>MATCH_TYPE</code>, <code>COMMAND_TYPE</code>, <code>CRYWOLF_OCCUPATION_STATE_TYPE</code>, <code>CRYWOLF_STATE_TYPE</code>, <code>CRYWOLF_ALTAR_STATE</code>, <code>KANTURU_STATE_TYPE</code>, <code>KANTURU_MAYA_DIRECTION_TYPE</code>, <code>KANTURU_NIGHTMARE_DIRECTION_TYPE</code>, <code>KANTURU_TOWER_STATE_TYPE</code>, <code>_METHOD</code>, <code>_COMTYPE</code>, <code>_STATE</code>, <code>_ERRORTYPE</code>, <code>eCursorType</code>, <code>eTypeSkill</code>, <code>eBuffClass</code>, <code>eBuffState</code>, <code>eBuffTimeType</code>, <code>eBuffValueLoadType</code> — estados globais de eventos, classes, skills e buffs.</li>
+                <li class="list-group-item"><strong>_enum.h (visuais/itens especiais):</strong> <code>ITEM_EX_SRC_TYPE</code>, <code>ITEM_COLORSTATE</code>, <code>eTYPEBOW</code>, <code>eGEMTYPE</code>, <code>eGEMINDEXTYPE</code>, <code>_GEMTYPE</code>, <code>E_WINGMIXCHAR_SEQUENCE</code> — fontes e categorias especiais usados em rendering/upgrade.</li>
+                <li class="list-group-item"><strong>NewUISeigeWarfare.h / NewUIBattleSoccerScore.h:</strong> enums como <code>SIEGEWAR_TYPE</code> e atlas para estados de partidas PvP.</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+
+        <div class="accordion-item">
+          <h2 class="accordion-header" id="heading-shop">
+            <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapse-shop" aria-expanded="false" aria-controls="collapse-shop">
+              CashShop, NPC Shops e Economia
+            </button>
+          </h2>
+          <div id="collapse-shop" class="accordion-collapse collapse" aria-labelledby="heading-shop" data-bs-parent="#enumAccordion">
+            <div class="accordion-body">
+              <ul class="list-group list-group-flush">
+                <li class="list-group-item"><strong>GameShop/MsgBoxIGS*.h:</strong> <code>IMAGE_IGS_BUY_SELECT_ITEM</code>, <code>IMAGESIZE_IGS_BUY_SELECT_ITEM</code>, <code>IGS_BUY_SELECT_ITEM</code>, <code>IMAGE_IGS_COMMON</code>, <code>IMAGESIZE_IGS_COMMON</code>, <code>IGS_COMMON_POS</code>, <code>IGS_COMMON_ETC</code>, <code>IMAGE_IGS_USEITEM_CONFIRM</code>, <code>IMAGE_IGS_USEITEM_CONFIRM_SIZE</code>, <code>IGS_USEITEM_CONFIRM_POS</code>, <code>IMAGE_IGS_BUY_PACKAGE_ITEM</code>, <code>IMAGESIZE_IGS_BUY_PACKAGE_ITEM</code>, <code>IGS_BUY_PACKAGE_ITEM_POS</code>, <code>IMAGE_IGS_USEBUFF_CONFIRM</code>, <code>IMAGE_IGS_USEBUFF_CONFIRM_SIZE</code>, <code>IGS_USEBUFF_CONFIRM_POS</code>, <code>IMAGE_IGS_SEND_GIFT</code>, <code>IMAGESIZE_IGS_SEND_GIFT</code>, <code>IGS_SEND_GIFT_POS</code>, <code>IMAGE_IGS_DEL_ITEM_CONFIRM</code>, <code>IMAGESIZE_IGS_DEL_ITEM_CONFIRM</code>, <code>IGS_DEL_ITEM_CONFIRM_POS</code>, <code>IMAGE_IGS_SEND_GIFT_CONFIRM</code>, <code>IMAGESIZE_IGS_SEND_GIFT_CONFIRM</code>, <code>IGS_SEND_GIFT_CONFIRM_POS</code>, <code>IMAGE_IGS_STORAGE_ITEM_INFO</code>, <code>IMAGESIZE_IGS_STORAGE_ITEM_INFO</code>, <code>IGS_STORAGE_ITEM_INFO_POS</code>, <code>IMAGE_IGS_GIFT_STORAGE_ITEM_INFO</code>, <code>IMAGESIZE_IGS_GIFT_STORAGE_ITEM_INFO</code>, <code>IGS_GIFT_STORAGE_ITEM_INFO_POS</code> — atlas/tamanhos das diversas caixas de confirmação da CashShop.</li>
+                <li class="list-group-item"><strong>NewUIInGameShop.h:</strong> <code>LISTBOX_INDEX</code>, <code>IMAGE_LIST</code>, <code>INGAMESHOP_TEXT_INFO</code>, <code>INGAMESHOP_IMAGES_POS</code>, <code>INGAMESHOP_IMAGES_SIZE</code>, <code>INGAMESHOP_DISPLAY_ITEMS</code> — listas, posições e slots de exibição de produtos.</li>
+                <li class="list-group-item"><strong>NewUIPurchaseShopInventory.h / NewUINPCShop.h / NewUIMyShopInventory.h:</strong> enums de <code>IMAGE_LIST</code>, <code>SHOPTYEP</code> — modos e atlas de inventário de compra/venda e loja pessoal.</li>
+                <li class="list-group-item"><strong>NewUIGoldBowmanWindow/Lena.h, NewUIUnitedMarketPlaceWindow.h:</strong> <code>IMAGE_LIST</code> — sprites de NPC shops especiais e marketplace.</li>
+                <li class="list-group-item"><strong>UISenatus.h (taxas) e WSclient.h (CASTLESIEGE_STATE):</strong> usados para impostos e estado econômico durante eventos.</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+
+        <div class="accordion-item">
+          <h2 class="accordion-header" id="heading-pets">
+            <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapse-pets" aria-expanded="false" aria-controls="collapse-pets">
+              Pets, AI auxiliar e estados de ação
+            </button>
+          </h2>
+          <div id="collapse-pets" class="accordion-collapse collapse" aria-labelledby="heading-pets" data-bs-parent="#enumAccordion">
+            <div class="accordion-body">
+              <ul class="list-group list-group-flush">
+                <li class="list-group-item"><strong>w_BasePet.h / w_PetActionCollecter*.h / w_PetActionUnicorn.h:</strong> <code>ActionType</code>, <code>ActionState</code> — FSM de pets coletores/unicorn para AI básica.</li>
+                <li class="list-group-item"><strong>_enum.h (pets):</strong> <code>PetCommandType</code>, <code>PET_TYPE</code>, <code>PET_COMMAND</code> — tipos de pets e comandos (seguir, atacar, coletar).</li>
+                <li class="list-group-item"><strong>NewUIPetInfoWindow.h:</strong> <code>CUR_OPEN_TAB_BUTTON</code>, <code>EVENT_STATE</code>, <code>IMAGE_LIST</code> — tabs/estados da UI de pet.</li>
+                <li class="list-group-item"><strong>MonsterSkillType / eTypeSkill (em _enum.h) e <code>ActionSkillType</code> (SkillManager.h):</strong> classificação de skills usada por mobs e pets para AI.</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+
+        <div class="accordion-item">
+          <h2 class="accordion-header" id="heading-utils">
+            <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapse-utils" aria-expanded="false" aria-controls="collapse-utils">
+              Utilidades, Logging e Infra
+            </button>
+          </h2>
+          <div id="collapse-utils" class="accordion-collapse collapse" aria-labelledby="heading-utils" data-bs-parent="#enumAccordion">
+            <div class="accordion-body">
+              <ul class="list-group list-group-flush">
+                <li class="list-group-item"><strong>ExternalObject/Leaf/*.h/.cpp:</strong> <code>KEYWORD_TYPE</code>, <code>ReplacesCorHdrNumericDefines</code>, <code>_HKEY</code>, <code>XBUF_POS</code> — enums auxiliares para logging, PE parsing e buffers.</li>
+                <li class="list-group-item"><strong>LauncherHelper.cpp:</strong> <code>_HKEY</code> — chaves de registro do launcher.</li>
+                <li class="list-group-item"><strong>FxPlayerLog.h:</strong> <code>ConsoleColor</code> — cores de console para logs.</li>
+                <li class="list-group-item"><strong>Utilities/Log/muConsoleDebug.h:</strong> <code>MSG_TYPE</code> — tipos de mensagens de depuração.</li>
+                <li class="list-group-item"><strong>Utilities/Log/WindowsConsole.h:</strong> <code>COLOR_INDEX</code> — índices de cor do console Windows.</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section id="legacy-mapping" class="tab-section">
+      <h1>Arquivos do Código Legado Referenciados</h1>
+      <p class="text-muted">Use esta lista para localizar rapidamente os pontos do código original que inspiram cada guia. Caminhos relativos a <code>Source MuServer Update 15/GameServer/GameServer/</code>.</p>
+      <h2 class="section-title">Core, Login e Lobby</h2>
+      <ul>
+        <li><code>User.cpp</code> / <code>User.h</code>: autenticação, seleção de personagem e validações de estado de conexão.</li>
+        <li><code>Protocol.cpp</code> e <code>JSProtocol.cpp</code>: fluxo de handshake/login com JoinServer.</li>
+        <li><code>Connection.h</code>: gerenciamento de sockets/conexões que inspiram a migração para RPCs.</li>
+      </ul>
+      <h2 class="section-title">Mundo, Gate/Warp e Movimentação</h2>
+      <ul>
+        <li><code>MapManager.cpp</code>: cadastro de mapas, regras de entrada e checagens de terreno.</li>
+        <li><code>Gate.cpp</code> / <code>Gate.h</code>: definição de portões/warps e restrições de uso.</li>
+        <li><code>Move.h</code> e <code>ObjectManager.cpp</code>: lógica de movimentação e sincronização de objetos.</li>
+      </ul>
+      <h2 class="section-title">Dados de Personagem e Progressão</h2>
+      <ul>
+        <li><code>ExperienceTable.h</code> e <code>GameMain.cpp</code>: tabelas e cálculos de XP/level.</li>
+        <li><code>MasterSkillTree.cpp</code>: progressão avançada e efeitos passivos.</li>
+        <li><code>User.cpp</code>: manipulação de stats base, dinheiro e eventos de level up.</li>
+      </ul>
+      <h2 class="section-title">Inventário, Baú e Itens</h2>
+      <ul>
+        <li><code>EventInventory.cpp</code> / <code>EventInventory.h</code> e <code>InventoryEquipment.cpp</code>: grid, troca de slots e bloqueios de uso.</li>
+        <li><code>Item.cpp</code> / <code>Item.h</code> e <code>ItemMove.cpp</code>: criação, movimentação e validações de itens.</li>
+        <li><code>ItemBag.cpp</code>, <code>ItemBagEx.h</code> e <code>380ItemOption.cpp</code>: tabelas de drop, opções adicionais e regras especiais.</li>
+      </ul>
+      <h2 class="section-title">AI de Mobs, Skills e Drops</h2>
+      <ul>
+        <li><code>Monster.cpp</code> e <code>MonsterAIElement.cpp</code>: estados e tomada de decisão dos mobs.</li>
+        <li><code>MonsterAIMovePath.cpp</code> e <code>MonsterSkillManager.cpp</code>: rotas de movimentação e uso de habilidades.</li>
+        <li><code>Attack.cpp</code> e <code>ItemBag.cpp</code>: cálculo de dano e geração de loot após morte.</li>
+      </ul>
+      <h2 class="section-title">Economia, Trade e Shops</h2>
+      <ul>
+        <li><code>Shop.cpp</code> / <code>ShopManager.cpp</code>: estoques e preços de NPCs.</li>
+        <li><code>Trade.cpp</code> / <code>ItemValueTrade.cpp</code>: regras de troca entre jogadores e validações de itens.</li>
+        <li><code>CashShop.cpp</code> / <code>PersonalShop.cpp</code>: compras premium e lojas pessoais.</li>
+        <li><code>NpcTalk.cpp</code>: interação genérica com NPCs que leva a janelas de shop ou diálogos.</li>
+      </ul>
+    </section>
+  </main>
+
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+  <script>
+    document.querySelectorAll('.nav-link').forEach(function(link) {
+      link.addEventListener('click', function (event) {
+        event.preventDefault();
+        const targetId = this.getAttribute('data-target');
+
+        document.querySelectorAll('.nav-link').forEach(l => l.classList.remove('active'));
+        this.classList.add('active');
+
+        document.querySelectorAll('.tab-section').forEach(section => {
+          section.classList.remove('active');
+          if(section.id === targetId) {
+            section.classList.add('active');
+          }
+        });
+      });
+    });
+  </script>
+</body>
+</html>
