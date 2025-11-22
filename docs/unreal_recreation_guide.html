@@ -185,6 +185,20 @@
         <li><strong>Checagens de replicação:</strong> Use <code>Net PktLag</code> e <code>Net PktLoss</code> no editor para validar comportamento com latência e perda; priorize <code>Reliable</code> apenas para eventos críticos (login, compra).</li>
         <li><strong>Automação mínima:</strong> Crie testes funcionais em <code>Spec</code> ou <code>Gauntlet</code> que percorrem login &rarr; seleção &rarr; combate &rarr; compra para evitar regressões de RPC.</li>
       </ul>
+
+      <h2 class="section-title">9. Dimensões e Layouts de UI Legados</h2>
+      <p>Replique a ergonomia do cliente antigo definindo tamanhos e ancoragens equivalentes; ajuste por resolução usando <code>DPI Scaling</code> no Project Settings &rarr; User Interface.</p>
+      <ul>
+        <li><strong>HUD (barra inferior):</strong> Base 800×600 &rarr; faixa inferior 800×96 px (12% da tela). Health/Mana/SD: barras de 200×14 px com padding 12 px entre elas; painel de hotkeys 10 slots de 48×48 px com gap de 6 px. Em resoluções maiores, ancore em <em>Bottom Stretch</em> e mantenha altura relativa (0.12).</li>
+        <li><strong>Status/Character Window:</strong> Janela de ~280×360 px, separada em duas colunas (rótulo 110 px, valor 150 px). Botões de adicionar ponto: 20×20 px alinhados à direita; foto/preview do personagem em <code>SizeBox</code> de 140×180 px. Use <code>Canvas Panel</code> com <code>Slot</code> fixo e <code>ScaleBox</code> para manter proporção.</li>
+        <li><strong>Inventário:</strong> Janela ~360×440 px (ver detalhe na aba Inventário). Quando combinar com Status (layout do legado lado a lado), alinhe Inventário à esquerda e Status à direita com espaçamento de 12 px.</li>
+        <li><strong>Warehouse/Baú:</strong> Grade 8×15 com slots 32×32 px (total útil 256×480 px) dentro de painel 360×520 px. Adicione barra de rolagem vertical (<code>ScrollBox</code>) se usar mais de 15 linhas.</li>
+        <li><strong>CashShop:</strong> Overlay 640×480 px centralizado, dividido em três colunas: árvore de categorias 160 px (à esquerda), lista de itens 280 px (centro, cards 120×64 px), detalhe do item 180 px (direita). Header com saldo em 640×48 px, fonte 16 pt, ícones 24×24 px. Ative <code>Input Mode UI Only</code> e travamento do movimento enquanto aberto.</li>
+        <li><strong>Tooltips:</strong> Largura 240–260 px; título 14 pt bold, atributos 12 pt. Use <code>Vertical Box</code> com <code>Padding</code> 10–12 px e limite <code>Wrap Text At</code> em 220 px.</li>
+        <li><strong>Hotbar/Switch rápido:</strong> Se o legado exibia duas fileiras (10×2), crie duas <code>Horizontal Box</code> de 10 slots de 48×48 px e espaçamento de 6 px, ancoradas acima do chat (HUD inferior).</li>
+        <li><strong>Proporção e ancoragem:</strong> Para preservar dimensões legadas em qualquer resolução, envolva cada janela em <code>SizeBox</code> com <code>Override Width/Height</code> conforme os valores acima, e dentro use <code>ScaleBox</code> (Stretch To Fit, Preserve Aspect Ratio). Configure <code>DPI Curve</code> com 800→1.0, 1080→1.8, 1440→2.2, 2160→3.0 para manter legibilidade.</li>
+        <li><strong>Fluxo de recriação:</strong> (1) No UMG, crie Widgets independentes (HUD, Inventory, Status, CashShop). (2) Aplique <code>SizeBox</code> com dimensões do legado. (3) Ancore conforme posição original (ex.: Inventory no canto inferior direito com <code>Alignment</code> 1,1 e <code>Offset</code> negativo de 40 px). (4) Ative <code>Visibility</code> condicional por RepNotify (ex.: <code>bIsShopOpen</code>).</li>
+      </ul>
     </section>
 
     <section id="inventory" class="tab-section">
@@ -211,6 +225,7 @@
         <li><strong>Tooltips:</strong> Consomem o <code>FItemInstance</code> + <code>FItemDefinition</code> (DataAsset) para exibir requisitos e opções. Atualize automaticamente quando <code>OnRep_Inventory</code> disparar.</li>
         <li><strong>Logs/Auditoria:</strong> Cada alteração chama função server-side de log (JSON/CSV) para rastrear <em>quem/onde/quando</em>, espelhando o legado.</li>
         <li><strong>Passo-a-passo no UMG:</strong> Crie Widget Blueprint “WBP_Inventory”. Adicione <code>UniformGridPanel</code>, <code>Overlay</code> para tooltips e Binding para o componente. No <code>Event Construct</code>, armazene a referência ao <code>UInventoryComponent</code>. Implemente evento custom <code>RefreshGrid</code> chamado por <code>OnRep_Inventory</code> para criar child widgets por slot e associar drag/drop.</li>
+        <li><strong>Dimensões legadas:</strong> Para base 800×600 do cliente antigo, use painel principal de ~360×440 px com bordas de 6–8 px. Grade 8×8 com slots de 32×32 px (ícones 30×30 + 1 px de padding). Em 1080p, aplique <code>DPI Scale</code> ≈ 1.8 ou ancore o SizeBox em percentuais para manter proporção. Tooltips: largura fixa 240–260 px, altura variável, com <code>Padding</code> 12 px e textos de 12–14 pt.</li>
       </ul>
     </section>
 
@@ -264,6 +279,13 @@
         <li><strong>Economia:</strong> NPC shops consomem <code>UItemDefinition</code>; preços/impostos do legado viram DataTables referenciadas pelo servidor.</li>
         <li><strong>Persistência:</strong> Salve apenas IDs e atributos variáveis do <code>FItemInstance</code> (stack, dura, options) em vez de serializar meshes.</li>
         <li><strong>Checklist de integração:</strong> (1) Adicione coluna de preço/imposto na <code>DataTable</code> do item. (2) No <code>ShopManager</code> server-side, consuma <code>UItemDefinition</code> para montar <code>FShopStock</code>. (3) Em <code>ALootActor</code>, serialize apenas <code>ItemId</code> e atributos variáveis. (4) No salvamento, grave <code>ItemId</code>, quantidade e options como JSON para recriar <code>FItemInstance</code> ao carregar.</li>
+      </ul>
+      <h2 class="section-title">4. Dimensões de UI de Itens</h2>
+      <ul>
+        <li><strong>Ícones:</strong> Padronize 32×32 px (ou 64×64 para HD) e habilite mipmaps para escalonamento suave. Use <code>Image</code> em <code>SizeBox</code> de mesmo tamanho para evitar deformação.</li>
+        <li><strong>Cards de listagem (Shop/CashShop):</strong> 120×64 px com margem 6 px; imagem 48×48 px à esquerda, textos alinhados à direita. Botão “Comprar” 72×28 px.</li>
+        <li><strong>Tooltip de item:</strong> 240–260 px de largura, blocos de texto com <code>Wrap Text At</code> 220 px; seções separadas por <code>Separator</code> de 1 px com margem 8 px.</li>
+        <li><strong>Preview 3D (equipamentos):</strong> <code>SceneCaptureComponent2D</code> renderizando para <code>RenderTarget</code> 256×256 px dentro de <code>Image</code> com <code>Brush</code> de textura; envolva em <code>Border</code> 280×280 px.</li>
       </ul>
     </section>
 
