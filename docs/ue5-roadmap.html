@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Roadmap UE 5.7 - Cliente & Servidor</title>
+  <title>UE 5.7 - Guia fiel ao código</title>
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css">
   <style>
     body { background-color: #0f172a; color: #e2e8f0; }
@@ -19,8 +19,8 @@
   <div class="container py-4">
     <div class="d-flex flex-column flex-lg-row align-items-lg-center mb-4 gap-3">
       <div>
-        <h1 class="fw-bold">Port do Cliente + Servidor para Unreal Engine 5.7</h1>
-        <p class="lead mb-0">Guia prático, com foco em Blueprints para gameplay/UI e C++ apenas onde for crítico.</p>
+        <h1 class="fw-bold">Recriação fiel no UE 5.7</h1>
+        <p class="lead mb-0">Checklist baseado nos arquivos reais do cliente Win32 OpenGL e dos servidores C++.</p>
       </div>
       <div class="ms-lg-auto d-flex flex-wrap gap-2">
         <span class="badge bg-primary">Cliente</span>
@@ -33,11 +33,18 @@
       <div class="col-lg-6">
         <div class="card h-100">
           <div class="card-body">
-            <h3 class="section-title h5">Como usar esta página</h3>
-            <p class="mb-2">Leia o <strong>Roadmap</strong> para ter a ordem macro das entregas e depois siga o passo a passo detalhado na seção <strong>Guia UE 5.7</strong>. Marque os checklists conforme avança.</p>
+            <h3 class="section-title h5">Referências do código</h3>
+            <ul class="mb-3">
+              <li><strong>Loop/Render:</strong> <code>Winmain.cpp</code> inicializa OpenGL, UI (<code>UIWindows.h</code>, <code>UIManager.h</code>), cena (<code>ZzzScene.h</code>) e áudio (<code>wzAudio.lib</code> via <code>PlayMp3</code>/<code>StopMp3</code>).</li>
+              <li><strong>Assets:</strong> Estruturas BMD em <code>ZzzBMD.h</code> (MAX_BONES=200, MAX_MESH=50, MAX_VERTICES=15000) e scripts de textura em <code>TextureScript.h</code>.</li>
+              <li><strong>Entrada:</strong> <code>Input.h</code> controla cliques, duplo-clique, modo texto e mão-esquerda.</li>
+              <li><strong>Rede:</strong> <code>ProtocolSend.h/.cpp</code> define <code>ProtocolHead</code> (login, personagem, posição, movimento) e pacotes <code>PMSG_*_SEND/RECV</code>.</li>
+              <li><strong>UI:</strong> Fluxos de login/seleção/criação em <code>LoginWin.cpp</code>, <code>CharSelMainWin.cpp</code>, <code>CharMakeWin.cpp</code>; HUD/inventário em <code>NewUIMainFrameWindow.cpp</code>, <code>NewUIMyInventory.cpp</code>, mini-mapa em <code>NewUIMiniMap.cpp</code>.</li>
+              <li><strong>Servidor:</strong> <code>GameServer/GameServer.cpp</code> lê <code>GameServerInfo - Common.dat</code>, inicia sockets e timers; limites em <code>User.h</code> (MAX_OBJECT_USER=1000, MAX_VIEWPORT=75, MAX_CHARACTER_LEVEL=400).</li>
+            </ul>
             <div class="d-flex gap-2 flex-wrap">
               <a class="btn btn-outline-info btn-sm" href="#roadmap">Ir para Roadmap</a>
-              <a class="btn btn-outline-light btn-sm" href="#guia">Ir para Guia UE 5.7</a>
+              <a class="btn btn-outline-light btn-sm" href="#guia">Ir para Guia detalhado</a>
             </div>
           </div>
         </div>
@@ -45,498 +52,207 @@
       <div class="col-lg-6">
         <div class="card h-100">
           <div class="card-body">
-            <h3 class="section-title h5">Princípios</h3>
-            <ul class="mb-0 small">
-              <li>Usar somente <strong>assets originais</strong> (modelos, texturas, áudio) do cliente legado.</li>
-              <li>Priorizar <strong>Blueprints</strong> para UI, fluxo de jogo e scripting; usar C++ apenas para performance/integrações.</li>
-              <li>Documentar cada conversão de asset e cada chamada de rede portada.</li>
+            <h3 class="section-title h5">Pré-requisitos UE 5.7</h3>
+            <ul class="mb-2">
+              <li>Habilitar Enhanced Input, Niagara, World Partition, Editor Scripting Utilities, Python e Online Subsystem (sockets). Chaos Vehicles apenas se houver montarias.</li>
+              <li><code>Maps &amp; Modes</code>: GameInstance/GameMode C++ + BP derivado; Login.umap (Editor/Game Default), Transition.umap (Transition Map).</li>
+              <li><code>Input</code>: ações MoveX/MoveY, LookX/LookY (sensibilidade 0.5), ClickEsq/Direito, Interact, Inventory, Skills 0-9, alinhadas ao uso de <code>CInput</code>.</li>
+              <li><code>Network</code>: largura alvo 30.000 (espelha configs do servidor), frame rate fixo 60 para depurar protocolo.</li>
+              <li>Pastas recomendadas: <code>/Game/Characters</code>, <code>/Game/Environment</code>, <code>/Game/UI</code>, <code>/Game/Audio</code>, <code>/Game/Systems</code>, <code>/Game/Maps/Login</code>, <code>/Game/Maps/Select</code>, <code>/Game/Maps/World</code>.</li>
             </ul>
           </div>
         </div>
       </div>
     </div>
 
-    <section id="roadmap" class="mb-5">
-      <div class="d-flex align-items-center mb-3 gap-2">
-        <span class="badge badge-step text-dark">Roadmap</span>
-        <h2 class="mb-0">Do diagnóstico ao lançamento</h2>
+    <div id="roadmap" class="card mb-4">
+      <div class="card-body">
+        <h2 class="section-title h4">Roadmap alinhado ao código</h2>
+        <ol class="mb-0">
+          <li><strong>Inventário de assets</strong>: converter BMD respeitando limites de <code>ZzzBMD.h</code>; mapear <code>TextureScript</code> para parâmetros de materiais; registrar BGMs usados em <code>PlayMp3</code>.</li>
+          <li><strong>Projeto UE</strong>: criar GameInstance/GameMode, importar mapeamentos de Input e perfis de rede equivalentes aos do cliente.</li>
+          <li><strong>Rede</strong>: implementar cliente C++ com opcodes <code>ProtocolHead</code> e structs <code>PMSG_*</code>; thread de recepção disparando eventos Blueprint.</li>
+          <li><strong>UI e fluxo</strong>: reconstruir telas de <code>LoginWin</code>, <code>CharSelMainWin</code>, <code>CharMakeWin</code> em UMG; HUD/inventário/mini-mapa conforme os módulos <code>NewUI*</code>.</li>
+          <li><strong>Gameplay</strong>: aplicar enums ACTION_* e limites de <code>User.h</code> (nível até 400, MAX_MONEY=2.000.000.000) nas Blueprints de personagem, inventário e XP.</li>
+          <li><strong>Servidor</strong>: configurar GameServer seguindo <code>GameServer.cpp</code> (timers, sockets TCP/UDP, leitura de <code>GameServerInfo - Common.dat</code>) e replicar lógica de XP/itens/drops.</li>
+          <li><strong>QA</strong>: validar tráfego de rede (login/lista/movimento), limites de inventário/XP, e equivalência visual dos materiais/partículas.</li>
+        </ol>
       </div>
-      <div class="row g-3">
-        <div class="col-lg-4">
-          <div class="card h-100">
-            <div class="card-body">
-              <h4 class="h5">1) Diagnóstico inicial</h4>
-              <ul class="small mb-0">
-                <li>Mapear os subsistemas do cliente: render, UI, áudio, input, rede.</li>
-                <li>Listar chamadas do servidor e mensagens binárias para login, movimento e combate.</li>
-                <li>Inventariar assets proprietários (modelos BMD, texturas, animações, efeitos).</li>
-              </ul>
-            </div>
-          </div>
-        </div>
-        <div class="col-lg-4">
-          <div class="card h-100">
-            <div class="card-body">
-              <h4 class="h5">2) Fatias verticais</h4>
-              <ul class="small mb-0">
-                <li>Converter um conjunto mínimo de personagens + mapa para testar no UE 5.7.</li>
-                <li>Recriar fluxo de login e movimentação básica via Blueprints.</li>
-                <li>Validar áudio e UI (menus) usando UMG.</li>
-              </ul>
-            </div>
-          </div>
-        </div>
-        <div class="col-lg-4">
-          <div class="card h-100">
-            <div class="card-body">
-              <h4 class="h5">3) Expansão controlada</h4>
-              <ul class="small mb-0">
-                <li>Portar mapas e dungeons gradualmente, reusando materiais e colisões.</li>
-                <li>Implementar combate, buffs e efeitos visuais com Niagara.</li>
-                <li>Replicar inventário, quests e eventos sazonais.</li>
-              </ul>
-            </div>
-          </div>
-        </div>
-      </div>
+    </div>
 
-      <div class="row g-3 mt-1">
-        <div class="col-lg-4">
-          <div class="card h-100">
-            <div class="card-body">
-              <h4 class="h5">4) Rede e escalabilidade</h4>
-              <ul class="small mb-0">
-                <li>Portar protocolo do cliente legado para C++ (sockets) e expor funções Blueprint.</li>
-                <li>Garantir compatibilidade com o servidor, validando pacotes e latência.</li>
-                <li>Automatizar testes de carga e sincronismo de estado.</li>
-              </ul>
-            </div>
-          </div>
-        </div>
-        <div class="col-lg-4">
-          <div class="card h-100">
-            <div class="card-body">
-              <h4 class="h5">5) Ferramentas & QA</h4>
-              <ul class="small mb-0">
-                <li>Scripts de conversão de assets (BMD → FBX/GLTF) e auditoria de materiais.</li>
-                <li>Automação de builds e smoke tests in-engine.</li>
-                <li>Checklists de regressão para UI, rede e animações.</li>
-              </ul>
-            </div>
-          </div>
-        </div>
-        <div class="col-lg-4">
-          <div class="card h-100">
-            <div class="card-body">
-              <h4 class="h5">6) Lançamento</h4>
-              <ul class="small mb-0">
-                <li>Staging com jogadores internos, telemetria de crashes e performance.</li>
-                <li>Planos de rollback e patch rápido para hotfixes.</li>
-                <li>Entrega final com documentação e treinamentos.</li>
-              </ul>
-            </div>
-          </div>
-        </div>
-      </div>
-    </section>
-
-    <section id="guia" class="mb-4">
-      <div class="d-flex align-items-center mb-3 gap-2">
-        <span class="badge badge-step text-dark">Guia UE 5.7</span>
-        <h2 class="mb-0">Passo a passo detalhado</h2>
-      </div>
-
-      <div class="card mb-3">
-        <div class="card-body">
-          <h4 class="section-title h5">A. Preparação (Cliente + Servidor)</h4>
-          <ol class="small mb-0">
-            <li><strong>Inventariar assets</strong>: exporte modelos, texturas e animações do cliente original. Documente dependências de shaders/efeitos e nomes usados em scripts.</li>
-            <li><strong>Mapear rede</strong>: gere um diagrama das mensagens do cliente (login, seleção de personagem, movimento, combate) e confirme comportamentos esperados no servidor.</li>
-            <li><strong>Definir branch base</strong>: crie um projeto vazio no UE 5.7 com <em>Starter Content</em> desabilitado para garantir uso exclusivo dos assets originais.</li>
-          </ol>
-        </div>
-      </div>
-
-      <div class="card mb-3">
-        <div class="card-body">
-          <h4 class="section-title h5">A2. Configuração base do projeto (paridade 1:1)</h4>
-          <ol class="small mb-0">
-            <li><strong>Plugins</strong>: habilite Enhanced Input, Niagara, World Partition, Editor Scripting Utilities, Python e Online Subsystem (para sockets). Se houver veículos/montarias, habilite Chaos Vehicles.</li>
-            <li><strong>Project Settings &gt; Maps &amp; Modes</strong>: GameInstance (C++), GameMode base (C++ + BP derivado); Editor Startup Map = <code>Login.umap</code>, Game Default Map = <code>Login.umap</code>, Transition Map = <code>Transition.umap</code>.</li>
-            <li><strong>Input Mapping Context (IMC_Legacy)</strong>: ações Move (Axis X/Y), Look (Axis, Scale 0.5), Jump, Attack, Interact, Inventory, Skill1..Skill0. Ajuste escalas conforme resposta do cliente original.</li>
-            <li><strong>Network</strong>: Max Client Rate = 30000; Net Client Fixed Frame Rate = 0; Net Relevancy Check Distance igual ao alcance de renderização legado. Use Network Simulator desligado por padrão.</li>
-            <li><strong>Rendering</strong>: desative Generate Mesh Distance Fields se não usar; habilite Support Sky Atmosphere Affect Height Fog; configure <code>Scalability.ini</code> com LOD Bias e Anisotropy 8x replicando qualidade do cliente.</li>
-            <li><strong>Framerate</strong>: bloqueie em 60 FPS para testes iniciais e consistência de rede; habilite Use Fixed Frame Rate durante depuração de protocolo.</li>
-          </ol>
-        </div>
-      </div>
-
-      <div class="card mb-3">
-        <div class="card-body">
-          <h4 class="section-title h5">B. Importação e organização de assets</h4>
-          <ol class="small mb-0">
-            <li><strong>Converter BMD → FBX/GLTF</strong> mantendo hierarquia de ossos; valide pesos de vértice e animações.</li>
-            <li><strong>Texturas e materiais</strong>: exporte diffuse/normal/specular; crie <em>Material Instances</em> no UE5 para reutilizar parâmetros.</li>
-            <li><strong>Mapas</strong>: replique colisões e blocagens. Use <em>World Partition</em> se o mapa for grande.</li>
-            <li><strong>Áudio</strong>: importe trilhas e efeitos sonoros; configure <em>Sound Cues</em> equivalentes aos gatilhos do cliente.</li>
-          </ol>
-        </div>
-      </div>
-
-      <div class="card mb-3">
-        <div class="card-body">
-          <h4 class="section-title h5">B2. Parâmetros de importação (modelos, texturas, áudio)</h4>
-          <ol class="small mb-0">
-            <li><strong>FBX/GLTF</strong>: Import Mesh = true, Skeletal Mesh = true, Import Animations = true, Import Normals &amp; Tangents = true, Preserve Smoothing Groups = true, Max Influences = 4; Skeleton compartilhado (ex.: SK_Player).</li>
-            <li><strong>Materiais</strong>: crie Material Function base (MF_CharacterSurface) com BaseColor/Normal/ORM; Material Instances por personagem copiando Specular/Intensity do cliente. Ative Use Emissive for Static Lighting se precisar de brilho legado.</li>
-            <li><strong>Texturas</strong>: Mip Gen Settings = Sharpen5 (UI) ou Sharpen2 (personagens); Compression Settings = Masks para ORM; desative sRGB em Normal/ORM; mantenha resolução original.</li>
-            <li><strong>Áudio</strong>: Sound Waves em 48 kHz, Compression Quality 60 para SFX curtos; Sound Cues com Random/Loop nodes replicando gatilhos (passos, impactos, UI).</li>
-            <li><strong>Niagara</strong>: limite Max Particles para coincidir com orçamento antigo; crie perfis de qualidade em Scalability &gt; Niagara.</li>
-            <li><strong>Mapas</strong>: habilite World Partition em cenas grandes; converta colisões para Blocking Volume + NavMeshBoundsVolume; Directional Light (6–8 lux), SkyLight e Height Fog com Fog Density ~0.02 (ajuste conforme visibilidade original).</li>
-          </ol>
-        </div>
-      </div>
-
-      <div class="card mb-3">
-        <div class="card-body">
-          <h4 class="section-title h5">C. Configuração de projeto UE 5.7</h4>
-          <ol class="small mb-0">
-            <li><strong>GameMode & PlayerController</strong>: crie classes C++ base e exponha eventos (login, spawn, morte) a Blueprints.</li>
-            <li><strong>Pawns/Characters</strong>: configure <em>Character Movement</em>; adicione <em>Animation Blueprints</em> e estados (Idle/Run/Attack/Damage).</li>
-            <li><strong>UI em UMG</strong>: recrie telas de login, seleção de personagem e HUD. Use <em>Widget Blueprints</em> com bindings para dados de rede.</li>
-            <li><strong>Input</strong>: mapeie teclas/ações do cliente original usando o <em>Enhanced Input</em>.</li>
-          </ol>
-        </div>
-      </div>
-
-      <div class="card mb-3">
-        <div class="card-body">
-          <h4 class="section-title h5">D. Rede e replicação</h4>
-          <ol class="small mb-0">
-            <li><strong>Adaptar protocolo</strong>: implemente um módulo C++ para sockets (TCP/UDP) que traduza os pacotes binários legados.</li>
-            <li><strong>Blueprint Function Library</strong>: exponha funções de envio/recebimento para que Blueprints tratem login, movimento e ações.</li>
-            <li><strong>Validação servidor</strong>: compare payloads com o servidor original e implemente checagens de segurança (anti-cheat, rate limit).</li>
-            <li><strong>Testes de carga</strong>: simule sessões múltiplas e inspecione latência/redundância; ajuste replicação de atores e relevância.</li>
-          </ol>
-        </div>
-      </div>
-
-      <div class="card mb-3">
-        <div class="card-body">
-          <h4 class="section-title h5">E. Gameplay e sistemas</h4>
-          <ol class="small mb-0">
-            <li><strong>Combate</strong>: use Blueprints para estados de ataque, dano e efeitos com Niagara; mantenha cálculos pesados em C++.</li>
-            <li><strong>Inventário e quests</strong>: crie estruturas replicadas e UIs correspondentes; sincronia com servidor para loot e progresso.</li>
-            <li><strong>Bosses e eventos</strong>: scripts de fase em Blueprints; registre ganchos de rede para spawn e mecânicas especiais.</li>
-            <li><strong>Persistência</strong>: confirme salvamento/recuperação de personagens, atributos e itens conforme o servidor legado.</li>
-          </ol>
-        </div>
-      </div>
-
-      <div class="card mb-3">
-        <div class="card-body">
-          <h4 class="section-title h5">F. QA, otimização e lançamento</h4>
-          <ol class="small mb-0">
-            <li><strong>Performance</strong>: perfilar draw calls, colisões e Blueprints quentes; migrar gargalos para C++ quando necessário.</li>
-            <li><strong>Testes funcionais</strong>: checklists para UI, rede, animações e física; automatize smoke tests.</li>
-            <li><strong>Builds e deploy</strong>: configure <em>Cook</em>, <em>Pak</em> e distribuição; prepare rollback e monitoramento de crashes.</li>
-            <li><strong>Documentação</strong>: registre decisões de assets, scripts de conversão e APIs de rede para a equipe.</li>
-          </ol>
-        </div>
-      </div>
-      <div class="card mb-4">
-        <div class="card-body">
-          <h4 class="section-title h5">G. Sistemas críticos (roteiro prático)</h4>
-          <div class="row g-3">
-            <div class="col-lg-4">
-              <div class="card h-100">
-                <div class="card-body">
-                  <h5 class="h6 mb-2">Login</h5>
-                  <ol class="small mb-0">
-                    <li>Widget UMG com usuário/senha; valide campos localmente.</li>
-                    <li>Função C++ exposta em Blueprint para montar/enviar pacote de login.</li>
-                    <li>Ao receber sucesso, guarde token/sessão e carregue mapa de seleção.</li>
-                  </ol>
-                </div>
-              </div>
-            </div>
-            <div class="col-lg-4">
-              <div class="card h-100">
-                <div class="card-body">
-                  <h5 class="h6 mb-2">Criação de personagem</h5>
-                  <ol class="small mb-0">
-                    <li>Tela de slots em UMG usando Data Tables para classes/atributos.</li>
-                    <li>Valide nome/classe em Blueprint e chame RPC de criação.</li>
-                    <li>Atualize lista ao receber confirmação; transicione para seleção/spawn.</li>
-                  </ol>
-                </div>
-              </div>
-            </div>
-            <div class="col-lg-4">
-              <div class="card h-100">
-                <div class="card-body">
-                  <h5 class="h6 mb-2">HUD</h5>
-                  <ol class="small mb-0">
-                    <li>Widget principal com HP/MP, XP, mini-mapa e hotbar modulares.</li>
-                    <li>Use <em>Event Dispatchers</em> para ligar atributos replicados.</li>
-                    <li>Inclua toasts/log para feedback de servidor e eventos locais.</li>
-                  </ol>
-                </div>
+    <div id="guia" class="card mb-4">
+      <div class="card-body">
+        <h2 class="section-title h4">Guia detalhado (Blueprint + C++)</h2>
+        <div class="accordion" id="guideAccordion">
+          <div class="accordion-item bg-transparent text-light">
+            <h2 class="accordion-header" id="headingAssets">
+              <button class="accordion-button collapsed bg-dark text-light" type="button" data-bs-toggle="collapse" data-bs-target="#collapseAssets" aria-expanded="false" aria-controls="collapseAssets">
+                1) Assets: BMD, texturas, áudio
+              </button>
+            </h2>
+            <div id="collapseAssets" class="accordion-collapse collapse" aria-labelledby="headingAssets" data-bs-parent="#guideAccordion">
+              <div class="accordion-body">
+                <ul>
+                  <li>BMD → FBX/GLTF respeitando <code>MAX_BONES=200</code>, <code>MAX_MESH=50</code>, <code>MAX_VERTICES=15000</code> (<code>ZzzBMD.h</code>). Preserve hierarquia <code>Bone_t.Parent</code> e bounding boxes.</li>
+                  <li>Mapeie flags <code>RENDER_*</code> para materiais: Chrome/Oil → Fresnel+Emissive; Shadow/NoDepth → material sem depth.</li>
+                  <li>Material Instance recebe booleans de <code>TextureScript</code> (<code>Bright</code>, <code>HiddenMesh</code>, <code>StreamMesh</code>, <code>NoneBlendMesh</code>, <code>ShadowMesh</code>).</li>
+                  <li>Animation Sequences: PlayRate = <code>Action_t.PlaySpeed</code>, Loop conforme <code>Action_t.Loop</code>.</li>
+                  <li>Áudio: converter MP3 chamados em <code>PlayMp3/StopMp3</code> para WAV/OGG; Sound Cues com looping para BGMs.</li>
+                </ul>
               </div>
             </div>
           </div>
-          <div class="row g-3 mt-1">
-            <div class="col-lg-4">
-              <div class="card h-100">
-                <div class="card-body">
-                  <h5 class="h6 mb-2">Movimentação</h5>
-                  <ol class="small mb-0">
-                    <li>Character Blueprint com estados walk/run/dash; ajuste curvas de aceleração.</li>
-                    <li>Mapeie entradas no <em>Enhanced Input</em> e câmera conforme estilo do jogo.</li>
-                    <li>RPCs de movimentação em C++; VFX e passos em Blueprint.</li>
-                  </ol>
-                </div>
-              </div>
-            </div>
-            <div class="col-lg-4">
-              <div class="card h-100">
-                <div class="card-body">
-                  <h5 class="h6 mb-2">Itens, inventário e drops</h5>
-                  <ol class="small mb-0">
-                    <li>Defina itens em Data Table; inventário replicado em <em>PlayerState/Controller</em>.</li>
-                    <li>Widgets de inventário/tooltip em Blueprint, atualizados por eventos.</li>
-                    <li>Actors de drop com colisão; RPC de pickup valida servidor e confirma em UI.</li>
-                    <li>Equipar/usar em Blueprint com checagens sensíveis em C++.</li>
-                  </ol>
-                </div>
-              </div>
-            </div>
-            <div class="col-lg-4">
-              <div class="card h-100">
-                <div class="card-body">
-                  <h5 class="h6 mb-2">XP e progressão</h5>
-                  <ol class="small mb-0">
-                    <li>Calcule XP/nível em C++ e exponha evento <em>OnXpGained</em> a Blueprint.</li>
-                    <li>Ao upar, atualize HUD, atributos e dispare VFX/SFX.</li>
-                    <li>Sincronize mudanças com servidor e regenere barras/ícones em UMG.</li>
-                  </ol>
-                </div>
+
+          <div class="accordion-item bg-transparent text-light">
+            <h2 class="accordion-header" id="headingNetwork">
+              <button class="accordion-button collapsed bg-dark text-light" type="button" data-bs-toggle="collapse" data-bs-target="#collapseNetwork" aria-expanded="false" aria-controls="collapseNetwork">
+                2) Rede: espelho de ProtocolSend
+              </button>
+            </h2>
+            <div id="collapseNetwork" class="accordion-collapse collapse" aria-labelledby="headingNetwork" data-bs-parent="#guideAccordion">
+              <div class="accordion-body">
+                <ol>
+                  <li>Implemente cliente socket em C++ (UE Module) com opcodes de <code>ProtocolHead</code>: <code>BOTH_CONNECT_LOGIN</code>, <code>BOTH_CONNECT_CHARACTER</code>, <code>BOTH_POSITION</code>, <code>BOTH_MOVE</code>, <code>BOTH_MESSAGE</code>.</li>
+                  <li>Pacotes:
+                    <ul>
+                      <li><code>PMSG_CONNECT_ACCOUNT_SEND</code>: <code>account[10]</code>, <code>password[20]</code>, <code>TickCount</code>, <code>ClientVersion[5]</code>, <code>ClientSerial[16]</code> (preencher como <code>SendRequestLogInNew</code>).</li>
+                      <li><code>PMSG_POSITION_SEND</code>: <code>x</code>, <code>y</code> (BYTE).</li>
+                      <li><code>PMSG_MOVE_SEND</code>: <code>x</code>, <code>y</code>, <code>path[8]</code> (primeiro byte = direção + (PathNum-1) como em <code>SendCharacterMoveNew</code>).</li>
+                    </ul>
+                  </li>
+                  <li>Thread de recepção: leia fila e dispare delegates Blueprint equivalentes a <code>RecvMessage()</code> (casos SERVER_CONNECT, BOTH_CONNECT_LOGIN/CHARACTER/POSITION/MOVE/MESSAGE).</li>
+                  <li>Trate resultados de login conforme <code>RecvLoginNew</code> (0x01/0x20 sucesso; 0x00 senha errada; 0x02 ID inválido; 0x06 versão incompatível etc.).</li>
+                  <li>Servidor UE deve iniciar sockets/timers espelhando <code>GameServer.cpp</code> (TCP/UDP, timers 100ms para AI/eventos, 1s/10s para manutenção) e respeitar limites de <code>User.h</code> para replicação.</li>
+                </ol>
               </div>
             </div>
           </div>
-          <div class="row g-3 mt-1">
-            <div class="col-lg-6">
-              <div class="card h-100">
-                <div class="card-body">
-                  <h5 class="h6 mb-2">Criação de cenário</h5>
-                  <ol class="small mb-0">
-                    <li>Organize mapas em <em>World Partition</em>/subníveis; use Level Streaming para login, seleção e mundo.</li>
-                    <li>Gere colisões/NavMesh compatíveis com movimentação original.</li>
-                    <li>Prepare perfis de iluminação/clima (dia/noite/fog) para alternância em Blueprint.</li>
-                  </ol>
-                </div>
+
+          <div class="accordion-item bg-transparent text-light">
+            <h2 class="accordion-header" id="headingUI">
+              <button class="accordion-button collapsed bg-dark text-light" type="button" data-bs-toggle="collapse" data-bs-target="#collapseUI" aria-expanded="false" aria-controls="collapseUI">
+                3) UI e fluxo (Login → Seleção → Mundo)
+              </button>
+            </h2>
+            <div id="collapseUI" class="accordion-collapse collapse" aria-labelledby="headingUI" data-bs-parent="#guideAccordion">
+              <div class="accordion-body">
+                <ul>
+                  <li><strong>Login</strong>: Widget <code>WB_Login</code> valida campos (<=10/20 chars). Botão chama função Blueprint → C++ envia <code>BOTH_CONNECT_LOGIN</code>. Delegate de resultado mapeia códigos de <code>RecvLoginNew</code> e exibe mensagens equivalentes às <code>PopUpMsgWin</code>.</li>
+                  <li><strong>Seleção/Criação</strong>: <code>WB_CharacterSelect</code> popula slots via retorno de <code>BOTH_CONNECT_CHARACTER</code>. <code>WB_CharacterCreate</code> envia criação com estrutura do servidor; validação de nome antes do envio. Jogar envia select e abre <code>World.umap</code>.</li>
+                  <li><strong>HUD</strong>: reproduzir <code>NewUIMainFrameWindow</code> com barras HP/MP/Estamina, XP, mini-mapa (<code>SceneCapture2D</code> 512x512), hotbar e log.</li>
+                  <li><strong>Mini-mapa</strong>: ícones via DataTable (NPC/Party/Enemy) usando máscaras dos mapas de <code>w_MapHeaders.h</code>.</li>
+                </ul>
               </div>
             </div>
-            <div class="col-lg-6">
-              <div class="card h-100">
-                <div class="card-body">
-                  <h5 class="h6 mb-2">Chat, loja e eventos</h5>
-                  <ol class="small mb-0">
-                    <li>Chat com canais e anti-spam em C++; UI em Blueprint.</li>
-                    <li>Loja/serviços consumindo APIs de rede; confirme saldo/estoque antes de concluir.</li>
-                    <li>Buffs/Debuffs e eventos sazonais controlados por timers replicados; efeitos em Blueprint.</li>
-                  </ol>
-                </div>
+          </div>
+
+          <div class="accordion-item bg-transparent text-light">
+            <h2 class="accordion-header" id="headingGameplay">
+              <button class="accordion-button collapsed bg-dark text-light" type="button" data-bs-toggle="collapse" data-bs-target="#collapseGameplay" aria-expanded="false" aria-controls="collapseGameplay">
+                4) Personagem, movimento e câmera
+              </button>
+            </h2>
+            <div id="collapseGameplay" class="accordion-collapse collapse" aria-labelledby="headingGameplay" data-bs-parent="#guideAccordion">
+              <div class="accordion-body">
+                <ul>
+                  <li><strong>Character Blueprint</strong>: valores base <code>MaxWalkSpeed=600</code>, <code>BrakingDeceleration=2048</code>, <code>RotationRate=(0,720,0)</code>. Animation State Machine cobre ACTION_MOVE/ATTACK/DAMAGE/DIE de <code>User.h</code>.</li>
+                  <li><strong>Input</strong>: clique simples/hold/double replicam <code>CInput</code>. Rede envia <code>PMSG_POSITION_SEND</code> a cada tile e <code>PMSG_MOVE_SEND</code> ao calcular path (usar <code>DirTable</code> de <code>SendCharacterMoveNew</code>).</li>
+                  <li><strong>Câmera</strong>: SpringArm 600–800 (isométrico) ou 300–400 (third-person), com pivô ajustado para comportamento do cliente.</li>
+                </ul>
+              </div>
+            </div>
+          </div>
+
+          <div class="accordion-item bg-transparent text-light">
+            <h2 class="accordion-header" id="headingInventory">
+              <button class="accordion-button collapsed bg-dark text-light" type="button" data-bs-toggle="collapse" data-bs-target="#collapseInventory" aria-expanded="false" aria-controls="collapseInventory">
+                5) Itens, drops e inventário
+              </button>
+            </h2>
+            <div id="collapseInventory" class="accordion-collapse collapse" aria-labelledby="headingInventory" data-bs-parent="#guideAccordion">
+              <div class="accordion-body">
+                <ul>
+                  <li>Estruturar DataAssets como arrays, espelhando <code>Inventory[MAX_INVENTORY]</code> de <code>ZzzInventory.h</code> com colunas <code>_COLUMN_TYPE_*</code> (Level, AttMin/Max, ReqStr/Dex/Eng, etc.).</li>
+                  <li>UI de inventário/tooltip deve exibir informações de equipar, requisitos e opções <code>ITEMSETOPTION</code> (Store/Trade/Drop/Repair).</li>
+                  <li>Drops: actor com colisão; pickup via RPC validando regras de servidor (<code>ItemDrop.cpp</code>/<code>ItemMove.cpp</code>).</li>
+                  <li>Moeda: teto 2.000.000.000 conforme <code>MAX_MONEY</code> em <code>User.h</code>.</li>
+                </ul>
+              </div>
+            </div>
+          </div>
+
+          <div class="accordion-item bg-transparent text-light">
+            <h2 class="accordion-header" id="headingXP">
+              <button class="accordion-button collapsed bg-dark text-light" type="button" data-bs-toggle="collapse" data-bs-target="#collapseXP" aria-expanded="false" aria-controls="collapseXP">
+                6) XP, progressão e limites
+              </button>
+            </h2>
+            <div id="collapseXP" class="accordion-collapse collapse" aria-labelledby="headingXP" data-bs-parent="#guideAccordion">
+              <div class="accordion-body">
+                <ul>
+                  <li>Nível máximo 400 e tipos de XP (<code>EXPERIENCE_COMMON</code>, <code>EXPERIENCE_PARTY</code>, etc.) conforme <code>User.h</code>.</li>
+                  <li>No servidor, reproduzir cálculos de <code>ExperienceTable.cpp</code>; no cliente, evento <code>OnXpChanged</code> atualiza HUD e dispara VFX.</li>
+                  <li>Buffs/efeitos usam enums e estruturas de <code>Effect.h</code>/<code>EffectManager.cpp</code>; representar como DataAssets para Blueprints.</li>
+                </ul>
+              </div>
+            </div>
+          </div>
+
+          <div class="accordion-item bg-transparent text-light">
+            <h2 class="accordion-header" id="headingWorld">
+              <button class="accordion-button collapsed bg-dark text-light" type="button" data-bs-toggle="collapse" data-bs-target="#collapseWorld" aria-expanded="false" aria-controls="collapseWorld">
+                7) Mundo, colisão e clima
+              </button>
+            </h2>
+            <div id="collapseWorld" class="accordion-collapse collapse" aria-labelledby="headingWorld" data-bs-parent="#guideAccordion">
+              <div class="accordion-body">
+                <ul>
+                  <li>Converter mapas de <code>w_MapHeaders.h</code>/<code>w_MapProcess.cpp</code> para Levels UE; use World Partition para áreas grandes.</li>
+                  <li>Gerar <code>NavMeshBoundsVolume</code> e volumes de colisão correspondentes às malhas originais.</li>
+                  <li>Clima/visibilidade: replicar lógica de <code>weather = rand()%3</code> de <code>Winmain.cpp</code> via perfis de <code>ExponentialHeightFog</code> e <code>SkyLight</code>.</li>
+                </ul>
+              </div>
+            </div>
+          </div>
+
+          <div class="accordion-item bg-transparent text-light">
+            <h2 class="accordion-header" id="headingAudio">
+              <button class="accordion-button collapsed bg-dark text-light" type="button" data-bs-toggle="collapse" data-bs-target="#collapseAudio" aria-expanded="false" aria-controls="collapseAudio">
+                8) Áudio e feedback
+              </button>
+            </h2>
+            <div id="collapseAudio" class="accordion-collapse collapse" aria-labelledby="headingAudio" data-bs-parent="#guideAccordion">
+              <div class="accordion-body">
+                <ul>
+                  <li>Mapear BGMs/efeitos acionados por <code>PlayMp3</code>/<code>StopMp3</code> em <code>Winmain.cpp</code>; criar Sound Mixes para mutar conforme <code>m_MusicOnOff</code>.</li>
+                  <li>Eventos de UI/combate replicam efeitos de <code>DSPlaySound.h</code>/<code>wzAudio.h</code> via Sound Cues.</li>
+                </ul>
+              </div>
+            </div>
+          </div>
+
+          <div class="accordion-item bg-transparent text-light">
+            <h2 class="accordion-header" id="headingQA">
+              <button class="accordion-button collapsed bg-dark text-light" type="button" data-bs-toggle="collapse" data-bs-target="#collapseQA" aria-expanded="false" aria-controls="collapseQA">
+                9) QA e critérios de aceite
+              </button>
+            </h2>
+            <div id="collapseQA" class="accordion-collapse collapse" aria-labelledby="headingQA" data-bs-parent="#guideAccordion">
+              <div class="accordion-body">
+                <ul>
+                  <li>Validar tráfego: login (códigos de <code>RecvLoginNew</code>), lista de personagens, movimento (path compactado) e mensagens <code>BOTH_MESSAGE</code>.</li>
+                  <li>Checar limites: nível até 400, MAX_VIEWPORT=75 para replicação/relevância, MAX_MONEY=2.000.000.000 para economia.</li>
+                  <li>Comparar visual: materiais/partículas devem refletir flags <code>RENDER_*</code> e scripts de textura.</li>
+                  <li>Servidor: timers e sockets configurados como em <code>GameServer.cpp</code>; conexões Join/Data Server ativas.</li>
+                </ul>
               </div>
             </div>
           </div>
         </div>
       </div>
-
-      <div class="card mb-4">
-        <div class="card-body">
-          <h4 class="section-title h5">H. Guia detalhado 1:1 (Blueprint + C++)</h4>
-          <div class="accordion" id="acc-detalhado">
-            <div class="accordion-item bg-transparent text-light">
-              <h2 class="accordion-header" id="h-login">
-                <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#c-login" aria-expanded="false" aria-controls="c-login">Login e sessão</button>
-              </h2>
-              <div id="c-login" class="accordion-collapse collapse" aria-labelledby="h-login" data-bs-parent="#acc-detalhado">
-                <div class="accordion-body">
-                  <ol class="small mb-0">
-                    <li>Crie <code>WB_Login</code> com campos de usuário/senha e botão Entrar. Botão chama <code>BP_SendLogin</code> (BPL_Network) que aciona <code>SendLogin</code> em C++.</li>
-                    <li>Valide vazio/regex local; desabilite campos até resposta. Mostre spinner usando Timeline.</li>
-                    <li>Evento <code>OnLoginResult</code> (C++) retorna <em>Success/Fail/Reason</em>; em sucesso salve token no <code>GameInstance</code> e abra <code>Select.umap</code> via <code>OpenLevel</code>.</li>
-                    <li>Servidor envia opcode 0xF1 com token; recuse respostas que excedam o tamanho esperado.</li>
-                  </ol>
-                </div>
-              </div>
-            </div>
-            <div class="accordion-item bg-transparent text-light">
-              <h2 class="accordion-header" id="h-char">
-                <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#c-char" aria-expanded="false" aria-controls="c-char">Criação/seleção de personagem</button>
-              </h2>
-              <div id="c-char" class="accordion-collapse collapse" aria-labelledby="h-char" data-bs-parent="#acc-detalhado">
-                <div class="accordion-body">
-                  <ol class="small mb-0">
-                    <li><code>WB_CharacterSelect</code> lista slots (<code>WB_CharSlot</code>). Botão Create abre <code>WB_CharacterCreate</code> com Nome/Classe/Aparência.</li>
-                    <li>Valide nome (<=12 chars) em Blueprint e chame <code>SendCreateCharacter</code>. Receba <code>OnCharacterCreated</code> para atualizar lista.</li>
-                    <li>Botão Play chama <code>SendSelectCharacter</code> e armazena ID no <code>GameInstance</code>; GameMode instancia <code>BP_PlayerCharacter</code> com atributos de DataTable.</li>
-                    <li>Spawns usam pontos nomeados do mapa original; confirme colisão antes de liberar controle.</li>
-                  </ol>
-                </div>
-              </div>
-            </div>
-            <div class="accordion-item bg-transparent text-light">
-              <h2 class="accordion-header" id="h-hud">
-                <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#c-hud" aria-expanded="false" aria-controls="c-hud">HUD e UI in-game</button>
-              </h2>
-              <div id="c-hud" class="accordion-collapse collapse" aria-labelledby="h-hud" data-bs-parent="#acc-detalhado">
-                <div class="accordion-body">
-                  <ol class="small mb-0">
-                    <li><code>WB_HUD</code> agrega <code>WB_Bars</code> (HP/MP/STA), <code>WB_XP</code>, <code>WB_Minimap</code>, <code>WB_Hotbar</code>, <code>WB_Log</code> e <code>WB_QuestTracker</code>.</li>
-                    <li>PlayerState expõe atributos replicados; PlayerController retransmite via Event Dispatchers para widgets.</li>
-                    <li>Minimapa: <code>SceneCapture2D</code> + RenderTarget 512x512; DataTable mapeia ícone por tipo (NPC, portal, objetivo).</li>
-                    <li>Hotbar lê DataTable de skills/itens; botão chama <code>SendAttack</code>/<code>UseItem</code>. Cooldown renderizado com Material Instance dinâmico.</li>
-                  </ol>
-                </div>
-              </div>
-            </div>
-            <div class="accordion-item bg-transparent text-light">
-              <h2 class="accordion-header" id="h-move">
-                <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#c-move" aria-expanded="false" aria-controls="c-move">Movimentação e câmera</button>
-              </h2>
-              <div id="c-move" class="accordion-collapse collapse" aria-labelledby="h-move" data-bs-parent="#acc-detalhado">
-                <div class="accordion-body">
-                  <ol class="small mb-0">
-                    <li><code>BP_PlayerCharacter</code>: Character Movement com Max Walk Speed = 600, Braking Deceleration = 2048, Rotation Rate (0,720,0). Dash: Timeline 0.25s, velocidade 1200, cooldown no PlayerController.</li>
-                    <li><code>SpringArm</code> com Target Arm Length 600–800 (isométrico) ou 300–400 (over-the-shoulder); Use Pawn Control Rotation conforme estilo original.</li>
-                    <li>Rede: CharacterMovement replicado; habilidades extras usam RPC Server confiável. Habilite Client Prediction e Network Smoothing Mode = Linear.</li>
-                  </ol>
-                </div>
-              </div>
-            </div>
-            <div class="accordion-item bg-transparent text-light">
-              <h2 class="accordion-header" id="h-combat">
-                <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#c-combat" aria-expanded="false" aria-controls="c-combat">Combate e habilidades</button>
-              </h2>
-              <div id="c-combat" class="accordion-collapse collapse" aria-labelledby="h-combat" data-bs-parent="#acc-detalhado">
-                <div class="accordion-body">
-                  <ol class="small mb-0">
-                    <li>DataTable <code>DT_Skills</code> (ID, animação, dano, custo, cooldown, efeitos). ABP executa AnimMontage com Sections por arma.</li>
-                    <li>Função <code>Server_ApplySkill</code> valida alvo, alcance e cooldown em C++; envia <code>OnDamageApplied</code> para efeitos em Blueprint.</li>
-                    <li>VFX com Niagara; notifies para passos/impacto/voz acionam Sound Cues. Ajuste Max Particles para budget legado.</li>
-                  </ol>
-                </div>
-              </div>
-            </div>
-            <div class="accordion-item bg-transparent text-light">
-              <h2 class="accordion-header" id="h-items">
-                <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#c-items" aria-expanded="false" aria-controls="c-items">Itens, inventário e drops</button>
-              </h2>
-              <div id="c-items" class="accordion-collapse collapse" aria-labelledby="h-items" data-bs-parent="#acc-detalhado">
-                <div class="accordion-body">
-                  <ol class="small mb-0">
-                    <li><code>DT_Items</code> (ItemID, Tipo, ClasseEquip, MinLevel, Atributos, StackMax, Ícone, Mesh). Inventário = array replicado em PlayerState.</li>
-                    <li>UI: <code>WB_Inventory</code> + <code>WB_ItemSlot</code> com Drag &amp; Drop; <code>Server_MoveItem</code> valida posição/stack.</li>
-                    <li>Drops: <code>BP_DropActor</code> com Sphere Collision (Raio 80–120) e Billboard; <code>Server_RequestPickup</code> confirma e envia <code>OnItemPicked</code> para remover actor.</li>
-                    <li>Equipar/usar: <code>Server_Equip</code> checa requisitos e replica aparência (Attach ou Mesh Merge).</li>
-                  </ol>
-                </div>
-              </div>
-            </div>
-            <div class="accordion-item bg-transparent text-light">
-              <h2 class="accordion-header" id="h-xp">
-                <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#c-xp" aria-expanded="false" aria-controls="c-xp">XP, níveis e progressão</button>
-              </h2>
-              <div id="c-xp" class="accordion-collapse collapse" aria-labelledby="h-xp" data-bs-parent="#acc-detalhado">
-                <div class="accordion-body">
-                  <ol class="small mb-0">
-                    <li>Fórmula em C++ (<code>GetXpForLevel</code>) replicando curva do cliente; variáveis replicadas <code>CurrentXP</code>, <code>CurrentLevel</code>, <code>AttributePoints</code>.</li>
-                    <li><code>OnXpGained</code> dispara HUD, VFX/SFX de level up e abre <code>WB_LevelUp</code> para distribuir pontos.</li>
-                    <li>Servidor envia atributos atualizados; cliente reconcilia e atualiza barras/ícones.</li>
-                  </ol>
-                </div>
-              </div>
-            </div>
-            <div class="accordion-item bg-transparent text-light">
-              <h2 class="accordion-header" id="h-world">
-                <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#c-world" aria-expanded="false" aria-controls="c-world">Cenário, navegação e clima</button>
-              </h2>
-              <div id="c-world" class="accordion-collapse collapse" aria-labelledby="h-world" data-bs-parent="#acc-detalhado">
-                <div class="accordion-body">
-                  <ol class="small mb-0">
-                    <li>World Partition para mapas grandes; subníveis por terreno/props/VFX. Level Streaming por portal/distância; telas de login/seleção carregam subnível mínimo (&lt;5s).</li>
-                    <li>NavMesh: Agent Radius = 35, Agent Height = 96 (ajuste ao personagem legado). Blocking Volumes conforme colisões originais.</li>
-                    <li>Perfis Dia/Noite em Data Assets (Directional Intensity, SkyLight Intensity, Fog Density, Temperature). Blueprint alterna conforme servidor.</li>
-                  </ol>
-                </div>
-              </div>
-            </div>
-            <div class="accordion-item bg-transparent text-light">
-              <h2 class="accordion-header" id="h-audio">
-                <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#c-audio" aria-expanded="false" aria-controls="c-audio">Áudio e feedback</button>
-              </h2>
-              <div id="c-audio" class="accordion-collapse collapse" aria-labelledby="h-audio" data-bs-parent="#acc-detalhado">
-                <div class="accordion-body">
-                  <ol class="small mb-0">
-                    <li>Sound Mix + Sound Class para Música/FX/Voz/UI; sliders em <code>WB_Options</code> ajustam volumes.</li>
-                    <li>Notifies em montagens acionam passos/impactos/voz; Blueprint dispara Niagara/SFX.</li>
-                    <li>Zonas: Audio Volume + Reverb (Predelay 20ms, DecayTime ~1.2s para cavernas) replicando atmosfera do cliente.</li>
-                  </ol>
-                </div>
-              </div>
-            </div>
-            <div class="accordion-item bg-transparent text-light">
-              <h2 class="accordion-header" id="h-qa">
-                <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#c-qa" aria-expanded="false" aria-controls="c-qa">QA, automação e builds</button>
-              </h2>
-              <div id="c-qa" class="accordion-collapse collapse" aria-labelledby="h-qa" data-bs-parent="#acc-detalhado">
-                <div class="accordion-body">
-                  <ol class="small mb-0">
-                    <li>Automation: teste de fumaça login → selecionar → mover → atacar → pegar item (Gauntlet/Automation) salvo como <code>Automation/SmokeLoginMove</code>.</li>
-                    <li>Commandlets/Python: validar naming (<code>SK_</code>, <code>SM_</code>, <code>MI_</code>, <code>WB_</code>), sRGB correto e referências quebradas.</li>
-                    <li>Build: Cook by the book Win64, Pak habilitado; disable Pak encryption se compat com servidor legado ou habilite AES compartilhando chave. Use <code>-NoEditorContent</code> para garantir apenas assets originais.</li>
-                  </ol>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    </section>
-
-    <section class="mb-3">
-      <div class="card">
-        <div class="card-body d-lg-flex align-items-center justify-content-between">
-          <div>
-            <h4 class="section-title h6 mb-1">Checklist rápido</h4>
-            <p class="small mb-0">Use para acompanhar progresso semanal.</p>
-          </div>
-          <button class="btn btn-outline-success btn-sm" onclick="resetChecks()">Limpar marcações</button>
-        </div>
-        <ul class="list-group list-group-flush" id="checklist">
-          <li class="list-group-item bg-transparent text-light"><input class="form-check-input me-2" type="checkbox"> Fatia vertical jogável (login + movimento)</li>
-          <li class="list-group-item bg-transparent text-light"><input class="form-check-input me-2" type="checkbox"> Conversão de personagens principais finalizada</li>
-          <li class="list-group-item bg-transparent text-light"><input class="form-check-input me-2" type="checkbox"> Protocolo de rede validado com servidor</li>
-          <li class="list-group-item bg-transparent text-light"><input class="form-check-input me-2" type="checkbox"> UI principal recriada em UMG</li>
-          <li class="list-group-item bg-transparent text-light"><input class="form-check-input me-2" type="checkbox"> Plano de QA + telemetria configurados</li>
-        </ul>
-      </div>
-    </section>
-
-    <footer class="text-center small text-secondary pt-3">
-      <span id="footer-year"></span> · Roadmap UE 5.7 com Blueprints + C++ essencial. Atualize este documento ao fechar cada etapa.
-    </footer>
+    </div>
   </div>
 
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
-  <script>
-    // Mantém o rodapé atualizado e permite limpar o checklist.
-    document.getElementById('footer-year').textContent = new Date().getFullYear();
-    function resetChecks() {
-      document.querySelectorAll('#checklist input[type="checkbox"]').forEach(cb => cb.checked = false);
-    }
-  </script>
 </body>
 </html>
