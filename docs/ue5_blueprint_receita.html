@@ -60,6 +60,7 @@
       <a href="#tab-overview" class="active" data-target="tab-overview">Panorama</a>
       <a href="#tab-coords" data-target="tab-coords">Coordenadas</a>
       <a href="#tab-core" data-target="tab-core">Fluxo Core</a>
+      <a href="#tab-inventory" data-target="tab-inventory">Inventário 1:1</a>
       <a href="#tab-character" data-target="tab-character">Personagem Modular</a>
       <a href="#tab-network" data-target="tab-network">Replicação</a>
     </div>
@@ -80,6 +81,7 @@
                   <ul class="list-group">
                     <li class="list-group-item">Escala do terreno legado: <code>TERRAIN_SCALE = 100.f</code> (1 tile = 100 unidades).【F:Source Main 5.2/source/_define.h†L245-L257】</li>
                     <li class="list-group-item">Slots de equipamento: arma direita/esquerda, capacete, armadura, calça, luva, bota, asa, helper, amuleto, anel direito/esquerdo (total 12).【F:Source Main 5.2/source/_define.h†L197-L209】</li>
+                    <li class="list-group-item">Grade de inventário padrão: 8 colunas × 8 linhas = 64 slots (usar o mesmo layout em Blueprint).【F:Source Main 5.2/source/_define.h†L165-L177】</li>
                     <li class="list-group-item">Conversão de posição tile → mundo: <code>(Tile + 0.5) * TERRAIN_SCALE</code> aplicado a X e Y antes de ler altura do terreno.【F:Source Main 5.2/source/WSclient.cpp†L1718-L1730】</li>
                   </ul>
                 </div>
@@ -135,6 +137,61 @@ UE_Yaw = 90.0f - LegacyAngle</div>Essa matriz equivale a uma rotação de -90° 
             <li class="list-group-item"><strong>Spawn de Personagem</strong><br>No <em>GameMode</em>, após <code>Login</code>, crie o <em>Character</em> em servidor, defina Location/Rotation convertidos e só então invoque <code>Possess</code>. Isso reproduz a ordem usada no teleporte legado (posição → altura → rotação).【F:Source Main 5.2/source/WSclient.cpp†L1718-L1730】</li>
             <li class="list-group-item"><strong>Path Packet</strong><br>Para replicar <code>ClientSendPathPacket</code> da camada C++, mantenha arrays de <code>uint8</code> no servidor (X,Y) e exponha um evento multicast que entrega um <code>TArray&lt;FVector&gt;</code> já convertido usando a função da seção de coordenadas.</li>
           </ol>
+        </div>
+      </div>
+    </section>
+
+    <section id="tab-inventory" class="tab-section">
+      <div class="card">
+        <div class="card-header">Inventário & Itens (Mapeamento 1:1)</div>
+        <div class="card-body">
+          <div class="alert alert-warning"><strong>Prioridade Máxima:</strong> replique a estrutura de dados <code>ITEM</code> e o limite da grade exatamente como no legado (8×8 = 64 slots). Todas as mutações ocorrem no servidor e são replicadas.</div>
+
+          <h4>Estruturas de Dados</h4>
+          <ul class="list-group">
+            <li class="list-group-item"><strong>ITEM (legado)</strong><br>Campos essenciais: <code>Type</code> (ID), <code>Level</code>, <code>Durability</code>, <code>Option1</code>, <code>ExtOption</code>, coordenadas <code>x/y</code> do slot, indicador <code>TwoHand</code> e vetor de <code>Special</code>.<div class="code-block">USTRUCT(BlueprintType) FItemData {
+  GENERATED_BODY()
+  UPROPERTY(BlueprintReadWrite) int16 Type;     // mapear para Type legacy
+  UPROPERTY(BlueprintReadWrite) int32 Level;    // mapear para Level legacy
+  UPROPERTY(BlueprintReadWrite) uint8 Durability;
+  UPROPERTY(BlueprintReadWrite) uint8 Option1;
+  UPROPERTY(BlueprintReadWrite) uint8 ExtOption;
+  UPROPERTY(BlueprintReadWrite) uint8 X;        // origem: ITEM.x
+  UPROPERTY(BlueprintReadWrite) uint8 Y;        // origem: ITEM.y
+  UPROPERTY(BlueprintReadWrite) bool TwoHand;
+  UPROPERTY(BlueprintReadWrite) TArray<uint8> Special; // tamanho = MAX_ITEM_SPECIAL
+};</div>O blueprint deve manter o layout bit a bit; campos citados vêm do <code>tagITEM</code>.【F:Source Main 5.2/source/_struct.h†L198-L269】</li>
+            <li class="list-group-item"><strong>Arrays e limites</strong><br>Inventário principal é um <code>TArray&lt;FItemData&gt;</code> de tamanho fixo 64 (8 colunas × 8 linhas). Essas dimensões vêm de <code>COLUMN_INVENTORY</code> e <code>ROW_INVENTORY</code>.【F:Source Main 5.2/source/_define.h†L165-L177】</li>
+            <li class="list-group-item"><strong>Buffers globais</strong><br>O cliente legado mantém <code>ITEM Inventory[MAX_INVENTORY]</code> e variações (shop, trade, personal shop). Replique como arrays separados no servidor se esses contêineres existirem no jogo UE5, mantendo o mesmo número de índices.【F:Source Main 5.2/source/ZzzInventory.h†L96-L117】</li>
+          </ul>
+
+          <h4>ADAPTAÇÃO OBRIGATÓRIA PARA UE5: Controle de Grid</h4>
+          <p>A UI de inventário do legado usa coordenadas inteiras (x,y) dentro da grade. Em UE5, armazene <code>X</code> e <code>Y</code> no <em>PlayerState</em> para cada item e derive <code>SlotIndex = Y * 8 + X</code> em Blueprints antes de preencher o <em>Grid Panel</em>. Isso preserva a distribuição original e evita reordenamentos por widgets dinâmicos.</p>
+
+          <h4>Procedimentos 1:1 em Blueprint</h4>
+          <ol class="list-group list-group-numbered">
+            <li class="list-group-item"><strong>Adicionar Item (Server)</strong><br>Entrada: <code>FItemData</code> e dimensões do item. Passos: (1) Percorra slots na ordem linha-&gt;coluna até <code>MaxSlots-1</code>; (2) Para cada slot, teste se cabe usando <code>Width/Height</code> do <em>ItemAttribute</em>; (3) Respeite <code>TwoHand</code> ocupando 2 colunas se necessário; (4) Ao encontrar espaço, grave <code>X</code>/<code>Y</code> no struct, insira no array e marque como replicado. O laço reproduz <code>FindEmptySlot</code> do legado que varre a grid sequencialmente.【F:Source Main 5.2/source/_define.h†L165-L177】【F:Source Main 5.2/source/ZzzInventory.h†L96-L117】</li>
+            <li class="list-group-item"><strong>Remover Item</strong><br>No servidor, limpe o slot definindo <code>Type = 0x1FFF</code> ou removendo a entrada do array replicado e preenchendo com um <code>FItemData</code> vazio. Em clientes, a <code>OnRep</code> do array deve redesenhar o Grid Panel apagando o ícone correspondente.</li>
+            <li class="list-group-item"><strong>Empilhamento (Stacking)</strong><br>O legado permite sobreposição para tipos específicos, verificados por <code>IsOverlayItem</code> (poções, flechas, pets, etc.). Replique com uma função Blueprint pura que compara <code>Type</code> e <code>Durability</code> exatamente como as cláusulas originais (ex.: poções normais empilham até durabilidade 3, frascos especiais até 50, Spirit, flechas, etc.).【F:Source Main 5.2/source/NewUIInventoryCtrl.cpp†L1532-L1644】</li>
+            <li class="list-group-item"><strong>Movimentação/Swap</strong><br>Ao arrastar, mantenha uma cópia de segurança (<code>BackupPickedItem</code> no legado). Em UE5, crie um <code>FItemData PickedItem</code> transitório no <em>PlayerController</em> e só confirme o swap via RPC para o servidor, que então atualiza o array replicado. Use as mesmas validações de ocupação de grid antes de mover.</li>
+            <li class="list-group-item"><strong>Sincronizar com UI</strong><br>Construa um <em>UserWidget</em> com <code>UniformGridPanel</code> de 8×8. No <code>OnRep_Inventory</code>, itere o array replicado e para cada item crie um <code>UserWidget</code> de ícone ancorado no slot <code>(X,Y)</code>. Campos exibidos: ícone baseado em <code>Type</code>, texto de nível, barra de durabilidade usando <code>Durability</code>.</li>
+          </ol>
+
+          <h4>Boilerplate de Widget (Blueprint)</h4>
+<div class="code-block">Event OnRep_Inventory (Array&lt;FItemData&gt; Inven):
+  ClearChildren(UniformGrid)
+  ForEach Item in Inven:
+    If Item.Type != 0x1FFF:
+      Widget = CreateWidget(ItemSlot)
+      Widget.SetIcon( LookupIcon(Item.Type) )
+      Widget.SetDurability(Item.Durability)
+      UniformGrid.AddChildToUniformGrid(Widget, Row=Item.Y, Column=Item.X)
+
+Event ServerAddItem(FItemData NewItem):
+  // Runs authoritative search for empty slot and stacking
+  Index = FindFirstFittingSlot(NewItem)
+  if Index != -1: Inventory[Index] = NewItem; OnRep_Inventory()</div>
+          <p class="alert alert-success mb-0">Garanta que a busca de slot e a regra de stacking acontecem no servidor antes de atualizar a UI; os clientes apenas consomem o array replicado.</p>
         </div>
       </div>
     </section>
