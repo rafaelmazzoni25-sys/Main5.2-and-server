@@ -1,0 +1,285 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Receita Completa UE5 - Migração Blueprint</title>
+  <style>
+    /* Bootstrap-like minimal styles (autocontido) */
+    :root {
+      --bs-body-bg: #f8f9fa;
+      --bs-body-color: #212529;
+      --bs-primary: #0d6efd;
+      --bs-secondary: #6c757d;
+      --bs-success: #198754;
+      --bs-info: #0dcaf0;
+      --bs-warning: #ffc107;
+      --bs-danger: #dc3545;
+      --bs-light: #f8f9fa;
+      --bs-dark: #212529;
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; font-family: "Segoe UI", Roboto, Helvetica, Arial, sans-serif; background: var(--bs-body-bg); color: var(--bs-body-color); padding-top: 76px; }
+    h1,h2,h3,h4 { margin-top: 1rem; }
+    nav.navbar { position: fixed; top: 0; left: 0; right: 0; background: #111827; color: #fff; padding: 0.75rem 1rem; display: flex; align-items: center; z-index: 100; box-shadow: 0 0.25rem 0.75rem rgba(0,0,0,0.35); }
+    nav .brand { font-weight: 700; margin-right: 1rem; color: #fff; text-decoration: none; }
+    nav .nav-links { display: flex; flex-wrap: wrap; gap: 0.5rem; }
+    nav .nav-links a { color: #cbd5e1; text-decoration: none; padding: 0.35rem 0.65rem; border-radius: 0.35rem; }
+    nav .nav-links a.active, nav .nav-links a:hover { background: rgba(255,255,255,0.12); color: #fff; }
+    .container { width: 100%; max-width: 1200px; margin: 0 auto; padding: 0 1rem 2rem; }
+    .card { background: #fff; border: 1px solid #dee2e6; border-radius: 0.5rem; box-shadow: 0 0.35rem 1rem rgba(0,0,0,0.08); margin-bottom: 1rem; }
+    .card-header { padding: 0.75rem 1rem; border-bottom: 1px solid #dee2e6; background: linear-gradient(90deg,#0d6efd,#2563eb); color: #fff; font-weight: 700; }
+    .card-body { padding: 1rem; }
+    .list-group { list-style: none; padding: 0; margin: 0; }
+    .list-group-item { padding: 0.75rem 1rem; border-bottom: 1px solid #e9ecef; }
+    .list-group-item:last-child { border-bottom: none; }
+    .badge { display: inline-block; padding: 0.35em 0.65em; font-size: 0.75rem; font-weight: 600; border-radius: 0.45rem; }
+    .bg-warning { background: #ffc107; color: #111; }
+    .bg-info { background: #0dcaf0; color: #0a2533; }
+    .bg-dark { background: #212529; color: #fff; }
+    .bg-light { background: #f8f9fa; color: #111; }
+    .row { display: flex; flex-wrap: wrap; gap: 1rem; }
+    .col { flex: 1 1 0; min-width: 280px; }
+    .code-block { background: #0b1021; color: #e9ecf2; padding: 0.75rem; border-radius: 0.5rem; font-family: "JetBrains Mono", "Fira Code", monospace; font-size: 0.9rem; overflow-x: auto; }
+    .tab-section { display: none; }
+    .tab-section.active { display: block; }
+    .alert { padding: 0.75rem 1rem; border-radius: 0.5rem; border: 1px solid transparent; margin-bottom: 1rem; }
+    .alert-primary { background: #e7f1ff; border-color: #b6d4fe; color: #0a2a66; }
+    .alert-warning { background: #fff3cd; border-color: #ffecb5; color: #664d03; }
+    .alert-success { background: #d1e7dd; border-color: #badbcc; color: #0f5132; }
+    .table { width: 100%; border-collapse: collapse; }
+    .table th, .table td { border: 1px solid #dee2e6; padding: 0.5rem 0.75rem; }
+    .table th { background: #f1f5f9; }
+    footer { text-align: center; padding: 1rem 0; color: #6c757d; font-size: 0.9rem; }
+  </style>
+</head>
+<body>
+  <nav class="navbar">
+    <a class="brand" href="#">Server-Authoritative UE5</a>
+    <div class="nav-links" id="topNav">
+      <a href="#tab-overview" class="active" data-target="tab-overview">Panorama</a>
+      <a href="#tab-coords" data-target="tab-coords">Coordenadas</a>
+      <a href="#tab-core" data-target="tab-core">Fluxo Core</a>
+      <a href="#tab-inventory" data-target="tab-inventory">Inventário 1:1</a>
+      <a href="#tab-character" data-target="tab-character">Personagem Modular</a>
+      <a href="#tab-network" data-target="tab-network">Replicação</a>
+    </div>
+  </nav>
+
+  <main class="container">
+    <section id="tab-overview" class="tab-section active">
+      <div class="card">
+        <div class="card-header">Receita de Migração 1:1 (Foco em Blueprint)</div>
+        <div class="card-body">
+          <p>Use este roteiro para reconstruir a lógica C++ legada na Unreal Engine 5 priorizando Blueprints. Toda fórmula ou estrutura foi extraída diretamente do código legado e adaptada somente quando indispensável para compatibilidade com o motor.</p>
+          <div class="alert alert-primary"><strong>Servidor Autoritativo:</strong> Toda manipulação de estado (inventário, slots de equipamento, teleporte, setagem de mesh) deve ser executada no servidor. Os Blueprints client-side apenas exibem o resultado replicado.</div>
+          <div class="row">
+            <div class="col">
+              <div class="card">
+                <div class="card-header">Constantes essenciais</div>
+                <div class="card-body">
+                  <ul class="list-group">
+                    <li class="list-group-item">Escala do terreno legado: <code>TERRAIN_SCALE = 100.f</code> (1 tile = 100 unidades).【F:Source Main 5.2/source/_define.h†L245-L257】</li>
+                    <li class="list-group-item">Slots de equipamento: arma direita/esquerda, capacete, armadura, calça, luva, bota, asa, helper, amuleto, anel direito/esquerdo (total 12).【F:Source Main 5.2/source/_define.h†L197-L209】</li>
+                    <li class="list-group-item">Grade de inventário padrão: 8 colunas × 8 linhas = 64 slots (usar o mesmo layout em Blueprint).【F:Source Main 5.2/source/_define.h†L165-L177】</li>
+                    <li class="list-group-item">Conversão de posição tile → mundo: <code>(Tile + 0.5) * TERRAIN_SCALE</code> aplicado a X e Y antes de ler altura do terreno.【F:Source Main 5.2/source/WSclient.cpp†L1718-L1730】</li>
+                  </ul>
+                </div>
+              </div>
+            </div>
+            <div class="col">
+              <div class="card">
+                <div class="card-header">Ângulos & Direção</div>
+                <div class="card-body">
+                  <p>A função <code>CreateAngle</code> define o zero de rotação apontando para o Sul, 90° para Oeste, 180° para Norte e 270° para Leste. Isso evidencia eixos invertidos em relação ao padrão da UE5.</p>
+                  <div class="code-block">float CreateAngle(float x1,float y1,float x2,float y2) {
+  float nx = x2 - x1, ny = y2 - y1;
+  if (fabs(nx) < 0.0001f) return (ny < 0.f) ? 0.f : 180.f; // S / N
+  if (fabs(ny) < 0.0001f) return (nx < 0.f) ? 270.f : 90.f; // E / W
+  ...
+}</div>
+                  <p class="mb-0">Use essa referência ao converter ângulos para yaw da UE.</p>
+                  <p class="small text-muted">Fonte: <span class="badge bg-info">ZzzAI.cpp</span>【F:Source Main 5.2/source/ZzzAI.cpp†L27-L50】</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section id="tab-coords" class="tab-section">
+      <div class="card">
+        <div class="card-header">ADAPTAÇÃO OBRIGATÓRIA PARA UE5: Conversão de Coordenadas</div>
+        <div class="card-body">
+          <p>O legado usa grid 2D (X cresce para Oeste, Y cresce para Norte) com zero de ângulo apontando para o Sul. Na UE5 o sistema é <strong>X para frente</strong>, <strong>Y para a direita</strong> e <strong>Z para cima</strong>. Aplique a rotação de -90° em torno de Z e inverta o eixo X para alinhar as orientações.</p>
+          <ol class="list-group list-group-numbered">
+            <li class="list-group-item"><strong>Tile → Mundo (Legado)</strong><br>Antes de converter para UE, calcule as coordenadas legadas em centímetros: <code>LegacyX = (TileX + 0.5) * 100</code>, <code>LegacyY = (TileY + 0.5) * 100</code>, <code>LegacyZ = Altura(Terrain)</code>.【F:Source Main 5.2/source/_define.h†L245-L257】【F:Source Main 5.2/source/WSclient.cpp†L1718-L1730】</li>
+            <li class="list-group-item"><strong>World → UE5</strong><br>Use um <em>Blueprint Function Library</em> para transformar:<div class="code-block">UE_X =  LegacyY
+UE_Y = -LegacyX
+UE_Z =  LegacyZ
+UE_Yaw = 90.0f - LegacyAngle</div>Essa matriz equivale a uma rotação de -90° em Z seguida de inversão de X, preservando o "Norte" legado como X+ na UE5 e mantendo o up em Z.</li>
+            <li class="list-group-item"><strong>Aplicação em Teleporte</strong><br>No <em>GameMode</em> (servidor), ao receber coordenadas tile (x,y,dir): (a) converta para <code>LegacyX/Y</code> usando a escala; (b) aplique a função acima para setar <code>ActorLocation</code> e <code>ActorRotation</code>. Armazene o valor original em variáveis replicadas para reuso em RPCs.</li>
+            <li class="list-group-item"><strong>Trajetórias e Pathfinding</strong><br>Quando ler arrays de caminho (PathX/PathY) reutilize o mesmo conversor antes de alimentar <code>AI Move To</code>. Mantenha a grade em inteiros (tile) para o servidor e exponha somente vetores UE para componentes de movimento.</li>
+          </ol>
+          <div class="alert alert-warning"><strong>Validação:</strong> compare o yaw calculado para alvos cardinais usando a tabela CreateAngle para garantir que Sul=0° legado se converta em Yaw=90° UE (virado para a direita), evitando inversão de animações.</div>
+        </div>
+      </div>
+    </section>
+
+    <section id="tab-core" class="tab-section">
+      <div class="card">
+        <div class="card-header">Fluxo Core em Blueprint (Servidor Autoritativo)</div>
+        <div class="card-body">
+          <ol class="list-group list-group-numbered">
+            <li class="list-group-item"><strong>GameInstance e GameMode</strong><br>Implemente a recepção de pacotes de posicionamento e status no servidor. Ao receber X/Y do banco ou da sessão, use a função de conversão de coordenadas e aplique <code>ServerSetControlRotation</code> no <em>PlayerController</em> para sincronizar a rotação inicial.</li>
+            <li class="list-group-item"><strong>Curvas e Fórmulas</strong><br>Qualquer cálculo dependente de posição (p.ex. altura do terreno) deve chamar uma função C++ mínima que reusa a constante <code>TERRAIN_SCALE</code> para manter fidelidade. Exponha em Blueprint via <code>BlueprintCallable</code> apenas as leituras.</li>
+            <li class="list-group-item"><strong>Spawn de Personagem</strong><br>No <em>GameMode</em>, após <code>Login</code>, crie o <em>Character</em> em servidor, defina Location/Rotation convertidos e só então invoque <code>Possess</code>. Isso reproduz a ordem usada no teleporte legado (posição → altura → rotação).【F:Source Main 5.2/source/WSclient.cpp†L1718-L1730】</li>
+            <li class="list-group-item"><strong>Path Packet</strong><br>Para replicar <code>ClientSendPathPacket</code> da camada C++, mantenha arrays de <code>uint8</code> no servidor (X,Y) e exponha um evento multicast que entrega um <code>TArray&lt;FVector&gt;</code> já convertido usando a função da seção de coordenadas.</li>
+          </ol>
+        </div>
+      </div>
+    </section>
+
+    <section id="tab-inventory" class="tab-section">
+      <div class="card">
+        <div class="card-header">Inventário & Itens (Mapeamento 1:1)</div>
+        <div class="card-body">
+          <div class="alert alert-warning"><strong>Prioridade Máxima:</strong> replique a estrutura de dados <code>ITEM</code> e o limite da grade exatamente como no legado (8×8 = 64 slots). Todas as mutações ocorrem no servidor e são replicadas.</div>
+
+          <h4>Estruturas de Dados</h4>
+          <ul class="list-group">
+            <li class="list-group-item"><strong>ITEM (legado)</strong><br>Campos essenciais: <code>Type</code> (ID), <code>Level</code>, <code>Durability</code>, <code>Option1</code>, <code>ExtOption</code>, coordenadas <code>x/y</code> do slot, indicador <code>TwoHand</code> e vetor de <code>Special</code>.<div class="code-block">USTRUCT(BlueprintType) FItemData {
+  GENERATED_BODY()
+  UPROPERTY(BlueprintReadWrite) int16 Type;     // mapear para Type legacy
+  UPROPERTY(BlueprintReadWrite) int32 Level;    // mapear para Level legacy
+  UPROPERTY(BlueprintReadWrite) uint8 Durability;
+  UPROPERTY(BlueprintReadWrite) uint8 Option1;
+  UPROPERTY(BlueprintReadWrite) uint8 ExtOption;
+  UPROPERTY(BlueprintReadWrite) uint8 X;        // origem: ITEM.x
+  UPROPERTY(BlueprintReadWrite) uint8 Y;        // origem: ITEM.y
+  UPROPERTY(BlueprintReadWrite) bool TwoHand;
+  UPROPERTY(BlueprintReadWrite) TArray<uint8> Special; // tamanho = MAX_ITEM_SPECIAL
+};</div>O blueprint deve manter o layout bit a bit; campos citados vêm do <code>tagITEM</code>.【F:Source Main 5.2/source/_struct.h†L198-L269】</li>
+            <li class="list-group-item"><strong>Arrays e limites</strong><br>Inventário principal é um <code>TArray&lt;FItemData&gt;</code> de tamanho fixo 64 (8 colunas × 8 linhas). Essas dimensões vêm de <code>COLUMN_INVENTORY</code> e <code>ROW_INVENTORY</code>.【F:Source Main 5.2/source/_define.h†L165-L177】</li>
+            <li class="list-group-item"><strong>Buffers globais</strong><br>O cliente legado mantém <code>ITEM Inventory[MAX_INVENTORY]</code> e variações (shop, trade, personal shop). Replique como arrays separados no servidor se esses contêineres existirem no jogo UE5, mantendo o mesmo número de índices.【F:Source Main 5.2/source/ZzzInventory.h†L96-L117】</li>
+          </ul>
+
+          <h4>ADAPTAÇÃO OBRIGATÓRIA PARA UE5: Controle de Grid</h4>
+          <p>A UI de inventário do legado usa coordenadas inteiras (x,y) dentro da grade. Em UE5, armazene <code>X</code> e <code>Y</code> no <em>PlayerState</em> para cada item e derive <code>SlotIndex = Y * 8 + X</code> em Blueprints antes de preencher o <em>Grid Panel</em>. Isso preserva a distribuição original e evita reordenamentos por widgets dinâmicos.</p>
+
+          <h4>Procedimentos 1:1 em Blueprint</h4>
+          <ol class="list-group list-group-numbered">
+            <li class="list-group-item"><strong>Adicionar Item (Server)</strong><br>Entrada: <code>FItemData</code> e dimensões do item. Passos: (1) Percorra slots na ordem linha-&gt;coluna até <code>MaxSlots-1</code>; (2) Para cada slot, teste se cabe usando <code>Width/Height</code> do <em>ItemAttribute</em>; (3) Respeite <code>TwoHand</code> ocupando 2 colunas se necessário; (4) Ao encontrar espaço, grave <code>X</code>/<code>Y</code> no struct, insira no array e marque como replicado. O laço reproduz <code>FindEmptySlot</code> do legado que varre a grid sequencialmente.【F:Source Main 5.2/source/_define.h†L165-L177】【F:Source Main 5.2/source/ZzzInventory.h†L96-L117】</li>
+            <li class="list-group-item"><strong>Remover Item</strong><br>No servidor, limpe o slot definindo <code>Type = 0x1FFF</code> ou removendo a entrada do array replicado e preenchendo com um <code>FItemData</code> vazio. Em clientes, a <code>OnRep</code> do array deve redesenhar o Grid Panel apagando o ícone correspondente.</li>
+            <li class="list-group-item"><strong>Empilhamento (Stacking)</strong><br>O legado permite sobreposição para tipos específicos, verificados por <code>IsOverlayItem</code> (poções, flechas, pets, etc.). Replique com uma função Blueprint pura que compara <code>Type</code> e <code>Durability</code> exatamente como as cláusulas originais (ex.: poções normais empilham até durabilidade 3, frascos especiais até 50, Spirit, flechas, etc.).【F:Source Main 5.2/source/NewUIInventoryCtrl.cpp†L1532-L1644】</li>
+            <li class="list-group-item"><strong>Movimentação/Swap</strong><br>Ao arrastar, mantenha uma cópia de segurança (<code>BackupPickedItem</code> no legado). Em UE5, crie um <code>FItemData PickedItem</code> transitório no <em>PlayerController</em> e só confirme o swap via RPC para o servidor, que então atualiza o array replicado. Use as mesmas validações de ocupação de grid antes de mover.</li>
+            <li class="list-group-item"><strong>Sincronizar com UI</strong><br>Construa um <em>UserWidget</em> com <code>UniformGridPanel</code> de 8×8. No <code>OnRep_Inventory</code>, itere o array replicado e para cada item crie um <code>UserWidget</code> de ícone ancorado no slot <code>(X,Y)</code>. Campos exibidos: ícone baseado em <code>Type</code>, texto de nível, barra de durabilidade usando <code>Durability</code>.</li>
+          </ol>
+
+          <h4>Boilerplate de Widget (Blueprint)</h4>
+<div class="code-block">Event OnRep_Inventory (Array&lt;FItemData&gt; Inven):
+  ClearChildren(UniformGrid)
+  ForEach Item in Inven:
+    If Item.Type != 0x1FFF:
+      Widget = CreateWidget(ItemSlot)
+      Widget.SetIcon( LookupIcon(Item.Type) )
+      Widget.SetDurability(Item.Durability)
+      UniformGrid.AddChildToUniformGrid(Widget, Row=Item.Y, Column=Item.X)
+
+Event ServerAddItem(FItemData NewItem):
+  // Runs authoritative search for empty slot and stacking
+  Index = FindFirstFittingSlot(NewItem)
+  if Index != -1: Inventory[Index] = NewItem; OnRep_Inventory()</div>
+          <p class="alert alert-success mb-0">Garanta que a busca de slot e a regra de stacking acontecem no servidor antes de atualizar a UI; os clientes apenas consomem o array replicado.</p>
+        </div>
+      </div>
+    </section>
+
+    <section id="tab-character" class="tab-section">
+      <div class="card">
+        <div class="card-header">Sistema Modular de Personagem</div>
+        <div class="card-body">
+          <p>O legado define 12 slots e converte cada slot em um <em>BodyPart</em> ou <em>Weapon</em> renderizável. Replique o mesmo mapeamento com Blueprints e DataAssets.</p>
+          <div class="row">
+            <div class="col">
+              <h4>Slots & IDs</h4>
+              <table class="table">
+                <thead><tr><th>Slot</th><th>Índice</th><th>Destino Visual</th></tr></thead>
+                <tbody>
+                  <tr><td>Arma Direita</td><td>0</td><td>Weapon[0]</td></tr>
+                  <tr><td>Arma Esquerda/Escudo</td><td>1</td><td>Weapon[1]</td></tr>
+                  <tr><td>Capacete</td><td>2</td><td>BodyPart[Head]</td></tr>
+                  <tr><td>Armadura</td><td>3</td><td>BodyPart[Armor]</td></tr>
+                  <tr><td>Calça</td><td>4</td><td>BodyPart[Pants]</td></tr>
+                  <tr><td>Luva</td><td>5</td><td>BodyPart[Gloves]</td></tr>
+                  <tr><td>Bota</td><td>6</td><td>BodyPart[Boots]</td></tr>
+                  <tr><td>Asa</td><td>7</td><td>Wing mesh</td></tr>
+                  <tr><td>Helper (montaria/pet)</td><td>8</td><td>Helper mesh</td></tr>
+                  <tr><td>Amuleto</td><td>9</td><td>Neck socket</td></tr>
+                  <tr><td>Anel Direito</td><td>10</td><td>Ring R socket</td></tr>
+                  <tr><td>Anel Esquerdo</td><td>11</td><td>Ring L socket</td></tr>
+                </tbody>
+              </table>
+              <p class="small text-muted">Definição original dos índices.【F:Source Main 5.2/source/_define.h†L197-L209】</p>
+            </div>
+            <div class="col">
+              <h4>Mapeamento Item → Mesh</h4>
+              <p>O cliente monta <code>BodyPart</code> e <code>Weapon</code> trocando o <code>Type</code> conforme o slot. Em Blueprint, espelhe esse fluxo ao trocar meshes:</p>
+              <div class="code-block">// Trecho lógico baseado no legado
+if Slot == HELM:
+    BodyPart.Head.Type = MODEL_ITEM + ItemType
+    BodyPart.Head.Level = LevelConvert(ItemLevel)
+    BodyPart.Head.Option1 = Option1
+    BodyPart.Head.ExtOption = ExtOption</div>
+              <p class="small text-muted">O padrão se repete para Armadura, Calça, Luva e Bota, sempre usando o <code>Model + ItemType</code> ou modelo base quando <code>Type==0x1FFF</code>.【F:Source Main 5.2/source/WSclient.cpp†L1919-L1978】</p>
+            </div>
+          </div>
+
+          <h4>Blueprint passo a passo (Attach/Swap)</h4>
+          <ol class="list-group list-group-numbered">
+            <li class="list-group-item"><strong>Preparar Sockets</strong><br>Abra o <em>Skeletal Mesh</em> do personagem e crie sockets: <code>Weapon_R</code>, <code>Weapon_L</code>, <code>Wing</code> (na coluna vertebral), <code>HelperPelvis</code>, <code>Necklace</code>, <code>Ring_R</code>, <code>Ring_L</code>. Marque-os como <em>Inherit Transform</em> para animar junto ao esqueleto.</li>
+            <li class="list-group-item"><strong>Estrutura de Dados</strong><br>No <em>PlayerState</em>, crie um <code>struct</code> replicado contendo um <code>TMap&lt;int32, FItemVisual&gt;</code> (Slot → asset). Preencha os índices conforme a tabela de slots e vincule os <code>Model IDs</code> lidos dos DataAssets que reproduzem <code>MODEL_ITEM+Type</code>.</li>
+            <li class="list-group-item"><strong>Receber Item</strong><br>Quando o inventário coloca um item em um slot, execute no servidor: <ol class="mb-0"><li>Atualize o <code>TMap</code> com o asset (Static/Skeletal mesh) correspondente.</li><li>Chame um <code>NetMulticast</code> <em>UpdateEquipmentVisual</em> passando Slot e Asset.</li><li>No multicast, use <code>Switch on Int</code> (0-11) para selecionar o socket e chame <code>Attach Component to Component</code> (ou <code>Set Skeletal Mesh</code> para partes corporais).</li></ol></li>
+            <li class="list-group-item"><strong>Swap</strong><br>No <code>NetMulticast</code>, antes de anexar, valide se já existe componente no socket: use <code>Get Attach Children</code>, destrua o antigo e anexe o novo. Isso espelha o comportamento do cliente que substitui <code>BodyPart</code> inteiro quando <code>Type != 0x1FFF</code>.【F:Source Main 5.2/source/WSclient.cpp†L1919-L1978】</li>
+            <li class="list-group-item"><strong>Replicação</strong><br>Adicione <code>OnRep_EquipmentVisual</code> no <em>Character</em> para reaplicar attachments em clientes tardios. Chame a mesma função de attach usada no multicast usando o mapa replicado.</li>
+          </ol>
+        </div>
+      </div>
+    </section>
+
+    <section id="tab-network" class="tab-section">
+      <div class="card">
+        <div class="card-header">Replicação e Sincronização Visual</div>
+        <div class="card-body">
+          <ol class="list-group list-group-numbered">
+            <li class="list-group-item"><strong>Servidor envia posições em tiles</strong><br>Conserve as coordenadas inteiras (X,Y,Dir) no servidor para fidelidade. Sempre que for transmitir para o cliente, inclua os valores crus e o vetor UE convertido para animação.</li>
+            <li class="list-group-item"><strong>Uso de RepNotify</strong><br>Para slots, use <code>RepNotify</code> em estruturas pequenas (ex.: <code>Equipment[12]</code>). Dentro do Notify, chame a função de attach descrita acima.</li>
+            <li class="list-group-item"><strong>Altura do Terreno</strong><br>Quando atualizar <code>Location</code> em cliente, chame uma função C++ que replica <code>RequestTerrainHeight</code> com <code>TERRAIN_SCALE</code> para evitar discrepâncias de piso.【F:Source Main 5.2/source/WSclient.cpp†L1718-L1730】</li>
+            <li class="list-group-item"><strong>Yaw consistente</strong><br>Armazene <code>LegacyAngle</code> junto com cada movimento e aplique <code>UE_Yaw = 90 - LegacyAngle</code> antes de <code>SetActorRotation</code>, garantindo que a animação olhe para o mesmo alvo do servidor.</li>
+          </ol>
+          <div class="alert alert-success">Dica: use <em>Gameplay Tags</em> para marcar origem do update (ServerAuth / ClientPrediction). Isso ajuda a debugar divergências sem alterar o fluxo lógico legado.</div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    Guia autocontido gerado a partir do código legado C++ preservando fórmulas, índices e fluxo de execução.
+  </footer>
+
+  <script>
+    const links = document.querySelectorAll('#topNav a');
+    const sections = document.querySelectorAll('.tab-section');
+    links.forEach(link => {
+      link.addEventListener('click', (e) => {
+        e.preventDefault();
+        const target = link.getAttribute('data-target');
+        links.forEach(l => l.classList.toggle('active', l === link));
+        sections.forEach(sec => sec.classList.toggle('active', sec.id === target));
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      });
+    });
+  </script>
+</body>
+</html>
