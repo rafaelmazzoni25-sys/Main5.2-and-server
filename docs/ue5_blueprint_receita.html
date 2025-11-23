@@ -118,7 +118,7 @@
             <li class="list-group-item"><strong>World → UE5</strong><br>Use um <em>Blueprint Function Library</em> para transformar:<div class="code-block">UE_X =  LegacyY
 UE_Y = -LegacyX
 UE_Z =  LegacyZ
-UE_Yaw = 90.0f - LegacyAngle</div>Essa matriz equivale a uma rotação de -90° em Z seguida de inversão de X, preservando o "Norte" legado como X+ na UE5 e mantendo o up em Z.</li>
+UE_Yaw = LegacyAngle - 180.0f</div>Essa matriz equivale a uma rotação de -90° em Z seguida de inversão de X, preservando o "Norte" legado como X+ (Yaw 0°) na UE5 e mantendo o up em Z. O yaw subtrai 180° para seguir a mesma rotação aplicada às coordenadas, garantindo que Oeste (90°) vire UE Y- (Yaw -90°) e Sul (0°) vire UE X- (Yaw 180°).</li>
             <li class="list-group-item"><strong>Aplicação em Teleporte</strong><br>No <em>GameMode</em> (servidor), ao receber coordenadas tile (x,y,dir): (a) converta para <code>LegacyX/Y</code> usando a escala; (b) aplique a função acima para setar <code>ActorLocation</code> e <code>ActorRotation</code>. Armazene o valor original em variáveis replicadas para reuso em RPCs.</li>
             <li class="list-group-item"><strong>Trajetórias e Pathfinding</strong><br>Quando ler arrays de caminho (PathX/PathY) reutilize o mesmo conversor antes de alimentar <code>AI Move To</code>. Mantenha a grade em inteiros (tile) para o servidor e exponha somente vetores UE para componentes de movimento.</li>
           </ol>
