@@ -623,6 +623,121 @@ const ueGuides = {
 
 };
 
+const ueSystems = [
+  {
+    id: "items-system",
+    name: "Sistema de Items",
+    status: "Encontrado",
+    mechanicsIds: ["server-protocolcore-dispatch"],
+    codeSummary: "ProtocolCore (Protocol.cpp) trata subcódigos 0x22-0x26 para pegar, soltar, mover e usar itens, enviando respostas via PacketSend/DataSend conforme o protocolo de rede original.",
+    ue57Summary: "Substituir os comandos 0x22-0x26 por RPCs Server (ex.: ServerHandleItemPick/Drop/Move) em GameMode/PlayerController e replicar o inventário em um componente ou APlayerState; quando detalhes de slots não estiverem claros, marcar 'NÃO DÁ PARA INFERIR COM SEGURANÇA COM BASE NO CÓDIGO-FONTE C++'."
+  },
+  {
+    id: "inventory-system",
+    name: "Sistema de Inventory",
+    status: "Encontrado",
+    mechanicsIds: ["server-protocolcore-dispatch", "server-character-list"],
+    codeSummary: "A resposta DGCharacterListRecv (DSProtocol.cpp) monta slots de personagem e ProtocolCore inclui operações de item (0x22-0x26), indicando manipulação de inventário ligada ao login/listagem de personagens.",
+    ue57Summary: "Persistir o inventário em USTRUCT replicado dentro de APlayerState ou componente de personagem e expor RPCs para mover/usar itens; para campos não descritos, usar 'NÃO DÁ PARA INFERIR COM SEGURANÇA COM BASE NO CÓDIGO-FONTE C++' e tratar como dados configuráveis."
+  },
+  {
+    id: "character-system",
+    name: "Sistema de Character",
+    status: "Encontrado",
+    mechanicsIds: ["protocol-character-and-move", "server-character-list"],
+    codeSummary: "CGCharacterListRecv/GDCharacterListSend enviam resumo de personagens após login e os envios de posição/movimento partem do cliente (SendPositionNew/SendCharacterMoveNew).",
+    ue57Summary: "Criar classe derivada de ACharacter replicada, com RPC Server para solicitar lista de personagens e variáveis replicadas para atributos básicos; onde faltarem estatísticas específicas, registrar 'NÃO DÁ PARA INFERIR COM SEGURANÇA COM BASE NO CÓDIGO-FONTE C++'."
+  },
+  {
+    id: "character-appearance",
+    name: "Sistema de Aparência do Character",
+    status: "NaoEncontrado",
+    mechanicsIds: [],
+    codeSummary: "NÃO DÁ PARA INFERIR COM SEGURANÇA COM BASE NO CÓDIGO-FONTE C++",
+    ue57Summary: "NÃO DÁ PARA INFERIR COM SEGURANÇA COM BASE NO CÓDIGO-FONTE C++"
+  },
+  {
+    id: "appearance-by-items",
+    name: "Mudanças de Aparência por Items nos Slots",
+    status: "NaoEncontrado",
+    mechanicsIds: [],
+    codeSummary: "NÃO DÁ PARA INFERIR COM SEGURANÇA COM BASE NO CÓDIGO-FONTE C++",
+    ue57Summary: "NÃO DÁ PARA INFERIR COM SEGURANÇA COM BASE NO CÓDIGO-FONTE C++"
+  },
+  {
+    id: "hud-system",
+    name: "HUD",
+    status: "NaoEncontrado",
+    mechanicsIds: [],
+    codeSummary: "NÃO DÁ PARA INFERIR COM SEGURANÇA COM BASE NO CÓDIGO-FONTE C++",
+    ue57Summary: "Para recriar UI em UE 5.7 seria necessário UMG, mas a ordem e campos exibidos não estão no código: 'NÃO DÁ PARA INFERIR COM SEGURANÇA COM BASE NO CÓDIGO-FONTE C++'."
+  },
+  {
+    id: "character-movement",
+    name: "Movimentação do Character",
+    status: "Encontrado",
+    mechanicsIds: ["protocol-character-and-move", "server-position-sync", "server-move-sync"],
+    codeSummary: "SendCharacterMoveNew envia caminho comprimido (PathNum/DirTable) e CGMoveRecv aplica path validando colisão em gMap, atualizando stand attr e difundindo via PacketSend para jogadores do viewport.",
+    ue57Summary: "Usar ACharacter com bReplicateMovement, RPC Server para receber Arrays de direções e validação de colisão no servidor; broadcast via NetMulticast ou variáveis replicadas para posição/rota."
+  },
+  {
+    id: "mobs-system",
+    name: "Mobs",
+    status: "NaoEncontrado",
+    mechanicsIds: [],
+    codeSummary: "NÃO DÁ PARA INFERIR COM SEGURANÇA COM BASE NO CÓDIGO-FONTE C++",
+    ue57Summary: "NÃO DÁ PARA INFERIR COM SEGURANÇA COM BASE NO CÓDIGO-FONTE C++"
+  },
+  {
+    id: "mob-ai",
+    name: "AI dos Mobs",
+    status: "NaoEncontrado",
+    mechanicsIds: [],
+    codeSummary: "NÃO DÁ PARA INFERIR COM SEGURANÇA COM BASE NO CÓDIGO-FONTE C++",
+    ue57Summary: "NÃO DÁ PARA INFERIR COM SEGURANÇA COM BASE NO CÓDIGO-FONTE C++"
+  },
+  {
+    id: "mob-spawn",
+    name: "Spawn de Mobs",
+    status: "NaoEncontrado",
+    mechanicsIds: [],
+    codeSummary: "NÃO DÁ PARA INFERIR COM SEGURANÇA COM BASE NO CÓDIGO-FONTE C++",
+    ue57Summary: "NÃO DÁ PARA INFERIR COM SEGURANÇA COM BASE NO CÓDIGO-FONTE C++"
+  },
+  {
+    id: "drop-system",
+    name: "Sistema de Drop (com animação)",
+    status: "Encontrado",
+    mechanicsIds: ["server-protocolcore-dispatch"],
+    codeSummary: "ProtocolCore roteia comandos de pegar/soltar item (0x22-0x26), mas nenhuma animação é descrita nos handlers; o servidor apenas valida e repassa via PacketSend/DataSend.",
+    ue57Summary: "Transformar comandos de drop em RPC Server que spawnem AActor replicado para o item no mundo; animações ou efeitos visuais devem ser marcados como 'SUGESTÃO GENÉRICA, NÃO DIRETAMENTE INFERIDA DO CÓDIGO-FONTE C++' quando não estiverem no código."
+  },
+  {
+    id: "item-effects",
+    name: "Sistema de Efeitos dos Items",
+    status: "Encontrado",
+    mechanicsIds: ["buff-script-load", "buff-time-control", "buff-value-control", "buff-system-dispatch"],
+    codeSummary: "BuffScriptLoader lê BuffEffect_<ML>.bmd com XOR e checksum, BuffTimeControl registra timers via WM_TIMER e BuffStateValueControl calcula valores a partir de BuffInfo/ItemAddOptioninfo.",
+    ue57Summary: "Criar subsistemas UE que carreguem tabelas de buff em USTRUCT, usem FTimerManager para contagem regressiva e exponham valores replicados quando afetarem outros jogadores; textos ausentes devem usar 'NÃO DÁ PARA INFERIR COM SEGURANÇA COM BASE NO CÓDIGO-FONTE C++'."
+  },
+  {
+    id: "character-sockets",
+    name: "Sistema de Sockets no Personagem (Weapons, Wings, Pets, Montaria)",
+    status: "Encontrado",
+    mechanicsIds: ["socket-option-script", "socket-tooltip-bonus"],
+    codeSummary: "CSocketItemMgr lê scripts de socket com XOR rotativo e cálculos CalcSocketOptionValue/Bonus, e funções de tooltip para SeedSphere e bônus usam esses dados.",
+    ue57Summary: "Armazenar opções de socket em USTRUCT carregado localmente e anexar armas/itens a sockets do esqueleto via AttachToComponent; quando a relação exata de slots não aparecer, registrar 'NÃO DÁ PARA INFERIR COM SEGURANÇA COM BASE NO CÓDIGO-FONTE C++'."
+  },
+  {
+    id: "terrain-system",
+    name: "Sistema de Terrain (coordenadas/rotação)",
+    status: "Encontrado",
+    mechanicsIds: ["server-move-sync"],
+    codeSummary: "CGMoveRecv consulta gMap para verificar bloqueios (stand attr) e reposiciona o jogador quando o path encontra colisão, limpando e setando stand attr conforme a nova coordenada.",
+    ue57Summary: "Executar validação de terreno no servidor UE usando navegação/colisão antes de replicar movimento; ajustes de unidade/rotação não aparecem no código, então 'NÃO DÁ PARA INFERIR COM SEGURANÇA COM BASE NO CÓDIGO-FONTE C++' para conversões específicas."
+  }
+];
+
 const roadmap = [
   {
     id: "roadmap-validate-bux",
@@ -820,6 +935,7 @@ const roadmap = [
 // UI Logic
 const tabButtons = document.querySelectorAll('.tab-button');
 const tabContents = document.querySelectorAll('.tab-content');
+const ueSystemsContainer = document.getElementById('ue-systems-container');
 
 function switchTab(targetId) {
   tabButtons.forEach(btn => btn.classList.toggle('active', btn.dataset.target === targetId));
@@ -972,9 +1088,35 @@ roadmapHorizon.addEventListener('change', renderRoadmap);
 roadmapPriority.addEventListener('change', renderRoadmap);
 roadmapMechanic.addEventListener('change', renderRoadmap);
 
+// UE Systems rendering
+function renderUESystems() {
+  if (!ueSystemsContainer) return;
+  const mechanicsMap = new Map(mechanics.map(m => [m.id, m.name]));
+  ueSystemsContainer.innerHTML = '';
+  ueSystems.forEach(sys => {
+    const card = document.createElement('div');
+    card.className = 'system-card';
+    const statusClass = sys.status === 'Encontrado' ? 'status-found' : 'status-missing';
+    const mechanicsList = sys.mechanicsIds && sys.mechanicsIds.length
+      ? sys.mechanicsIds.map(id => mechanicsMap.get(id) || id).join(', ')
+      : 'NÃO DÁ PARA INFERIR COM SEGURANÇA COM BASE NO CÓDIGO-FONTE C++';
+    card.innerHTML = `
+      <div class="system-header">
+        <h3>${sys.name}</h3>
+        <span class="status-tag ${statusClass}">${sys.status === 'Encontrado' ? 'Encontrado no código' : 'NÃO DÁ PARA INFERIR COM SEGURANÇA COM BASE NO CÓDIGO-FONTE C++'}</span>
+      </div>
+      <div class="system-section"><strong>Mecânicas Relacionadas:</strong> ${mechanicsList}</div>
+      <div class="system-section"><strong>Resumo técnico (código):</strong> ${sys.codeSummary}</div>
+      <div class="system-section"><strong>Adaptação UE 5.7:</strong> ${sys.ue57Summary}</div>
+    `;
+    ueSystemsContainer.appendChild(card);
+  });
+}
+
 // Initial render
 populateGuideSelect();
 populateRoadmapMechanicFilter();
 renderMechanicsList();
 renderGuide();
 renderRoadmap();
+renderUESystems();
