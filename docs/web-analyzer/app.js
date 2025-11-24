@@ -220,7 +220,64 @@ const mechanics = [
     networkDetails: "Sem rede; apenas instancia controles e delega mensagens WM_TIMER.",
     flow: "Make cria BuffStateSystem, chama Initialize para instanciar BuffScriptLoader/BuffTimeControl/BuffStateValueControl; HandleWindowMessage delega para BuffTimeControl; globais em _GlobalFunctions expõem TheBuffStateSystem e g_BuffSystem para uso amplo.",
     description: "Coordena subsistemas de buff, centralizando criação e roteamento de mensagens de temporização para manter o estado em sincronia." 
+  },
+
+  {
+    id: "server-modern-socket",
+    name: "Servidor assíncrono SocketManagerModern",
+    type: "Servidor",
+    files: ["SocketManagerModern.cpp", "SocketManagerModern.h", "SocketConnection.cpp", "SocketConnection.h"],
+    classes: ["CSocketManagerModern", "CSocketConnection"],
+    functions: ["StartServer", "ListenServer", "PacketSend", "DataReceived", "ProtocolSend", "OnMessage"],
+    networkDetails: "Sistema de packets do projeto original: servidor usa olc::net::server_interface<ProtocolHead> para aceitar clientes, PacketSend encapsula head/size e envia, e DataReceived despacha CLIENT_LIVE_CLIENT, BOTH_CONNECT_LOGIN, BOTH_CONNECT_CHARACTER, BOTH_POSITION, BOTH_MOVE, BOTH_ATTACK1/2 e BOTH_MESSAGE (repassado a ProtocolCore).",
+    flow: "StartServer verifica porta com CheckPortUse, instancia CSocketConnection, inicia thread ListenServer que chama connection->Update; PacketSend cria message<ProtocolHead> com body via memcpy e chama connection->ProtocolSend; DataReceived faz switch em header.id, chama CGConnectAccountRecv/CGCharacterListRecv/CGPositionRecv/CGMoveRecv/gAttack/gSkillManager ou reconstrói recv[] e passa a ProtocolCore via gPacketManager.ExtractPacket.",
+    description: "Orquestra a camada de transporte moderna do servidor, encaminhando cada ProtocolHead para a lógica de jogo depois de validar e reconstruir o buffer recebido."
+  },
+  {
+    id: "server-login-auth",
+    name: "Handshake de conexão e autenticação do servidor",
+    type: "Servidor",
+    files: ["Protocol.cpp"],
+    classes: ["ProtocolCore"],
+    functions: ["GCConnectClientSend", "GCConnectAccountSend", "CGConnectAccountRecv"],
+    networkDetails: "Sistema de packets do projeto original: GCConnectClientSend/GCConnectAccountSend usam ProtocolHead::SERVER_CONNECT e BOTH_CONNECT_LOGIN quando NEW_PROTOCOL_SYSTEM==1; CGConnectAccountRecv valida ClientVersion/ClientSerial antes de encaminhar ao JoinServer.",
+    flow: "GCConnectClientSend monta PMSG_CONNECT_CLIENT_SEND com result, índices e ClientVersion e envia via gSocketManagerModern.PacketSend; GCConnectAccountSend devolve código de login. CGConnectAccountRecv exige Connected==OBJECT_CONNECTED, compara versões/seriais, registra TickCounts, decripta account/password com PacketArgumentDecrypt e chama GJConnectAccountSend com IP do cliente.",
+    description: "Processo de autenticação no servidor que confirma versão/serial e só depois pede validação de conta ao JoinServer."
+  },
+  {
+    id: "server-character-list",
+    name: "Envio da lista de personagens (servidor)",
+    type: "Servidor",
+    files: ["Protocol.cpp", "DSProtocol.cpp"],
+    classes: ["ProtocolCore"],
+    functions: ["CGCharacterListRecv", "GDCharacterListSend", "DGCharacterListRecv"],
+    networkDetails: "Sistema de packets do projeto original: BOTH_CONNECT_CHARACTER acionado em DataReceived chama CGCharacterListRecv e GDCharacterListSend; DSProtocol monta buffer com personagens e envia via gSocketManagerModern.PacketSend quando NEW_PROTOCOL_SYSTEM==1.",
+    flow: "CGCharacterListRecv retorna se Connected!=OBJECT_LOGGED; caso contrário, chama GDCharacterListSend. No retorno do DataServer (DGCharacterListRecv), o código preenche PMSG_CHARACTER_LIST_SEND com contagem, classe liberada e info de cada slot, ajusta header.size e envia pela PacketSend/ProtocolHead::BOTH_CONNECT_CHARACTER.",
+    description: "Fornece ao cliente a lista completa de personagens disponíveis após login, respeitando restrições de classe/nível e usando o protocolo moderno quando habilitado."
+  },
+  {
+    id: "server-position-sync",
+    name: "Atualização de posição e broadcast (servidor)",
+    type: "Servidor",
+    files: ["Protocol.cpp"],
+    classes: ["ProtocolCore"],
+    functions: ["CGPositionRecv"],
+    networkDetails: "Sistema de packets do projeto original: mensagem ProtocolHead::BOTH_POSITION recebida em DataReceived dispara CGPositionRecv, que envia PMSG_POSITION_SEND para o próprio jogador e para todos do viewport via PacketSend/DataSend.",
+    flow: "CGPositionRecv redefine PathCount/PathCur, atualiza X/Y/TX/TY/OldX/OldY, ajusta atributos do mapa e monta PMSG_POSITION_SEND com index/x/y; envia ao próprio usuário e itera VpPlayer2 para enviar a cada usuário ativo no entorno.",
+    description: "Sincroniza reposicionamento instantâneo do personagem no servidor e replica a nova coordenada para todos os jogadores visíveis."
+  },
+  {
+    id: "server-move-sync",
+    name: "Processamento de movimento comprimido (servidor)",
+    type: "Servidor",
+    files: ["Protocol.cpp"],
+    classes: ["ProtocolCore"],
+    functions: ["CGMoveRecv"],
+    networkDetails: "Sistema de packets do projeto original: ProtocolHead::BOTH_MOVE recebido em DataReceived chama CGMoveRecv, que converte path codificado em PMSG_MOVE_SEND e envia via PacketSend/DataSend para o jogador e seu viewport.",
+    flow: "CGMoveRecv verifica PathCount e colisão em gMap; se bloqueado, limpa Path e reposiciona. Caso contrário, deleta stand attr antiga, atualiza coordenadas/dir, seta nova stand attr, monta PMSG_MOVE_SEND com dir<<4 e envia ao jogador e a cada VpPlayer2 ativo.",
+    description: "Aplica o caminho enviado pelo cliente, lida com bloqueios de terreno e propaga o movimento comprimido para observadores próximos."
   }
+
 ];
 
 const ueGuides = {
@@ -434,7 +491,69 @@ const ueGuides = {
       "4. Adicione `UFUNCTION(BlueprintPure)` `UBuffScriptLoaderUE* GetLoader();` e equivalentes para tempo/valores, permitindo acesso de UI e outros componentes, assim como os wrappers TheBuffStateSystem.",
       "5. Implemente método `Deinitialize` limpando timers e referências, replicando Destroy() do código original; compile e marque o subsistema para iniciar automaticamente."
     ]
+  },
+
+  "server-modern-socket": {
+    title: "Encaminhar ProtocolHead no servidor UE 5.7",
+    steps: [
+      "1. Abra o Unreal Engine 5.7 e em **Add → New C++ Class → GameMode Base** crie `AUEProtocolRouter` para substituir o socket server manual.",
+      "2. No `.h`, marque `bUseSeamlessTravel` se necessário e declare `UFUNCTION(Server, Reliable)` manipuladores como `void ServerHandleLogin(const FLoginRequest& Request);`, `void ServerHandleMove(const TArray<uint8>& DirData);` e `void ServerHandlePosition(const FVector& Pos);` para substituir os casos BOTH_CONNECT_LOGIN/BOTH_MOVE/BOTH_POSITION.",
+      "3. No `.cpp`, em cada handler valide o `APlayerController` chamador com `ensure(HasAuthority())` e repasse para componentes de jogo; em vez de reconstruir buffers, processe os parâmetros tipados e chame funções de gameplay.",
+      "4. Crie `UFUNCTION(NetMulticast, Reliable)` notificações como `void MulticastPositionUpdate(ACharacter* Target, const FVector& Pos);` para substituir PacketSend para VpPlayer2; chame-as quando o servidor aplicar a mudança.",
+      "5. Abra **Edit → Project Settings → Maps & Modes** e defina `AUEProtocolRouter` como GameMode padrão para que todas as sessões usem os RPCs.",
+      "6. No Blueprint do GameMode, documente que o servidor da UE usa RPCs e replicação padrão em vez de olc::net/PacketManager; não crie sockets ou buffers manuais.",
+      "7. Execute **Build** no Editor para compilar e, em seguida, teste com dois clientes PIE verificando se `MulticastPositionUpdate` replica as posições."
+    ]
+  },
+  "server-login-auth": {
+    title: "Autenticar cliente no servidor UE (versão/serial)",
+    steps: [
+      "1. No PlayerController C++ (`ANetworkPC`), declare `UFUNCTION(Server, Reliable)` `void ServerSubmitLogin(const FString& Account, const FString& Password, const FString& ClientVersion, const FString& ClientSerial);`.",
+      "2. No `.cpp`, em `ServerSubmitLogin`, chame `HasAuthority()` e compare `ClientVersion`/`ClientSerial` com valores armazenados no GameInstance; se divergirem, chame `ClientNotifyLoginResult` (RPC Client) com código de erro análogo a GCConnectAccountSend.",
+      "3. No GameMode `AUEProtocolRouter`, crie método `bool ValidateLogin(const FString& Account, const FString& Password);` que consulta um backend ou tabela local; se faltar implementação no código original, registre 'NÃO DÁ PARA INFERIR COM SEGURANÇA COM BASE NO CÓDIGO-FONTE C++' em um log.",
+      "4. Declare `UFUNCTION(Client, Reliable)` `void ClientReceiveJoinData(uint8 Result, uint8 IndexA, uint8 IndexB, const FString& ServerVersion);` para substituir GCConnectClientSend; calcule HeroKey como no código original e atualize estados replicados.",
+      "5. No Blueprint de UI de login, capture clique/ação e chame `ServerSubmitLogin`; mostre mensagens conforme códigos retornados em `ClientNotifyLoginResult` (mapeando os cases 0x00..0xD2).",
+      "6. No Editor, abra **Edit → Project Settings → Input** e crie Action Mapping `LoginSubmit`; no Event Graph do Widget use `InputAction LoginSubmit` para disparar a chamada RPC.",
+      "7. Compile e teste em duas instâncias PIE para garantir que apenas o servidor execute a validação e que os RPCs Client mostrem os pop-ups corretos." 
+    ]
+  },
+  "server-character-list": {
+    title: "Entregar lista de personagens via RPC",
+    steps: [
+      "1. Crie um `USTRUCT(BlueprintType)` `FCharacterSummary` com campos Name, Level, Class e GuildStatus equivalentes aos preenchidos em DGCharacterListRecv.",
+      "2. No GameMode `AUEProtocolRouter`, declare `UFUNCTION(Server, Reliable)` `void ServerRequestCharacterList(ANetworkPC* RequestingPC);` que será chamado pelo PlayerController após login.",
+      "3. No `.cpp`, ao receber a solicitação, monte `TArray<FCharacterSummary>` a partir do backend (substituindo GDCharacterListSend) e chame `ClientReceiveCharacterList` (RPC Client, Reliable) no PlayerController.",
+      "4. No PlayerController, declare `UFUNCTION(Client, Reliable)` `void ClientReceiveCharacterList(const TArray<FCharacterSummary>& Characters);` e atualize um `UPROPERTY(BlueprintAssignable)` event para a UI preencher a lista.",
+      "5. Se houver classes bloqueadas por nível/reset, aplique a mesma lógica ao montar o array e, quando alguma regra não puder ser inferida, registre 'NÃO DÁ PARA INFERIR COM SEGURANÇA COM BASE NO CÓDIGO-FONTE C++' em um log.",
+      "6. Em UMG, crie um ListView de personagens e, no Event Graph, consuma o array recebido para popular os itens.",
+      "7. Compile e valide com dois clientes PIE que o servidor envia a lista apenas após autenticação bem-sucedida." 
+    ]
+  },
+  "server-position-sync": {
+    title: "Replicar posição recebida do cliente",
+    steps: [
+      "1. No Character C++ derivado de `ACharacter`, marque em **Class Defaults** a opção **Replicate Movement** e ative **Replicates**.",
+      "2. No `.h`, declare `UFUNCTION(Server, Unreliable)` `void ServerUpdatePosition(const FVector& NewPos);` e `UFUNCTION(NetMulticast, Unreliable)` `void MulticastApplyPosition(const FVector& NewPos);` para substituir CGPositionRecv e o broadcast subsequente.",
+      "3. No `.cpp`, implemente `ServerUpdatePosition` com `if (!HasAuthority()) return;` seguido de validação simples (se faltar regra, registre a frase padrão) e chamada de `MulticastApplyPosition`.",
+      "4. Em `MulticastApplyPosition`, chame `SetActorLocation(NewPos, false, nullptr, ETeleportType::TeleportPhysics);` para atualizar todos os clientes simultaneamente.",
+      "5. No PlayerController, ao detectar teleporte ou correção de posição, chame `ServerUpdatePosition` passando `GetPawn()->GetActorLocation()`.",
+      "6. No Editor, teste com dois players em PIE verificando se a posição é replicada para observadores próximos sem usar buffers path[8].",
+      "7. Documente no Blueprint ou comentários que o envio é Unreliable, espelhando o comportamento contínuo do pacote original." 
+    ]
+  },
+  "server-move-sync": {
+    title: "Aplicar e replicar movimento comprimido",
+    steps: [
+      "1. No Character C++, declare `UFUNCTION(Server, Reliable)` `void ServerSubmitMove(const TArray<uint8>& Directions, uint8 DirByte);` representando o path comprimido do cliente.",
+      "2. No `.cpp`, em `ServerSubmitMove`, valide tamanho de `Directions` contra um limite constante equivalente a MAX_PATH_FIND; se houver colisão ou dados faltantes, registre a frase padrão de não inferência e retorne.",
+      "3. Calcule a posição alvo somando vetores de direção (use tabela de vetores de 8 direções) e chame `SetActorLocation` ou movimentação por `CharacterMovementComponent`.",
+      "4. Declare `UFUNCTION(NetMulticast, Unreliable)` `void MulticastConfirmMove(const TArray<FVector>& PathPoints, uint8 DirByte);` e dispare após aplicar o movimento no servidor.",
+      "5. No Multicast, atualize uma fila de destinos para reproduzir o movimento nos demais clientes; se não houver path detalhado no código, registre a frase padrão antes de usar apenas a posição final.",
+      "6. Em **Edit → Project Settings → Input**, configure Action/Axis para movimento e, no Event Graph do Character Blueprint, chame `ServerSubmitMove` ao processar input.",
+      "7. Compile e teste com múltiplos clientes PIE garantindo que o caminho não ultrapasse o limite e que os observadores recebam `MulticastConfirmMove`."
+    ]
   }
+
 };
 
 const roadmap = [
@@ -572,7 +691,36 @@ const roadmap = [
     description: "Criar testes que verifiquem consistência de m_BuffStateValue ao longo de múltiplas chamadas GetValue e cargas de itens variáveis.",
     basedOnCode: true,
     notes: "Baseado diretamente no código C++ (w_BuffStateValueControl.cpp linhas 20-83)."
+  },
+
+  {
+    id: "roadmap-modern-socket-cleanup",
+    horizon: "Curto Prazo",
+    priority: "Alta",
+    mechanicsIds: ["server-modern-socket"],
+    description: "Revisar thread detach no destrutor de CSocketManagerModern e adicionar desligamento ordenado do connection->Stop().",
+    basedOnCode: true,
+    notes: "Baseado diretamente no código C++ (SocketManagerModern.h destrutor detach sem join)."
+  },
+  {
+    id: "roadmap-login-version-serial",
+    horizon: "Curto Prazo",
+    priority: "Média",
+    mechanicsIds: ["server-login-auth"],
+    description: "Externalizar tabelas de versão/serial do servidor para configuração em vez de constantes compiladas.",
+    basedOnCode: true,
+    notes: "Baseado diretamente no código C++ (Protocol.cpp GCConnectClientSend/CGConnectAccountRecv comparando ClientVersion/ClientSerial)."
+  },
+  {
+    id: "roadmap-move-collision",
+    horizon: "Médio Prazo",
+    priority: "Alta",
+    mechanicsIds: ["server-move-sync", "server-position-sync"],
+    description: "Adicionar logs detalhados quando gMap.CheckAttr bloquear movimento e teleporte corretivo for aplicado em CGMoveRecv/CGPositionRecv.",
+    basedOnCode: true,
+    notes: "Baseado diretamente no código C++ (Protocol.cpp blocos de gMap.CheckAttr e resets de PathCount)."
   }
+
 ];
 
 // UI Logic
