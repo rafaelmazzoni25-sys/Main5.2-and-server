@@ -1,0 +1,72 @@
+<!-- index.html -->
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <title>Sistema de Análise C++ / Unreal Engine 5.7</title>
+  <link rel="stylesheet" href="styles.css">
+  <script src="app.js" defer></script>
+</head>
+<body>
+  <header class="app-header">
+    <h1>Sistema de Análise C++ / Unreal Engine 5.7</h1>
+    <p>Visualização estruturada das mecânicas e fluxos identificados diretamente no código-fonte C/C++ (ServerListManager, ServerGroup, ProtocolSend).</p>
+  </header>
+
+  <nav class="nav-tabs">
+    <button class="tab-button active" data-target="mechanics-section">Mecânicas / Sistemas</button>
+    <button class="tab-button" data-target="guide-section">Guia UE 5.7</button>
+    <button class="tab-button" data-target="roadmap-section">Roadmap</button>
+  </nav>
+
+  <main>
+    <section id="mechanics-section" class="tab-content active">
+      <div class="filters">
+        <input id="mechanics-search" type="text" placeholder="Buscar mecânicas" />
+        <select id="mechanics-type-filter">
+          <option value="">Todos os tipos</option>
+          <option value="Cliente">Cliente</option>
+          <option value="Servidor">Servidor</option>
+          <option value="Compartilhada">Compartilhada</option>
+          <option value="Indefinido">Indefinido</option>
+        </select>
+      </div>
+      <div class="layout-columns">
+        <div class="list-panel">
+          <ul id="mechanics-list" class="item-list"></ul>
+        </div>
+        <div class="detail-panel">
+          <h2>Detalhes da Mecânica</h2>
+          <div id="mechanic-detail" class="detail-card">Selecione uma mecânica para ver detalhes.</div>
+        </div>
+      </div>
+    </section>
+
+    <section id="guide-section" class="tab-content">
+      <div class="filters">
+        <select id="guide-mechanic-filter"></select>
+      </div>
+      <div id="guide-content" class="detail-card">Selecione uma mecânica para ver o guia.</div>
+    </section>
+
+    <section id="roadmap-section" class="tab-content">
+      <div class="filters">
+        <select id="roadmap-horizon-filter">
+          <option value="">Todos os horizontes</option>
+          <option value="Curto Prazo">Curto Prazo</option>
+          <option value="Médio Prazo">Médio Prazo</option>
+          <option value="Longo Prazo">Longo Prazo</option>
+        </select>
+        <select id="roadmap-priority-filter">
+          <option value="">Todas prioridades</option>
+          <option value="Alta">Alta</option>
+          <option value="Média">Média</option>
+          <option value="Baixa">Baixa</option>
+        </select>
+        <select id="roadmap-mechanic-filter"></select>
+      </div>
+      <div id="roadmap-groups" class="roadmap-container"></div>
+    </section>
+  </main>
+</body>
+</html>
