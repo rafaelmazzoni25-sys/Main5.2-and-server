@@ -120,7 +120,51 @@ const mechanics = [
     functions: ["DataSend(ProtocolHead,uint8_t*,uint16_t)", "DataSend(uint8_t*,uint16_t)", "MessageAll"],
     networkDetails: "Encapsula payload em olc::net::message com header.id específico ou BOTH_MESSAGE quando apenas buffer é fornecido.",
     flow: "Versão com ProtocolHead define header.id e redimensiona body antes de Send; versão clássica verifica IsConnected, seta id=BOTH_MESSAGE e preenche body com memcpy.",
-    description: "Abstrai a montagem de mensagens binárias para diferentes cabeçalhos do protocolo sem alterar os dados originais." 
+    description: "Abstrai a montagem de mensagens binárias para diferentes cabeçalhos do protocolo sem alterar os dados originais."
+  },
+  {
+    id: "buff-script-load",
+    name: "Carga e descriptografia de BuffEffect_*.bmd",
+    type: "Cliente",
+    files: ["w_BuffScriptLoader.cpp", "w_BuffScriptLoader.h"],
+    classes: ["BuffScriptLoader", "BuffInfo"],
+    functions: ["BuffScriptLoader::Load", "BuxConvert", "CutTokenString", "GetBuffinfo", "IsBuffClass", "GetBuffIndex", "GetBuffType"],
+    networkDetails: "Nenhuma comunicação de rede; leitura local de arquivo data/local/<ML>/BuffEffect_<ML>.bmd com checagem de checksum e xor BuxConvert.",
+    flow: "Construtor forma nome do arquivo, chama Load; Load abre BIN, lê listsize e buffer criptografado, aplica BuxConvert, monta BuffInfo com nomes/descrições e insere em m_Info; opcionalmente resolve índices por item code.",
+    description: "Deserializa tabelas de buffs de arquivo BMD, aplica xor rotativo, valida checksum e tokeniza descrições em lista para uso posterior."
+  },
+  {
+    id: "buff-time-control",
+    name: "Registro e temporização de buffs ativos",
+    type: "Cliente",
+    files: ["w_BuffTimeControl.cpp", "w_BuffTimeControl.h"],
+    classes: ["BuffTimeControl"],
+    functions: ["RegisterBuffTime", "UnRegisterBuffTime", "CheckBuffTimeType", "GetBuffMaxTime", "HandleWindowMessage", "GetBuffStringTime", "GetBuffTime"],
+    networkDetails: "Sem rede; usa SetTimer/KillTimer de janela (WM_TIMER) para decrementar tempos de buff localmente.",
+    flow: "RegisterBuffTime calcula BuffTimeType via g_IsBuffClass/g_BuffInfo, limita tempo pelo ItemAddOption, grava em m_BuffTimeList e seta timer; HandleWindowMessage responde WM_TIMER, chama CheckBuffTime para reduzir tempo ou matar timer; UnRegisterBuffTime remove timers ativos.",
+    description: "Gerencia duração de buffs com timers de janela, converte tempos para texto e garante término automático quando o tempo expira."
+  },
+  {
+    id: "buff-value-control",
+    name: "Consulta de valores numéricos de buffs",
+    type: "Cliente",
+    files: ["w_BuffStateValueControl.cpp", "w_BuffStateValueControl.h"],
+    classes: ["BuffStateValueControl"],
+    functions: ["CheckValue", "SetValue", "GetValue", "GetBuffInfoString", "GetBuffValueString", "Initialize"],
+    networkDetails: "Nenhuma rede; consome tabelas locais de BuffInfo e ItemAddOptioninfo para preencher valores.",
+    flow: "Initialize percorre eBuff_Attack..eBuff_Count e pré-checa tipo de carga; GetValue consulta cache m_BuffStateValue ou chama SetValue para popular com dados de item; GetBuffInfoString copia descrições tokenizadas e nomes; GetBuffValueString devolve valor formatado.",
+    description: "Fornece acesso a valores e textos de buffs combinando dados carregados e opções de itens, com caching em mapa por eBuffState."
+  },
+  {
+    id: "buff-system-dispatch",
+    name: "Agregação de sistema de buff e encaminhamento de mensagens de janela",
+    type: "Cliente",
+    files: ["w_BuffStateSystem.cpp", "w_BuffStateSystem.h", "_GlobalFunctions.cpp", "_GlobalFunctions.h"],
+    classes: ["BuffStateSystem"],
+    functions: ["BuffStateSystem::Make", "Initialize", "Destroy", "HandleWindowMessage", "TheBuffStateSystem"],
+    networkDetails: "Sem rede; apenas instancia controles e delega mensagens WM_TIMER.",
+    flow: "Make cria BuffStateSystem, chama Initialize para instanciar BuffScriptLoader/BuffTimeControl/BuffStateValueControl; HandleWindowMessage delega para BuffTimeControl; globais em _GlobalFunctions expõem TheBuffStateSystem e g_BuffSystem para uso amplo.",
+    description: "Coordena subsistemas de buff, centralizando criação e roteamento de mensagens de temporização para manter o estado em sincronia." 
   }
 ];
 
@@ -220,7 +264,43 @@ const ueGuides = {
     steps: [
       "Implemente uma função que receba um enum cabeçalho e buffer binário e construa um pacote com header.id e tamanho antes de enviar (equivalente a DataSend com ProtocolHead).",
       "Implemente variante que usa cabeçalho fixo BOTH_MESSAGE quando apenas o buffer é fornecido, verificando se a conexão está ativa antes do envio.",
-      "Se desejar suportar multicast UE, encapsule o envio em um componente não replicado e dispare eventos locais após o envio para manter telemetria de UI." 
+      "Se desejar suportar multicast UE, encapsule o envio em um componente não replicado e dispare eventos locais após o envio para manter telemetria de UI."
+    ]
+  },
+  "buff-script-load": {
+    title: "Recriar carga e descriptografia de BuffEffect",
+    steps: [
+      "No Unreal 5.7, crie uma classe UObject utilitária que leia BuffEffect_<ML>.bmd de um caminho configurável (FFileHelper::LoadFileToArray) e valide tamanho equivalente a _BUFFINFO.",
+      "Aplique XOR rotativo nos bytes (0xfc, 0xcf, 0xab) antes de copiar para um struct UStruct que replique os campos s_BuffIndex, s_BuffEffectType, s_ItemType, s_ItemIndex, s_BuffName, s_BuffClassType, s_NoticeType, s_ClearType e s_BuffDescript.",
+      "Implemente verificação de checksum (GenerateCheckSum2 equivalente) e em caso de falha acione log/encerramento conforme o código; se a função GenerateCheckSum2 não existir em UE, marque como 'NÃO DÁ PARA INFERIR COM SEGURANÇA COM BASE NO CÓDIGO-FONTE C/C++' e forneça implementação manual.",
+      "Divida descrições por '/' em um TArray<FString> para simular CutTokenString e armazene em um TMap<eBuffState, FBuffInfo> acessível a Blueprints."
+    ]
+  },
+  "buff-time-control": {
+    title: "Gerenciar timers de buff no cliente UE",
+    steps: [
+      "Implemente um componente (UActorComponent) que mantenha TMap<eBuffTimeType, FBuffTimeInfo> com campos BuffType, CurBuffTime (ms) e EventBuffTime, inicializando via método equivalente a RegisterBuffTime.",
+      "Converta CheckBuffTimeType para lógica UE usando enum eBuffState/eBuffTimeType já definidos; recupere dados de buff via objeto Loader e limite tempo máximo conforme tabela de itens ou retorne -1 se indefinido.",
+      "Substitua SetTimer/KillTimer de janela por FTimerManager no PlayerController/GameInstance para ticks a cada ~0.9s, chamando função que reduz CurBuffTime como CheckBuffTime.",
+      "Exponha métodos BlueprintCallable para GetBuffStringTime e GetBuffTime, formatando texto de duração; mantenha lógica de expiração (quando <=0, cancelar timer e remover entrada)."
+    ]
+  },
+  "buff-value-control": {
+    title: "Consultar valores numéricos de buff em UE",
+    steps: [
+      "Crie um objeto UObject com TMap<eBuffState, FBuffStateValueInfo> contendo Value1, Value2 e Time; inicialize percorrendo enums como em Initialize.",
+      "Implemente função CheckValue para decidir se os dados virão de ItemAddOption (caso default) ou ficam zerados; traduza ItemAddOptioninfo para uma tabela de dados de item na UE ou marque como 'NÃO DÁ PARA INFERIR COM SEGURANÇA COM BASE NO CÓDIGO-FONTE C/C++' se o arquivo não existir.",
+      "Implemente GetValue que cria/popula cache consultando Loader de BuffInfo e tabela de itens; exponha GetBuffInfoString/GetBuffValueString como BlueprintPure para UI usar textos e valores.",
+      "Não utilize replicação, pois os valores são calculados localmente; mantenha coerência com o cache para evitar consultas repetidas."
+    ]
+  },
+  "buff-system-dispatch": {
+    title: "Centralizar subsistemas de buff em UE",
+    steps: [
+      "Implemente um subsistema (UGameInstanceSubsystem) que, ao iniciar, instancia objetos equivalentes a BuffScriptLoader, BuffTimeControl e BuffStateValueControl e os mantém acessíveis globalmente, similar a g_BuffSystem.",
+      "Crie função estática BlueprintCallable que retorne referências a cada subsistema para UIs e outros componentes (equivalente a TheBuffStateSystem wrappers).",
+      "Implemente roteamento de mensagens de tempo: em vez de HandleWindowMessage, chame o componente de timers a cada Tick ou via timer global para reduzir tempos de buff.",
+      "Garanta destruição/limpeza no final da sessão liberando timers e dados carregados, replicando a intenção de Destroy()."
     ]
   }
 };
@@ -288,6 +368,33 @@ const roadmap = [
     description: "Instrumentar métricas de envio/recebimento para monitorar latência e perda de pacotes durante sessões prolongadas.",
     basedOnCode: false,
     notes: "SUGESTÃO GENÉRICA, NÃO DIRETAMENTE INFERIDA DO CÓDIGO-FONTE C/C++."
+  },
+  {
+    id: "roadmap-buff-checksum-validation",
+    horizon: "Curto Prazo",
+    priority: "Alta",
+    mechanicsIds: ["buff-script-load"],
+    description: "Adicionar logs e retorno de erro robusto quando checksum de BuffEffect_*.bmd falhar para evitar crash ao tentar MessageBox/SendMessage.",
+    basedOnCode: true,
+    notes: "Baseado diretamente no código C++ (w_BuffScriptLoader.cpp linhas 33-112)."
+  },
+  {
+    id: "roadmap-buff-timer-safety",
+    horizon: "Médio Prazo",
+    priority: "Média",
+    mechanicsIds: ["buff-time-control", "buff-system-dispatch"],
+    description: "Isolar uso de KillTimer/SetTimer com verificações de existência da janela e evitar dangling timers ao destruir BuffTimeControl.",
+    basedOnCode: true,
+    notes: "Baseado diretamente no código C++ (w_BuffTimeControl.cpp linhas 14-74, 113-158)."
+  },
+  {
+    id: "roadmap-buff-cache-validation",
+    horizon: "Longo Prazo",
+    priority: "Média",
+    mechanicsIds: ["buff-value-control"],
+    description: "Criar testes que verifiquem consistência de m_BuffStateValue ao longo de múltiplas chamadas GetValue e cargas de itens variáveis.",
+    basedOnCode: true,
+    notes: "Baseado diretamente no código C++ (w_BuffStateValueControl.cpp linhas 20-83)."
   }
 ];
 
