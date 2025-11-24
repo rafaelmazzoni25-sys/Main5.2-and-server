@@ -606,7 +606,7 @@ const ueGuides = {
       "4. No GameMode, crie `UFUNCTION(Server, Reliable)` `void ServerProcessMapMove(ANetworkPC* PC, int32 NextServerCode, uint8 Map, uint8 X, uint8 Y);` que consulta o `UJoinServerBridge` para validar bloqueios/Lock e em sucesso chama `ClientReceiveMapMove` (RPC Client) com IP/porta ou envia `ClientMapMoveCanceled` caso contrário.",
       "5. No PlayerController, implemente `UFUNCTION(Client, Reliable)` `void ClientReceiveJoinResult(uint8 ResultCode, uint8 AccountLevel, const FString& ExpireDate);` e `void ClientReceiveMapMove(const FString& Ip, uint16 Port, const FAuthPayload& Auth);` para substituir GCConnectAccountSend/JGMapServerMoveRecv; atualize estados replicados e chame `ServerTravel` somente após confirmação.",
       "6. Para contas já conectadas, declare `UFUNCTION(Server, Reliable)` `void ServerHandleAlreadyConnected(const FString& Account);` e, caso `UJoinServerBridge` detecte duplicidade, chame `ClientForceLogout()` (RPC Client) ou finalize o pawn com `Destroy()` conforme gServerInfo.m_DisconnectOnlineAccount.",
-      "7. Em UMG de login, conecte botão "Login" à chamada `ServerSubmitAccount`; para mudança de mapa, ligue o evento correspondente ao botão de teleporte para disparar `ServerRequestMapMove`. Compile, ative **Replicates** no PlayerController Blueprint e teste transições em PIE."
+      "7. Em UMG de login, conecte botão \"Login\" à chamada `ServerSubmitAccount`; para mudança de mapa, ligue o evento correspondente ao botão de teleporte para disparar `ServerRequestMapMove`. Compile, ative **Replicates** no PlayerController Blueprint e teste transições em PIE."
     ]
   },
   "server-packet-encryption-manager": {
