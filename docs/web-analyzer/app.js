@@ -276,6 +276,39 @@ const mechanics = [
     networkDetails: "Sistema de packets do projeto original: ProtocolHead::BOTH_MOVE recebido em DataReceived chama CGMoveRecv, que converte path codificado em PMSG_MOVE_SEND e envia via PacketSend/DataSend para o jogador e seu viewport.",
     flow: "CGMoveRecv verifica PathCount e colisão em gMap; se bloqueado, limpa Path e reposiciona. Caso contrário, deleta stand attr antiga, atualiza coordenadas/dir, seta nova stand attr, monta PMSG_MOVE_SEND com dir<<4 e envia ao jogador e a cada VpPlayer2 ativo.",
     description: "Aplica o caminho enviado pelo cliente, lida com bloqueios de terreno e propaga o movimento comprimido para observadores próximos."
+  },
+  {
+    id: "server-dataserver-dispatch",
+    name: "Despacho de respostas do DataServer",
+    type: "Servidor",
+    files: ["DSProtocol.cpp"],
+    classes: ["DataServerProtocolCore"],
+    functions: ["DataServerProtocolCore"],
+    networkDetails: "Sistema de packets do projeto original: DataServerProtocolCore recebe cabeçalho head e, para subpacotes com C1/C2, avalia subcódigos em lpMsg[3] ou lpMsg[4] para direcionar warehouse, quest, master skill, NPCs e comandos personalizados.",
+    flow: "Switch em head (0x00 info, 0x01 lista de personagens, 0x02 criação, 0x03 deleção, 0x04 info). Para head 0x05, verifica subcódigos 0x00/0x01/0x70/0x71/0x75 e chama gWarehouse. 0x07 cria item, 0x08 opções, 0x09 pet info, 0x0A/0x0B checagem/rename de nome, 0x0C/0x0D/0x0E/0x0F/0x10/0x11 usam subcódigos para quest kill, master skill tree, NPCs (Leo/Santa), comandos reset/marry/rename/bloc/gift/top, QuestWorld e Gens insert/delete.",
+    description: "Centraliza o roteamento de mensagens vindas do DataServer, distribuindo para warehouse, personagem, comandos de reset e sistemas de quest/Gens conforme cabeçalho e subcódigo sem alterar o payload."
+  },
+  {
+    id: "server-joinserver-auth-move",
+    name: "Autenticação e troca de servidor via JoinServer",
+    type: "Servidor",
+    files: ["JSProtocol.cpp"],
+    classes: ["JoinServerProtocolCore"],
+    functions: ["JoinServerProtocolCore", "JGConnectAccountRecv", "JGMapServerMoveRecv", "JGMapServerMoveAuthRecv", "JGAccountLevelRecv", "JGAccountLevelRecv2", "JGAccountAlreadyConnectedRecv", "GJConnectAccountSend", "GJDisconnectAccountSend", "GJMapServerMoveSend", "GJMapServerMoveAuthSend"],
+    networkDetails: "Sistema de packets do projeto original: JoinServerProtocolCore switch em head (0x00-0x06,0x30) e envia/recebe pacotes SDHP_* usando gJoinServerConnection.DataSend; fluxo controla login, desconexão, mudança de mapa e níveis de conta.",
+    flow: "JGConnectAccountRecv decrementa LoginMessageSend, valida estado Connected, bloqueios e server lock, copia Account/PersonalCode/AccountLevel/expire date/Lock e envia GCConnectAccountSend. JGMapServerMoveRecv valida conta, em sucesso monta PMSG_MAP_SERVER_MOVE_SEND com IP/porta ou cancela e reenvia notice; em caso de NextServerCode válido grava AuthCodes e fecha character via CharacterGameClose. JGMapServerMoveAuthRecv revalida MapServerMoveRequest e estado Connected, aplica bloqueios e, em sucesso, atualiza Account/PersonalCode/AccountLevel/Lock/destinos e chama GDCharacterInfoSend. AccountLevelRecv atualiza nível e avisa via notice; AccountLevelRecv2 envia notices e GJAccountLevelSend para usuários com mesma conta; AccountAlreadyConnectedRecv mata usuário se configurado e notifica módulos CustomAttack/CustomStore. GJ* funções constroem SDHP_* e enviam ao JoinServer com header apropriado.",
+    description: "Gerencia autenticação centralizada com o JoinServer, inclusive verificação de bloqueios e mudança de MapServer, mantendo contadores de mensagens e replicando dados de conta antes de carregar personagem."
+  },
+  {
+    id: "server-packet-encryption-manager",
+    name: "Inicialização de criptografia e filtros de pacote",
+    type: "Servidor",
+    files: ["PacketManager.cpp", "PacketManager.h"],
+    classes: ["CPacketManager"],
+    functions: ["Init", "LoadEncryptionKey", "LoadDecryptionKey", "LoadKey"],
+    networkDetails: "Sistema de packets do projeto original: define chaves DES_XEX3 quando GAMESERVER_UPDATE>=701 ou tabelas XOR (m_SaveLoadXor, m_XorFilter) para criptografia/descrição de pacotes persistidos; LoadKey lê arquivo com ENCDEC_HEADER e campos Modulus/Key ofuscados.",
+    flow: "Init seta chaves DES ou zera m_Encryption/m_Decryption e preenche SaveLoadXor e XorFilter de 32 bytes; LoadEncryptionKey/LoadDecryptionKey chamam LoadKey (header 4370) que abre arquivo, valida header/size, lê tabelas com CreateFile/ReadFile e aplica XOR com SaveLoadXor para preencher Modulus/Key.",
+    description: "Prepara os filtros e chaves de criptografia usados pelo servidor para salvar/carregar dados e processar pacotes, sem enviar nada diretamente na rede."
   }
 
 ];
@@ -552,6 +585,40 @@ const ueGuides = {
       "6. Em **Edit → Project Settings → Input**, configure Action/Axis para movimento e, no Event Graph do Character Blueprint, chame `ServerSubmitMove` ao processar input.",
       "7. Compile e teste com múltiplos clientes PIE garantindo que o caminho não ultrapasse o limite e que os observadores recebam `MulticastConfirmMove`."
     ]
+  },
+  "server-dataserver-dispatch": {
+    title: "Roteio de respostas de backend em UE",
+    steps: [
+      "1. No Unreal 5.7, crie um **GameInstance Subsystem** chamado `UDataBackendRouter` (Add → New C++ Class → Game Instance Subsystem) para substituir `DataServerProtocolCore`.",
+      "2. No `.h`, declare `UFUNCTION(Server, Reliable)` handlers como `void ServerHandleWarehouse(const FWarehousePayload& Data);`, `void ServerHandleCharacterList(const TArray<FCharacterSummary>& Characters);` e `void ServerHandleCommandReset(const FResetResult& Result);` espelhando os cases 0x01-0x0F do código original.",
+      "3. No `.cpp`, registre um mapa `TMap<uint8, TFunction<void(const TArray<uint8>&)>>` que associa cada head/subcódigo a um delegate forte; em `Initialize`, preencha os delegates chamando funções tipadas em vez de parsing manual de bytes.",
+      "4. Para notificações ao cliente, declare `UFUNCTION(Client, Reliable)` como `void ClientReceiveWarehouseItems(const FWarehousePayload& Data);` ou `ClientReceiveQuestKill(const FQuestKillData& Data);` e chame-as nos handlers, substituindo o envio de buffers gWarehouse/DGQuestKillCountRecv.",
+      "5. Se alguma estrutura de retorno não puder ser inferida do código original, inclua na implementação um `UE_LOG` com a mensagem 'NÃO DÁ PARA INFERIR COM SEGURANÇA COM BASE NO CÓDIGO-FONTE C++' e bloqueie a chamada até obter especificação.",
+      "6. Em **Edit → Project Settings → Maps & Modes**, marque o GameMode para usar este subsistema (via `GetGameInstance()->GetSubsystem<UDataBackendRouter>()`) ao iniciar a sessão e teste em PIE chamando manualmente os handlers para ver as notificações Client." 
+    ]
+  },
+  "server-joinserver-auth-move": {
+    title: "Autenticar e trocar de mapa com JoinServer em UE",
+    steps: [
+      "1. Crie um **GameInstance Subsystem** `UJoinServerBridge` (Add → New C++ Class → Game Instance Subsystem) para manter dados de conta, AuthCodes e contadores equivalentes a LoginMessageSend.",
+      "2. No PlayerController `ANetworkPC`, declare `UPROPERTY(Replicated)` `uint8 LoginMessageSend` e implemente `GetLifetimeReplicatedProps` com `DOREPLIFETIME` para esse campo e `AccountLevel`.",
+      "3. No `.h` do PlayerController, adicione `UFUNCTION(Server, Reliable)` `void ServerSubmitAccount(const FString& Account, const FString& Password);`, `void ServerRequestMapMove(int32 NextServerCode, uint8 Map, uint8 X, uint8 Y);` e `void ServerConfirmMapAuth(const FAuthPayload& Auth);`.",
+      "4. No GameMode, crie `UFUNCTION(Server, Reliable)` `void ServerProcessMapMove(ANetworkPC* PC, int32 NextServerCode, uint8 Map, uint8 X, uint8 Y);` que consulta o `UJoinServerBridge` para validar bloqueios/Lock e em sucesso chama `ClientReceiveMapMove` (RPC Client) com IP/porta ou envia `ClientMapMoveCanceled` caso contrário.",
+      "5. No PlayerController, implemente `UFUNCTION(Client, Reliable)` `void ClientReceiveJoinResult(uint8 ResultCode, uint8 AccountLevel, const FString& ExpireDate);` e `void ClientReceiveMapMove(const FString& Ip, uint16 Port, const FAuthPayload& Auth);` para substituir GCConnectAccountSend/JGMapServerMoveRecv; atualize estados replicados e chame `ServerTravel` somente após confirmação.",
+      "6. Para contas já conectadas, declare `UFUNCTION(Server, Reliable)` `void ServerHandleAlreadyConnected(const FString& Account);` e, caso `UJoinServerBridge` detecte duplicidade, chame `ClientForceLogout()` (RPC Client) ou finalize o pawn com `Destroy()` conforme gServerInfo.m_DisconnectOnlineAccount.",
+      "7. Em UMG de login, conecte botão "Login" à chamada `ServerSubmitAccount`; para mudança de mapa, ligue o evento correspondente ao botão de teleporte para disparar `ServerRequestMapMove`. Compile, ative **Replicates** no PlayerController Blueprint e teste transições em PIE."
+    ]
+  },
+  "server-packet-encryption-manager": {
+    title: "Configurar segurança de transporte sem buffers manuais",
+    steps: [
+      "1. No Editor, adicione um **Game Instance Subsystem** `UPacketSecuritySubsystem` (Add → New C++ Class → Game Instance Subsystem) para substituir `CPacketManager`.",
+      "2. No `.h`, declare `UPROPERTY()` arrays para chaves `TArray<uint8> EncryptionKey` e `DecryptionKey` e métodos `UFUNCTION(BlueprintCallable)` `void InitializeKeys();` e `void ApplySecuritySettings();`.",
+      "3. Em `InitializeKeys` no `.cpp`, carregue chaves de um DataTable ou arquivo `INI` usando `GConfig`; se não houver arquivo equivalente ao ENCDEC_HEADER, registre 'NÃO DÁ PARA INFERIR COM SEGURANÇA COM BASE NO CÓDIGO-FONTE C++' e use chaves padrões do backend.",
+      "4. Em `ApplySecuritySettings`, configure `UNetDriver::EncryptionKey` ou utilize `FEncryptionContext` da UE para assinar/criptografar pacotes, em vez de aplicar XOR manual; documente em comentários que não são usados buffers m_SaveLoadXor/m_XorFilter.",
+      "5. No GameMode inicial (por exemplo `AUEProtocolRouter`), chame `GetGameInstance()->GetSubsystem<UPacketSecuritySubsystem>()->InitializeKeys();` no BeginPlay para garantir que a sessão configure as chaves antes de qualquer RPC.",
+      "6. Se precisar registrar telemetria, crie `UFUNCTION(BlueprintCallable)` `FString DescribeKeysForDebug();` que retorna apenas tamanhos ou hashes, nunca o conteúdo; compile e teste conexão em PIE para confirmar que os RPCs continuam funcionando sem serialização manual."
+    ]
   }
 
 };
@@ -719,6 +786,33 @@ const roadmap = [
     description: "Adicionar logs detalhados quando gMap.CheckAttr bloquear movimento e teleporte corretivo for aplicado em CGMoveRecv/CGPositionRecv.",
     basedOnCode: true,
     notes: "Baseado diretamente no código C++ (Protocol.cpp blocos de gMap.CheckAttr e resets de PathCount)."
+  },
+  {
+    id: "roadmap-dataserver-telemetry",
+    horizon: "Curto Prazo",
+    priority: "Média",
+    mechanicsIds: ["server-dataserver-dispatch"],
+    description: "Registrar métricas por head/subcódigo em DataServerProtocolCore e validar acessos a lpMsg[3]/lpMsg[4] antes de chamar handlers.",
+    basedOnCode: true,
+    notes: "Baseado diretamente no código C++ (DSProtocol.cpp switch de head 0x00-0x11 e subcódigos 0x00/0x01/0x70/0x71/0x75)."
+  },
+  {
+    id: "roadmap-joinserver-dup-protection",
+    horizon: "Médio Prazo",
+    priority: "Alta",
+    mechanicsIds: ["server-joinserver-auth-move"],
+    description: "Fortalecer tratamento de conta duplicada em JGAccountAlreadyConnectedRecv sincronizando com CustomAttack/CustomStore para encerrar sessões conflitantes.",
+    basedOnCode: true,
+    notes: "Baseado diretamente no código C++ (JSProtocol.cpp função JGAccountAlreadyConnectedRecv e uso de gCustomAttack/gCustomStore)."
+  },
+  {
+    id: "roadmap-packet-key-config",
+    horizon: "Curto Prazo",
+    priority: "Média",
+    mechanicsIds: ["server-packet-encryption-manager"],
+    description: "Externalizar chaves DES_XEX3/XorFilter para arquivo de configuração e adicionar validação de header 4370 antes de ApplySecuritySettings.",
+    basedOnCode: true,
+    notes: "Baseado diretamente no código C++ (PacketManager.cpp Init/LoadKey usando ENCDEC_HEADER e m_SaveLoadXor/m_XorFilter)."
   }
 
 ];
