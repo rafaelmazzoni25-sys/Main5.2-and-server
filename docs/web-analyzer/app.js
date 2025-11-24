@@ -153,7 +153,18 @@ const mechanics = [
     functions: ["CreateSocket", "DeleteSocket", "ProtocolCompiler", "AddDebugText", "ReceiveCheckSumRequest"],
     networkDetails: "Sistema de packets do projeto original: CreateSocket inicializa CWsctlc, conecta com WM_ASYNCSELECTMSG e zera g_byPacketSerialSend/g_byPacketSerialRecv; ProtocolCompiler decripta pacotes C3/C4 via g_SimpleModulusSC, valida serial e envia SendHackingChecked em falha.",
     flow: "CreateSocket executa Startup/LogPrintOn (debug), cria socket da janela e chama Connect; ProtocolCompiler consome GetReadMsg, identifica C1/C2 ou decripta C3/C4 para byDec, ajusta header e incrementa g_byPacketSerialRecv ou registra erro, soma Size em TotalPacketSize e opcionalmente salva pacote; ReceiveCheckSumRequest calcula checksum e invoca SendCheckSum; DeleteSocket fecha o socket.",
-    description: "Implementa camada de transporte síncrona ao Windows, incluindo conexão assíncrona, serialização de pacotes criptografados SimpleModulus, verificação de sequência e resposta a pedidos de checksum." 
+    description: "Implementa camada de transporte síncrona ao Windows, incluindo conexão assíncrona, serialização de pacotes criptografados SimpleModulus, verificação de sequência e resposta a pedidos de checksum."
+  },
+  {
+    id: "server-protocolcore-dispatch",
+    name: "Despacho central ProtocolCore (servidor)",
+    type: "Servidor",
+    files: ["Protocol.cpp", "Connection.cpp", "SocketManagerModern.cpp"],
+    classes: ["ProtocolCore"],
+    functions: ["ProtocolCore", "Connection::ProtocolCore", "SocketManagerModern::DataRecv"],
+    networkDetails: "Sistema de packets do projeto original: SocketManagerModern/Connection leem cabeçalhos C1/C2/C3/C4, calculam tamanho/serial e repassam para ProtocolCore, que roteia para handlers específicos (chat, ataque, movimento, item, trade, party, guild, warehouse etc.).",
+    flow: "Connection carrega ponteiro wsProtocolCore com ProtocolCore; ao receber dados (SocketManagerModern::DataRecv) decriptografa se necessário e chama ProtocolCore(head,lpMsg,size,aIndex,encrypt,serial). ProtocolCore loga packets (exceto alguns cabeçalhos) e faz switch em head: 0x00 chat → CGChatRecv; 0x02 whisper → CGChatWhisperRecv; 0x03 main check; 0x0E live client; PROTOCOL_CODE2 ataque → gAttack.CGAttackRecv; PROTOCOL_CODE3 posição → CGPositionRecv; 0x18 ação → CGActionRecv; 0x19/0x1B/0x1E skills; 0x22-0x26 pegar/soltar/mover/usar item; 0x30/0x31 falar com NPC/fechar; 0x32-0x34 comprar/vender/reparar; 0x36-0x3D fluxo de trade (request/response/dinheiro/ok/cancel); 0x3F subcódigos de PersonalShop; 0x40-0x43 party; 0x4A-0x4E skills RageFighter/mineração/event inventory/MuRummy/Muun; 0x50-0x57 guild; 0x61/0x66 guild war/viewport; 0x81-0x83 warehouse; 0x86-0x87 chaos mix; 0x8E teleporte; 0x90 DevilSquare e demais casos especificados.",
+    description: "Função central do servidor que recebe pacotes do sistema de packets original e encaminha para dezenas de handlers especializados (chat, combate, skills, itens, trade, party, guild, warehouse, eventos), registrando logs hexadecimais para depuração."
   },
   {
     id: "mapserver-change",
@@ -347,6 +358,7 @@ const ueGuides = {
       "5. Documente nos comentários que o sistema de packets do projeto original é histórico e que toda comunicação atual deve passar por RPCs e replicação padrão da UE."
     ]
   },
+
   "wsclient-socket-decode": {
     title: "Configurar socket assíncrono e parsing C1/C2/C3/C4",
     steps: [
@@ -355,6 +367,18 @@ const ueGuides = {
       "3. Para cada mensagem que `ProtocolCompiler` tratava (C1/C2/C3/C4), crie RPCs específicos em `APlayerController`/`AGameMode` (`UFUNCTION(Server, Reliable/Unreliable)`, `Client`, `NetMulticast`) e remova toda leitura/descrição de bytes.",
       "4. Se precisar validar checksum, implemente função C++ comum no subsistema e envie o resultado via `UFUNCTION(Client, Reliable)`; quando o código não trouxer detalhes, registre 'NÃO DÁ PARA INFERIR COM SEGURANÇA COM BASE NO CÓDIGO-FONTE C++'.",
       "5. No Blueprint do subsistema, deixe claro em comentários que este módulo apenas referencia o sistema de packets do projeto original e que a rede real usa replicação padrão da UE."
+    ]
+  },
+  "server-protocolcore-dispatch": {
+    title: "Substituir ProtocolCore por RPCs no servidor UE",
+    steps: [
+      "1. Abra o Unreal Engine 5.7 e em **Add → New C++ Class** escolha **GameMode Base**, nomeando `AProtocolRouterGameMode` para substituir o roteador ProtocolCore do servidor.",
+      "2. No arquivo `.h`, declare `UFUNCTION(Server, Reliable)` métodos como `ServerHandleChat(const FString& Message)`, `ServerHandleWhisper(const FString& Target, const FString& Message)`, `ServerHandleAttack(int32 SkillId, const FVector& TargetPos)`, `ServerHandleItemMove(...)`, `ServerHandleTradeRequest(int32 TargetId)` e demais equivalentes aos cabeçalhos atendidos em ProtocolCore (0x00 chat, 0x02 whisper, 0x18 ação, 0x22-0x26 itens, 0x36-0x3D trade, 0x3F personal shop, 0x40-0x43 party, 0x4A-0x4E skills/Mineração/EventInventory/MuRummy/Muun, 0x50-0x57 guild, 0x61/0x66 guild war/viewport, 0x81-0x83 warehouse, 0x86-0x87 chaos mix, 0x8E teleporte, 0x90 DevilSquare).",
+      "3. No `.cpp`, implemente cada RPC validando parâmetros e chamando componentes de jogo (chat, combate, inventário, trade, guild, eventos). Quando a lógica detalhada não estiver no código original ou não houver equivalente em UE, registre um log com 'NÃO DÁ PARA INFERIR COM SEGURANÇA COM BASE NO CÓDIGO-FONTE C++' para esse trecho.",
+      "4. Declare `UFUNCTION(Client, Reliable)` ou `UFUNCTION(NetMulticast, Reliable)` notificações para respostas que no projeto original eram pacotes de retorno (ex.: resultado de trade, atualização de guild ou warehouse) e implemente atualização de estados replicados ou widgets de UI em vez de enviar bytes manualmente.",
+      "5. Abra **Edit → Project Settings → Maps & Modes** e defina `AProtocolRouterGameMode` como GameMode padrão. Compile no Editor (botão **Compile**) para garantir que os RPCs fiquem disponíveis nas sessões.",
+      "6. No PlayerController C++ (por exemplo `ANetworkPC`), adicione chamadas client-side para cada RPC do GameMode. No Blueprint do PlayerController, abra o **Event Graph** e conecte botões de chat/ataque/uso de item às chamadas `ServerHandleChat`, `ServerHandleAttack`, `ServerHandleItemMove`, `ServerHandleTradeRequest` e similares. Em **Class Defaults**, marque **Replicates** e implemente `GetLifetimeReplicatedProps` se estados adicionais forem replicados.",
+      "7. Se a ordem global não estiver explícita no código, considere criar este GameMode logo após configurar a rede básica; se não puder garantir a precedência, documente que a sequência é sugestão genérica."
     ]
   },
   "mapserver-change": {
@@ -530,6 +554,15 @@ const roadmap = [
     description: "Isolar uso de KillTimer/SetTimer com verificações de existência da janela e evitar dangling timers ao destruir BuffTimeControl.",
     basedOnCode: true,
     notes: "Baseado diretamente no código C++ (w_BuffTimeControl.cpp linhas 14-74, 113-158)."
+  },
+  {
+    id: "roadmap-protocolcore-rpc-alignment",
+    horizon: "Médio Prazo",
+    priority: "Alta",
+    mechanicsIds: ["server-protocolcore-dispatch"],
+    description: "Mapear cada case do ProtocolCore para RPCs/replicação na UE 5.7 e garantir que nenhum cabeçalho do sistema de packets original fique sem equivalente.",
+    basedOnCode: true,
+    notes: "Baseado diretamente no código C++ (Protocol.cpp switch de cabeçalhos 0x00-0x90 e Connection.cpp)."
   },
   {
     id: "roadmap-buff-cache-validation",
