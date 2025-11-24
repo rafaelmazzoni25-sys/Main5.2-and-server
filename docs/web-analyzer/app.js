@@ -90,6 +90,28 @@ const mechanics = [
     description: "Constrói pacote de autenticação e notifica UI via g_pChatListBox antes do envio."
   },
   {
+    id: "socket-option-script",
+    name: "Leitura de opções de socket e descriptografia",
+    type: "Cliente",
+    files: ["SocketSystem.cpp", "SocketSystem.h"],
+    classes: ["CSocketItemMgr"],
+    functions: ["OpenSocketItemScript", "BuxConvert", "CalcSocketOptionValue", "CalcSocketOptionValueText", "CreateSocketOptionText"],
+    networkDetails: "Sem rede; o sistema de packets do projeto original não participa desta carga de dados local.",
+    flow: "OpenSocketItemScript abre arquivo binário de opções, faz fread de SOCKET_OPTION_INFO em duplo loop por tipo e índice, aplica BuxConvert (XOR 0xfc/0xcf/0xab) para descriptografar, fecha o arquivo e calcula m_iNumEquitSetBonusOptions até encontrar entrada vazia.",
+    description: "Processa script de opções de socket em binário local, aplicando XOR por byte, montando valores numéricos e texto de bônus (CalcSocketOptionValue/CalcSocketOptionValueText) para uso por ferramentas de tooltip e cálculo de status."
+  },
+  {
+    id: "socket-tooltip-bonus",
+    name: "Tooltip e bônus de itens com socket",
+    type: "Cliente",
+    files: ["SocketSystem.cpp", "SocketSystem.h"],
+    classes: ["CSocketItemMgr"],
+    functions: ["IsSocketItem", "GetSocketCategory", "AttachToolTipForSocketItem", "AttachToolTipForSeedSphereItem", "RenderToolTipForSocketSetOption", "CheckSocketSetOption", "CalcSocketStatusBonus", "GetSocketOptionValue"],
+    networkDetails: "Sem rede; calcula apenas localmente e exibe com RenderTipTextList. O sistema de packets do projeto original não intervém nesta lógica de UI/atributos.",
+    flow: "IsSocketItem avalia tipos de item ou OBJECT; AttachToolTipForSocketItem/AttachToolTipForSeedSphereItem formatam TextList com GlobalText e cores; CheckSocketSetOption soma categorias para habilitar bônus set e preenche m_EquipSetBonusList; RenderToolTipForSocketSetOption exibe bônus; CalcSocketStatusBonus percorre equipamentos e acumula bônus de ataques/defesa/atributos; GetSocketOptionValue retorna bônus individual de slot quando não vazio.",
+    description: "Gera textos de tooltip, verifica seeds e set bonus, acumula bônus de status e fornece valores numéricos para itens com sockets, utilizando tabelas carregadas e inventário atual."
+  },
+  {
     id: "protocol-login-recv",
     name: "Processamento de join/login recebidos",
     type: "Cliente",
@@ -246,6 +268,26 @@ const ueGuides = {
       "Para mensagens gerais antes enviadas por SendPacket/SendPacketClassic, crie RPCs específicos (Server/Client/NetMulticast) e, se necessário, use propriedades `UPROPERTY(Replicated)` em `AGameState` ou `APlayerState` para compartilhar o estado; deixe claro que o sistema de packets original não é reimplementado."
     ]
   },
+  "socket-option-script": {
+    title: "Carregar script de opções de socket",
+    steps: [
+      "Abra o Unreal Engine 5.7 e em **Add → C++ Class** crie uma classe derivada de `UObject` (ex.: `USocketOptionScript`) para substituir `CSocketItemMgr` apenas na parte de leitura local.",
+      "No `.h`, declare um método `bool LoadSocketOptions(const FString& FilePath)` que usará `FFileHelper::LoadFileToArray` para ler o binário; não recrie o sistema de packets do projeto original.",
+      "No `.cpp`, percorra o buffer carregado populando um `TArray<FSocketOptionInfo>` (defina `USTRUCT` espelhando `SOCKET_OPTION_INFO`) aplicando a mesma conversão XOR (0xfc/0xcf/0xab) em cada byte antes de copiar os campos.",
+      "Calcule um contador de opções válidas como `m_iNumEquitSetBonusOptions` verificando entradas não vazias; exponha um método `UFUNCTION(BlueprintPure)` para recuperar opções e textos formatados usando lógica equivalente a `CalcSocketOptionValue`/`CalcSocketOptionValueText`.",
+      "Não marque replicação, pois a leitura é local; deixe anotado em comentários que o sistema de packets do projeto original é apenas referência histórica."
+    ]
+  },
+  "socket-tooltip-bonus": {
+    title: "Tooltip e bônus de itens com socket",
+    steps: [
+      "No Unreal 5.7, crie um componente `UActorComponent` (ex.: `USocketItemComponent`) anexo ao personagem ou inventário para encapsular a lógica de `CSocketItemMgr`.",
+      "Implemente em C++ funções `bool IsSocketItem(const FItemData&)`, `int32 GetSocketOptionValue(...)` e `void BuildSocketTooltip(...)` que usem as tabelas carregadas pelo `USocketOptionScript` para montar textos e valores; use `FText` e arrays para simular `TextList` e `TextListColor`.",
+      "Para exibir tooltips em UMG, crie funções `UFUNCTION(BlueprintCallable)` que retornem uma lista de linhas formatadas; quando categorias ou textos não estiverem disponíveis, registre 'NÃO DÁ PARA INFERIR COM SEGURANÇA COM BASE NO CÓDIGO-FONTE C++' e deixe o designer preencher manualmente.",
+      "Implemente cálculo de bônus agregados (similar a `CalcSocketStatusBonus`) percorrendo o inventário replicado do personagem (`ACharacter` com componentes de inventário); use propriedades `UPROPERTY(Replicated)` para qualquer atributo que precise aparecer em outros clientes, e `OnRep_` para atualizar UI.",
+      "Não use sockets ou envio de packets; todos os efeitos são locais ou derivados de variáveis replicadas padrão da UE."
+    ]
+  },
   "protocol-recv-dispatch": {
     title: "Despachar mensagens recebidas",
     steps: [
@@ -384,6 +426,24 @@ const roadmap = [
     description: "Reavaliar loop de recebimento comentado e migrar para thread ou timer com controle de saída limpa para evitar bloqueio de UI.",
     basedOnCode: true,
     notes: "Baseado diretamente no código C++ (ProtocolSend.cpp linhas 51-152)."
+  },
+  {
+    id: "roadmap-socket-script-errors",
+    horizon: "Curto Prazo",
+    priority: "Alta",
+    mechanicsIds: ["socket-option-script"],
+    description: "Tratar de forma segura falha de fopen/fread em OpenSocketItemScript adicionando logs antes de MessageBox/SendMessage.",
+    basedOnCode: true,
+    notes: "Baseado diretamente no código C++ (SocketSystem.cpp linhas 193-234 e 316-343)."
+  },
+  {
+    id: "roadmap-socket-tooltip-bounds",
+    horizon: "Médio Prazo",
+    priority: "Média",
+    mechanicsIds: ["socket-tooltip-bonus"],
+    description: "Revisar formatação de TextList em AttachToolTipForSocketItem/SeedSphere para evitar estouro de buffers e dependência de GlobalText constante.",
+    basedOnCode: true,
+    notes: "Baseado diretamente no código C++ (SocketSystem.cpp linhas 229-320 e 323-397)."
   },
   {
     id: "roadmap-serial-checks",
