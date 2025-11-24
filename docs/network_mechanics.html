@@ -125,6 +125,46 @@ ul { margin-left: 18px; }
         <td>Não envolve rede; organiza informações de servidor localmente.</td>
         <td>Requer arquivo ServerList.bmd; interrupção via MessageBox/PostMessage se ausente. Escolha de servidor posterior NÃO DÁ PARA INFERIR COM SEGURANÇA COM BASE NO CÓDIGO-FONTE C/C++.</td>
       </tr>
+      <tr>
+        <td>Seleção e iteração de grupos de servidor</td>
+        <td>Cliente</td>
+        <td>Manutenção local da lista e seleção</td>
+        <td>CServerListManager</td>
+        <td>SetFirst(); GetNext(); GetServerGroupByBtnPos(); GetServerGroupSize()</td>
+        <td>Após carregar dados, SetFirst() posiciona o iterador no início de m_mapServerGroup; GetNext() retorna ponteiros para CServerGroup em ordem de sequência até o fim; GetServerGroupByBtnPos() percorre o mapa e retorna o grupo cujo m_iBtnPos corresponde ao solicitado.</td>
+        <td>Sem chamada de rede; opera sobre dados locais carregados do arquivo.</td>
+        <td>Depende de m_mapServerGroup ter sido preenchido via LoadServerListScript/InsertServerGroup. Se não houver grupos, GetNext() retorna false.</td>
+      </tr>
+      <tr>
+        <td>Registro da seleção de servidor e flags PVP/Teste</td>
+        <td>Cliente</td>
+        <td>Armazenamento local da escolha do jogador</td>
+        <td>CServerListManager</td>
+        <td>SetSelectServerInfo(); GetSelectServerName(); GetSelectServerIndex(); GetCensorshipIndex(); GetNonPVPInfo(); IsNonPvP(); IsTestServer()</td>
+        <td>SetSelectServerInfo() salva nome, índice, índice de censura, flag NonPvP e se é teste; consultas posteriores retornam os valores para UI ou lógica de conexão.</td>
+        <td>Não envia nada pela rede; apenas prepara dados para uso posterior.</td>
+        <td>Depende de valores fornecidos externamente (ex.: UI). Sem validação adicional de índices ou flags.</td>
+      </tr>
+      <tr>
+        <td>Construção de nomes e percentuais de servidor</td>
+        <td>Cliente</td>
+        <td>Executado ao inserir servidores em grupos</td>
+        <td>CServerListManager</td>
+        <td>MakeServerGroup(); InsertServer()</td>
+        <td>MakeServerGroup() copia nome/descrição/flags NonPVP do script para CServerGroup e define m_bPvPServer; InsertServer() cria CServerInfo com m_iIndex, m_iPercent, m_byNonPvP e monta m_bName concatenando nome do grupo, índice e status de carga (GlobalText[560..562]) com sufixos Non-PVP/Gold PVP/Gold conforme m_byNonPvP.</td>
+        <td>Opera localmente; não há tráfego de rede.</td>
+        <td>Requer SServerGroupInfo pré-carregado; depende de constantes SLM_MAX_SERVER_COUNT, MAX_SERVER_LOW e tabela GlobalText para textos de carga.</td>
+      </tr>
+      <tr>
+        <td>Envio genérico de pacotes com cabeçalho de protocolo</td>
+        <td>Cliente</td>
+        <td>Empacotamento e envio pelo socket</td>
+        <td>CustomClient (ProtocolSend.h), CProtocolSend</td>
+        <td>CustomClient::DataSend(head,msg,size); CustomClient::DataSend(msg,size); CustomClient::MessageAll(); CProtocolSend::SendPacket(); SendPacketClassic()</td>
+        <td>DataSend(head,...) cria olc::net::message com header.id e copia bytes para body antes de Send(); DataSend(msg,size) usa header BOTH_MESSAGE e envia pacote clássico; MessageAll() envia CLIENT_ACCEPT vazio; SendPacket/SendPacketClassic apenas encaminham para CustomClient.</td>
+        <td>Baseado em olc::net::client_interface; head é enum ProtocolHead. Não há validação de tamanho além de resize.</td>
+        <td>Requer SocketConnect inicializado e conectado. Sem controle de fila ou confiabilidade além da do client_interface.</td>
+      </tr>
     </tbody>
   </table>
 </div>
@@ -225,6 +265,51 @@ ul { margin-left: 18px; }
       <li>Não há no código fluxo completo de seleção/reconexão; portanto, qualquer UI de seleção ou reconexão deve ser definida manualmente com a nota "NÃO DÁ PARA INFERIR COM SEGURANÇA COM BASE NO CÓDIGO-FONTE C/C++".</li>
     </ol>
   </div>
+
+  <div class="section">
+    <h2>Seleção e iteração de grupos de servidor</h2>
+    <p class="small">Equivalente a SetFirst / GetNext / GetServerGroupByBtnPos / GetServerGroupSize em CServerListManager.</p>
+    <ol>
+      <li>Após carregar a lista, armazene grupos em um <code>TMap<int32, FServerGroup></code> ordenado por sequência.</li>
+      <li>Implemente métodos <code>SetFirst()</code> e <code>bool GetNext(FServerGroup*&amp; OutGroup)</code> para permitir iteração previsível na UI de seleção, replicando o uso do iterador <code>m_iterServerGroup</code>.</li>
+      <li>Adicione busca <code>FServerGroup* GetServerGroupByBtnPos(int32 BtnPos)</code> que percorre o mapa e retorna o primeiro grupo cujo campo <code>BtnPos</code> corresponda; em Blueprint, exponha para ligar botões a grupos.</li>
+      <li>Se não houver grupos carregados, documente explicitamente que <code>GetNext</code> retorna false e trate isso exibindo mensagem adequada.</li>
+    </ol>
+  </div>
+
+  <div class="section">
+    <h2>Registro da seleção de servidor e flags PVP/Teste</h2>
+    <p class="small">Equivalente a SetSelectServerInfo / GetSelectServerName / GetSelectServerIndex / GetCensorshipIndex / GetNonPVPInfo / IsNonPvP / IsTestServer.</p>
+    <ol>
+      <li>Na classe de gerenciamento de lista, crie propriedades <code>FString SelectServerName</code>, <code>int32 SelectServerIndex</code>, <code>int32 CensorshipIndex</code>, <code>uint8 NonPvP</code> e <code>bool bTestServer</code>, inicializadas com valores neutros.</li>
+      <li>Exponha função <code>UFUNCTION(BlueprintCallable)</code> <code>void SetSelectServerInfo(const FString&amp; Name, int32 Index, int32 Censorship, uint8 NonPvPFlag, bool bIsTest)</code> para salvar a escolha do usuário.</li>
+      <li>Adicione getters BlueprintPure que retornam cada campo para uso de UI (ex.: destacar seleção ou bloquear botões de PVP se <code>IsNonPvP()</code> for verdadeiro).</li>
+      <li>Não há validação no código original para índices/flags; mantenha o comportamento e adicione, se desejado, checagens opcionais de faixa com notas de que a validação é extensão.</li>
+    </ol>
+  </div>
+
+  <div class="section">
+    <h2>Construção de nomes e percentuais de servidor</h2>
+    <p class="small">Equivalente a MakeServerGroup / InsertServer em CServerListManager.</p>
+    <ol>
+      <li>Crie struct <code>FServerGroup</code> com campos <code>Name</code>, <code>Description</code>, <code>Sequence</code>, <code>WidthPos</code>, <code>ServerIndex</code>, <code>bPvPServer</code> e array <code>NonPvPFlags</code> replicando <code>m_abyNonPvpServer</code>.</li>
+      <li>No método de inserção, construa <code>FServerInfo</code> com <code>Index</code> (módulo 20 + 1), <code>ConnectIndex</code>, <code>Percent</code> e <code>NonPvPFlag</code>.</li>
+      <li>Monte o campo de exibição <code>Name</code> concatenando nome do grupo, índice e um texto de status de carga (ocupado/normal) inspirado em <code>GlobalText[560..562]</code>, além de sufixos "(Non-PVP)", "(Gold PVP)" ou "(Gold)" conforme flag. Se os textos não existirem em UE, insira placeholders com a nota obrigatória.</li>
+      <li>Não há lógica de rede; mantenha tudo local. Caso queira replicar dados para outros clientes, use propriedades replicadas em um <code>AGameState</code> custom.</li>
+    </ol>
+  </div>
+
+  <div class="section">
+    <h2>Envio genérico de pacotes com cabeçalho de protocolo</h2>
+    <p class="small">Equivalente a CustomClient::DataSend / MessageAll e wrappers de CProtocolSend.</p>
+    <ol>
+      <li>Implemente uma camada de envio que recebe <code>EProtocolHead</code> (enum espelhando <code>ProtocolHead</code>) e um <code>TArray<uint8></code> de dados brutos.</li>
+      <li>Construa uma estrutura <code>FProtocolMessage</code> com header (id, size) e body, populando <code>Size</code> após copiar os bytes, similar ao uso de <code>olc::net::message</code> em <code>DataSend</code>.</li>
+      <li>Para mensagens clássicas 0xC1/0xC3/0xC2/0xC4, use um método equivalente a <code>SendPacketClassic</code> que fixa <code>Header = BOTH_MESSAGE</code> antes do envio.</li>
+      <li>Adicione um método utilitário <code>void MessageAll()</code> que envia apenas o cabeçalho <code>CLIENT_ACCEPT</code> (sem body), útil para testes de broadcast conforme o código original.</li>
+      <li>Como não há validação de tamanho no código-fonte, documente qualquer check adicional como extensão opcional, mantendo a frase "NÃO DÁ PARA INFERIR COM SEGURANÇA COM BASE NO CÓDIGO-FONTE C/C++" para campos desconhecidos.</li>
+    </ol>
+  </div>
 </div>
 
 <div id="tab-roadmap" class="tab-content">
@@ -235,6 +320,7 @@ ul { margin-left: 18px; }
     <li>[Alta] Mecânicas: Loop de recebimento; Login. Garantir que o polling de socket tenha controle de tempo e validação de tamanho antes de acessar buffers, espelhando os pontos de entrada em <code>RecvMessage()</code>. Impacto: estabilidade do cliente; reduz risco de travamentos. Dependência: implementação de fila de mensagens.</li>
     <li>[Média] Mecânica: Ping / keep-alive. Adicionar rate limit configurável no timer de ping para evitar envio excessivo; Impacto: uso de banda e carga do servidor. Dependência: temporizador existente.</li>
     <li>[Média] Mecânica: Carregamento de lista de servidores. Validar existência e integridade do arquivo <code>ServerList.bmd</code> antes de usar; Impacto: evitar encerramento abrupto por <code>MessageBox/PostMessage</code>. Dependência: rotina de leitura de arquivo.</li>
+    <li>[Média] Mecânica: Seleção de servidor. Garantir que os campos gravados por <code>SetSelectServerInfo()</code> sejam validados (índices e flags) antes de alimentar a UI; Impacto: previne inconsistências locais. Dependência: dados carregados por <code>LoadServerListScript()</code>. Baseado diretamente no código C++ (ServerListManager.cpp, SetSelectServerInfo).</li>
   </ul>
 
   <h3>Médio Prazo</h3>
@@ -242,6 +328,7 @@ ul { margin-left: 18px; }
     <li>[Alta] Mecânicas: Atualização de posição; Movimento com caminho. Implementar validações no cliente para limites de mapa antes de enviar <code>BOTH_POSITION</code>/<code>BOTH_MOVE</code>; Impacto: evita envio de dados inválidos ao servidor. Dependência: acesso a limites do mapa.</li>
     <li>[Média] Mecânica: Login. Registrar métricas de códigos de erro do switch de <code>RecvLoginNew()</code> para depuração em UE 5.7; Impacto: diagnóstico de conexões. Dependência: sistema de log.</li>
     <li>[Média] Mecânica: Loop de recebimento. Criar testes automatizados para cada <code>ProtocolHead</code> observado, garantindo que os handlers existam mesmo quando o payload estiver incompleto (pois o código não valida); Impacto: robustez. Dependência: framework de testes.</li>
+    <li>[Média] Mecânica: Envio genérico de pacotes. Inserir validações de tamanho/cabeçalho em <code>DataSend()</code> e <code>SendPacketClassic()</code> para evitar envio de buffers vazios ou truncados; Impacto: integridade de protocolo. Dependência: camada de rede. Baseado diretamente no código C++ (ProtocolSend.h, CustomClient::DataSend).</li>
   </ul>
 
   <h3>Longo Prazo</h3>
@@ -249,6 +336,7 @@ ul { margin-left: 18px; }
     <li>[Alta] Mecânicas: Todas as de rede. Migrar do protocolo manual (0xC1/0xC3/0xC2/0xC4) para RPCs nativas da Unreal (Server/Client/NetMulticast) mantendo os fluxos de login/movimento descritos; Impacto: simplificação de código e segurança. Dependência: conclusão das etapas de curto e médio prazo.</li>
     <li>[Média] Mecânica: Carregamento de lista de servidores. Substituir arquivo binário por fonte de dados replicada (por exemplo, DataTable replicado ou serviço REST interno). Impacto: facilidade de atualização; risco de latência adicional. Dependência: autenticação estabilizada.</li>
     <li>[Baixa] Mecânica: Ping / keep-alive. Adicionar medição de round-trip time e exibição em HUD; Impacto: visibilidade para usuário. Dependência: implementação de UI; esta é uma SUGESTÃO GENÉRICA, NÃO DIRETAMENTE INFERIDA DO CÓDIGO-FONTE C/C++.</li>
+    <li>[Média] Mecânicas: Seleção e iteração de servidor. Unificar construção de nomes/percentuais em um serviço central replicado (por exemplo, em <code>AGameState</code>) para reduzir duplicação local e facilitar sincronização em multiplayer; Impacto: consistência entre clientes. Dependência: conclusão da migração de dados do ServerList.bmd. SUGESTÃO GENÉRICA, NÃO DIRETAMENTE INFERIDA DO CÓDIGO-FONTE C/C++.</li>
   </ul>
 </div>
 
