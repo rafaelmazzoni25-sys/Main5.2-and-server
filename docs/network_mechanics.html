@@ -1,0 +1,358 @@
+<html>
+<head>
+<meta charset="UTF-8">
+<title>Análise Cliente/Servidor - Mecânicas do Projeto</title>
+<style>
+body { font-family: Arial, sans-serif; margin: 20px; background: #f4f7fb; color: #1d2935; }
+h1 { text-align: center; margin-bottom: 10px; }
+.tabs { display: flex; gap: 10px; margin-bottom: 20px; justify-content: center; }
+.tab-button { padding: 10px 18px; border: none; background: #d3dce6; cursor: pointer; border-radius: 4px; font-weight: bold; transition: background 0.2s, color 0.2s; }
+.tab-button.active { background: #3366ff; color: #fff; }
+.tab-content { display: none; background: #fff; padding: 20px; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.08); }
+.tab-content.active { display: block; }
+table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+th, td { border: 1px solid #dbe3ef; padding: 10px; text-align: left; vertical-align: top; }
+th { background: #3366ff; color: #fff; position: sticky; top: 0; }
+tr:nth-child(even) { background: #f7f9fc; }
+.note { color: #a00; font-weight: bold; }
+.small { font-size: 13px; color: #3c4a60; }
+ol { margin-left: 18px; }
+ul { margin-left: 18px; }
+.section { margin-top: 25px; }
+</style>
+</head>
+<body>
+<h1>Análise Cliente/Servidor - Mecânicas do Projeto</h1>
+<div class="tabs">
+  <button class="tab-button active" data-tab="tab-mechanics">Mecânicas</button>
+  <button class="tab-button" data-tab="tab-guide">Guia UE 5.7</button>
+  <button class="tab-button" data-tab="tab-roadmap">Roadmap</button>
+</div>
+
+<div id="tab-mechanics" class="tab-content active">
+  <h2>Mapa de Mecânicas Cliente/Servidor</h2>
+  <table>
+    <thead>
+      <tr>
+        <th>Nome da Mecânica</th>
+        <th>Tipo</th>
+        <th>Lado</th>
+        <th>Classes C++ envolvidas</th>
+        <th>Principais funções / RPCs / eventos</th>
+        <th>Fluxo de chamada resumido</th>
+        <th>Observações de Rede</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>Conexão e Aceitação de Servidor</td>
+        <td>Compartilhada</td>
+        <td>Cliente inicia, Servidor responde</td>
+        <td>CProtocolSend, CustomClient</td>
+        <td>ConnectServer(); CustomClient::MessageAll(); RecvJoinServerNew()</td>
+        <td>Player chama <code>ConnectServer(IP,Port)</code> &rarr; instancia <code>CustomClient</code> e abre socket &rarr; mensagem <code>ProtocolHead::SERVER_CONNECT</code> recebida em <code>RecvMessage()</code> &rarr; <code>RecvJoinServerNew()</code> atualiza <code>HeroKey</code>, estados de login e UI.</td>
+        <td>Protocolo manual baseado em <code>ProtocolHead</code>. Sem autenticação criptografada aparente. Thread de recebimento está comentada; leitura ocorre em loop manual.</td>
+      </tr>
+      <tr>
+        <td>Desconexão</td>
+        <td>Cliente</td>
+        <td>Cliente encerra</td>
+        <td>CProtocolSend</td>
+        <td>DisconnectServer()</td>
+        <td>Checa <code>SocketConnect</code> &rarr; seta <code>g_bGameServerConnected = FALSE</code> &rarr; chama <code>Disconnect()</code> do cliente.</td>
+        <td>Sem tentativa de reconexão automática; log via <code>muConsoleDebug</code>.</td>
+      </tr>
+      <tr>
+        <td>Ping / Keep-Alive</td>
+        <td>Cliente</td>
+        <td>Cliente envia</td>
+        <td>CProtocolSend, CustomClient</td>
+        <td>SendCheckOnline(); SendPingTest(); CustomClient::PingServer()</td>
+        <td><code>SendCheckOnline()</code> verifica <code>g_bGameServerConnected</code> &rarr; chama <code>SendPingTest()</code> &rarr; <code>CustomClient::PingServer()</code> preenche mensagem <code>CLIENT_LIVE_CLIENT</code> com tick e WORDs &rarr; servidor responde com <code>SERVER_DISCONNECT</code> lido em <code>RecvMessage()</code>.</td>
+        <td>Sem rate limiting; mensagem enviada como confiável pelo cliente OLc net. Apenas log de resposta.</td>
+      </tr>
+      <tr>
+        <td>Login de Conta</td>
+        <td>Compartilhada</td>
+        <td>Cliente envia credenciais, Servidor valida</td>
+        <td>CProtocolSend</td>
+        <td>SendRequestLogInNew(); RecvLoginNew()</td>
+        <td>Cliente popula <code>PMSG_CONNECT_ACCOUNT_SEND</code> (account/password, versão, serial) &rarr; ofusca com <code>BuxConvert</code> &rarr; envia <code>BOTH_CONNECT_LOGIN</code> &rarr; resposta tratada em <code>RecvLoginNew()</code> atualizando <code>CurrentProtocolState</code>, <code>LogIn</code> e mensagens de UI.</td>
+        <td>Verificação de versão em <code>RecvJoinServerNew()</code>; múltiplos códigos de falha com mensagens. Sem validação lado cliente além de ofuscação.</td>
+      </tr>
+      <tr>
+        <td>Solicitação de Lista de Personagens</td>
+        <td>Cliente</td>
+        <td>Cliente solicita, Servidor responde</td>
+        <td>CProtocolSend</td>
+        <td>SendRequestCharactersListNew(); RecvMessage()</td>
+        <td><code>SendRequestCharactersListNew()</code> envia <code>BOTH_CONNECT_CHARACTER</code> com <code>PMSG_SIMPLE_RESULT_SEND</code> &rarr; <code>RecvMessage()</code> ao receber chama <code>ReceiveCharacterList(byte*)</code>.</td>
+        <td>Implementação de <code>ReceiveCharacterList</code> não está neste código; processamento posterior NÃO DÁ PARA INFERIR COM SEGURANÇA COM BASE NO CÓDIGO.</td>
+      </tr>
+      <tr>
+        <td>Atualização de Posição (XY)</td>
+        <td>Cliente</td>
+        <td>Cliente envia</td>
+        <td>CProtocolSend</td>
+        <td>SendPositionNew()</td>
+        <td>Preenche <code>PMSG_POSITION_SEND</code> com <code>x</code>/<code>y</code> &rarr; envia <code>BOTH_POSITION</code> &rarr; <code>RecvMessage()</code> roteia para <code>ReceiveMovePosition(byte*)</code>.</td>
+        <td>Sem checagem de limites ou frequência; lógica de <code>ReceiveMovePosition</code> NÃO DÁ PARA INFERIR COM SEGURANÇA COM BASE NO CÓDIGO.</td>
+      </tr>
+      <tr>
+        <td>Movimento com Caminho Compactado</td>
+        <td>Cliente</td>
+        <td>Cliente envia</td>
+        <td>CProtocolSend</td>
+        <td>SendCharacterMoveNew()</td>
+        <td>Valida <code>PathNum</code> &rarr; monta <code>PMSG_MOVE_SEND</code> codificando direções a partir de <code>DirTable</code> em <code>path[8]</code> &rarr; define nibble alto com direção inicial/ângulo &rarr; envia <code>BOTH_MOVE</code> &rarr; <code>RecvMessage()</code> chama <code>ReceiveMoveCharacter(byte*)</code>.</td>
+        <td>Limita <code>PathNum</code> a <code>MAX_PATH_FIND-1</code>; sem validação de colisão ou autoridade do servidor visível. Processamento de retorno NÃO DÁ PARA INFERIR COM SEGURANÇA COM BASE NO CÓDIGO.</td>
+      </tr>
+        <tr>
+          <td>Encaminhamento Genérico de Pacotes Clássicos</td>
+          <td>Compartilhada</td>
+          <td>Cliente envia/recebe</td>
+          <td>CustomClient, CProtocolSend</td>
+          <td>CustomClient::DataSend(uint8_t*,...); RecvMessage() &rarr; TranslateProtocol()</td>
+          <td>Quando <code>ProtocolHead::BOTH_MESSAGE</code> chega, <code>RecvMessage()</code> reconstrói cabeçalho (0xC1/0xC3/0xC2/0xC4), calcula tamanho/códigos e chama <code>TranslateProtocol(head,recv,size,0)</code>.</td>
+          <td>Buffer fixo de 8024 bytes. Sem validação de integridade além do tamanho; <code>TranslateProtocol</code> não está no arquivo.</td>
+        </tr>
+        <tr>
+          <td>Lista de Servidores e redirecionamento</td>
+          <td>Compartilhada</td>
+          <td>Servidor envia lista; Cliente escolhe e reconecta</td>
+          <td>WSclient (ReceiveServerList, ReceiveServerConnect), CProtocolSend</td>
+          <td>ReceiveServerList(); ReceiveServerConnect(); gProtocolSend.ConnectServer()</td>
+          <td><code>ReceiveServerList()</code> parseia <code>PHEADER_DEFAULT_SUBCODE_WORD</code> e popula <code>g_ServerListManager</code> &rarr; UI de seleção é exibida &rarr; <code>ReceiveServerConnect()</code> fecha socket atual e abre novo com IP/Porta enviados.</td>
+          <td>Usa sockets crus; reusa <code>gProtocolSend</code> quando NEW_PROTOCOL está ativo. Sem fallback caso a conexão falhe.</td>
+        </tr>
+        <tr>
+          <td>Chat público / GM</td>
+          <td>Compartilhada</td>
+          <td>Servidor envia mensagens; Cliente exibe</td>
+          <td>WSclient (ReceiveChat...)</td>
+          <td>ReceiveChat; g_pChatListBox->AddText()</td>
+          <td>Mensagens são classificadas por status do emissor (GM, operador) e adicionadas ao chat; IDs são verificados para aplicar cor/tipo de mensagem.</td>
+          <td>Depende do buffer de chat e de <code>AssignChat</code>. Sem filtragem de conteúdo ou verificação de origem.</td>
+        </tr>
+        <tr>
+          <td>Whisper / Mensagem privada</td>
+          <td>Compartilhada</td>
+          <td>Servidor encaminha; Cliente reproduz som/UI</td>
+          <td>WSclient (ReceiveChatWhisper, ReceiveChatWhisperResult)</td>
+          <td>ReceiveChatWhisper(); PlayBuffer(SOUND_WHISPER); AddText(TYPE_WHISPER_MESSAGE)</td>
+          <td>Quando recebido, o cliente reconstrói ID e texto, registra o remetente e dispara som se habilitado; resultado de falha é informado via <code>ReceiveChatWhisperResult</code>.</td>
+          <td>Funciona apenas se <code>IsBlockWhisper()</code> for falso. Sem verificação de spam ou flood.</td>
+        </tr>
+        <tr>
+          <td>Avisos/Slides de servidor</td>
+          <td>Servidor</td>
+          <td>Servidor envia avisos; Cliente mostra UI</td>
+          <td>WSclient (ReceiveNotice)</td>
+          <td>ReceiveNotice(); AddSlide(); CreateNotice()</td>
+          <td>Resultados 0,1,2 decidem destino (notificação simples, chat, janela de guild); códigos 10-15 criam slides temporizados com cor/velocidade.</td>
+          <td>Renderização depende de widgets <code>g_pSlideHelpMgr</code> e <code>g_pChatListBox</code>. Sem confirmação de leitura.</td>
+        </tr>
+        <tr>
+          <td>Teleport / Troca de mapa</td>
+          <td>Servidor</td>
+          <td>Servidor envia posição/mapa; Cliente reconfigura estado</td>
+          <td>WSclient (ReceiveTeleport)</td>
+          <td>ReceiveTeleport(); gMapManager.LoadWorld(); SendRequestFinishLoading()</td>
+          <td>Pacote define <code>PositionX/Y</code>, <code>Angle</code>, <code>Map</code> e <code>Flag</code>; cliente reposiciona <code>Hero</code>, limpa itens/personagens, carrega mapa novo e mostra nome do mapa.</td>
+          <td>Sem checagem de consistência com física local; depende de <code>gMapManager</code> e múltiplas telas de UI.</td>
+        </tr>
+        <tr>
+          <td>Atualização visual de equipamentos</td>
+          <td>Servidor</td>
+          <td>Servidor notifica mudanças</td>
+          <td>WSclient (ReceiveEquipment, ReceiveChangePlayer)</td>
+          <td>ReceiveEquipment(); ReceiveChangePlayer(); ChangeCharacterExt()</td>
+          <td><code>ReceiveEquipment</code> altera conjunto de equipamentos de um personagem; <code>ReceiveChangePlayer</code> interpreta <code>Item</code> e aplica aos slots de arma/armadura com nível/opções.</td>
+          <td>Somente cliente atualiza aparência; sem validação de integridade. Depende de <code>ConvertItemType</code> e índices de classe.</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+<div id="tab-guide" class="tab-content">
+  <h2>Guia UE 5.7 - Passo a passo para recriar mecânicas</h2>
+  <p class="note">Todos os passos refletem o código disponível. Onde faltar lógica ou assets, está indicado explicitamente.</p>
+
+  <div class="section">
+    <h2>Conexão e Aceitação de Servidor</h2>
+    <ol>
+      <li>No Unreal Editor 5.7, crie uma classe C++ derivada de <code>AActor</code> chamada <code>AProtocolSender</code> para representar o papel de <code>CProtocolSend</code>. Ative <em>Replicates</em> apenas se precisar sincronizar estado de conexão entre clientes.</li>
+      <li>Adicione um objeto membro que envolva sockets: use <code>FSocket</code> (TCP/UDP) via <code>ISocketSubsystem</code> ou um wrapper similar a <code>CustomClient</code>. Inicialize no construtor.</li>
+      <li>Implemente <code>bool ConnectServer(const FString& IP, int32 Port)</code> criando o socket, resolvendo o endereço e conectando. Exponha essa função ao Blueprint (UFUNCTION(BlueprintCallable)) para ser chamada pelo PlayerController.</li>
+      <li>Crie um <code>FTimerHandle</code> em <code>BeginPlay()</code> que chama um método de recebimento a cada ~0.01s (equivalente ao loop em <code>RecvMessage()</code>), lendo dados do socket para um buffer.</li>
+      <li>Ao receber dados, interprete um enum <code>EProtocolHead</code> equivalente a <code>ProtocolHead</code>. Para <code>SERVER_CONNECT</code>, deserialize para uma struct <code>FMsgConnectClientRecv</code> (campos <code>result</code>, <code>index[2]</code>, <code>ClientVersion[5]</code>) e chame uma função <code>RecvJoinServerNew()</code>.</li>
+      <li>Em <code>RecvJoinServerNew()</code>, atualize uma variável <code>HeroKey</code> e acione eventos de UI (via UMG) que simulam <code>CUIMng</code> exibindo <code>LoginWin</code>. Marque como <code>Client</code> RPC se quiser notificar somente o cliente local.</li>
+      <li>Implemente <code>void DisconnectServer()</code> fechando o socket e limpando timers. Opcionalmente, dispare um <code>NetMulticast</code> RPC para notificar HUDs se o actor for replicado.</li>
+    </ol>
+  </div>
+
+  <div class="section">
+    <h2>Ping / Keep-Alive</h2>
+    <ol>
+      <li>Adicione a <code>AProtocolSender</code> uma função <code>SendPingTest()</code> que preenche um buffer com tick (DWORD) e dois WORDs (1 e 2) exatamente como <code>CustomClient::PingServer()</code>. Use <code>FPlatformTime::Cycles64()</code> ou <code>FDateTime::UtcNow()</code> para o valor de tempo.</li>
+      <li>Crie um <code>FTimerHandle</code> chamado por <code>SendCheckOnline()</code> para disparar <code>SendPingTest()</code> a cada N segundos enquanto <code>bIsConnected</code> for verdadeiro.</li>
+      <li>No recebimento, trate <code>ProtocolHead::SERVER_DISCONNECT</code> e registre no log ou em UI (mostrando o <code>clientID</code> do pacote), espelhando a impressão do código.</li>
+      <li>Em Blueprints, exponha um evento <code>OnPingResponse</code> para atualizar indicadores de latência. Essa lógica visual não está no código &mdash; configure manualmente (<span class="note">NÃO DÁ PARA INFERIR COM SEGURANÇA COM BASE NO CÓDIGO</span>).</li>
+    </ol>
+  </div>
+
+  <div class="section">
+    <h2>Login de Conta</h2>
+    <ol>
+      <li>Defina uma struct <code>FMsgConnectAccountSend</code> com campos <code>Account[10]</code>, <code>Password[20]</code>, <code>TickCount</code>, <code>ClientVersion[5]</code>, <code>ClientSerial[16]</code> (packed) para replicar <code>PMSG_CONNECT_ACCOUNT_SEND</code>. Use <code>uint8</code> arrays para bytes.</li>
+      <li>No Project Settings &rarr; Input, crie um Action Mapping "ConfirmLogin". No PlayerController blueprint, chame <code>SendRequestLogInNew(Account, Password)</code> da <code>AProtocolSender</code>.</li>
+      <li>Implemente <code>SendRequestLogInNew</code>: copie strings para buffers fixos, aplique uma função de ofuscação equivalente a <code>BuxConvert</code> (implemente em C++), preencha versões/seriais e envie com cabeçalho <code>BOTH_CONNECT_LOGIN</code>.</li>
+      <li>Na rotina de recebimento, associe <code>BOTH_CONNECT_LOGIN</code> a <code>RecvLoginNew()</code>. Mapear códigos 0x00..0x0D, 0x11, 0x40, 0xC0..0xD2 para mensagens de erro em UI (Widget Blueprint) conforme o switch de <code>RecvLoginNew()</code>.</li>
+      <li>Quando <code>result</code> for sucesso (0x01 ou 0x20), atualize um estado <code>LogIn = 2</code> equivalente e acione carregamento de mapa ou mudança de nível. A lógica exata de <code>CheckHack()</code> não existe aqui &mdash; deixe como função vazia ou placeholder.</li>
+    </ol>
+  </div>
+
+  <div class="section">
+    <h2>Solicitação de Lista de Personagens</h2>
+    <ol>
+      <li>Crie uma struct <code>FMsgSimpleResultSend</code> com <code>uint8 Result</code> para espelhar <code>PMSG_SIMPLE_RESULT_SEND</code>.</li>
+      <li>Adicione uma função <code>SendRequestCharactersListNew()</code> que seta <code>result = 1</code> e envia com cabeçalho <code>BOTH_CONNECT_CHARACTER</code>.</li>
+      <li>No handler de recebimento, quando chegar <code>BOTH_CONNECT_CHARACTER</code>, despache para uma função BlueprintImplementableEvent <code>ReceiveCharacterList(const TArray<uint8>& RawData)</code> para permitir parsing no Blueprint ou em C++. O formato não está no código &mdash; você deve definir manualmente (<span class="note">NÃO DÁ PARA INFERIR COM SEGURANÇA COM BASE NO CÓDIGO</span>).</li>
+      <li>Atualize Widgets de seleção de personagem após o parsing. Marque a função como <code>Client</code> RPC se o actor for replicado e só o dono precisar ver a lista.</li>
+    </ol>
+  </div>
+
+  <div class="section">
+    <h2>Atualização de Posição (XY)</h2>
+    <ol>
+      <li>Implemente <code>SendPositionNew(uint8 PosX, uint8 PosY)</code> preenchendo <code>FMsgPositionSend</code> (equivalente a <code>PMSG_POSITION_SEND</code>) e enviando com cabeçalho <code>BOTH_POSITION</code>.</li>
+      <li>No Character class (derivado de <code>ACharacter</code>), capture movimento local e chame <code>SendPositionNew()</code> quando a posição mudar (por exemplo, no <code>Tick</code> com threshold de distância) para mimetizar o envio manual do cliente.</li>
+      <li>No recebimento, encaminhe <code>BOTH_POSITION</code> para um método <code>ReceiveMovePosition</code> em C++/Blueprint que aplique a posição recebida aos pawns remotos. O payload exato não está detalhado &mdash; defina no projeto (<span class="note">NÃO DÁ PARA INFERIR COM SEGURANÇA COM BASE NO CÓDIGO</span>).</li>
+      <li>Para compatibilidade com o sistema de replicação do UE, considere manter <code>bUseControllerRotationYaw</code> sincronizado via RPC se necessário.</li>
+    </ol>
+  </div>
+
+  <div class="section">
+    <h2>Movimento com Caminho Compactado</h2>
+    <ol>
+      <li>Adapte <code>SendCharacterMoveNew()</code> para UE criando uma função <code>SendCharacterMoveNew(int32 Key, float Angle, uint8 PathNum, const TArray<uint8>& PathX, const TArray<uint8>& PathY, uint8 TargetX, uint8 TargetY)</code>. Replique a montagem do array <code>Path[8]</code> usando uma tabela de direções <code>DirTable</code> igual à do código.</li>
+      <li>Antes de enviar, limite <code>PathNum</code> a <code>MAX_PATH_FIND - 1</code> e garanta que <code>PathX/PathY</code> tenham pelo menos <code>PathNum</code> entradas. Preencha <code>path</code> com nibble alto para a direção inicial e nibble baixo para contagem (<code>PathNum-1</code>), igual ao código original.</li>
+      <li>Envie o pacote com cabeçalho <code>BOTH_MOVE</code>. No recebimento, chame <code>ReceiveMoveCharacter</code> para reconstruir o caminho. Como o corpo de <code>ReceiveMoveCharacter</code> não está disponível, defina a reconstrução manualmente (<span class="note">NÃO DÁ PARA INFERIR COM SEGURANÇA COM BASE NO CÓDIGO</span>).</li>
+      <li>Se optar por usar replicação nativa do UE, converta o caminho para um <code>FVector</code> array e replique via <code>NetMulticast</code>. Ainda assim, mantenha a compatibilidade com o cabeçalho customizado se o servidor externo exigir.</li>
+    </ol>
+  </div>
+
+    <div class="section">
+      <h2>Encaminhamento Genérico de Pacotes Clássicos</h2>
+      <ol>
+        <li>Implemente <code>DataSendRaw(const TArray<uint8>& Payload)</code> que envia com cabeçalho <code>ProtocolHead::BOTH_MESSAGE</code>, similar a <code>CustomClient::DataSend(uint8_t*,...)</code>. Valide o tamanho (até 8024 bytes) antes de enviar.</li>
+        <li>No handler de recebimento, reconstrua o cabeçalho clássico (0xC1/0xC3 = 1 byte size; 0xC2/0xC4 = 2 bytes size) exatamente como o switch do código e extraia <code>head</code>/<code>size</code>.</li>
+        <li>Crie uma função BlueprintImplementableEvent <code>TranslateProtocol(uint8 Head, const TArray<uint8>& Buffer, int32 Size)</code> para que a lógica específica (não disponível no código) possa ser implementada manualmente (<span class="note">NÃO DÁ PARA INFERIR COM SEGURANÇA COM BASE NO CÓDIGO</span>).</li>
+        <li>Adicione logs no Output Log replicando <code>g_ConsoleDebug</code> para auxiliar depuração.</li>
+      </ol>
+    </div>
+
+    <div class="section">
+      <h2>Lista de Servidores e Redirecionamento</h2>
+      <ol>
+        <li>No C++, declare structs <code>FReceiveServerList</code> e <code>FReceiveServerAddress</code> espelhando <code>PHEADER_DEFAULT_SUBCODE_WORD</code> e <code>PRECEIVE_SERVER_LIST</code>. Marque-as com <code>BlueprintType</code> para debugar no Editor.</li>
+        <li>Implemente um método <code>HandleServerList(const TArray<uint8>& Buffer)</code> que faça parsing da quantidade (<code>Value</code>/<code>Value2</code>) e popular um array de grupos em um <code>UDataTable</code> usado pelo Widget de seleção de servidor.</li>
+        <li>Crie um Widget Blueprint de seleção com um <em>ListView</em> e um botão “Conectar”. Ao clicar, chame <code>DisconnectServer()</code> e depois <code>ConnectServer(IP, Port)</code> usando os valores recebidos, replicando o fluxo de <code>ReceiveServerConnect()</code>.</li>
+        <li>Marque o Actor que gerencia a UI como <code>Only Owner See</code> se estiver replicado, já que a escolha é local. Não há lógica de fallback no código; considere implementar toast de erro quando a nova conexão falhar (<span class="note">NÃO DÁ PARA INFERIR COM SEGURANÇA COM BASE NO CÓDIGO</span>).</li>
+      </ol>
+    </div>
+
+    <div class="section">
+      <h2>Chat público / GM</h2>
+      <ol>
+        <li>Crie um Widget Blueprint <em>W_Chat</em> com <code>ScrollBox</code> e entrada de texto. Exponha um evento <code>OnChatMessage(const FString& Sender, const FString& Text, bool bIsGM)</code> que colore linhas diferentes.</li>
+        <li>No C++ do gerenciador de rede, implemente <code>HandleChatPacket</code> reconstruindo ID e texto conforme <code>ReceiveChat</code>. Marque como <code>Client</code> RPC se o Actor for replicado; caso contrário, chame localmente após ler do socket.</li>
+        <li>Para distinguir GMs, replique a checagem de <code>CtlCode</code>/<code>eBuff_GMEffect</code> com flags booleanas vindas do pacote. Se o pacote não contiver, insira manualmente (<span class="note">NÃO DÁ PARA INFERIR COM SEGURANÇA COM BASE NO CÓDIGO</span>).</li>
+        <li>Conecte o evento de entrada de chat (Project Settings &rarr; Input "SendChat") a um método <code>SendChatMessage()</code> que monte o pacote clássico e use <code>DataSendRaw</code> para enviá-lo.</li>
+      </ol>
+    </div>
+
+    <div class="section">
+      <h2>Whisper / Mensagem Privada</h2>
+      <ol>
+        <li>Adicione ao <em>W_Chat</em> um painel separado para whispers com som opcional. Use <code>USoundCue</code> associado a <code>SOUND_WHISPER</code> e reproduza somente se o usuário não tiver bloqueado whispers.</li>
+        <li>No C++ do cliente, implemente <code>HandleWhisperPacket</code> lendo ID e texto tal como <code>ReceiveChatWhisper</code> e despache para o Widget. Dispare um <code>Client</code> RPC se precisar forçar execução apenas no dono.</li>
+        <li>Implemente validação de resultado chamando <code>HandleWhisperResult</code> quando <code>ReceiveChatWhisperResult</code> chegar; traduza códigos de erro em mensagens UMG.</li>
+        <li>Crie um comando de input "SendWhisper" que abre um modal solicitando ID de destino e conteúdo, então envia o pacote via <code>DataSendRaw</code> (estrutura precisa ser definida manualmente &mdash; <span class="note">NÃO DÁ PARA INFERIR COM SEGURANÇA COM BASE NO CÓDIGO</span>).</li>
+      </ol>
+    </div>
+
+    <div class="section">
+      <h2>Avisos e Slides de Servidor</h2>
+      <ol>
+        <li>Construa um Widget <em>W_ServerNotice</em> com dois elementos: um texto persistente (para resultados 0,1,2) e um <code>Overlay</code> para slides animados.</li>
+        <li>No handler de pacotes, parseie <code>Result</code>, <code>Notice</code>, <code>Count</code>, <code>Delay</code>, <code>Speed</code> e <code>Color</code> espelhando <code>ReceiveNotice</code>. Invoque animações temporizadas (Timeline ou <code>FTimerHandle</code>) para mostrar slides entre 10 e 15 segundos.</li>
+        <li>Quando o aviso for de guild (Result 2), encaminhe para um Widget de guild; se não existir no projeto, crie um placeholder (<span class="note">NÃO DÁ PARA INFERIR COM SEGURANÇA COM BASE NO CÓDIGO</span>).</li>
+        <li>Adicione um painel de debug que registre <code>MCD_RECEIVE</code>-like logs no Output Log para cada aviso, auxiliando QA.</li>
+      </ol>
+    </div>
+
+    <div class="section">
+      <h2>Teleport / Troca de Mapa</h2>
+      <ol>
+        <li>No Character (Blueprint ou C++), exponha uma função <code>ApplyTeleport(int32 MapID, uint8 PosX, uint8 PosY, uint8 Angle, uint8 Flag)</code>. Ela deve parar movimento (<code>MovementComponent->StopMovementImmediately()</code>) e reposicionar o pawn.</li>
+        <li>Implemente um gerente de mapas que carregue níveis por <code>UGameplayStatics::OpenLevel</code> ou <code>ULevelStreamingDynamic</code>, tomando <code>MapID</code> como entrada. Replique a lógica condicional de sons/efeitos conforme o código (por exemplo, limpar interfaces de eventos ao trocar de mapa).</li>
+        <li>Depois de carregar o mapa, atualize widgets como nome do mapa e resets de seleção (SelectedItem/NPC/Character). Mantenha um hook para <code>SendRequestFinishLoading()</code> se o servidor exigir confirmação.</li>
+        <li>Se usar replication nativa, envie um <code>ServerTeleportRequest</code> RPC em vez de setar posição localmente para respeitar autoridade do servidor do UE.</li>
+      </ol>
+    </div>
+
+    <div class="section">
+      <h2>Atualização Visual de Equipamentos</h2>
+      <ol>
+        <li>Crie structs <code>FReceiveEquipment</code> e <code>FChangeCharacter</code> com campos equivalentes aos pacotes <code>ReceiveEquipment</code>/<code>ReceiveChangePlayer</code> (Key, Item array, nível, opções).</li>
+        <li>No Character Blueprint, adicione funções <code>ApplyEquipmentSet</code> e <code>ApplyEquipmentChange</code> que trocam Skeletal Meshes ou <code>USkeletalMeshComponent</code> attachments com base no tipo/nível retornado por <code>ConvertItemType</code> equivalente.</li>
+        <li>Chame essas funções ao receber pacotes do servidor. Se o Actor for replicado, considere usar <code>OnRep_CurrentEquipment</code> para atualizar clientes que entrarem depois.</li>
+        <li>Integre com o sistema de aparência atual (por exemplo, Gameplay Tags para armas). Caso o formato exato de mesh/opções não esteja definido, crie um mapa de configuração manual (<span class="note">NÃO DÁ PARA INFERIR COM SEGURANÇA COM BASE NO CÓDIGO</span>).</li>
+      </ol>
+    </div>
+  </div>
+
+  <div id="tab-roadmap" class="tab-content">
+  <h2>Roadmap de Evolução</h2>
+    <h3>Curto Prazo</h3>
+    <ul>
+      <li>[Alta] Unificar loop de recebimento em task assíncrona (AsyncTask/FRunnable) para substituir a thread comentada em <code>RecvMessage()</code>; afeta Conexão e Ping; reduz risco de stutter no cliente.</li>
+      <li>[Alta] Implementar validação e rate limit em <code>SendPositionNew</code> e <code>SendCharacterMoveNew</code>; mecânicas: Atualização de Posição e Movimento; mitiga spam e cheating.</li>
+      <li>[Média] Mapear e implementar parsing real de <code>ReceiveCharacterList</code>; mecânica: Lista de Personagens; dependência: definição do formato no servidor.</li>
+      <li>[Média] Adicionar telas de erro para todos os códigos em <code>RecvLoginNew</code>; mecânica: Login; impacto: melhor feedback e segurança.</li>
+      <li>[Média] Criar sistema de anti-spam para chat público e whisper (cooldown por remetente); mecânicas: Chat público / GM, Whisper; reduz carga e abuso.</li>
+      <li>[Média] Validar dados de <code>ReceiveNotice</code> antes de criar slides (tamanho de texto, contagem); mecânica: Avisos/Slides; evita estouro visual.</li>
+    </ul>
+    <h3>Médio Prazo</h3>
+    <ul>
+      <li>[Alta] Criar camada de segurança para credenciais (TLS ou criptografia simétrica) além de <code>BuxConvert</code>; mecânica: Login; risco atual de interceptação.</li>
+      <li>[Média] Converter mensagens <code>BOTH_MESSAGE</code> em objetos estruturados e validar tamanhos antes de chamar <code>TranslateProtocol</code>; mecânica: Encaminhamento Genérico; reduz crash por pacotes inválidos.</li>
+      <li>[Média] Implementar reconexão automática em <code>DisconnectServer</code> com backoff; mecânica: Conexão; dependência: tratamento de estado no servidor.</li>
+      <li>[Média] Centralizar carregamento de mapas com verificação de assets antes de aplicar <code>ReceiveTeleport</code>; mecânica: Teleport; reduz falhas de carregamento.</li>
+      <li>[Média] Cachear malhas e materiais utilizados em <code>ReceiveEquipment</code>/<code>ReceiveChangePlayer</code> para evitar hitch de streaming; mecânica: Atualização de Equipamentos; impacto em desempenho.</li>
+      <li>[Baixa] Criar painel de latência/estado de conexão no HUD atualizado via respostas de Ping; mecânica: Ping; impacto em UX.</li>
+    </ul>
+    <h3>Longo Prazo</h3>
+    <ul>
+      <li>[Alta] Migrar protocolos customizados para o sistema de replicação nativo do UE (RPCs e propriedades replicadas) mantendo compatibilidade com o servidor existente; mecânicas: todas que enviam <code>ProtocolHead</code>; dependência: planejamento de API.</li>
+      <li>[Média] Automatizar testes de integração (simulação de cliente/servidor) para validar <code>SendRequestLogInNew</code>, <code>SendPositionNew</code> e <code>SendCharacterMoveNew</code> contra um servidor mock.</li>
+      <li>[Média] Adicionar testes de UX para o fluxo de seleção de servidor e reconexão; mecânica: Lista de Servidores; impacto em retenção.</li>
+      <li>[Baixa] Documentar formalmente o formato de <code>TranslateProtocol</code> e dos pacotes clássicos (0xC1..0xC4) para permitir futura substituição por Protobuf/JSON binário.</li>
+    </ul>
+  </div>
+
+<script>
+const buttons = document.querySelectorAll('.tab-button');
+const contents = document.querySelectorAll('.tab-content');
+buttons.forEach(btn => {
+  btn.addEventListener('click', () => {
+    buttons.forEach(b => b.classList.remove('active'));
+    contents.forEach(c => c.classList.remove('active'));
+    btn.classList.add('active');
+    document.getElementById(btn.dataset.tab).classList.add('active');
+  });
+});
+</script>
+</body>
+</html>
