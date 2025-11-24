@@ -216,176 +216,199 @@ const ueGuides = {
   "serverlist-script-load": {
     title: "Recriar leitura ServerList.bmd",
     steps: [
-      "No Unreal 5.7, crie um módulo C++ utilitário (por exemplo, subclass de UObject) para substituir CServerListManager e carregar dados locais.",
-      "Implemente função equivalente a LoadServerListScript lendo de um arquivo configurado no projeto (usando FFileHelper) e aplicando XOR rotativo 0xfc/0xcf/0xab em cada byte, preservando o mesmo tamanho de struct SERVER_GROUP_INFO.",
-      "Armazene os dados em um mapa TMap<int32, FServerGroupInfo> com campos m_szName, m_byPos, m_bySequence e m_abyNonPVP replicando o layout original.",
-      "Expose um método BlueprintCallable para iniciar o carregamento, permitindo gatilho em UI sem rede; marque o objeto como não replicado (somente cliente)."
+      "1. Abra o Unreal Engine 5.7, carregue o projeto e no Content Browser clique em **Add → New C++ Class**.",
+      "2. Escolha **None** como base e crie uma classe `UObject` chamada `UServerListManagerUE` para substituir a leitura local feita por CServerListManager.",
+      "3. No arquivo `.h`, declare um método `UFUNCTION(BlueprintCallable)` `bool LoadServerListScript(const FString& FilePath)` e um `TMap<int32, FServerGroupInfo>` (defina `USTRUCT` espelhando SERVER_GROUP_INFO: nome, pos, sequence, NonPVP).",
+      "4. No arquivo `.cpp`, em `LoadServerListScript`, use `FFileHelper::LoadFileToArray` e aplique o XOR rotativo (0xfc, 0xcf, 0xab) byte a byte antes de copiar para o struct; retorne false quando falhar, replicando o comportamento do código original.",
+      "5. Compile pelo Editor (botão **Compile**). Depois, crie um Blueprint baseado em `UServerListManagerUE`, abra em **Class Defaults** e deixe sem replicação (somente cliente), pois é leitura local.",
+      "6. No Blueprint de UI que lista servidores, chame `LoadServerListScript` via BlueprintCallable e armazene o TMap para preencher widgets de lista, sem qualquer socket ou packet do sistema original."
     ]
   },
   "servergroup-creation": {
     title: "Gerenciar grupos de servidor",
     steps: [
-      "Crie uma classe UObject derivada para representar grupos (equivalente a CServerGroup) contendo array de servidores e flags de PvP.",
-      "Implemente método InserirGrupo similar a InsertServerGroup: pesquise em TMap por índice (iConnectIndex/20) e, se não existir, instancie novo grupo preenchendo com dados pré-carregados (MakeServerGroup).",
-      "Use funções BlueprintCallable para SetFirst/GetNext retornando índices válidos para UI; mantenha ponteiros/índices locais, sem replicação.",
-      "Armazene largura/posição em propriedades UPROPERTY(EditAnywhere) para permitir layout dinâmico, espelhando m_iWidthPos/m_iBtnPos." 
+      "1. No Content Browser, crie um **Blueprint Struct** `FServerGroupUE` com campos para sequência, posição, largura e array de servidores (espelhando CServerGroup).",
+      "2. Em seguida, crie uma classe `UObject` C++ `UServerGroupContainer` (Add → New C++ Class → None) para armazenar um `TMap<int32, FServerGroupUE>`.",
+      "3. No `.h`, declare `UFUNCTION(BlueprintCallable)` `void InsertServerGroup(int32 ConnectIndex, const FServerGroupInfo& Info)` que calcula `ServerIndex = ConnectIndex/20` e cria ou reutiliza entradas, e métodos `SetFirst`/`GetNext` que mantêm um índice interno para iteração.",
+      "4. No `.cpp`, implemente a lógica de criação e preenchimento usando dados já carregados pelo gerenciador de scripts; não use sockets nem packets do sistema original, apenas estruturas locais.",
+      "5. Compile e crie um Blueprint baseado em `UServerGroupContainer`; em **Class Defaults**, deixe sem replicação, pois é estado local de UI.",
+      "6. Na UI (UMG), chame `SetFirst` e `GetNext` via nós Blueprint para percorrer grupos ao construir a lista de servidores."
     ]
   },
   "serverentry-population": {
     title: "Construir entradas e rótulos de servidor",
     steps: [
-      "Adicione estrutura UStruct FServerInfo com campos Sequence, Index, ConnectIndex, Percent, NonPvP e Name (FString) equivalentes aos membros de CServerInfo.",
-      "Implemente função de fábrica que receba Percent e NonPvP e monte o texto conforme InsertServer (selecionando mensagem para >=128, >=100 ou outro).",
-      "Para manter paridade, armazene o texto global em array TArray<FText> carregado de recurso local; se os textos não estiverem no código C++, marque como 'NÃO DÁ PARA INFERIR COM SEGURANÇA COM BASE NO CÓDIGO-FONTE C/C++' e preencha manualmente.",
-      "Não marque replicação; esses dados são usados apenas na UI cliente antes da conexão." 
+      "1. Crie um **Blueprint Struct** `FServerInfoUE` contendo Sequence, Index, ConnectIndex, Percent, NonPvP (bool) e Name (FString) para espelhar CServerInfo.",
+      "2. Em uma classe `UObject` (pode ser o mesmo container de grupos), adicione uma função `UFUNCTION(BlueprintCallable)` `FServerInfoUE MakeServerInfo(...)` que recebe os valores e monta o texto de Name com base no Percent (>=128, >=100 ou outro) e no flag NonPvP, seguindo o código de InsertServer.",
+      "3. No `.cpp`, carregue as strings equivalentes a GlobalText[560..562]; se o código não fornecer o texto, use a frase 'NÃO DÁ PARA INFERIR COM SEGURANÇA COM BASE NO CÓDIGO-FONTE C++' e permita edição manual no Blueprint.",
+      "4. Compile e, no Blueprint de UI da lista de servidores, chame `MakeServerInfo` para cada entrada antes de popular um ListView; não marque replicação, pois é apenas visual."
     ]
   },
   "server-iteration": {
     title: "Iterar grupos e servidores",
     steps: [
-      "Implemente métodos em C++ ou Blueprint que mantenham um índice atual para TArray/TMap e avancem como GetNext, retornando nullptr/None ao final.",
-      "Resete iteradores com SetFirst equivalente ao clicar em uma aba de lista; use UFUNCTION(BlueprintCallable) para que a UI possa percorrer itens em widgets ListView.",
-      "Garanta que a iteração não reordene elementos, seguindo a lista original preservada por inserção." 
+      "1. No `UServerGroupContainer`, adicione variáveis `int32 CurrentGroupIndex` e `int32 CurrentServerIndex` marcadas como `UPROPERTY()` simples (sem replicação).",
+      "2. Implemente `UFUNCTION(BlueprintCallable)` `void SetFirstGroup()` e `UFUNCTION(BlueprintCallable)` `bool GetNextGroup(FServerGroupUE& OutGroup)` que percorrem o TMap mantendo a ordem de inserção armazenada; retorne false ao fim.",
+      "3. Dentro de cada grupo, implemente funções análogas `SetFirstServer`/`GetNextServer` que iteram o array de `FServerInfoUE`.",
+      "4. Compile e, no Widget Blueprint, ao abrir a lista, chame `SetFirstGroup` e em loop `GetNextGroup` para popular a UI; repita para servidores conforme seleção do grupo."
     ]
   },
   "server-selection-state": {
     title: "Persistir seleção de servidor",
     steps: [
-      "Crie uma classe UObject de estado (ex.: USelectedServerState) com propriedades UPROPERTY(BlueprintReadOnly) para Name, Index, CensorshipIndex, NonPvPFlag e bIsTestServer.",
-      "Implemente método SetSelectServerInfo equivalente: copie os valores recebidos da UI e armazene para uso posterior na conexão.",
-      "Expose getters BlueprintPure para UI recuperar as flags e decidir fluxos (por exemplo, permitir entrada apenas se !IsTestServer).",
-      "Como os valores são locais, não use replicação; mantenha claro que o estado deriva da escolha do usuário cliente." 
+      "1. Crie uma classe `UObject` C++ `USelectedServerState` (Add → New C++ Class → None).",
+      "2. No `.h`, declare `UPROPERTY(BlueprintReadOnly)` `FString ServerName`, `int32 ServerIndex`, `int32 CensorshipIndex`, `bool bNonPvP`, `bool bIsTestServer`.",
+      "3. Ainda no `.h`, crie `UFUNCTION(BlueprintCallable)` `void SetSelectServerInfo(const FString& Name, int32 Index, int32 CensorIdx, bool bNonPvPFlag, bool bTest)` copiando exatamente os parâmetros que o código original armazenava.",
+      "4. Implemente no `.cpp` a simples atribuição dos valores; compile e crie um Blueprint baseado na classe. Em **Class Defaults**, mantenha sem replicação (estado local de UI).",
+      "5. Na tela de seleção, ao clicar em um servidor, chame `SetSelectServerInfo`; em seguida, leia `ServerIndex` e `bIsTestServer` em Blueprints para decidir se pode prosseguir."
     ]
   },
   "protocol-connection": {
     title: "Conectar e pingar via sockets UE",
     steps: [
-      "No Unreal 5.7, crie um `APlayerController` derivado (Add → C++ Class) que atuará como cliente de rede padrão da UE, sem usar sockets manuais do sistema de packets original.",
-      "No `.h`, declare uma função `UFUNCTION(Server, Reliable)` chamada `ServerRequestConnection(const FString& TargetAddress, int32 Port)` para substituir ConnectServer; implemente no `.cpp` a validação do endereço e atualização de um `bool bIsConnected` replicado somente para leitura.",
-      "Adicione `UFUNCTION(Server, Reliable)` chamada `ServerPingTest()` que registra o TickCount recebido e responde via `UFUNCTION(Client, Reliable)` `ClientHandlePingResponse(int32 TickCount)`; essa dupla substitui o envio do packet CLIENT_LIVE_CLIENT do sistema original.",
-      "Crie função `UFUNCTION(Server, Reliable)` `ServerDisconnect()` para limpar estado e sinalizar ao cliente via `ClientOnDisconnected()`; elimine qualquer chamada direta a sockets, pois a sessão de rede da UE cuida da conexão.",
-      "Implemente verificação periódica usando `FTimerManager` em `APlayerController` que chama `ServerPingTest()` enquanto `bIsConnected` estiver verdadeiro; o timer substitui SendCheckOnline do código original.",
-      "Para mensagens gerais antes enviadas por SendPacket/SendPacketClassic, crie RPCs específicos (Server/Client/NetMulticast) e, se necessário, use propriedades `UPROPERTY(Replicated)` em `AGameState` ou `APlayerState` para compartilhar o estado; deixe claro que o sistema de packets original não é reimplementado."
+      "1. No Unreal 5.7, abra **Add → New C++ Class** e derive de `APlayerController`, nomeando `ANetworkPC`.",
+      "2. No arquivo `.h`, adicione `UPROPERTY(Replicated)` `bool bIsConnected` e implemente `GetLifetimeReplicatedProps` no `.cpp` com `DOREPLIFETIME(ANetworkPC, bIsConnected)`.",
+      "3. Declare no `.h` `UFUNCTION(Server, Reliable)` `void ServerRequestConnection();` substituindo ConnectServer; no `.cpp`, defina `bIsConnected=true` e registre logs (nenhum socket manual).",
+      "4. Declare `UFUNCTION(Server, Reliable)` `void ServerPingTest(int32 ClientTick);` e `UFUNCTION(Client, Reliable)` `void ClientHandlePingResponse(int32 EchoTick);` replicando a intenção do ping CLIENT_LIVE_CLIENT do sistema de packets original.",
+      "5. Declare `UFUNCTION(Server, Reliable)` `void ServerDisconnect();` e `UFUNCTION(Client, Reliable)` `void ClientOnDisconnected();` para limpar e notificar, substituindo SendCheckOnline/DisconnectServer.",
+      "6. No construtor ou BeginPlay, configure um timer com `FTimerManager` chamando `ServerPingTest(FPlatformTime::Cycles())` a cada segundo enquanto `bIsConnected` for true.",
+      "7. No Blueprint baseado em `ANetworkPC`, em **Class Defaults**, marque **Replicates**; compile no Editor. Não envie packets brutos: todas as mensagens usam RPCs da UE."
     ]
   },
   "socket-option-script": {
     title: "Carregar script de opções de socket",
     steps: [
-      "Abra o Unreal Engine 5.7 e em **Add → C++ Class** crie uma classe derivada de `UObject` (ex.: `USocketOptionScript`) para substituir `CSocketItemMgr` apenas na parte de leitura local.",
-      "No `.h`, declare um método `bool LoadSocketOptions(const FString& FilePath)` que usará `FFileHelper::LoadFileToArray` para ler o binário; não recrie o sistema de packets do projeto original.",
-      "No `.cpp`, percorra o buffer carregado populando um `TArray<FSocketOptionInfo>` (defina `USTRUCT` espelhando `SOCKET_OPTION_INFO`) aplicando a mesma conversão XOR (0xfc/0xcf/0xab) em cada byte antes de copiar os campos.",
-      "Calcule um contador de opções válidas como `m_iNumEquitSetBonusOptions` verificando entradas não vazias; exponha um método `UFUNCTION(BlueprintPure)` para recuperar opções e textos formatados usando lógica equivalente a `CalcSocketOptionValue`/`CalcSocketOptionValueText`.",
-      "Não marque replicação, pois a leitura é local; deixe anotado em comentários que o sistema de packets do projeto original é apenas referência histórica."
+      "1. No Editor, clique em **Add → New C++ Class** e escolha **None** para criar `USocketOptionScript` derivada de `UObject`.",
+      "2. No arquivo `.h`, declare `UFUNCTION(BlueprintCallable)` `bool LoadSocketOptions(const FString& FilePath);` e defina um `USTRUCT` `FSocketOptionInfo` com os mesmos campos usados em SOCKET_OPTION_INFO (OptionIndex, Type, Value, Text).",
+      "3. No `.cpp`, em `LoadSocketOptions`, use `FFileHelper::LoadFileToArray` para ler o binário e aplique o XOR rotativo (0xfc, 0xcf, 0xab) byte a byte antes de preencher cada `FSocketOptionInfo`; retorne false se fread falhar, conforme o código original.",
+      "4. Adicione `UFUNCTION(BlueprintPure)` `const TArray<FSocketOptionInfo>& GetOptions() const;` para fornecer dados à UI e funções auxiliares que somem `m_iNumEquitSetBonusOptions` e calculem valores usando lógica de `CalcSocketOptionValue/Text`.",
+      "5. Compile e, em um Blueprint de inventário, chame `LoadSocketOptions` no BeginPlay para preencher as tabelas; mantenha sem replicação (dados locais).",
+      "6. Documente em comentário que o sistema de packets do projeto original não é usado na UE; todos os fluxos de rede devem usar RPCs e propriedades replicadas."
     ]
   },
   "socket-tooltip-bonus": {
     title: "Tooltip e bônus de itens com socket",
     steps: [
-      "No Unreal 5.7, crie um componente `UActorComponent` (ex.: `USocketItemComponent`) anexo ao personagem ou inventário para encapsular a lógica de `CSocketItemMgr`.",
-      "Implemente em C++ funções `bool IsSocketItem(const FItemData&)`, `int32 GetSocketOptionValue(...)` e `void BuildSocketTooltip(...)` que usem as tabelas carregadas pelo `USocketOptionScript` para montar textos e valores; use `FText` e arrays para simular `TextList` e `TextListColor`.",
-      "Para exibir tooltips em UMG, crie funções `UFUNCTION(BlueprintCallable)` que retornem uma lista de linhas formatadas; quando categorias ou textos não estiverem disponíveis, registre 'NÃO DÁ PARA INFERIR COM SEGURANÇA COM BASE NO CÓDIGO-FONTE C++' e deixe o designer preencher manualmente.",
-      "Implemente cálculo de bônus agregados (similar a `CalcSocketStatusBonus`) percorrendo o inventário replicado do personagem (`ACharacter` com componentes de inventário); use propriedades `UPROPERTY(Replicated)` para qualquer atributo que precise aparecer em outros clientes, e `OnRep_` para atualizar UI.",
-      "Não use sockets ou envio de packets; todos os efeitos são locais ou derivados de variáveis replicadas padrão da UE."
+      "1. Em **Add → New C++ Class**, escolha **Actor Component** e nomeie `USocketItemComponent`, anexando-o ao personagem que exibe tooltips.",
+      "2. No `.h`, inclua referência ao `USocketOptionScript` e declare métodos `UFUNCTION(BlueprintCallable)` `bool IsSocketItem(const FItemData& Item);`, `int32 GetSocketOptionValue(...)`, `void BuildSocketTooltip(const FItemData& Item, TArray<FText>& OutLines);` refletindo AttachToolTipForSocketItem/SeedSphere.",
+      "3. No `.cpp`, consulte as tabelas carregadas por `USocketOptionScript` para gerar textos e bônus (CalcSocketBonusValue); se alguma string ou cálculo não estiver no código, escreva 'NÃO DÁ PARA INFERIR COM SEGURANÇA COM BASE NO CÓDIGO-FONTE C++' como placeholder.",
+      "4. Se o bônus precisar ser sincronizado entre clientes, adicione `UPROPERTY(Replicated)` para valores agregados e implemente `GetLifetimeReplicatedProps`; para notificações visuais, crie `UFUNCTION(Client, Unreliable)` `ClientShowSocketTooltip(...)` e chame do servidor em vez de enviar packets.",
+      "5. Compile e, no Blueprint do personagem, em **Class Defaults**, marque **Replicates** e adicione o componente `SocketItemComponent`; no Widget de tooltip, invoque `BuildSocketTooltip` para preencher as linhas."
     ]
   },
   "protocol-recv-dispatch": {
     title: "Despachar mensagens recebidas",
     steps: [
-      "No Unreal 5.7, substitua o loop de parsing de packets por RPCs. Em `APlayerController` ou `AGameMode`, crie funções `UFUNCTION(Server, Reliable)`/`Client`/`NetMulticast` que representem cada mensagem tratada (JoinServer, Login, CharacterList, MovePosition, MoveCharacter).",
-      "Remova a leitura direta de buffers: cada evento que o servidor deveria enviar vira `UFUNCTION(Client, Reliable)` (por exemplo, `ClientReceiveLoginResult(uint8 Result, int32 HeroKey)`) e cada comando do cliente vira `UFUNCTION(Server, Reliable)`; o switch em cabeçalho vira um switch de enums dentro do RPC ou múltiplas funções distintas.",
-      "Mantenha handlers BlueprintCallable para acionar UI, mas deixe explícito que o sistema de packets do projeto original é apenas referência histórica e não deve ser reimplementado byte a byte.",
-      "Para qualquer handler sem detalhes suficientes no código C++, documente no corpo com 'NÃO DÁ PARA INFERIR COM SEGURANÇA COM BASE NO CÓDIGO-FONTE C/C++' e defina o conteúdo conforme o design ao implementar no projeto Unreal."
+      "1. No Unreal 5.7, abra **Add → New C++ Class** e escolha `APlayerController` ou `AGameMode` para hospedar a lógica de despacho, criando por exemplo `ANetworkDispatcher`.",
+      "2. No arquivo `.h`, declare RPCs `UFUNCTION(Client, Reliable)` para cada mensagem que o sistema de packets original tratava (JoinServer, Login, CharacterList, MovePosition, MoveCharacter) e `UFUNCTION(NetMulticast, Reliable/Unreliable)` se houver broadcasts.",
+      "3. Adicione também `UFUNCTION(Server, Reliable)` para os comandos iniciados pelo cliente; defina um `enum class EProtocolMessageType` para substituir o cabeçalho original e organizar o switch.",
+      "4. No `.cpp`, implemente um método chamado em `Tick` ou por `FTimerManager` que consuma uma fila `TQueue<EProtocolMessageType>` e chame os RPCs correspondentes; remova qualquer parsing de bytes.",
+      "5. Marque a classe como replicada em **Class Defaults** (Blueprint), compile e conecte eventos de UI aos RPCs; quando o código original não detalhar uma mensagem, inclua comentário 'NÃO DÁ PARA INFERIR COM SEGURANÇA COM BASE NO CÓDIGO-FONTE C++'."
     ]
   },
   "protocol-login-send": {
     title: "Envio de login codificado",
     steps: [
-      "No Unreal 5.7, em `APlayerController`, declare `UFUNCTION(Server, Reliable)` `ServerRequestLogin(const FString& Account, const FString& Password)` que substitui o envio do packet BOTH_CONNECT_LOGIN; valide tamanho das strings antes de copiar para buffers internos.",
-      "Dentro do RPC, se precisar replicar dados de versão/serial, salve em propriedades `UPROPERTY(Replicated)` em `APlayerState` ou `AGameState` (por exemplo `FString ClientVersion`, `FString ClientSerial`) em vez de serializar manualmente.",
-      "Crie `UFUNCTION(Client, Reliable)` `ClientLoginResponse(uint8 ResultCode, int32 HeroKey)` para devolver ao cliente os códigos de RecvLoginNew; essa função substitui a recepção do packet no sistema original.",
-      "No Blueprint do PlayerController, exponha uma função que chame `ServerRequestLogin` quando o usuário confirmar a UI de login; registre CurrentProtocolState/LogIn em variáveis locais replicadas somente se forem necessárias por outros atores."
+      "1. No PlayerController `ANetworkPC`, abra o `.h` e declare `USTRUCT(BlueprintType)` `FLoginRequest` com Account, Password, TickCount, ClientVersion, ClientSerial (espelhando o packet do código original).",
+      "2. Ainda no `.h`, adicione `UPROPERTY(Replicated)` para `uint8 CurrentProtocolState` e `uint8 LogIn` se esses estados precisarem ser visíveis; implemente `GetLifetimeReplicatedProps` no `.cpp` com `DOREPLIFETIME` para cada um.",
+      "3. Declare `UFUNCTION(Server, Reliable)` `void ServerRequestLogin(const FLoginRequest& Request);` e implemente no `.cpp` validando o tamanho das strings antes de copiar para variáveis internas, replicando a ordem do sistema de packets original.",
+      "4. Declare `UFUNCTION(Client, Reliable)` `void ClientLoginResponse(uint8 ResultCode, int32 HeroKey);` que o servidor chamará após processar a lógica que substitui RecvLoginNew.",
+      "5. No Editor, vá em **Edit → Project Settings → Input** e crie uma Action Mapping `LoginConfirm`; no Blueprint de UI de login, capture o evento `InputAction LoginConfirm` e chame `ServerRequestLogin` preenchendo o struct `FLoginRequest`.",
+      "6. Compile e, no Blueprint do PlayerController, em **Class Defaults**, marque **Replicates**; não envie buffers ou packets: toda a comunicação usa RPCs."
     ]
   },
   "protocol-login-recv": {
     title: "Tratar join e códigos de login",
     steps: [
-      "Implemente `UFUNCTION(Client, Reliable)` `ClientReceiveJoinResult(uint8 Result, uint8 IndexA, uint8 IndexB, FString ServerVersion)` para substituir RecvJoinServerNew; no corpo, calcule HeroKey e compare versão, ajustando CurrentProtocolState replicado se necessário.",
-      "Quando `LogIn` já for diferente de zero, chame um RPC de servidor como `ServerRequestMapChange()` (substituindo SendChangeMapServer) ou registre a falta de detalhes como 'NÃO DÁ PARA INFERIR COM SEGURANÇA COM BASE NO CÓDIGO-FONTE C++'.",
-      "Para códigos 0x00-0xD2 de login, exponha `ClientLoginResponse` (do guia anterior) fazendo switch em Blueprint ou C++ e abrindo telas de UI equivalentes; defina CurrentProtocolState = RECEIVE_JOIN_SERVER_SUCCESS quando Result==0x01.",
-      "Mantenha todas as interações através de RPCs e variáveis replicadas; deixe claro que o parsing de packets do projeto original não é refeito na UE."
+      "1. No `.h` de `ANetworkPC`, declare `UFUNCTION(Client, Reliable)` `void ClientReceiveJoinResult(uint8 Result, uint8 IndexA, uint8 IndexB, const FString& ServerVersion);` substituindo RecvJoinServerNew.",
+      "2. No `.cpp`, em `ClientReceiveJoinResult`, calcule `HeroKey = (IndexB * 256) + IndexA` como no código original e compare `ServerVersion` com a versão local; atualize `CurrentProtocolState` para `RECEIVE_JOIN_SERVER_SUCCESS` quando Result==0x01.",
+      "3. Se `LogIn` já for diferente de zero, chame `ServerRequestMapChange()` (RPC Server) para substituir `SendChangeMapServer`; se faltar informação de implementação, registre 'NÃO DÁ PARA INFERIR COM SEGURANÇA COM BASE NO CÓDIGO-FONTE C++'.",
+      "4. Declare `UFUNCTION(Client, Reliable)` `void ClientHandleLoginCodes(uint8 ResultCode);` e implemente switch para códigos 0x00-0xD2 abrindo pop-ups de erro ou prosseguindo; use `OnRep_CurrentProtocolState` se precisar atualizar UI ao replicar o estado.",
+      "5. Compile e conecte `ClientReceiveJoinResult`/`ClientHandleLoginCodes` a widgets UMG para mostrar mensagens equivalentes às do sistema de packets original."
     ]
   },
   "protocol-character-and-move": {
     title: "Enviar lista de personagens, posição e movimento",
     steps: [
-      "No Unreal 5.7, use o `APlayerController` para emitir um `UFUNCTION(Server, Reliable)` `ServerRequestCharacterList()` em vez de enviar PMSG_SIMPLE_RESULT_SEND; o servidor devolve via `UFUNCTION(Client, Reliable)` `ClientReceiveCharacterList(...)`.",
-      "Para posição, mantenha `ACharacter` replicando movimento (`bReplicateMovement=true`) e, se precisar de atualização manual, crie `UFUNCTION(Server, Unreliable)` `ServerUpdatePosition(const FVector& Pos)`; não serialize bytes manualmente.",
-      "Para movimento com caminhos, substitua o envio de Path[8] por `ServerMoveAlongPath(const TArray<uint8>& Directions)` e, no servidor, valide `PathNum` contra um limite constante; se a lógica exata de `DirTable` não estiver clara, registre 'NÃO DÁ PARA INFERIR COM SEGURANÇA COM BASE NO CÓDIGO-FONTE C++' e defina conforme o design.",
-      "Exponha eventos de confirmação ao cliente com `UFUNCTION(Client, Unreliable)` se precisar notificar conclusão; todo fluxo usa RPCs da UE em vez do sistema de packets original."
+      "1. Abra o Unreal e, no PlayerController `ANetworkPC`, declare `UFUNCTION(Server, Reliable)` `void ServerRequestCharacterList();` substituindo o envio PMSG_SIMPLE_RESULT_SEND.",
+      "2. No `.h`, declare `UFUNCTION(Client, Reliable)` `void ClientReceiveCharacterList(const TArray<FCharacterSummary>& Characters);` (crie `USTRUCT` para o resumo se necessário).",
+      "3. Para posição, abra o Blueprint do `ACharacter` e em **Class Defaults** marque **Replicate Movement**; no `.h`, se precisar de atualização manual, declare `UFUNCTION(Server, Unreliable)` `void ServerUpdatePosition(const FVector& Pos);`.",
+      "4. Para caminhos, declare `UFUNCTION(Server, Reliable)` `void ServerMoveAlongPath(const TArray<uint8>& Directions);` e no `.cpp` valide `Directions.Num()` contra um limite constante que substitui MAX_PATH_FIND; se a tabela de direção não estiver clara, registre 'NÃO DÁ PARA INFERIR COM SEGURANÇA COM BASE NO CÓDIGO-FONTE C++'.",
+      "5. Caso o servidor precise confirmar, crie `UFUNCTION(Client, Unreliable)` `void ClientAcknowledgeMove();` e chame após processar o movimento; nenhuma serialização manual de bytes é usada, apenas RPCs."
     ]
   },
   "protocol-generic-send": {
     title: "Encapsular envios genéricos",
     steps: [
-      "Substitua DataSend por RPCs nomeados. Para cada comando que exigia um cabeçalho, declare `UFUNCTION(Server, Reliable)` ou `NetMulticast` apropriado e remova o envio de buffers brutos.",
-      "Para mensagens que eram BOTH_MESSAGE, crie um RPC genérico `UFUNCTION(NetMulticast, Unreliable)` `MulticastBroadcastMessage(uint8 MessageId, const TArray<uint8>& Payload)` se realmente precisar de payload bruto; caso contrário, modele propriedades específicas replicadas.",
-      "Mantenha um componente ou subsistema apenas para roteamento dos RPCs e para registrar telemetria, deixando claro que o sistema de packets do projeto original não é utilizado na implementação Unreal."
+      "1. No Unreal, crie um `UActorComponent` `UMessageRouterComponent` (Add → New C++ Class → Actor Component) para substituir DataSend.",
+      "2. No `.h`, declare RPCs `UFUNCTION(Server, Reliable)`/`NetMulticast` para cada comando identificado no código original, com parâmetros tipados em vez de buffers brutos.",
+      "3. Se precisar de mensagem genérica, declare `UFUNCTION(NetMulticast, Unreliable)` `void MulticastBroadcastMessage(uint8 MessageId, const TArray<uint8>& Payload);` apenas quando o design exigir payload binário; caso contrário, crie UPROPERTY(Replicated) específicas.",
+      "4. No Blueprint do ator que usa o componente, marque **Replicates** e adicione o componente; use nós de chamada para cada RPC em resposta a eventos de jogo ou input.",
+      "5. Documente nos comentários que o sistema de packets do projeto original é histórico e que toda comunicação atual deve passar por RPCs e replicação padrão da UE."
     ]
   },
   "wsclient-socket-decode": {
     title: "Configurar socket assíncrono e parsing C1/C2/C3/C4",
     steps: [
-      "No Unreal 5.7, não reimplemente a pilha de sockets do sistema de packets original; em vez disso, use o pipeline de rede padrão da UE com RPCs.",
-      "Crie um `UGameInstanceSubsystem` para armazenar o estado original (contadores de serial, flags de checksum) apenas para referência/telemetria, marcando comentários sobre o comportamento do projeto original.",
-      "Para cada mensagem que o `ProtocolCompiler` tratava (C1/C2/C3/C4), substitua por RPCs específicos (Server/Client/NetMulticast) e propriedades replicadas; elimine leitura manual de bytes e descriptografia SimpleModulus.",
-      "Se a lógica de checksum for necessária, implemente-a em funções C++ normais e envie resultados por RPC; quando faltar detalhe do código, marque com 'NÃO DÁ PARA INFERIR COM SEGURANÇA COM BASE NO CÓDIGO-FONTE C++'.",
-      "Documente na classe que o socket assíncrono é parte do sistema de packets do projeto original e que, na Unreal, a conectividade usa o subsistema online/replicação padrão."
+      "1. No Editor, vá em **Add → New C++ Class** e crie um `UGameInstanceSubsystem` chamado `UPacketHistorySubsystem` apenas para registrar contadores de serial/checksum do sistema original (telemetria).",
+      "2. No `.h`, adicione variáveis `UPROPERTY()` simples para `uint8 PacketSerialSend`, `uint8 PacketSerialRecv` e flags de checksum; nenhum socket será aberto.",
+      "3. Para cada mensagem que `ProtocolCompiler` tratava (C1/C2/C3/C4), crie RPCs específicos em `APlayerController`/`AGameMode` (`UFUNCTION(Server, Reliable/Unreliable)`, `Client`, `NetMulticast`) e remova toda leitura/descrição de bytes.",
+      "4. Se precisar validar checksum, implemente função C++ comum no subsistema e envie o resultado via `UFUNCTION(Client, Reliable)`; quando o código não trouxer detalhes, registre 'NÃO DÁ PARA INFERIR COM SEGURANÇA COM BASE NO CÓDIGO-FONTE C++'.",
+      "5. No Blueprint do subsistema, deixe claro em comentários que este módulo apenas referencia o sistema de packets do projeto original e que a rede real usa replicação padrão da UE."
     ]
   },
   "mapserver-change": {
     title: "Trocar para Map Server e reinicializar estado",
     steps: [
-      "No Unreal 5.7, implemente a troca de mapa usando o fluxo de rede da UE: crie um `UGameInstanceSubsystem` `UMapServerManager` apenas para armazenar dados lidos do código original (JoinAuthCodes, HeroID, IP/porta) como referência local.",
-      "Em `APlayerController`, declare `UFUNCTION(Server, Reliable)` `ServerRequestMapChange(const FString& HeroId)` que valida estados equivalentes a `LogIn` e `bFillServerInfo` e chama uma função no `AGameMode` para executar `ServerTravel` ou transição de nível.",
-      "Antes da transição, chame funções locais equivalentes a ClearCharacters/InitGame se estiverem implementadas; quando não houver detalhes no código, marque 'NÃO DÁ PARA INFERIR COM SEGURANÇA COM BASE NO CÓDIGO-FONTE C++'.",
-      "Use `UFUNCTION(Client, Reliable)` `ClientConfirmMapChange()` para sinalizar sucesso ao cliente; não reconstrua sockets nem envie buffers binários, pois o sistema de packets original não é usado na UE.",
-      "Adicione getters BlueprintPure no subsistema para expor IP/porta/flags para UI, mas mantenha claro que a navegação efetiva ocorre via RPCs do GameMode/PlayerController."
+      "1. No Editor, crie um `UGameInstanceSubsystem` chamado `UMapServerManager` (Add → New C++ Class → Game Instance Subsystem) para armazenar JoinAuthCodes, HeroID, IP/Porta como referência local.",
+      "2. No `.h` do PlayerController, declare `UFUNCTION(Server, Reliable)` `void ServerRequestMapChange(const FString& HeroId);` e, no `.cpp`, valide flags equivalentes a `LogIn` e `bFillServerInfo` antes de chamar o GameMode.",
+      "3. No GameMode, declare `UFUNCTION(Server, Reliable)` `void ServerPerformMapChange(const FString& MapName);` e chame `ServerTravel` ou `OpenLevel` conforme a necessidade; se detalhes faltarem, use a frase padrão de impossibilidade de inferência.",
+      "4. Antes da transição, invoque funções locais que limpem personagens (ClearCharacters/InitGame) se existirem; quando não houver detalhes no código, registre 'NÃO DÁ PARA INFERIR COM SEGURANÇA COM BASE NO CÓDIGO-FONTE C++'.",
+      "5. Declare `UFUNCTION(Client, Reliable)` `void ClientConfirmMapChange();` para notificar o cliente após o sucesso; no Blueprint do PlayerController, conecte essa chamada para atualizar UI e não recrie sockets do sistema de packets original.",
+      "6. Exponha getters `UFUNCTION(BlueprintPure)` no subsistema para IP/porta/flags para uso de UI; lembre que toda navegação acontece via RPCs de GameMode/PlayerController."
     ]
   },
   "buff-script-load": {
     title: "Recriar carga e descriptografia de BuffEffect",
     steps: [
-      "No Unreal 5.7, crie uma classe UObject utilitária que leia BuffEffect_<ML>.bmd de um caminho configurável (FFileHelper::LoadFileToArray) e valide tamanho equivalente a _BUFFINFO.",
-      "Aplique XOR rotativo nos bytes (0xfc, 0xcf, 0xab) antes de copiar para um struct UStruct que replique os campos s_BuffIndex, s_BuffEffectType, s_ItemType, s_ItemIndex, s_BuffName, s_BuffClassType, s_NoticeType, s_ClearType e s_BuffDescript.",
-      "Implemente verificação de checksum (GenerateCheckSum2 equivalente) e em caso de falha acione log/encerramento conforme o código; se a função GenerateCheckSum2 não existir em UE, marque como 'NÃO DÁ PARA INFERIR COM SEGURANÇA COM BASE NO CÓDIGO-FONTE C/C++' e forneça implementação manual.",
-      "Divida descrições por '/' em um TArray<FString> para simular CutTokenString e armazene em um TMap<eBuffState, FBuffInfo> acessível a Blueprints."
+      "1. No Editor, clique em **Add → New C++ Class → None** e crie `UBuffScriptLoaderUE` derivada de `UObject`.",
+      "2. No `.h`, declare `UFUNCTION(BlueprintCallable)` `bool LoadBuffScript(const FString& Path);` e defina `USTRUCT` para `_BUFFINFO` com campos equivalentes aos do código (s_BuffIndex, s_BuffEffectType, s_ItemType, s_ItemIndex, s_BuffName, s_BuffClassType, s_NoticeType, s_ClearType, s_BuffDescript).",
+      "3. No `.cpp`, use `FFileHelper::LoadFileToArray` para ler BuffEffect_<ML>.bmd, aplique XOR rotativo (0xfc, 0xcf, 0xab) antes de copiar para o struct e retorne false se o tamanho não bater.",
+      "4. Implemente verificação de checksum equivalente a GenerateCheckSum2; se faltar referência, escreva 'NÃO DÁ PARA INFERIR COM SEGURANÇA COM BASE NO CÓDIGO-FONTE C++' e substitua por um log/abort manual.",
+      "5. Após carregar, divida s_BuffDescript por '/' em `TArray<FString>` e armazene em `TMap<eBuffState, FBuffInfo>` acessível a Blueprints.",
+      "6. Compile e crie um Blueprint baseado em `UBuffScriptLoaderUE`; em **Class Defaults**, mantenha sem replicação (processo local)."
     ]
   },
   "buff-time-control": {
     title: "Gerenciar timers de buff no cliente UE",
     steps: [
-      "Implemente um componente (UActorComponent) que mantenha TMap<eBuffTimeType, FBuffTimeInfo> com campos BuffType, CurBuffTime (ms) e EventBuffTime, inicializando via método equivalente a RegisterBuffTime.",
-      "Converta CheckBuffTimeType para lógica UE usando enum eBuffState/eBuffTimeType já definidos; recupere dados de buff via objeto Loader e limite tempo máximo conforme tabela de itens ou retorne -1 se indefinido.",
-      "Substitua SetTimer/KillTimer de janela por FTimerManager no PlayerController/GameInstance para ticks a cada ~0.9s, chamando função que reduz CurBuffTime como CheckBuffTime.",
-      "Exponha métodos BlueprintCallable para GetBuffStringTime e GetBuffTime, formatando texto de duração; mantenha lógica de expiração (quando <=0, cancelar timer e remover entrada)."
+      "1. Em **Add → New C++ Class → Actor Component**, crie `UBuffTimeComponent` e anexe ao PlayerController ou GameInstance.",
+      "2. No `.h`, defina `TMap<eBuffTimeType, FBuffTimeInfo>` com campos BuffType, CurBuffTime(ms) e EventBuffTime; declare `UFUNCTION(BlueprintCallable)` `void RegisterBuffTime(eBuffState Buff, int TimeMs, int ItemAddOption);`.",
+      "3. No `.cpp`, implemente RegisterBuffTime calculando o tipo conforme CheckBuffTimeType do código e limitando pelo ItemAddOption; armazene no mapa e programe `FTimerManager` com intervalo ~0.9s para decrementar o tempo.",
+      "4. Implemente `UFUNCTION()` interno chamado pelo timer que reduz CurBuffTime e remove quando chega a zero; substitui HandleWindowMessage/WM_TIMER do código original.",
+      "5. Declare `UFUNCTION(BlueprintPure)` `FString GetBuffStringTime(eBuffTimeType Type)` e `int32 GetBuffTime(eBuffTimeType Type)` para UI; se algum texto (GlobalText) não estiver disponível, registre a frase padrão de impossibilidade.",
+      "6. Compile e, no Blueprint do controlador/personagem, marque **Replicates** se precisar compartilhar timers (caso contrário mantenha local)."
     ]
   },
   "buff-value-control": {
     title: "Consultar valores numéricos de buff em UE",
     steps: [
-      "Crie um objeto UObject com TMap<eBuffState, FBuffStateValueInfo> contendo Value1, Value2 e Time; inicialize percorrendo enums como em Initialize.",
-      "Implemente função CheckValue para decidir se os dados virão de ItemAddOption (caso default) ou ficam zerados; traduza ItemAddOptioninfo para uma tabela de dados de item na UE ou marque como 'NÃO DÁ PARA INFERIR COM SEGURANÇA COM BASE NO CÓDIGO-FONTE C/C++' se o arquivo não existir.",
-      "Implemente GetValue que cria/popula cache consultando Loader de BuffInfo e tabela de itens; exponha GetBuffInfoString/GetBuffValueString como BlueprintPure para UI usar textos e valores.",
-      "Não utilize replicação, pois os valores são calculados localmente; mantenha coerência com o cache para evitar consultas repetidas."
+      "1. Crie `UObject` `UBuffValueControlUE` (Add → New C++ Class → None).",
+      "2. No `.h`, defina `TMap<eBuffState, FBuffStateValueInfo>` com campos Value1, Value2, Time e declare `UFUNCTION(BlueprintCallable)` `void InitializeValues();` que percorre os enums como no código original.",
+      "3. Implemente `CheckValue` e `SetValue` no `.cpp` para decidir se os dados vêm de tabela de itens (ItemAddOptioninfo); se a tabela não existir, retorne texto 'NÃO DÁ PARA INFERIR COM SEGURANÇA COM BASE NO CÓDIGO-FONTE C++'.",
+      "4. Adicione `UFUNCTION(BlueprintPure)` `int32 GetValue(eBuffState State);`, `void GetBuffInfoString(eBuffState State, TArray<FString>& OutLines);` e `FString GetBuffValueString(eBuffState State);` consultando o cache e o loader de buffs.",
+      "5. Compile e use em Blueprints de UI para mostrar valores; mantenha sem replicação, pois o cálculo é local.",
+      "6. No destrutor ou método `BeginDestroy`, limpe o mapa se necessário para espelhar Destroy() do código original."
     ]
   },
   "buff-system-dispatch": {
     title: "Centralizar subsistemas de buff em UE",
     steps: [
-      "Implemente um subsistema (UGameInstanceSubsystem) que, ao iniciar, instancia objetos equivalentes a BuffScriptLoader, BuffTimeControl e BuffStateValueControl e os mantém acessíveis globalmente, similar a g_BuffSystem.",
-      "Crie função estática BlueprintCallable que retorne referências a cada subsistema para UIs e outros componentes (equivalente a TheBuffStateSystem wrappers).",
-      "Implemente roteamento de mensagens de tempo: em vez de HandleWindowMessage, chame o componente de timers a cada Tick ou via timer global para reduzir tempos de buff.",
-      "Garanta destruição/limpeza no final da sessão liberando timers e dados carregados, replicando a intenção de Destroy()."
+      "1. Em **Add → New C++ Class → Game Instance Subsystem**, crie `UBuffStateSubsystem` para orquestrar os controles.",
+      "2. No `.h`, mantenha ponteiros `UPROPERTY()` para `UBuffScriptLoaderUE`, `UBuffTimeComponent` e `UBuffValueControlUE`; declare `UFUNCTION(BlueprintCallable)` `void InitializeBuffSystems();`.",
+      "3. No `.cpp`, em `InitializeBuffSystems`, instancie cada objeto (NewObject<>) e armazene; configure um timer ou Tick para chamar a função de decremento de `UBuffTimeComponent`, substituindo HandleWindowMessage.",
+      "4. Adicione `UFUNCTION(BlueprintPure)` `UBuffScriptLoaderUE* GetLoader();` e equivalentes para tempo/valores, permitindo acesso de UI e outros componentes, assim como os wrappers TheBuffStateSystem.",
+      "5. Implemente método `Deinitialize` limpando timers e referências, replicando Destroy() do código original; compile e marque o subsistema para iniciar automaticamente."
     ]
   }
 };
