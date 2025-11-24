@@ -238,80 +238,76 @@ const ueGuides = {
   "protocol-connection": {
     title: "Conectar e pingar via sockets UE",
     steps: [
-      "Em Unreal 5.7, crie um componente de rede custom (UActorComponent) para o PlayerController que encapsule um FSocket ou FInternetAddr para substituir CustomClient.",
-      "Implemente ConnectServer(IP,Port) chamando ISocketSubsystem::CreateSocket e Connect; guarde um bool bIsConnected equivalente a CheckConnected.",
-      "Adicione método SendPingTest que serialize TickCount e WORDs em um buffer e envie usando send/SendPacket abstrato com cabeçalho ProtocolHead::CLIENT_LIVE_CLIENT mapeado para um enum próprio.",
-      "Inclua método DisconnectServer para fechar socket e atualizar um bool replicado apenas para leitura se quiser refletir estado em outros clientes; caso contrário mantenha local.",
-      "Implemente SendCheckOnline como função periódica (TimerManager) que retorna cedo se desconectado, chama SendPingTest e grava log/telemetria local.",
-      "Exponha wrappers SendPacket/SendPacketClassic aceitando cabeçalho custom ou payload cru, chamando DataSend equivalente; mantenha-os não replicados pois operam no lado cliente."
+      "No Unreal 5.7, crie um `APlayerController` derivado (Add → C++ Class) que atuará como cliente de rede padrão da UE, sem usar sockets manuais do sistema de packets original.",
+      "No `.h`, declare uma função `UFUNCTION(Server, Reliable)` chamada `ServerRequestConnection(const FString& TargetAddress, int32 Port)` para substituir ConnectServer; implemente no `.cpp` a validação do endereço e atualização de um `bool bIsConnected` replicado somente para leitura.",
+      "Adicione `UFUNCTION(Server, Reliable)` chamada `ServerPingTest()` que registra o TickCount recebido e responde via `UFUNCTION(Client, Reliable)` `ClientHandlePingResponse(int32 TickCount)`; essa dupla substitui o envio do packet CLIENT_LIVE_CLIENT do sistema original.",
+      "Crie função `UFUNCTION(Server, Reliable)` `ServerDisconnect()` para limpar estado e sinalizar ao cliente via `ClientOnDisconnected()`; elimine qualquer chamada direta a sockets, pois a sessão de rede da UE cuida da conexão.",
+      "Implemente verificação periódica usando `FTimerManager` em `APlayerController` que chama `ServerPingTest()` enquanto `bIsConnected` estiver verdadeiro; o timer substitui SendCheckOnline do código original.",
+      "Para mensagens gerais antes enviadas por SendPacket/SendPacketClassic, crie RPCs específicos (Server/Client/NetMulticast) e, se necessário, use propriedades `UPROPERTY(Replicated)` em `AGameState` ou `APlayerState` para compartilhar o estado; deixe claro que o sistema de packets original não é reimplementado."
     ]
   },
   "protocol-recv-dispatch": {
     title: "Despachar mensagens recebidas",
     steps: [
-      "Implemente um loop de leitura (FTimer ou Tick) que verifica uma fila de pacotes recebidos semelhante a Incoming() do CustomClient.",
-      "Para cada pacote, faça switch no cabeçalho equivalente a ProtocolHead e chame handlers que espelhem RecvJoinServerNew, RecvLoginNew, ReceiveCharacterList, ReceiveMovePosition, ReceiveMoveCharacter ou TranslateProtocol.",
-      "Mantenha os handlers como métodos UFUNCTION(BlueprintCallable) se precisar acionar UIs em Blueprint; não invente lógica além do que está no código-fonte.",
-      "Se algum handler (ex.: ReceiveCharacterList) não tiver implementação nos arquivos C++, marque no código como 'NÃO DÁ PARA INFERIR COM SEGURANÇA COM BASE NO CÓDIGO-FONTE C/C++' e implemente conforme design desejado." 
+      "No Unreal 5.7, substitua o loop de parsing de packets por RPCs. Em `APlayerController` ou `AGameMode`, crie funções `UFUNCTION(Server, Reliable)`/`Client`/`NetMulticast` que representem cada mensagem tratada (JoinServer, Login, CharacterList, MovePosition, MoveCharacter).",
+      "Remova a leitura direta de buffers: cada evento que o servidor deveria enviar vira `UFUNCTION(Client, Reliable)` (por exemplo, `ClientReceiveLoginResult(uint8 Result, int32 HeroKey)`) e cada comando do cliente vira `UFUNCTION(Server, Reliable)`; o switch em cabeçalho vira um switch de enums dentro do RPC ou múltiplas funções distintas.",
+      "Mantenha handlers BlueprintCallable para acionar UI, mas deixe explícito que o sistema de packets do projeto original é apenas referência histórica e não deve ser reimplementado byte a byte.",
+      "Para qualquer handler sem detalhes suficientes no código C++, documente no corpo com 'NÃO DÁ PARA INFERIR COM SEGURANÇA COM BASE NO CÓDIGO-FONTE C/C++' e defina o conteúdo conforme o design ao implementar no projeto Unreal."
     ]
   },
   "protocol-login-send": {
     title: "Envio de login codificado",
     steps: [
-      "Crie um struct BlueprintType com campos Account[10], Password[20], TickCount, ClientVersion[5] e ClientSerial[16] replicando PMSG_CONNECT_ACCOUNT_SEND.",
-      "Implemente função que copia strings via TCHAR->ANSII e aplica XOR (BuxConvert) antes de enviar, mantendo CurrentProtocolState e LogIn como variáveis locais/replicadas conforme necessário.",
-      "Envie o pacote usando cabeçalho de RPC custom do seu protocolo (enum) equivalente a BOTH_CONNECT_LOGIN; em UE, isso pode ser um envio via socket custom, não RPC UE padrão, pois depende do protocolo binário existente.",
-      "Acione mensagens de UI antes do envio (ex.: adicionar texto em um widget de log) tal como g_pChatListBox->AddText." 
+      "No Unreal 5.7, em `APlayerController`, declare `UFUNCTION(Server, Reliable)` `ServerRequestLogin(const FString& Account, const FString& Password)` que substitui o envio do packet BOTH_CONNECT_LOGIN; valide tamanho das strings antes de copiar para buffers internos.",
+      "Dentro do RPC, se precisar replicar dados de versão/serial, salve em propriedades `UPROPERTY(Replicated)` em `APlayerState` ou `AGameState` (por exemplo `FString ClientVersion`, `FString ClientSerial`) em vez de serializar manualmente.",
+      "Crie `UFUNCTION(Client, Reliable)` `ClientLoginResponse(uint8 ResultCode, int32 HeroKey)` para devolver ao cliente os códigos de RecvLoginNew; essa função substitui a recepção do packet no sistema original.",
+      "No Blueprint do PlayerController, exponha uma função que chame `ServerRequestLogin` quando o usuário confirmar a UI de login; registre CurrentProtocolState/LogIn em variáveis locais replicadas somente se forem necessárias por outros atores."
     ]
   },
   "protocol-login-recv": {
     title: "Tratar join e códigos de login",
     steps: [
-      "Implemente handler para SERVER_CONNECT que leia result, index[2] e ClientVersion[5]; calcule HeroKey e valide versão conforme loop em RecvJoinServerNew.",
-      "Se o estado LogIn != 0, chame função que mapeie g_csMapServer.SendChangeMapServer; caso não exista no código atual, marque como 'NÃO DÁ PARA INFERIR COM SEGURANÇA COM BASE NO CÓDIGO-FONTE C/C++'.",
-      "Quando result == 0x01, mostre tela de login (Blueprint ou UMG) e defina CurrentProtocolState = RECEIVE_JOIN_SERVER_SUCCESS; para demais códigos, exiba mensagens de erro equivalentes.",
-      "Implemente handler de BOTH_CONNECT_LOGIN (RecvLoginNew) que faça switch nos códigos 0x00-0xD2, atualizando estados locais e mostrando PopUps conforme o código fonte; mantenha variáveis CurrentProtocolState e LogIn sincronizadas." 
+      "Implemente `UFUNCTION(Client, Reliable)` `ClientReceiveJoinResult(uint8 Result, uint8 IndexA, uint8 IndexB, FString ServerVersion)` para substituir RecvJoinServerNew; no corpo, calcule HeroKey e compare versão, ajustando CurrentProtocolState replicado se necessário.",
+      "Quando `LogIn` já for diferente de zero, chame um RPC de servidor como `ServerRequestMapChange()` (substituindo SendChangeMapServer) ou registre a falta de detalhes como 'NÃO DÁ PARA INFERIR COM SEGURANÇA COM BASE NO CÓDIGO-FONTE C++'.",
+      "Para códigos 0x00-0xD2 de login, exponha `ClientLoginResponse` (do guia anterior) fazendo switch em Blueprint ou C++ e abrindo telas de UI equivalentes; defina CurrentProtocolState = RECEIVE_JOIN_SERVER_SUCCESS quando Result==0x01.",
+      "Mantenha todas as interações através de RPCs e variáveis replicadas; deixe claro que o parsing de packets do projeto original não é refeito na UE."
     ]
   },
   "protocol-character-and-move": {
     title: "Enviar lista de personagens, posição e movimento",
     steps: [
-      "Implemente struct equivalente a PMSG_SIMPLE_RESULT_SEND e PMSG_POSITION_SEND em UE para serializar dados binários.",
-      "Crie método para solicitar lista de personagens enviando result=1 com cabeçalho BOTH_CONNECT_CHARACTER; nenhuma replicação UE padrão é usada, é envio de socket custom.",
-      "Para SendPositionNew, serialize bytes x/y de coordenada atual e envie com cabeçalho BOTH_POSITION.",
-      "Para SendCharacterMoveNew, replique o algoritmo de Path: valide PathNum (<MAX_PATH_FIND), calcule Dir comparando PathX/Y com DirTable e compacte duas direções por byte (nibbles). O primeiro byte recebe (PathNum-1) e dir inicial. Em UE, encapsule em função C++ e exponha a Blueprints.",
-      "Se DirTable ou MAX_PATH_FIND não estiverem definidos nos arquivos C++ acessados, marque essa dependência como 'NÃO DÁ PARA INFERIR COM SEGURANÇA COM BASE NO CÓDIGO-FONTE C/C++' e forneça manualmente." 
+      "No Unreal 5.7, use o `APlayerController` para emitir um `UFUNCTION(Server, Reliable)` `ServerRequestCharacterList()` em vez de enviar PMSG_SIMPLE_RESULT_SEND; o servidor devolve via `UFUNCTION(Client, Reliable)` `ClientReceiveCharacterList(...)`.",
+      "Para posição, mantenha `ACharacter` replicando movimento (`bReplicateMovement=true`) e, se precisar de atualização manual, crie `UFUNCTION(Server, Unreliable)` `ServerUpdatePosition(const FVector& Pos)`; não serialize bytes manualmente.",
+      "Para movimento com caminhos, substitua o envio de Path[8] por `ServerMoveAlongPath(const TArray<uint8>& Directions)` e, no servidor, valide `PathNum` contra um limite constante; se a lógica exata de `DirTable` não estiver clara, registre 'NÃO DÁ PARA INFERIR COM SEGURANÇA COM BASE NO CÓDIGO-FONTE C++' e defina conforme o design.",
+      "Exponha eventos de confirmação ao cliente com `UFUNCTION(Client, Unreliable)` se precisar notificar conclusão; todo fluxo usa RPCs da UE em vez do sistema de packets original."
     ]
   },
   "protocol-generic-send": {
     title: "Encapsular envios genéricos",
     steps: [
-      "Implemente uma função que receba um enum cabeçalho e buffer binário e construa um pacote com header.id e tamanho antes de enviar (equivalente a DataSend com ProtocolHead).",
-      "Implemente variante que usa cabeçalho fixo BOTH_MESSAGE quando apenas o buffer é fornecido, verificando se a conexão está ativa antes do envio.",
-      "Se desejar suportar multicast UE, encapsule o envio em um componente não replicado e dispare eventos locais após o envio para manter telemetria de UI."
+      "Substitua DataSend por RPCs nomeados. Para cada comando que exigia um cabeçalho, declare `UFUNCTION(Server, Reliable)` ou `NetMulticast` apropriado e remova o envio de buffers brutos.",
+      "Para mensagens que eram BOTH_MESSAGE, crie um RPC genérico `UFUNCTION(NetMulticast, Unreliable)` `MulticastBroadcastMessage(uint8 MessageId, const TArray<uint8>& Payload)` se realmente precisar de payload bruto; caso contrário, modele propriedades específicas replicadas.",
+      "Mantenha um componente ou subsistema apenas para roteamento dos RPCs e para registrar telemetria, deixando claro que o sistema de packets do projeto original não é utilizado na implementação Unreal."
     ]
   },
   "wsclient-socket-decode": {
     title: "Configurar socket assíncrono e parsing C1/C2/C3/C4",
     steps: [
-      "No Unreal 5.7, abra o projeto e em **Add → C++ Class** crie um `UObject` ou `UGameInstanceSubsystem` chamado `UNetworkSocketManager` para substituir o fluxo de CWsctlc.",
-      "Implemente método `CreateSocket` usando `ISocketSubsystem::CreateSocket` e `FSocket::Connect` com endereço/porta recebidos; armazene dois contadores `uint8 g_byPacketSerialSend/Recv` como membros, resetando-os a zero na conexão.",
-      "Adicione função `StartReadLoop` usando `FTimerManager` ou `Tick` para ler do socket e empilhar pacotes brutos em uma fila (TArray<uint8>) semelhante a `GetReadMsg` antes do parse.",
-      "Implemente rotina `ProtocolCompiler` que leia o primeiro byte para decidir entre C1/C2 (copiar tamanho) ou C3/C4 (rodar descriptografia SimpleModulus equivalente; se não houver implementações prontas, escreva nota 'NÃO DÁ PARA INFERIR COM SEGURANÇA COM BASE NO CÓDIGO-FONTE C/C++').",
-      "Após decriptar, monte cabeçalho com id e tamanho e compare o terceiro byte com `g_byPacketSerialRecv`; se divergir incremente contador e registre log/erros assim como SendHackingChecked faz.",
-      "Implemente `ReceiveCheckSumRequest` calculando checksum sobre `Data->Value` e enviando resposta com função de envio do subsistema; se a fórmula exata de GetCheckSum não constar no código, anote 'NÃO DÁ PARA INFERIR COM SEGURANÇA COM BASE NO CÓDIGO-FONTE C/C++' e insira implementação após verificar o código.",
-      "Expose um método BlueprintCallable para fechar o socket (`DeleteSocket`) e limpar timers; mantenha tudo no cliente (sem `bReplicates`)."
+      "No Unreal 5.7, não reimplemente a pilha de sockets do sistema de packets original; em vez disso, use o pipeline de rede padrão da UE com RPCs.",
+      "Crie um `UGameInstanceSubsystem` para armazenar o estado original (contadores de serial, flags de checksum) apenas para referência/telemetria, marcando comentários sobre o comportamento do projeto original.",
+      "Para cada mensagem que o `ProtocolCompiler` tratava (C1/C2/C3/C4), substitua por RPCs específicos (Server/Client/NetMulticast) e propriedades replicadas; elimine leitura manual de bytes e descriptografia SimpleModulus.",
+      "Se a lógica de checksum for necessária, implemente-a em funções C++ normais e envie resultados por RPC; quando faltar detalhe do código, marque com 'NÃO DÁ PARA INFERIR COM SEGURANÇA COM BASE NO CÓDIGO-FONTE C++'.",
+      "Documente na classe que o socket assíncrono é parte do sistema de packets do projeto original e que, na Unreal, a conectividade usa o subsistema online/replicação padrão."
     ]
   },
   "mapserver-change": {
     title: "Trocar para Map Server e reinicializar estado",
     steps: [
-      "Abra o Unreal 5.7 e crie um `UGameInstanceSubsystem` chamado `UMapServerManager` em **Add → C++ Class** para manter `MServerInfo`, `bFillServerInfo` e `HeroID` como propriedades locais (sem replicação).",
-      "Implemente método `SetServerInfo` recebendo struct equivalente a `MServerInfo` e copiando campos de IP/porta/auth codes, e método `SetHeroID` armazenando string do herói (use `FString`/`std::string`).",
-      "Crie função `ConnectChangeMapServer` que valide `LogIn` e `bFillServerInfo`, salve opções locais (se o jogo possuir, caso contrário marque como 'NÃO DÁ PARA INFERIR COM SEGURANÇA COM BASE NO CÓDIGO-FONTE C/C++'), e reconstrua o socket chamando um componente de conexão (ex.: o criado no guia `wsclient-socket-decode`) para `m_szMapSvrIpAddress/m_wMapSvrPort`; utilize `FTimerManager` para aplicar espera de 20 ms antes da conexão se necessário.",
-      "Implemente função `SendChangeMapServer` que verifica `bFillServerInfo` e `LogIn`, copia o ID do herói para buffer fixo (respeitando `MAX_ID_SIZE`), chama funções locais `ClearCharacters(-1)` e `InitGame` (se existirem; caso contrário anotar 'NÃO DÁ PARA INFERIR COM SEGURANÇA COM BASE NO CÓDIGO-FONTE C/C++') e por fim envia `SendChangeMServer(LogInID, CharID, JoinAuthCode1..4)` usando seu wrapper de envio binário.",
-      "Adicione getters BlueprintPure para recuperar IP/porta e flags de preenchimento para a UI decidir se deve habilitar o botão de troca de servidor.",
-      "Se o protocolo de mudança de mapa não for descrito nos arquivos C++, inclua passo explícito na implementação anotando a falta de informação e aguarde definição de design." 
+      "No Unreal 5.7, implemente a troca de mapa usando o fluxo de rede da UE: crie um `UGameInstanceSubsystem` `UMapServerManager` apenas para armazenar dados lidos do código original (JoinAuthCodes, HeroID, IP/porta) como referência local.",
+      "Em `APlayerController`, declare `UFUNCTION(Server, Reliable)` `ServerRequestMapChange(const FString& HeroId)` que valida estados equivalentes a `LogIn` e `bFillServerInfo` e chama uma função no `AGameMode` para executar `ServerTravel` ou transição de nível.",
+      "Antes da transição, chame funções locais equivalentes a ClearCharacters/InitGame se estiverem implementadas; quando não houver detalhes no código, marque 'NÃO DÁ PARA INFERIR COM SEGURANÇA COM BASE NO CÓDIGO-FONTE C++'.",
+      "Use `UFUNCTION(Client, Reliable)` `ClientConfirmMapChange()` para sinalizar sucesso ao cliente; não reconstrua sockets nem envie buffers binários, pois o sistema de packets original não é usado na UE.",
+      "Adicione getters BlueprintPure no subsistema para expor IP/porta/flags para UI, mas mantenha claro que a navegação efetiva ocorre via RPCs do GameMode/PlayerController."
     ]
   },
   "buff-script-load": {
