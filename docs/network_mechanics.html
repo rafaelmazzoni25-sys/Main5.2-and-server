@@ -1,0 +1,356 @@
+<html>
+<head>
+<meta charset="UTF-8">
+<title>Análise do Projeto C/C++ e Adaptação para Unreal Engine 5.7</title>
+<style>
+body { font-family: Arial, sans-serif; margin: 20px; background: #f5f7fb; color: #1e2a3a; }
+h1 { text-align: center; margin-bottom: 10px; }
+.tabs { display: flex; gap: 10px; margin-bottom: 20px; justify-content: center; }
+.tab-button { padding: 10px 18px; border: none; background: #d4deec; cursor: pointer; border-radius: 4px; font-weight: bold; transition: background 0.2s, color 0.2s; }
+.tab-button.active { background: #2f6dff; color: #fff; }
+.tab-content { display: none; background: #fff; padding: 20px; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.08); }
+.tab-content.active { display: block; }
+table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+th, td { border: 1px solid #dbe3ef; padding: 10px; text-align: left; vertical-align: top; }
+th { background: #2f6dff; color: #fff; position: sticky; top: 0; }
+tr:nth-child(even) { background: #f7f9fc; }
+ol { margin-left: 18px; }
+ul { margin-left: 18px; }
+.section { margin-top: 24px; }
+.note { color: #a00; font-weight: bold; }
+.small { font-size: 13px; color: #3c4a60; }
+</style>
+</head>
+<body>
+<h1>Análise baseada apenas no código C/C++ e adaptação UE 5.7</h1>
+<div class="tabs">
+  <button class="tab-button active" data-tab="tab-mechanics">Mecânicas</button>
+  <button class="tab-button" data-tab="tab-guide">Guia UE 5.7</button>
+  <button class="tab-button" data-tab="tab-roadmap">Roadmap</button>
+</div>
+
+<div id="tab-mechanics" class="tab-content active">
+  <h2>Mecânicas do Projeto Original (Baseadas Apenas no Código C/C++)</h2>
+  <table>
+    <thead>
+      <tr>
+        <th>Nome da Mecânica / Sistema</th>
+        <th>Tipo</th>
+        <th>Contexto de Execução</th>
+        <th>Arquivos / Classes</th>
+        <th>Funções Principais</th>
+        <th>Fluxo de Chamadas</th>
+        <th>Detalhes de Rede</th>
+        <th>Observações / Dependências</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>Estabelecimento de conexão com servidor</td>
+        <td>Cliente</td>
+        <td>Chamado pelo cliente para abrir socket</td>
+        <td>CProtocolSend (ProtocolSend.cpp), CustomClient</td>
+        <td>ConnectServer(IP,Port); DisconnectServer(); CheckConnected()</td>
+        <td>ConnectServer() instancia CustomClient e chama Connect(); DisconnectServer() marca g_bGameServerConnected = FALSE e fecha o socket; CheckConnected() consulta SocketConnect->IsConnected().</td>
+        <td>Usa CustomClient::Connect/IsConnected/Disconnect; sem autenticação automática.</td>
+        <td>Depende de CustomClient (não detalhado aqui); thread de recepção está comentada.</td>
+      </tr>
+      <tr>
+        <td>Loop de recebimento e roteamento de pacotes</td>
+        <td>Cliente</td>
+        <td>Processa fila de mensagens do socket</td>
+        <td>CProtocolSend</td>
+        <td>RecvMessage()</td>
+        <td>Enquanto houver mensagens em SocketConnect->Incoming(), desempilha e faz switch em msg.header.id chamando RecvJoinServerNew, RecvLoginNew, ReceiveCharacterList, ReceiveMovePosition, ReceiveMoveCharacter ou TranslateProtocol.</td>
+        <td>Roteia IDs de ProtocolHead (SERVER_CONNECT, SERVER_DISCONNECT, BOTH_CONNECT_LOGIN, BOTH_CONNECT_CHARACTER, BOTH_POSITION, BOTH_MOVE, BOTH_MESSAGE). Pacotes clássicos 0xC1/0xC3/0xC2/0xC4 são passados a TranslateProtocol.</td>
+        <td>ReceiveCharacterList/ReceiveMovePosition/ReceiveMoveCharacter/TranslateProtocol não estão neste arquivo; comportamento posterior NÃO DÁ PARA INFERIR COM SEGURANÇA COM BASE NO CÓDIGO-FONTE C/C++.</td>
+      </tr>
+      <tr>
+        <td>Ping / keep-alive</td>
+        <td>Cliente</td>
+        <td>Disparado pelo cliente conectado</td>
+        <td>CProtocolSend</td>
+        <td>SendCheckOnline(); SendPingTest()</td>
+        <td>SendCheckOnline() verifica g_bGameServerConnected; se verdadeiro chama SendPingTest() que delega a CustomClient::PingServer().</td>
+        <td>Resposta esperada com ProtocolHead::SERVER_DISCONNECT lida em RecvMessage(); não há controle de frequência no código.</td>
+        <td>Depende do estado global g_bGameServerConnected e do suporte de ping no CustomClient.</td>
+      </tr>
+      <tr>
+        <td>Login de conta e validação de versão</td>
+        <td>Compartilhada</td>
+        <td>Cliente envia; servidor responde</td>
+        <td>CProtocolSend</td>
+        <td>SendRequestLogInNew(); RecvJoinServerNew(); RecvLoginNew()</td>
+        <td>SendRequestLogInNew() copia account/password, aplica BuxConvert, define CurrentProtocolState = REQUEST_LOG_IN e envia BOTH_CONNECT_LOGIN; RecvJoinServerNew() atribui HeroKey e, dependendo de pMsg->result e versão, atualiza UI/estados; RecvLoginNew() interpreta códigos de resultado e ajusta CurrentProtocolState/LogIn ou mostra mensagens de falha.</td>
+        <td>Dados enviados em PMSG_CONNECT_ACCOUNT_SEND; versão do cliente é validada comparando Version[] com ClientVersion no pacote de join; múltiplos códigos de erro tratados no cliente.</td>
+        <td>Depende de g_csMapServer, CUIMng, g_ErrorReport, g_GuildCache; comportamento exato desses componentes NÃO DÁ PARA INFERIR COM SEGURANÇA COM BASE NO CÓDIGO-FONTE C/C++.</td>
+      </tr>
+      <tr>
+        <td>Solicitação de lista de personagens</td>
+        <td>Cliente</td>
+        <td>Cliente dispara, servidor responde</td>
+        <td>CProtocolSend</td>
+        <td>SendRequestCharactersListNew()</td>
+        <td>Preenche PMSG_SIMPLE_RESULT_SEND com result = 1 e envia com BOTH_CONNECT_CHARACTER; resposta é roteada em RecvMessage() para ReceiveCharacterList(byte*).</td>
+        <td>Sem validação local; formato exato da lista é externo a este arquivo.</td>
+        <td>Processamento de ReceiveCharacterList NÃO DÁ PARA INFERIR COM SEGURANÇA COM BASE NO CÓDIGO-FONTE C/C++.</td>
+      </tr>
+      <tr>
+        <td>Atualização de posição (XY)</td>
+        <td>Cliente</td>
+        <td>Cliente envia coordenadas</td>
+        <td>CProtocolSend</td>
+        <td>SendPositionNew()</td>
+        <td>Cria PMSG_POSITION_SEND com x/y recebidos e envia com BOTH_POSITION; RecvMessage() direciona para ReceiveMovePosition(byte*).</td>
+        <td>Sem checagem de intervalo ou rate-limit; recebe lado servidor/cliente via handler externo.</td>
+        <td>Comportamento de ReceiveMovePosition NÃO DÁ PARA INFERIR COM SEGURANÇA COM BASE NO CÓDIGO-FONTE C/C++.</td>
+      </tr>
+      <tr>
+        <td>Movimento com caminho compactado</td>
+        <td>Cliente</td>
+        <td>Cliente calcula caminho e envia</td>
+        <td>CProtocolSend</td>
+        <td>SendCharacterMoveNew()</td>
+        <td>Valida PathNum &gt; 0; limita a MAX_PATH_FIND-1; monta Path[8] codificando direções com DirTable e ângulo; envia pMsg em BOTH_MOVE; resposta roteada para ReceiveMoveCharacter(byte*).</td>
+        <td>Compactação em nibble para direções; sem validação de colisão ou autoridade servidor no envio.</td>
+        <td>Função ReceiveMoveCharacter não está no arquivo; efeitos de retorno NÃO DÁ PARA INFERIR COM SEGURANÇA COM BASE NO CÓDIGO-FONTE C/C++.</td>
+      </tr>
+      <tr>
+        <td>Carregamento de lista de servidores local</td>
+        <td>Cliente</td>
+        <td>Executado ao ler arquivo de configuração</td>
+        <td>CServerListManager (ServerListManager.cpp)</td>
+        <td>LoadServerListScript(); InsertServerGroup(); InsertServer()</td>
+        <td>LoadServerListScript() abre Data\Local\ServerList.bmd, aplica BuxConvert nos registros e popula m_mapServerListScript; InsertServerGroup() cria/recupera CServerGroup e chama InsertServer() para preencher CServerInfo com percentuais e nomes.</td>
+        <td>Não envolve rede; organiza informações de servidor localmente.</td>
+        <td>Requer arquivo ServerList.bmd; interrupção via MessageBox/PostMessage se ausente. Escolha de servidor posterior NÃO DÁ PARA INFERIR COM SEGURANÇA COM BASE NO CÓDIGO-FONTE C/C++.</td>
+      </tr>
+      <tr>
+        <td>Seleção e iteração de grupos de servidor</td>
+        <td>Cliente</td>
+        <td>Manutenção local da lista e seleção</td>
+        <td>CServerListManager</td>
+        <td>SetFirst(); GetNext(); GetServerGroupByBtnPos(); GetServerGroupSize()</td>
+        <td>Após carregar dados, SetFirst() posiciona o iterador no início de m_mapServerGroup; GetNext() retorna ponteiros para CServerGroup em ordem de sequência até o fim; GetServerGroupByBtnPos() percorre o mapa e retorna o grupo cujo m_iBtnPos corresponde ao solicitado.</td>
+        <td>Sem chamada de rede; opera sobre dados locais carregados do arquivo.</td>
+        <td>Depende de m_mapServerGroup ter sido preenchido via LoadServerListScript/InsertServerGroup. Se não houver grupos, GetNext() retorna false.</td>
+      </tr>
+      <tr>
+        <td>Registro da seleção de servidor e flags PVP/Teste</td>
+        <td>Cliente</td>
+        <td>Armazenamento local da escolha do jogador</td>
+        <td>CServerListManager</td>
+        <td>SetSelectServerInfo(); GetSelectServerName(); GetSelectServerIndex(); GetCensorshipIndex(); GetNonPVPInfo(); IsNonPvP(); IsTestServer()</td>
+        <td>SetSelectServerInfo() salva nome, índice, índice de censura, flag NonPvP e se é teste; consultas posteriores retornam os valores para UI ou lógica de conexão.</td>
+        <td>Não envia nada pela rede; apenas prepara dados para uso posterior.</td>
+        <td>Depende de valores fornecidos externamente (ex.: UI). Sem validação adicional de índices ou flags.</td>
+      </tr>
+      <tr>
+        <td>Construção de nomes e percentuais de servidor</td>
+        <td>Cliente</td>
+        <td>Executado ao inserir servidores em grupos</td>
+        <td>CServerListManager</td>
+        <td>MakeServerGroup(); InsertServer()</td>
+        <td>MakeServerGroup() copia nome/descrição/flags NonPVP do script para CServerGroup e define m_bPvPServer; InsertServer() cria CServerInfo com m_iIndex, m_iPercent, m_byNonPvP e monta m_bName concatenando nome do grupo, índice e status de carga (GlobalText[560..562]) com sufixos Non-PVP/Gold PVP/Gold conforme m_byNonPvP.</td>
+        <td>Opera localmente; não há tráfego de rede.</td>
+        <td>Requer SServerGroupInfo pré-carregado; depende de constantes SLM_MAX_SERVER_COUNT, MAX_SERVER_LOW e tabela GlobalText para textos de carga.</td>
+      </tr>
+      <tr>
+        <td>Envio genérico de pacotes com cabeçalho de protocolo</td>
+        <td>Cliente</td>
+        <td>Empacotamento e envio pelo socket</td>
+        <td>CustomClient (ProtocolSend.h), CProtocolSend</td>
+        <td>CustomClient::DataSend(head,msg,size); CustomClient::DataSend(msg,size); CustomClient::MessageAll(); CProtocolSend::SendPacket(); SendPacketClassic()</td>
+        <td>DataSend(head,...) cria olc::net::message com header.id e copia bytes para body antes de Send(); DataSend(msg,size) usa header BOTH_MESSAGE e envia pacote clássico; MessageAll() envia CLIENT_ACCEPT vazio; SendPacket/SendPacketClassic apenas encaminham para CustomClient.</td>
+        <td>Baseado em olc::net::client_interface; head é enum ProtocolHead. Não há validação de tamanho além de resize.</td>
+        <td>Requer SocketConnect inicializado e conectado. Sem controle de fila ou confiabilidade além da do client_interface.</td>
+      </tr>
+    </tbody>
+  </table>
+</div>
+
+<div id="tab-guide" class="tab-content">
+  <h2>Guia de Recriação das Mecânicas na Unreal Engine 5.7</h2>
+  <p class="note">Passos refletem apenas o comportamento visto no código C/C++; conteúdos não definidos usam a frase obrigatória.</p>
+
+  <div class="section">
+    <h2>Estabelecimento de conexão com servidor</h2>
+    <p class="small">Equivalente a CProtocolSend::ConnectServer / DisconnectServer.</p>
+    <ol>
+      <li>No Unreal Editor 5.7, adicione uma classe C++ derivada de <code>AActor</code> chamada <code>AProtocolSend</code> para encapsular o socket. Ative <code>PrimaryActorTick.bCanEverTick</code> para controlar reconexões se necessário.</li>
+      <li>No construtor, crie membros <code>FSocket*</code> e <code>bool bIsConnected</code>. Em <code>BeginPlay()</code>, inicialize o socket via <code>ISocketSubsystem::CreateSocket</code> (TCP) e tente conexão usando <code>Connect()</code> com IP/porta fornecidos, replicando <code>ConnectServer()</code>.</li>
+      <li>Exponha <code>UFUNCTION(BlueprintCallable)</code> <code>bool ConnectServer(const FString& IP, int32 Port)</code> que resolve endereço, chama <code>Socket-&gt;Connect()</code> e retorna sucesso/falha. Se falhar, registre log como em <code>g_ConsoleDebug-&gt;Write</code>.</li>
+      <li>Implemente <code>UFUNCTION(BlueprintCallable)</code> <code>void DisconnectServer()</code> que fecha o socket, zera <code>bIsConnected</code> e cancela timers, seguindo a lógica do código.</li>
+      <li>Crie um <code>FTimerHandle</code> que a cada poucos milissegundos chama um método <code>PollIncoming()</code>; ele verifica <code>bIsConnected</code> e lê dados do socket para uma fila (TQueue) similar a <code>Incoming()</code>.</li>
+      <li>Se precisar replicar o estado de conexão para outros clientes, marque a classe com <code>bReplicates = true</code> e replique apenas flags (não o socket) via <code>UPROPERTY(Replicated)</code>. Caso contrário, mantenha somente no cliente local.</li>
+    </ol>
+  </div>
+
+  <div class="section">
+    <h2>Loop de recebimento e roteamento de pacotes</h2>
+    <p class="small">Equivalente a CProtocolSend::RecvMessage.</p>
+    <ol>
+      <li>No método <code>PollIncoming()</code>, ao ler um pacote, deserialize um cabeçalho que contenha <code>ProtocolHead</code> (enum espelhando o switch do código).</li>
+      <li>Implemente um <code>switch</code> em C++ para os casos observados: <code>SERVER_CONNECT</code>, <code>SERVER_DISCONNECT</code>, <code>BOTH_CONNECT_LOGIN</code>, <code>BOTH_CONNECT_CHARACTER</code>, <code>BOTH_POSITION</code>, <code>BOTH_MOVE</code> e <code>BOTH_MESSAGE</code>.</li>
+      <li>Para <code>SERVER_CONNECT</code>, deserialize em struct <code>FConnectClientRecv</code> (campos result, index[2], ClientVersion[5]) e chame <code>RecvJoinServerNew()</code> em C++/Blueprint.</li>
+      <li>Para <code>SERVER_DISCONNECT</code>, leia um <code>uint32 ClientID</code> e apenas registre log (como o <code>std::cout</code> do código).</li>
+      <li>Para <code>BOTH_CONNECT_LOGIN</code>, entregue o payload a <code>RecvLoginNew()</code>; para <code>BOTH_CONNECT_CHARACTER</code> invoque <code>ReceiveCharacterList</code>; para <code>BOTH_POSITION</code> invoque <code>ReceiveMovePosition</code>; para <code>BOTH_MOVE</code> invoque <code>ReceiveMoveCharacter</code>.</li>
+      <li>Para <code>BOTH_MESSAGE</code>, reconstituir o cabeçalho 0xC1/0xC3/0xC2/0xC4 conforme o código e encaminhar bytes a uma função <code>TranslateProtocol(uint8 Head, const TArray<uint8>& Data)</code>. O comportamento desta função NÃO DÁ PARA INFERIR COM SEGURANÇA COM BASE NO CÓDIGO-FONTE C/C++.</li>
+      <li>Os handlers <code>ReceiveCharacterList</code>, <code>ReceiveMovePosition</code> e <code>ReceiveMoveCharacter</code> devem ser implementados manualmente (BlueprintImplementableEvent ou C++) pois o código fonte não fornece corpo completo.</li>
+    </ol>
+  </div>
+
+  <div class="section">
+    <h2>Ping / keep-alive</h2>
+    <p class="small">Equivalente a SendCheckOnline / SendPingTest.</p>
+    <ol>
+      <li>No actor de rede, adicione <code>UFUNCTION(BlueprintCallable)</code> <code>void SendCheckOnline()</code> que retorna imediatamente se <code>bIsConnected</code> for falso.</li>
+      <li>Quando conectado, crie ou use um timer para chamar <code>SendPingTest()</code>, que envia um pacote com timestamp e WORDs fixos (espelhando <code>CustomClient::PingServer()</code>). Estrutura exata do pacote deve seguir o protocolo existente; campos adicionais NÃO DÁ PARA INFERIR COM SEGURANÇA COM BASE NO CÓDIGO-FONTE C/C++.</li>
+      <li>No lado receptor do cliente, trate <code>SERVER_DISCONNECT</code> apenas para log, assim como no código original.</li>
+      <li>Se quiser exibir latência em UI, conecte o timer ao HUD via Blueprint; a representação visual NÃO DÁ PARA INFERIR COM SEGURANÇA COM BASE NO CÓDIGO-FONTE C/C++.</li>
+    </ol>
+  </div>
+
+  <div class="section">
+    <h2>Login de conta e validação de versão</h2>
+    <p class="small">Equivalente a SendRequestLogInNew / RecvJoinServerNew / RecvLoginNew.</p>
+    <ol>
+      <li>Crie uma struct <code>FConnectAccountSend</code> com buffers <code>Account[MAX_ID_SIZE]</code>, <code>Password[MAX_PASSWORD_SIZE]</code>, <code>TickCount</code>, <code>ClientVersion[SIZE_PROTOCOLVERSION]</code> e <code>ClientSerial[SIZE_PROTOCOLSERIAL]</code>. Use <code>uint8</code> arrays.</li>
+      <li>Implemente <code>UFUNCTION(BlueprintCallable)</code> <code>void SendRequestLogInNew(const FString& Account, const FString& Password)</code> que copia caracteres para os buffers, aplica função <code>BuxConvert</code> (XOR com 0xfc,0xcf,0xab) e envia com cabeçalho <code>BOTH_CONNECT_LOGIN</code>.</li>
+      <li>No loop de recepção, mapeie <code>BOTH_CONNECT_LOGIN</code> para <code>RecvLoginNew(const FSimpleResultRecv& Msg)</code> e trate os códigos 0x00..0x0D, 0x11, 0x40, 0xC0..0xD2 ajustando estado de UI ou flags.</li>
+      <li>Quando chegar <code>SERVER_CONNECT</code> com <code>result == 0x01</code>, atualize <code>HeroKey</code> e defina <code>CurrentProtocolState</code> equivalente a <code>RECEIVE_JOIN_SERVER_SUCCESS</code>. Verifique a versão recebida comparando arrays como no loop do código.</li>
+      <li>O comportamento de <code>g_csMapServer.SendChangeMapServer()</code> e <code>CheckHack()</code> não aparece no código-fonte fornecido; mantenha-os como stubs com a mensagem "NÃO DÁ PARA INFERIR COM SEGURANÇA COM BASE NO CÓDIGO-FONTE C/C++".</li>
+    </ol>
+  </div>
+
+  <div class="section">
+    <h2>Solicitação de lista de personagens</h2>
+    <p class="small">Equivalente a SendRequestCharactersListNew.</p>
+    <ol>
+      <li>Declare struct <code>FSimpleResultSend</code> com campo <code>uint8 Result</code>. Valor 1 deve ser enviado para solicitar lista.</li>
+      <li>Adicione função <code>UFUNCTION(BlueprintCallable)</code> <code>void SendRequestCharactersListNew()</code> para preencher e enviar com cabeçalho <code>BOTH_CONNECT_CHARACTER</code>.</li>
+      <li>No receptor, dispare evento <code>ReceiveCharacterList(const TArray<uint8>& RawData)</code>. Como o formato não está no código, o parsing deve ser definido manualmente e marcado com "NÃO DÁ PARA INFERIR COM SEGURANÇA COM BASE NO CÓDIGO-FONTE C/C++".</li>
+      <li>Atualize um Widget de seleção de personagem com os dados parseados; essa interface não é descrita no código.</li>
+    </ol>
+  </div>
+
+  <div class="section">
+    <h2>Atualização de posição (XY)</h2>
+    <p class="small">Equivalente a SendPositionNew.</p>
+    <ol>
+      <li>Implemente struct <code>FPositionSend</code> com <code>uint8 X</code> e <code>uint8 Y</code>. Crie função <code>SendPositionNew(uint8 X, uint8 Y)</code> que envia com cabeçalho <code>BOTH_POSITION</code>.</li>
+      <li>No <code>ACharacter</code> controlado localmente, chame <code>SendPositionNew</code> quando a posição mudar (por exemplo, ao mover no mapa grid) para replicar o envio manual.</li>
+      <li>Crie handler <code>ReceiveMovePosition</code> para aplicar a posição recebida a pawns remotos. O formato além de X/Y NÃO DÁ PARA INFERIR COM SEGURANÇA COM BASE NO CÓDIGO-FONTE C/C++.</li>
+      <li>Se optar por replicar via sistema de movimento padrão da UE, mantenha o envio customizado apenas para compatibilidade com servidores existentes.</li>
+    </ol>
+  </div>
+
+  <div class="section">
+    <h2>Movimento com caminho compactado</h2>
+    <p class="small">Equivalente a SendCharacterMoveNew.</p>
+    <ol>
+      <li>Implemente função <code>SendCharacterMoveNew(int32 Key, float Angle, uint8 PathNum, const TArray<uint8>& PathX, const TArray<uint8>& PathY, uint8 TargetX, uint8 TargetY)</code> replicando a codificação de nibbles do código (DirTable, Path[8]).</li>
+      <li>Limite <code>PathNum</code> a <code>MAX_PATH_FIND - 1</code>; se <code>PathNum == 1</code>, escreva ângulo convertido para direção no nibble alto como no código; caso contrário derive direção final pelo delta Target - último ponto.</li>
+      <li>Envie o pacote com cabeçalho <code>BOTH_MOVE</code>. No receptor, crie <code>ReceiveMoveCharacter</code> que reinterpreta Path e move pawns remotos. O corpo original não está presente, então documente com "NÃO DÁ PARA INFERIR COM SEGURANÇA COM BASE NO CÓDIGO-FONTE C/C++".</li>
+    </ol>
+  </div>
+
+  <div class="section">
+    <h2>Carregamento de lista de servidores local</h2>
+    <p class="small">Equivalente a CServerListManager::LoadServerListScript / InsertServerGroup / InsertServer.</p>
+    <ol>
+      <li>Em UE 5.7, crie uma classe <code>UServerListManager</code> derivada de <code>UObject</code> com arrays/structs para grupos e servidores.</li>
+      <li>Implemente método <code>LoadServerListScript()</code> que lê um arquivo binário (por exemplo, <code>Content/Data/ServerList.bmd</code>) usando <code>FFileHelper::LoadFileToArray</code>, aplica XOR com 0xfc,0xcf,0xab por byte e desserializa campos equivalentes a <code>SERVER_GROUP_INFO</code> (Index, Name, Pos, Sequence, NonPVP[], DescriptLen, descrição).</li>
+      <li>Construa objetos <code>FServerGroup</code> e <code>FServerInfo</code> equivalentes aos <code>CServerGroup</code>/<code>CServerInfo</code>, incluindo percentuais e flags de PvP.</li>
+      <li>Não há no código fluxo completo de seleção/reconexão; portanto, qualquer UI de seleção ou reconexão deve ser definida manualmente com a nota "NÃO DÁ PARA INFERIR COM SEGURANÇA COM BASE NO CÓDIGO-FONTE C/C++".</li>
+    </ol>
+  </div>
+
+  <div class="section">
+    <h2>Seleção e iteração de grupos de servidor</h2>
+    <p class="small">Equivalente a SetFirst / GetNext / GetServerGroupByBtnPos / GetServerGroupSize em CServerListManager.</p>
+    <ol>
+      <li>Após carregar a lista, armazene grupos em um <code>TMap<int32, FServerGroup></code> ordenado por sequência.</li>
+      <li>Implemente métodos <code>SetFirst()</code> e <code>bool GetNext(FServerGroup*&amp; OutGroup)</code> para permitir iteração previsível na UI de seleção, replicando o uso do iterador <code>m_iterServerGroup</code>.</li>
+      <li>Adicione busca <code>FServerGroup* GetServerGroupByBtnPos(int32 BtnPos)</code> que percorre o mapa e retorna o primeiro grupo cujo campo <code>BtnPos</code> corresponda; em Blueprint, exponha para ligar botões a grupos.</li>
+      <li>Se não houver grupos carregados, documente explicitamente que <code>GetNext</code> retorna false e trate isso exibindo mensagem adequada.</li>
+    </ol>
+  </div>
+
+  <div class="section">
+    <h2>Registro da seleção de servidor e flags PVP/Teste</h2>
+    <p class="small">Equivalente a SetSelectServerInfo / GetSelectServerName / GetSelectServerIndex / GetCensorshipIndex / GetNonPVPInfo / IsNonPvP / IsTestServer.</p>
+    <ol>
+      <li>Na classe de gerenciamento de lista, crie propriedades <code>FString SelectServerName</code>, <code>int32 SelectServerIndex</code>, <code>int32 CensorshipIndex</code>, <code>uint8 NonPvP</code> e <code>bool bTestServer</code>, inicializadas com valores neutros.</li>
+      <li>Exponha função <code>UFUNCTION(BlueprintCallable)</code> <code>void SetSelectServerInfo(const FString&amp; Name, int32 Index, int32 Censorship, uint8 NonPvPFlag, bool bIsTest)</code> para salvar a escolha do usuário.</li>
+      <li>Adicione getters BlueprintPure que retornam cada campo para uso de UI (ex.: destacar seleção ou bloquear botões de PVP se <code>IsNonPvP()</code> for verdadeiro).</li>
+      <li>Não há validação no código original para índices/flags; mantenha o comportamento e adicione, se desejado, checagens opcionais de faixa com notas de que a validação é extensão.</li>
+    </ol>
+  </div>
+
+  <div class="section">
+    <h2>Construção de nomes e percentuais de servidor</h2>
+    <p class="small">Equivalente a MakeServerGroup / InsertServer em CServerListManager.</p>
+    <ol>
+      <li>Crie struct <code>FServerGroup</code> com campos <code>Name</code>, <code>Description</code>, <code>Sequence</code>, <code>WidthPos</code>, <code>ServerIndex</code>, <code>bPvPServer</code> e array <code>NonPvPFlags</code> replicando <code>m_abyNonPvpServer</code>.</li>
+      <li>No método de inserção, construa <code>FServerInfo</code> com <code>Index</code> (módulo 20 + 1), <code>ConnectIndex</code>, <code>Percent</code> e <code>NonPvPFlag</code>.</li>
+      <li>Monte o campo de exibição <code>Name</code> concatenando nome do grupo, índice e um texto de status de carga (ocupado/normal) inspirado em <code>GlobalText[560..562]</code>, além de sufixos "(Non-PVP)", "(Gold PVP)" ou "(Gold)" conforme flag. Se os textos não existirem em UE, insira placeholders com a nota obrigatória.</li>
+      <li>Não há lógica de rede; mantenha tudo local. Caso queira replicar dados para outros clientes, use propriedades replicadas em um <code>AGameState</code> custom.</li>
+    </ol>
+  </div>
+
+  <div class="section">
+    <h2>Envio genérico de pacotes com cabeçalho de protocolo</h2>
+    <p class="small">Equivalente a CustomClient::DataSend / MessageAll e wrappers de CProtocolSend.</p>
+    <ol>
+      <li>Implemente uma camada de envio que recebe <code>EProtocolHead</code> (enum espelhando <code>ProtocolHead</code>) e um <code>TArray<uint8></code> de dados brutos.</li>
+      <li>Construa uma estrutura <code>FProtocolMessage</code> com header (id, size) e body, populando <code>Size</code> após copiar os bytes, similar ao uso de <code>olc::net::message</code> em <code>DataSend</code>.</li>
+      <li>Para mensagens clássicas 0xC1/0xC3/0xC2/0xC4, use um método equivalente a <code>SendPacketClassic</code> que fixa <code>Header = BOTH_MESSAGE</code> antes do envio.</li>
+      <li>Adicione um método utilitário <code>void MessageAll()</code> que envia apenas o cabeçalho <code>CLIENT_ACCEPT</code> (sem body), útil para testes de broadcast conforme o código original.</li>
+      <li>Como não há validação de tamanho no código-fonte, documente qualquer check adicional como extensão opcional, mantendo a frase "NÃO DÁ PARA INFERIR COM SEGURANÇA COM BASE NO CÓDIGO-FONTE C/C++" para campos desconhecidos.</li>
+    </ol>
+  </div>
+</div>
+
+<div id="tab-roadmap" class="tab-content">
+  <h2>Roadmap de Evolução (Baseado no Código C/C++ e Adaptação à UE 5.7)</h2>
+
+  <h3>Curto Prazo</h3>
+  <ul>
+    <li>[Alta] Mecânicas: Loop de recebimento; Login. Garantir que o polling de socket tenha controle de tempo e validação de tamanho antes de acessar buffers, espelhando os pontos de entrada em <code>RecvMessage()</code>. Impacto: estabilidade do cliente; reduz risco de travamentos. Dependência: implementação de fila de mensagens.</li>
+    <li>[Média] Mecânica: Ping / keep-alive. Adicionar rate limit configurável no timer de ping para evitar envio excessivo; Impacto: uso de banda e carga do servidor. Dependência: temporizador existente.</li>
+    <li>[Média] Mecânica: Carregamento de lista de servidores. Validar existência e integridade do arquivo <code>ServerList.bmd</code> antes de usar; Impacto: evitar encerramento abrupto por <code>MessageBox/PostMessage</code>. Dependência: rotina de leitura de arquivo.</li>
+    <li>[Média] Mecânica: Seleção de servidor. Garantir que os campos gravados por <code>SetSelectServerInfo()</code> sejam validados (índices e flags) antes de alimentar a UI; Impacto: previne inconsistências locais. Dependência: dados carregados por <code>LoadServerListScript()</code>. Baseado diretamente no código C++ (ServerListManager.cpp, SetSelectServerInfo).</li>
+  </ul>
+
+  <h3>Médio Prazo</h3>
+  <ul>
+    <li>[Alta] Mecânicas: Atualização de posição; Movimento com caminho. Implementar validações no cliente para limites de mapa antes de enviar <code>BOTH_POSITION</code>/<code>BOTH_MOVE</code>; Impacto: evita envio de dados inválidos ao servidor. Dependência: acesso a limites do mapa.</li>
+    <li>[Média] Mecânica: Login. Registrar métricas de códigos de erro do switch de <code>RecvLoginNew()</code> para depuração em UE 5.7; Impacto: diagnóstico de conexões. Dependência: sistema de log.</li>
+    <li>[Média] Mecânica: Loop de recebimento. Criar testes automatizados para cada <code>ProtocolHead</code> observado, garantindo que os handlers existam mesmo quando o payload estiver incompleto (pois o código não valida); Impacto: robustez. Dependência: framework de testes.</li>
+    <li>[Média] Mecânica: Envio genérico de pacotes. Inserir validações de tamanho/cabeçalho em <code>DataSend()</code> e <code>SendPacketClassic()</code> para evitar envio de buffers vazios ou truncados; Impacto: integridade de protocolo. Dependência: camada de rede. Baseado diretamente no código C++ (ProtocolSend.h, CustomClient::DataSend).</li>
+  </ul>
+
+  <h3>Longo Prazo</h3>
+  <ul>
+    <li>[Alta] Mecânicas: Todas as de rede. Migrar do protocolo manual (0xC1/0xC3/0xC2/0xC4) para RPCs nativas da Unreal (Server/Client/NetMulticast) mantendo os fluxos de login/movimento descritos; Impacto: simplificação de código e segurança. Dependência: conclusão das etapas de curto e médio prazo.</li>
+    <li>[Média] Mecânica: Carregamento de lista de servidores. Substituir arquivo binário por fonte de dados replicada (por exemplo, DataTable replicado ou serviço REST interno). Impacto: facilidade de atualização; risco de latência adicional. Dependência: autenticação estabilizada.</li>
+    <li>[Baixa] Mecânica: Ping / keep-alive. Adicionar medição de round-trip time e exibição em HUD; Impacto: visibilidade para usuário. Dependência: implementação de UI; esta é uma SUGESTÃO GENÉRICA, NÃO DIRETAMENTE INFERIDA DO CÓDIGO-FONTE C/C++.</li>
+    <li>[Média] Mecânicas: Seleção e iteração de servidor. Unificar construção de nomes/percentuais em um serviço central replicado (por exemplo, em <code>AGameState</code>) para reduzir duplicação local e facilitar sincronização em multiplayer; Impacto: consistência entre clientes. Dependência: conclusão da migração de dados do ServerList.bmd. SUGESTÃO GENÉRICA, NÃO DIRETAMENTE INFERIDA DO CÓDIGO-FONTE C/C++.</li>
+  </ul>
+</div>
+
+<script>
+  const buttons = document.querySelectorAll('.tab-button');
+  const contents = document.querySelectorAll('.tab-content');
+  buttons.forEach(btn => {
+    btn.addEventListener('click', () => {
+      buttons.forEach(b => b.classList.remove('active'));
+      contents.forEach(c => c.classList.remove('active'));
+      btn.classList.add('active');
+      document.getElementById(btn.getAttribute('data-tab')).classList.add('active');
+    });
+  });
+</script>
+</body>
+</html>
