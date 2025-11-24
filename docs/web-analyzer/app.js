@@ -9,8 +9,8 @@ const mechanics = [
     classes: ["CServerListManager"],
     functions: ["LoadServerListScript", "BuxConvert"],
     networkDetails: "Nenhum envio de rede: leitura local do arquivo Data\\\\Local\\\\ServerList.bmd e armazenamento em m_mapServerListScript.",
-    flow: "LoadServerListScript abre ServerList.bmd, verifica erro, descriptografa campos com BuxConvert e insere SERVER_GROUP_INFO decodificados em m_mapServerListScript.",
-    description: "Mantém um cache de grupos de servidor a partir do arquivo binário local, aplicando XOR rotativo (0xfc,0xcf,0xab) em cada byte lido antes de copiar para SServerGroupInfo." 
+    flow: "LoadServerListScript abre ServerList.bmd, verifica erro, descriptografa campos com BuxConvert e insere SERVER_GROUP_INFO decodificados em m_mapServerListScript, retornando false se o arquivo não for encontrado.",
+    description: "Mantém um cache de grupos de servidor a partir do arquivo binário local, aplicando XOR rotativo (0xfc,0xcf,0xab) em cada byte lido antes de copiar para SServerGroupInfo e checando falha de fopen."
   },
   {
     id: "servergroup-creation",
@@ -42,8 +42,8 @@ const mechanics = [
     classes: ["CServerListManager", "CServerGroup"],
     functions: ["SetFirst", "GetNext"],
     networkDetails: "Sem rede; iteração local.",
-    flow: "Ambas as classes resetam iteradores (SetFirst) e percorrem coleções com GetNext, retornando ponteiros até esgotar a lista.",
-    description: "Fornece cursores para UI percorrer grupos e servidores cadastrados sem reordenar a coleção." 
+    flow: "Ambas as classes resetam iteradores (SetFirst) e percorrem coleções com GetNext, retornando ponteiros até esgotar a lista; em CServerListManager o iterador percorre m_mapServerGroup e em CServerGroup percorre m_vServerInfo.",
+    description: "Fornece cursores para UI percorrer grupos e servidores cadastrados sem reordenar a coleção."
   },
   {
     id: "server-selection-state",
@@ -53,8 +53,8 @@ const mechanics = [
     classes: ["CServerListManager"],
     functions: ["SetSelectServerInfo", "GetSelectServerName", "GetSelectServerIndex", "GetCensorshipIndex", "IsNonPvP", "IsTestServer"],
     networkDetails: "Sem envio imediato; guarda estado para uso posterior.",
-    flow: "SetSelectServerInfo copia nome, índices e flags de PvP/teste em membros; getters retornam esses dados para UI/fluxo de conexão.",
-    description: "Mantém estado do servidor escolhido pelo usuário, incluindo censura e flag de teste." 
+    flow: "SetSelectServerInfo copia nome, índices e flags de PvP/teste em membros; getters retornam esses dados para UI/fluxo de conexão; m_bCensorshipIndex é derivado de iCensorship e m_bNonPVP/m_bIsTestServer são retornados por verificadores dedicados.",
+    description: "Mantém estado do servidor escolhido pelo usuário, incluindo censura, flag de teste e PvP, para ser usado por conectores como WSclient ou ProtocolSend." 
   },
   {
     id: "protocol-connection",
@@ -62,21 +62,21 @@ const mechanics = [
     type: "Cliente",
     files: ["ProtocolSend.cpp", "ProtocolSend.h"],
     classes: ["CProtocolSend", "CustomClient"],
-    functions: ["ConnectServer", "DisconnectServer", "CheckConnected", "SendPingTest"],
-    networkDetails: "Utiliza olc::net::client_interface<ProtocolHead> para conectar IP/Port, manter flag de conexão e enviar ping (CLIENT_LIVE_CLIENT).",
-    flow: "ConnectServer instancia CustomClient e chama Connect; DisconnectServer zera g_bGameServerConnected e fecha socket; CheckConnected verifica IsConnected; SendPingTest delega a PingServer que envia tickcount e WORDs de teste.",
-    description: "Gerencia o socket cliente e um ping simples usando cabeçalhos ProtocolHead." 
+    functions: ["ConnectServer", "DisconnectServer", "CheckConnected", "SendPingTest", "SendCheckOnline", "SendPacket", "SendPacketClassic"],
+    networkDetails: "Utiliza olc::net::client_interface<ProtocolHead> para conectar IP/Port, manter flag g_bGameServerConnected e enviar ping (CLIENT_LIVE_CLIENT) e check periódico.",
+    flow: "ConnectServer instancia CustomClient e chama Connect; DisconnectServer zera g_bGameServerConnected, fecha socket e loga; CheckConnected verifica IsConnected; SendPingTest delega a PingServer; SendCheckOnline retorna se desconectado, envia ping e loga; SendPacket/SendPacketClassic são wrappers para DataSend com/sem cabeçalho.",
+    description: "Gerencia o socket cliente, check de vida e envio bruto usando ProtocolHead, incluindo wrappers para pacotes clássicos sem cabeçalho customizado."
   },
   {
     id: "protocol-recv-dispatch",
     name: "Fila de recebimento e despacho de mensagens",
     type: "Cliente",
-    files: ["ProtocolSend.cpp"],
+    files: ["ProtocolSend.cpp", "WSclient.cpp"],
     classes: ["CProtocolSend"],
     functions: ["RecvMessage"],
-    networkDetails: "Processa mensagens ProtocolHead do servidor e encaminha para handlers locais ou TranslateProtocol.",
-    flow: "Loop enquanto Incoming não vazio: pop_front.msg e switch em msg.header.id chamando RecvJoinServerNew, RecvLoginNew, ReceiveCharacterList, ReceiveMovePosition, ReceiveMoveCharacter ou TranslateProtocol para BOTH_MESSAGE." ,
-    description: "Ponto central de despacho de pacotes recebidos, sem tratamento multithread ativado (loop comentado)." 
+    networkDetails: "Processa mensagens ProtocolHead do servidor e encaminha para handlers locais ou TranslateProtocol; WSclient.cpp lida com pacotes C1/C2/C3/C4 descriptografando via SimpleModulus e validando g_byPacketSerialRecv antes de repassar.",
+    flow: "Dentro de conexão ativa, enquanto Incoming não vazio: pop_front.msg e switch em msg.header.id chamando RecvJoinServerNew (SERVER_CONNECT), RecvLoginNew (BOTH_CONNECT_LOGIN), ReceiveCharacterList, ReceiveMovePosition, ReceiveMoveCharacter ou TranslateProtocol para BOTH_MESSAGE após calcular header/size; na pilha WSclient::ProtocolCompiler, GetReadMsg devolve buffers, cabeçalhos C3/C4 são decriptados para byDec, serial é incrementado ou gera erro/hacking se divergente e TotalPacketSize é acumulado.",
+    description: "Ponto central de despacho de pacotes recebidos e decodificados, combinando fila da CustomClient com parsing de cabeçalhos C1/C2/C3/C4 e controle de serial para detectar corrupção." 
   },
   {
     id: "protocol-login-send",
@@ -86,8 +86,8 @@ const mechanics = [
     classes: ["CProtocolSend"],
     functions: ["SendRequestLogInNew"],
     networkDetails: "Envia PMSG_CONNECT_ACCOUNT_SEND via ProtocolHead::BOTH_CONNECT_LOGIN com campos codificados por BuxConvert e versão/serial do cliente.",
-    flow: "Configura LogIn=1, CurrentProtocolState=REQUEST_LOG_IN, copia account/password com strncpy, faz BuxConvert nos campos, define TickCount/versão/serial e chama SendPacket." ,
-    description: "Constrói pacote de autenticação e notifica UI via g_pChatListBox antes do envio." 
+    flow: "Configura LogIn=1, CurrentProtocolState=REQUEST_LOG_IN, copia account/password com strncpy, faz BuxConvert nos campos, define TickCount/versão/serial, escreve mensagens em g_pChatListBox e chama SendPacket." ,
+    description: "Constrói pacote de autenticação e notifica UI via g_pChatListBox antes do envio."
   },
   {
     id: "protocol-login-recv",
@@ -97,8 +97,8 @@ const mechanics = [
     classes: ["CProtocolSend"],
     functions: ["RecvJoinServerNew", "RecvLoginNew"],
     networkDetails: "Manipula mensagens ProtocolHead::SERVER_CONNECT e BOTH_CONNECT_LOGIN recebidas na fila.",
-    flow: "RecvJoinServerNew extrai HeroKey, registra versões e decide entre SendChangeMapServer ou mostrar m_LoginWin/erros; valida ClientVersion; RecvLoginNew trata códigos result específicos (0x00-0xD2) atualizando CurrentProtocolState/LogIn ou exibindo PopUpMsgWin." ,
-    description: "Define o estado de conexão após resposta do servidor e aplica validação de versão e mensagens de erro específicas." 
+    flow: "RecvJoinServerNew extrai HeroKey, loga dados de versão, quando LogIn!=0 chama g_csMapServer.SendChangeMapServer; caso contrário mostra m_LoginWin, seta CurrentProtocolState conforme result ou abre PopUpMsgWin e valida Version vs ClientVersion; RecvLoginNew faz switch nos códigos 0x00-0xD2, ajusta CurrentProtocolState/LogIn, chama CheckHack nos casos de sucesso e mostra PopUpMsgWin para erros diversos." ,
+    description: "Define o estado de conexão após resposta do servidor, aciona troca de map server quando já logado e aplica validação de versão e mensagens de erro específicas."
   },
   {
     id: "protocol-character-and-move",
@@ -123,15 +123,37 @@ const mechanics = [
     description: "Abstrai a montagem de mensagens binárias para diferentes cabeçalhos do protocolo sem alterar os dados originais."
   },
   {
+    id: "wsclient-socket-decode",
+    name: "Criação de socket assíncrono e descriptografia de pacotes (WSclient)",
+    type: "Cliente",
+    files: ["WSclient.cpp", "wsclientinline.h"],
+    classes: ["CWsctlc"],
+    functions: ["CreateSocket", "DeleteSocket", "ProtocolCompiler", "AddDebugText", "ReceiveCheckSumRequest"],
+    networkDetails: "CreateSocket inicializa CWsctlc, conecta com WM_ASYNCSELECTMSG e zera g_byPacketSerialSend/g_byPacketSerialRecv; ProtocolCompiler decripta pacotes C3/C4 via g_SimpleModulusSC, valida serial e envia SendHackingChecked em falha.",
+    flow: "CreateSocket executa Startup/LogPrintOn (debug), cria socket da janela e chama Connect; ProtocolCompiler consome GetReadMsg, identifica C1/C2 ou decripta C3/C4 para byDec, ajusta header e incrementa g_byPacketSerialRecv ou registra erro, soma Size em TotalPacketSize e opcionalmente salva pacote; ReceiveCheckSumRequest calcula checksum e invoca SendCheckSum; DeleteSocket fecha o socket.",
+    description: "Implementa camada de transporte síncrona ao Windows, incluindo conexão assíncrona, serialização de pacotes criptografados SimpleModulus, verificação de sequência e resposta a pedidos de checksum." 
+  },
+  {
+    id: "mapserver-change",
+    name: "Troca de Map Server e reconexão",
+    type: "Cliente",
+    files: ["CSMapServer.cpp", "CSMapServer.h", "WSclient.cpp"],
+    classes: ["CSMServer"],
+    functions: ["ConnectChangeMapServer", "SendChangeMapServer", "SetServerInfo", "SetHeroID", "GetServerAddress"],
+    networkDetails: "Usa CreateSocket/SendChangeMServer e transições controladas por LogIn/HeroKey; sem RPCs Unreal.",
+    flow: "ConnectChangeMapServer armazena MServerInfo, salva opções/macro, dorme 20ms e cria socket para novo IP/porta se LogIn!=0; SetHeroID guarda m_strHeroID; SendChangeMapServer valida m_bFillServerInfo/LogIn, copia ID para CharID, chama ClearCharacters(-1)/InitGame e depois SendChangeMServer com auth codes e LogInID; GetServerInfo/GetServerAddress retornam valores ou zeram buffers quando sem dados.",
+    description: "Gerencia reconexão para map server diferente após login, persistindo dados de servidor e ID do herói, disponibilizando getters e reinicializando estado local antes de enviar a troca."
+  },
+  {
     id: "buff-script-load",
     name: "Carga e descriptografia de BuffEffect_*.bmd",
     type: "Cliente",
     files: ["w_BuffScriptLoader.cpp", "w_BuffScriptLoader.h"],
     classes: ["BuffScriptLoader", "BuffInfo"],
-    functions: ["BuffScriptLoader::Load", "BuxConvert", "CutTokenString", "GetBuffinfo", "IsBuffClass", "GetBuffIndex", "GetBuffType"],
+    functions: ["BuffScriptLoader::Load", "BuxConvert", "BuxConvertW", "CutTokenString", "GetBuffinfo", "IsBuffClass", "GetBuffIndex", "GetBuffType"],
     networkDetails: "Nenhuma comunicação de rede; leitura local de arquivo data/local/<ML>/BuffEffect_<ML>.bmd com checagem de checksum e xor BuxConvert.",
-    flow: "Construtor forma nome do arquivo, chama Load; Load abre BIN, lê listsize e buffer criptografado, aplica BuxConvert, monta BuffInfo com nomes/descrições e insere em m_Info; opcionalmente resolve índices por item code.",
-    description: "Deserializa tabelas de buffs de arquivo BMD, aplica xor rotativo, valida checksum e tokeniza descrições em lista para uso posterior."
+    flow: "Construtor forma nome do arquivo, chama Load; Load abre BIN, lê listsize e buffer criptografado, aplica BuxConvert/BuxConvertW, valida checksum com GenerateCheckSum2, monta BuffInfo com nomes/descrições tokenizadas e insere em m_Info; opcionalmente resolve índices/tipos por item code.",
+    description: "Deserializa tabelas de buffs de arquivo BMD, aplica xor rotativo, valida checksum e tokeniza descrições em lista para uso posterior, abortando com MessageBox/SendMessage em corrupção ou ausência de arquivo."
   },
   {
     id: "buff-time-control",
@@ -139,10 +161,10 @@ const mechanics = [
     type: "Cliente",
     files: ["w_BuffTimeControl.cpp", "w_BuffTimeControl.h"],
     classes: ["BuffTimeControl"],
-    functions: ["RegisterBuffTime", "UnRegisterBuffTime", "CheckBuffTimeType", "GetBuffMaxTime", "HandleWindowMessage", "GetBuffStringTime", "GetBuffTime"],
+    functions: ["RegisterBuffTime", "UnRegisterBuffTime", "CheckBuffTimeType", "GetBuffMaxTime", "HandleWindowMessage", "GetBuffStringTime", "GetBuffTime", "IsBuffTime", "GetBuffEventTime", "GetStringTime"],
     networkDetails: "Sem rede; usa SetTimer/KillTimer de janela (WM_TIMER) para decrementar tempos de buff localmente.",
-    flow: "RegisterBuffTime calcula BuffTimeType via g_IsBuffClass/g_BuffInfo, limita tempo pelo ItemAddOption, grava em m_BuffTimeList e seta timer; HandleWindowMessage responde WM_TIMER, chama CheckBuffTime para reduzir tempo ou matar timer; UnRegisterBuffTime remove timers ativos.",
-    description: "Gerencia duração de buffs com timers de janela, converte tempos para texto e garante término automático quando o tempo expira."
+    flow: "Destrutor limpa m_BuffTimeList e mata timers; RegisterBuffTime calcula BuffTimeType via g_IsBuffClass/g_BuffInfo, limita tempo pelo ItemAddOption/retorno -1, grava em m_BuffTimeList e seta timer 900ms; HandleWindowMessage responde WM_TIMER e chama CheckBuffTime para decrementar; UnRegisterBuffTime remove timers ativos; GetBuffStringTime/GetStringTime convertem duração em texto usando GlobalText[2298..2308].",
+    description: "Gerencia duração de buffs com timers de janela, converte tempos para texto, controla existência via IsBuffTime e encerra buffers no destrutor."
   },
   {
     id: "buff-value-control",
@@ -152,8 +174,8 @@ const mechanics = [
     classes: ["BuffStateValueControl"],
     functions: ["CheckValue", "SetValue", "GetValue", "GetBuffInfoString", "GetBuffValueString", "Initialize"],
     networkDetails: "Nenhuma rede; consome tabelas locais de BuffInfo e ItemAddOptioninfo para preencher valores.",
-    flow: "Initialize percorre eBuff_Attack..eBuff_Count e pré-checa tipo de carga; GetValue consulta cache m_BuffStateValue ou chama SetValue para popular com dados de item; GetBuffInfoString copia descrições tokenizadas e nomes; GetBuffValueString devolve valor formatado.",
-    description: "Fornece acesso a valores e textos de buffs combinando dados carregados e opções de itens, com caching em mapa por eBuffState."
+    flow: "Initialize percorre eBuff_Attack..eBuff_Count chamando CheckValue; GetValue consulta cache m_BuffStateValue ou chama SetValue para popular com dados de item/zerar valores; GetBuffInfoString adiciona nome e descrições tokenizadas a uma lista com quebra de linha; GetBuffValueString formata Value1 em texto.",
+    description: "Fornece acesso a valores e textos de buffs combinando dados carregados e opções de itens, mantendo cache por eBuffState e destrutor que invoca Destroy()."
   },
   {
     id: "buff-system-dispatch",
@@ -216,55 +238,76 @@ const ueGuides = {
   "protocol-connection": {
     title: "Conectar e pingar via sockets UE",
     steps: [
-      "Em Unreal 5.7, crie um componente de rede custom (UActorComponent) para o PlayerController que encapsule um FSocket ou FInternetAddr para substituir CustomClient.",
-      "Implemente ConnectServer(IP,Port) chamando ISocketSubsystem::CreateSocket e Connect; guarde um bool bIsConnected equivalente a CheckConnected.",
-      "Adicione método SendPingTest que serialize TickCount e WORDs em um buffer e envie usando send/SendPacket abstrato com cabeçalho ProtocolHead::CLIENT_LIVE_CLIENT mapeado para um enum próprio.",
-      "Inclua método DisconnectServer para fechar socket e atualizar um bool replicado apenas para leitura se quiser refletir estado em outros clientes; caso contrário mantenha local." 
+      "No Unreal 5.7, crie um `APlayerController` derivado (Add → C++ Class) que atuará como cliente de rede padrão da UE, sem usar sockets manuais do sistema de packets original.",
+      "No `.h`, declare uma função `UFUNCTION(Server, Reliable)` chamada `ServerRequestConnection(const FString& TargetAddress, int32 Port)` para substituir ConnectServer; implemente no `.cpp` a validação do endereço e atualização de um `bool bIsConnected` replicado somente para leitura.",
+      "Adicione `UFUNCTION(Server, Reliable)` chamada `ServerPingTest()` que registra o TickCount recebido e responde via `UFUNCTION(Client, Reliable)` `ClientHandlePingResponse(int32 TickCount)`; essa dupla substitui o envio do packet CLIENT_LIVE_CLIENT do sistema original.",
+      "Crie função `UFUNCTION(Server, Reliable)` `ServerDisconnect()` para limpar estado e sinalizar ao cliente via `ClientOnDisconnected()`; elimine qualquer chamada direta a sockets, pois a sessão de rede da UE cuida da conexão.",
+      "Implemente verificação periódica usando `FTimerManager` em `APlayerController` que chama `ServerPingTest()` enquanto `bIsConnected` estiver verdadeiro; o timer substitui SendCheckOnline do código original.",
+      "Para mensagens gerais antes enviadas por SendPacket/SendPacketClassic, crie RPCs específicos (Server/Client/NetMulticast) e, se necessário, use propriedades `UPROPERTY(Replicated)` em `AGameState` ou `APlayerState` para compartilhar o estado; deixe claro que o sistema de packets original não é reimplementado."
     ]
   },
   "protocol-recv-dispatch": {
     title: "Despachar mensagens recebidas",
     steps: [
-      "Implemente um loop de leitura (FTimer ou Tick) que verifica uma fila de pacotes recebidos semelhante a Incoming() do CustomClient.",
-      "Para cada pacote, faça switch no cabeçalho equivalente a ProtocolHead e chame handlers que espelhem RecvJoinServerNew, RecvLoginNew, ReceiveCharacterList, ReceiveMovePosition, ReceiveMoveCharacter ou TranslateProtocol.",
-      "Mantenha os handlers como métodos UFUNCTION(BlueprintCallable) se precisar acionar UIs em Blueprint; não invente lógica além do que está no código-fonte.",
-      "Se algum handler (ex.: ReceiveCharacterList) não tiver implementação nos arquivos C++, marque no código como 'NÃO DÁ PARA INFERIR COM SEGURANÇA COM BASE NO CÓDIGO-FONTE C/C++' e implemente conforme design desejado." 
+      "No Unreal 5.7, substitua o loop de parsing de packets por RPCs. Em `APlayerController` ou `AGameMode`, crie funções `UFUNCTION(Server, Reliable)`/`Client`/`NetMulticast` que representem cada mensagem tratada (JoinServer, Login, CharacterList, MovePosition, MoveCharacter).",
+      "Remova a leitura direta de buffers: cada evento que o servidor deveria enviar vira `UFUNCTION(Client, Reliable)` (por exemplo, `ClientReceiveLoginResult(uint8 Result, int32 HeroKey)`) e cada comando do cliente vira `UFUNCTION(Server, Reliable)`; o switch em cabeçalho vira um switch de enums dentro do RPC ou múltiplas funções distintas.",
+      "Mantenha handlers BlueprintCallable para acionar UI, mas deixe explícito que o sistema de packets do projeto original é apenas referência histórica e não deve ser reimplementado byte a byte.",
+      "Para qualquer handler sem detalhes suficientes no código C++, documente no corpo com 'NÃO DÁ PARA INFERIR COM SEGURANÇA COM BASE NO CÓDIGO-FONTE C/C++' e defina o conteúdo conforme o design ao implementar no projeto Unreal."
     ]
   },
   "protocol-login-send": {
     title: "Envio de login codificado",
     steps: [
-      "Crie um struct BlueprintType com campos Account[10], Password[20], TickCount, ClientVersion[5] e ClientSerial[16] replicando PMSG_CONNECT_ACCOUNT_SEND.",
-      "Implemente função que copia strings via TCHAR->ANSII e aplica XOR (BuxConvert) antes de enviar, mantendo CurrentProtocolState e LogIn como variáveis locais/replicadas conforme necessário.",
-      "Envie o pacote usando cabeçalho de RPC custom do seu protocolo (enum) equivalente a BOTH_CONNECT_LOGIN; em UE, isso pode ser um envio via socket custom, não RPC UE padrão, pois depende do protocolo binário existente.",
-      "Acione mensagens de UI antes do envio (ex.: adicionar texto em um widget de log) tal como g_pChatListBox->AddText." 
+      "No Unreal 5.7, em `APlayerController`, declare `UFUNCTION(Server, Reliable)` `ServerRequestLogin(const FString& Account, const FString& Password)` que substitui o envio do packet BOTH_CONNECT_LOGIN; valide tamanho das strings antes de copiar para buffers internos.",
+      "Dentro do RPC, se precisar replicar dados de versão/serial, salve em propriedades `UPROPERTY(Replicated)` em `APlayerState` ou `AGameState` (por exemplo `FString ClientVersion`, `FString ClientSerial`) em vez de serializar manualmente.",
+      "Crie `UFUNCTION(Client, Reliable)` `ClientLoginResponse(uint8 ResultCode, int32 HeroKey)` para devolver ao cliente os códigos de RecvLoginNew; essa função substitui a recepção do packet no sistema original.",
+      "No Blueprint do PlayerController, exponha uma função que chame `ServerRequestLogin` quando o usuário confirmar a UI de login; registre CurrentProtocolState/LogIn em variáveis locais replicadas somente se forem necessárias por outros atores."
     ]
   },
   "protocol-login-recv": {
     title: "Tratar join e códigos de login",
     steps: [
-      "Implemente handler para SERVER_CONNECT que leia result, index[2] e ClientVersion[5]; calcule HeroKey e valide versão conforme loop em RecvJoinServerNew.",
-      "Se o estado LogIn != 0, chame função que mapeie g_csMapServer.SendChangeMapServer; caso não exista no código atual, marque como 'NÃO DÁ PARA INFERIR COM SEGURANÇA COM BASE NO CÓDIGO-FONTE C/C++'.",
-      "Quando result == 0x01, mostre tela de login (Blueprint ou UMG) e defina CurrentProtocolState = RECEIVE_JOIN_SERVER_SUCCESS; para demais códigos, exiba mensagens de erro equivalentes.",
-      "Implemente handler de BOTH_CONNECT_LOGIN (RecvLoginNew) que faça switch nos códigos 0x00-0xD2, atualizando estados locais e mostrando PopUps conforme o código fonte; mantenha variáveis CurrentProtocolState e LogIn sincronizadas." 
+      "Implemente `UFUNCTION(Client, Reliable)` `ClientReceiveJoinResult(uint8 Result, uint8 IndexA, uint8 IndexB, FString ServerVersion)` para substituir RecvJoinServerNew; no corpo, calcule HeroKey e compare versão, ajustando CurrentProtocolState replicado se necessário.",
+      "Quando `LogIn` já for diferente de zero, chame um RPC de servidor como `ServerRequestMapChange()` (substituindo SendChangeMapServer) ou registre a falta de detalhes como 'NÃO DÁ PARA INFERIR COM SEGURANÇA COM BASE NO CÓDIGO-FONTE C++'.",
+      "Para códigos 0x00-0xD2 de login, exponha `ClientLoginResponse` (do guia anterior) fazendo switch em Blueprint ou C++ e abrindo telas de UI equivalentes; defina CurrentProtocolState = RECEIVE_JOIN_SERVER_SUCCESS quando Result==0x01.",
+      "Mantenha todas as interações através de RPCs e variáveis replicadas; deixe claro que o parsing de packets do projeto original não é refeito na UE."
     ]
   },
   "protocol-character-and-move": {
     title: "Enviar lista de personagens, posição e movimento",
     steps: [
-      "Implemente struct equivalente a PMSG_SIMPLE_RESULT_SEND e PMSG_POSITION_SEND em UE para serializar dados binários.",
-      "Crie método para solicitar lista de personagens enviando result=1 com cabeçalho BOTH_CONNECT_CHARACTER; nenhuma replicação UE padrão é usada, é envio de socket custom.",
-      "Para SendPositionNew, serialize bytes x/y de coordenada atual e envie com cabeçalho BOTH_POSITION.",
-      "Para SendCharacterMoveNew, replique o algoritmo de Path: valide PathNum (<MAX_PATH_FIND), calcule Dir comparando PathX/Y com DirTable e compacte duas direções por byte (nibbles). O primeiro byte recebe (PathNum-1) e dir inicial. Em UE, encapsule em função C++ e exponha a Blueprints.",
-      "Se DirTable ou MAX_PATH_FIND não estiverem definidos nos arquivos C++ acessados, marque essa dependência como 'NÃO DÁ PARA INFERIR COM SEGURANÇA COM BASE NO CÓDIGO-FONTE C/C++' e forneça manualmente." 
+      "No Unreal 5.7, use o `APlayerController` para emitir um `UFUNCTION(Server, Reliable)` `ServerRequestCharacterList()` em vez de enviar PMSG_SIMPLE_RESULT_SEND; o servidor devolve via `UFUNCTION(Client, Reliable)` `ClientReceiveCharacterList(...)`.",
+      "Para posição, mantenha `ACharacter` replicando movimento (`bReplicateMovement=true`) e, se precisar de atualização manual, crie `UFUNCTION(Server, Unreliable)` `ServerUpdatePosition(const FVector& Pos)`; não serialize bytes manualmente.",
+      "Para movimento com caminhos, substitua o envio de Path[8] por `ServerMoveAlongPath(const TArray<uint8>& Directions)` e, no servidor, valide `PathNum` contra um limite constante; se a lógica exata de `DirTable` não estiver clara, registre 'NÃO DÁ PARA INFERIR COM SEGURANÇA COM BASE NO CÓDIGO-FONTE C++' e defina conforme o design.",
+      "Exponha eventos de confirmação ao cliente com `UFUNCTION(Client, Unreliable)` se precisar notificar conclusão; todo fluxo usa RPCs da UE em vez do sistema de packets original."
     ]
   },
   "protocol-generic-send": {
     title: "Encapsular envios genéricos",
     steps: [
-      "Implemente uma função que receba um enum cabeçalho e buffer binário e construa um pacote com header.id e tamanho antes de enviar (equivalente a DataSend com ProtocolHead).",
-      "Implemente variante que usa cabeçalho fixo BOTH_MESSAGE quando apenas o buffer é fornecido, verificando se a conexão está ativa antes do envio.",
-      "Se desejar suportar multicast UE, encapsule o envio em um componente não replicado e dispare eventos locais após o envio para manter telemetria de UI."
+      "Substitua DataSend por RPCs nomeados. Para cada comando que exigia um cabeçalho, declare `UFUNCTION(Server, Reliable)` ou `NetMulticast` apropriado e remova o envio de buffers brutos.",
+      "Para mensagens que eram BOTH_MESSAGE, crie um RPC genérico `UFUNCTION(NetMulticast, Unreliable)` `MulticastBroadcastMessage(uint8 MessageId, const TArray<uint8>& Payload)` se realmente precisar de payload bruto; caso contrário, modele propriedades específicas replicadas.",
+      "Mantenha um componente ou subsistema apenas para roteamento dos RPCs e para registrar telemetria, deixando claro que o sistema de packets do projeto original não é utilizado na implementação Unreal."
+    ]
+  },
+  "wsclient-socket-decode": {
+    title: "Configurar socket assíncrono e parsing C1/C2/C3/C4",
+    steps: [
+      "No Unreal 5.7, não reimplemente a pilha de sockets do sistema de packets original; em vez disso, use o pipeline de rede padrão da UE com RPCs.",
+      "Crie um `UGameInstanceSubsystem` para armazenar o estado original (contadores de serial, flags de checksum) apenas para referência/telemetria, marcando comentários sobre o comportamento do projeto original.",
+      "Para cada mensagem que o `ProtocolCompiler` tratava (C1/C2/C3/C4), substitua por RPCs específicos (Server/Client/NetMulticast) e propriedades replicadas; elimine leitura manual de bytes e descriptografia SimpleModulus.",
+      "Se a lógica de checksum for necessária, implemente-a em funções C++ normais e envie resultados por RPC; quando faltar detalhe do código, marque com 'NÃO DÁ PARA INFERIR COM SEGURANÇA COM BASE NO CÓDIGO-FONTE C++'.",
+      "Documente na classe que o socket assíncrono é parte do sistema de packets do projeto original e que, na Unreal, a conectividade usa o subsistema online/replicação padrão."
+    ]
+  },
+  "mapserver-change": {
+    title: "Trocar para Map Server e reinicializar estado",
+    steps: [
+      "No Unreal 5.7, implemente a troca de mapa usando o fluxo de rede da UE: crie um `UGameInstanceSubsystem` `UMapServerManager` apenas para armazenar dados lidos do código original (JoinAuthCodes, HeroID, IP/porta) como referência local.",
+      "Em `APlayerController`, declare `UFUNCTION(Server, Reliable)` `ServerRequestMapChange(const FString& HeroId)` que valida estados equivalentes a `LogIn` e `bFillServerInfo` e chama uma função no `AGameMode` para executar `ServerTravel` ou transição de nível.",
+      "Antes da transição, chame funções locais equivalentes a ClearCharacters/InitGame se estiverem implementadas; quando não houver detalhes no código, marque 'NÃO DÁ PARA INFERIR COM SEGURANÇA COM BASE NO CÓDIGO-FONTE C++'.",
+      "Use `UFUNCTION(Client, Reliable)` `ClientConfirmMapChange()` para sinalizar sucesso ao cliente; não reconstrua sockets nem envie buffers binários, pois o sistema de packets original não é usado na UE.",
+      "Adicione getters BlueprintPure no subsistema para expor IP/porta/flags para UI, mas mantenha claro que a navegação efetiva ocorre via RPCs do GameMode/PlayerController."
     ]
   },
   "buff-script-load": {
@@ -341,6 +384,24 @@ const roadmap = [
     description: "Reavaliar loop de recebimento comentado e migrar para thread ou timer com controle de saída limpa para evitar bloqueio de UI.",
     basedOnCode: true,
     notes: "Baseado diretamente no código C++ (ProtocolSend.cpp linhas 51-152)."
+  },
+  {
+    id: "roadmap-serial-checks",
+    horizon: "Curto Prazo",
+    priority: "Alta",
+    mechanicsIds: ["wsclient-socket-decode", "protocol-recv-dispatch"],
+    description: "Adicionar logs e tratamento explícito quando g_byPacketSerialRecv divergir do byte de serial de pacotes C3/C4 e garantir reset seguro dos contadores ao reconectar.",
+    basedOnCode: true,
+    notes: "Baseado diretamente no código C++ (WSclient.cpp linhas 11560-11630 e CreateSocket linhas 160-196)."
+  },
+  {
+    id: "roadmap-mapserver-guard",
+    horizon: "Curto Prazo",
+    priority: "Alta",
+    mechanicsIds: ["mapserver-change"],
+    description: "Validar m_bFillServerInfo antes de chamar CreateSocket/SendChangeMServer e adicionar logs quando LogIn==0 bloquear reconexão de mapa para evitar chamadas silenciosas.",
+    basedOnCode: true,
+    notes: "Baseado diretamente no código C++ (CSMapServer.cpp linhas 22-66 e 76-92)."
   },
   {
     id: "roadmap-login-security",
