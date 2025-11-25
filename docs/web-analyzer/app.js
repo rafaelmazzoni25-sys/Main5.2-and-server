@@ -355,6 +355,28 @@ const mechanics = [
     description: "Tabela de roteamento de movimento que verifica flags de interface antes de mover itens entre contêineres, retornando result/slot e ItemInfo preenchido somente após validações específicas de Trade, Warehouse, Chaos, PersonalShop e Trainer."
   },
   {
+    id: "server-chaos-event-muun-move",
+    name: "Movimentação para Chaos Box, Event Inventory e Muun Inventory",
+    type: "Servidor",
+    files: ["ItemManager.cpp", "ItemManager.h"],
+    classes: ["CItemManager"],
+    functions: ["MoveItemToChaosBoxFromInventory", "MoveItemToEventInventoryFromEventInventory", "MoveItemToMuunInventoryFromMuunInventory"],
+    networkDetails: "Parte do fluxo C1:24; CGItemMoveRecv chama essas funções quando SourceFlag/TargetFlag correspondem a Chaos Box, Event Inventory ou Muun Inventory, respondendo via PMSG_ITEM_MOVE_SEND.",
+    flow: "MoveItemToChaosBoxFromInventory exige range de inventário e Chaos, checa expansões Ext1-4 e CheckItemMoveToChaos, verifica serial em inventário/warehouse e adiciona no ChaosBox, deletando e atualizando viewport ao sucesso. MoveItemToEventInventoryFromEventInventory (>=802) valida slots, impede Source=Target, confere serial duplicado, tenta empilhar via EventInventoryAddItemStack, copia mapa, marca source 0xFF e reverte mapa em falha; ao sucesso, move item, atualiza mapa e retorna TargetFlag. MoveItemToMuunInventoryFromMuunInventory (>=803) valida range, impede Source=Target, checa CheckItemMoveToMuunInventory, move com cópia de mapa e, quando envolve slots de equipar, refaz CharSet e envia GCMuunItemChangeSend/GCMuunItemStatusSend.",
+    description: "Implementa regras específicas para transferir itens entre inventário normal e contêineres especiais (Chaos Box, Event Inventory, Muun), aplicando validações de expansão, serial e atualização visual quando Muun equipado."
+  },
+  {
+    id: "server-item-get-drop-conditions",
+    name: "Condições de pegar e dropar itens (servidor)",
+    type: "Servidor",
+    files: ["ItemManager.cpp", "ItemManager.h"],
+    classes: ["CItemManager"],
+    functions: ["CGItemGetRecv", "CGItemDropRecv"],
+    networkDetails: "Sistema de packets original: C1:22 solicita pegar item do mapa e C1:23 soltar item; respostas usam PMSG_ITEM_GET_SEND ou PMSG_ITEM_DROP_SEND.",
+    flow: "CGItemGetRecv valida conexão, DieRegen, interface ativa, duelo, transação, range de mapa e CheckItemGive; bloqueia itens de evento/Muun e contagem de quest. Impede duplicar rings específicos e trata zen (14,15) creditando Money com result 0xFE. Caso contrário, tenta InventoryInsertItemStack ou InventoryInsertItem e envia ItemByteConvert/GCPartyItemInfoSend, incluindo notificações periódicas e eventos BloodCastle/IllusionTemple. CGItemDropRecv valida estados semelhantes, impede Lucky/Periodic/Lock, consulta CheckItemMoveAllowDrop e bloqueia itens level>4 ou excellent/set/harmony; tenta DropItemByItemIndex ou casos especiais (Summon/Life Stone). Em sucesso, remove do inventário e confirma via DataSend.",
+    description: "Aplica filtros de estado, tipo de item e regras especiais para pegar itens do mapa ou soltá-los, tratando zen, rings únicos, eventos e drops bloqueados antes de alterar inventário e responder ao cliente."
+  },
+  {
     id: "server-item-shop-handlers",
     name: "Compra, venda e reparo de itens",
     type: "Servidor",
@@ -829,6 +851,29 @@ const ueGuides = {
       "7. No Blueprint de inventário, exiba temporizadores se `AWorldItem` expuser `LootExpireTime` via interface BlueprintCallable; teste em PIE deixando itens no chão para confirmar expiração e liberação de loot antes da coleta."
     ]
   },
+  "server-chaos-event-muun-move": {
+    title: "Replicar Chaos Box, Event Inventory e Muun Inventory",
+    steps: [
+      "1. No componente `UInventoryComponent`, adicione arrays replicados separados: `TArray<FItemData> ChaosBoxSlots`, `EventInventorySlots`, `MuunInventorySlots`, cada um com tamanho definido por constantes equivalentes às macros CHAOS_BOX_SIZE/EVENT_INVENTORY_SIZE/MUUN_INVENTORY_SIZE. Declare `UPROPERTY(Replicated)` mapas de ocupação `TArray<uint8> ChaosMap`, `EventMap`, `MuunMap` se precisar espelhar os mapas do código.",
+      "2. Declare RPC Server `void ServerMoveChaosEventMuun(int32 SourceFlag, int32 SourceSlot, int32 TargetFlag, int32 TargetSlot);` que será chamado pelo cliente quando mover itens nesses contêineres. Valide intervalos usando helpers que correspondam às macros INVENTORY_FULL_RANGE/CHAOS_BOX_RANGE/EVENT_INVENTORY_RANGE/MUUN_INVENTORY_RANGE; rejeite se `SourceSlot==TargetSlot`.",
+      "3. Para Chaos Box, bloqueie quando expansões não estiverem habilitadas (equivalentes a ExtInventory<1..4) e quando uma função `CheckItemMoveToChaos(const FItemData&)` retornar falso (parâmetro para configurar em DataTable). Ao mover, copie o item, remova do inventário e atualize `ChaosBoxSlots[TargetSlot]`, disparando um OnRep para widgets de Chaos.",
+      "4. Para Event Inventory, implemente um helper `bool TryStackEvent(int32 SourceSlot,int32 TargetSlot)` que soma quantidades e retorna falha quando não caber; se falhar, reverta os mapas como o código original faz. Em sucesso, marque mapas (0xFF para limpar source, 1 para ocupado target), movendo `EventInventorySlots` e notificando via `ClientEventInventoryChanged` (Client, Reliable).",
+      "5. Para Muun Inventory, adicione validação `CheckItemMoveToMuunInventory` configurável e, quando o alvo for slot de equipar, recalcule uma variável replicada `FMuunPreviewData` no Character e chame um multicast `MulticastMuunChanged(int32 Slot)` para atualizar meshes/particles em todos os clientes.",
+      "6. No UI Blueprint de cada aba (Chaos, Event, Muun), conecte arrastar/soltar ou botões para chamar `ServerMoveChaosEventMuun` com flags numéricas equivalentes; em OnRep dos arrays, reconstrua os itens. Documente com a frase padrão quaisquer flags ou tamanhos não dedutíveis.",
+      "7. Teste em PIE movendo itens entre Inventário→Chaos, Event→Event e Muun→Muun para garantir que os mapas se mantêm consistentes e que a visualização Muun é atualizada via RPC multicast quando slots de equipar são usados."
+    ]
+  },
+  "server-item-get-drop-conditions": {
+    title: "Validar pegar e dropar itens",
+    steps: [
+      "1. No componente `UInventoryComponent`, declare RPCs `UFUNCTION(Server, Reliable)` `void ServerRequestGetWorldItem(int32 WorldItemId);` e `void ServerRequestDropItem(int32 Slot, const FVector& Pos);` que substituem os packets C1:22 e C1:23. Valide `bIsDead`, `bInTransaction`, `bInterfaceLock` replicados antes de prosseguir.",
+      "2. Em `ServerRequestGetWorldItem`, recupere o actor `AWorldItem` do mapa `WorldItemId→Actor`; rejeite se for item de evento/Muun (flags no FItemData) ou se `QuestObjective` interno indicar excedente. Impedir anéis duplicados verificando `CountItem` pelo índice/nível. Para zen, aumente `Money` replicado e envie `ClientMoneySync` (Client, Reliable); para outros itens tente `TryStackItem` e, se falhar, insira em slot vazio e destrua o `AWorldItem`.",
+      "3. Em `ServerRequestDropItem`, valide lock/estado de morte/duelo equivalentes e chame um helper `bool IsDropAllowed(const FItemData&)` que verifica flags `bLucky`, `bPeriodic`, filtros `gItemMove.CheckItemMoveAllowDrop` carregados em DataTable e limites de nível/opções. Se rejeitado, envie `ClientItemError` com a frase padrão."
+      "4. Quando o drop for permitido, remova o item do inventário, chame `SpawnWorldItem` (do guia de drop) com posição/tempo e chame `MulticastPlayDropFX`. Para itens especiais como mercenário ou life stone, documente com a frase padrão se não houver equivalente em UE.",
+      "5. Atualize widgets após pegar/dropar usando OnRep do inventário e OnRep da moeda; utilize `GCPartyItemInfoSend` equivalente (Client RPC multicast opcional) se precisar notificar grupo sobre o item adquirido, anotando quando a necessidade não puder ser inferida.",
+      "6. No UI (Widget de inventário), conecte botões de \"Pegar\" (em overlay de `AWorldItem`) para chamar `ServerRequestGetWorldItem` e botões de \"Dropar\" para chamar `ServerRequestDropItem` com `GetHitResultUnderCursor`. Teste cenários de anel duplicado e zen para confirmar a lógica."
+    ]
+  },
   "server-item-shop-handlers": {
     title: "RPCs UE 5.7 para compra, venda e reparo de itens",
     globalOrderStep: 5,
@@ -903,7 +948,7 @@ const ueSystems = [
     id: "items-system",
     name: "Sistema de Items",
     status: "Encontrado",
-    mechanicsIds: ["server-protocolcore-dispatch", "server-item-structs", "server-item-packet-structs", "server-item-handlers", "server-item-move-matrix", "server-item-require-checks", "server-item-move-allowlist", "server-item-stack-config", "server-item-drop-config", "server-item-shop-handlers", "server-mapitem-drop-lifecycle", "server-pk-drop-system", "client-item-structs", "client-inventory-handling"],
+    mechanicsIds: ["server-protocolcore-dispatch", "server-item-structs", "server-item-packet-structs", "server-item-handlers", "server-item-move-matrix", "server-chaos-event-muun-move", "server-item-require-checks", "server-item-move-allowlist", "server-item-stack-config", "server-item-drop-config", "server-item-get-drop-conditions", "server-item-shop-handlers", "server-mapitem-drop-lifecycle", "server-pk-drop-system", "client-item-structs", "client-inventory-handling"],
     codeSummary: "ProtocolCore (Protocol.cpp) roteia C1:22-26/32-34 para CItemManager (get/drop/move/use/buy/sell/repair) usando structs CItem/ITEM_INFO; o cliente mantém ITEM e PRECEIVE_INVENTORY para refletir o inventário e renderizar itens/viewport.",
     ue57Summary: "Mapear get/drop/move/use/buy/sell/repair para RPCs Server em Character/InventoryComponent, usar `FItemData` replicado, atores `AWorldItem` para drops e Widgets para UI; marcar campos ausentes com 'NÃO DÁ PARA INFERIR COM SEGURANÇA COM BASE NO CÓDIGO-FONTE C++'."
   },
@@ -911,7 +956,7 @@ const ueSystems = [
     id: "inventory-system",
     name: "Sistema de Inventory",
     status: "Encontrado",
-    mechanicsIds: ["server-protocolcore-dispatch", "server-character-list", "server-item-structs", "server-item-packet-structs", "server-item-handlers", "server-item-move-matrix", "server-item-require-checks", "server-item-move-allowlist", "server-item-stack-config", "server-item-drop-config", "server-item-shop-handlers", "server-mapitem-drop-lifecycle", "client-inventory-handling", "client-item-structs"],
+    mechanicsIds: ["server-protocolcore-dispatch", "server-character-list", "server-item-structs", "server-item-packet-structs", "server-item-handlers", "server-item-move-matrix", "server-chaos-event-muun-move", "server-item-require-checks", "server-item-move-allowlist", "server-item-stack-config", "server-item-drop-config", "server-item-get-drop-conditions", "server-item-shop-handlers", "server-mapitem-drop-lifecycle", "client-inventory-handling", "client-item-structs"],
     codeSummary: "DGCharacterListRecv carrega slots iniciais enquanto CItemManager move/usa/compra/vende/repara itens entre inventário/equipamentos/warehouse/chaos; no cliente, ReceiveInventory/ReceiveGetItem/ReceiveDropItem/ReceiveTradeInventory sincronizam g_pMyInventory, MixInventory e lojas.",
     ue57Summary: "Replicar arrays de inventário/equipamento e saldos em componente anexado ao Character/PlayerState, criar RPCs para transferir/loja/reparar itens e usar hooks OnRep para atualizar UI; validar tamanho e contêiner conforme limites de Item.h e registrar 'NÃO DÁ PARA INFERIR COM SEGURANÇA COM BASE NO CÓDIGO-FONTE C++' quando regras faltarem."
   },
@@ -1203,6 +1248,24 @@ const roadmap = [
     description: "Externalizar chaves DES_XEX3/XorFilter para arquivo de configuração e adicionar validação de header 4370 antes de ApplySecuritySettings.",
     basedOnCode: true,
     notes: "Baseado diretamente no código C++ (PacketManager.cpp Init/LoadKey usando ENCDEC_HEADER e m_SaveLoadXor/m_XorFilter)."
+  },
+  {
+    id: "roadmap-chaos-event-muun-replication",
+    horizon: "Médio Prazo",
+    priority: "Alta",
+    mechanicsIds: ["server-chaos-event-muun-move"],
+    description: "Mapear as expansões de inventário e mapas de slots ao portar Chaos/Event/Muun Inventory para componentes replicados, adicionando logs de rollback quando EventInventoryAddItemStack falhar.",
+    basedOnCode: true,
+    notes: "Baseado diretamente no código C++ (ItemManager.cpp linhas 2754-2810 e 3001-3114)."
+  },
+  {
+    id: "roadmap-item-get-drop-validation",
+    horizon: "Curto Prazo",
+    priority: "Alta",
+    mechanicsIds: ["server-item-get-drop-conditions"],
+    description: "Recriar na UE 5.7 as verificações de estado (DieRegen, Interface, Transaction), filtros de evento/Muun/quest e restrições de rings/zen antes de pegar ou dropar itens.",
+    basedOnCode: true,
+    notes: "Baseado diretamente no código C++ (ItemManager.cpp linhas 3123-3338)."
   }
 
 ];
