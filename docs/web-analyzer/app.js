@@ -544,6 +544,22 @@ const mechanics = [
     description: "Define quantidades máximas por item empilhável e qual item pode ser criado, permitindo ao servidor validar e resolver pilhas durante operações de inventário e drops."
   },
   {
+    id: "server-item-stack-operations",
+    name: "Empilhamento, fusão e criação a partir de pilhas",
+    type: "Servidor",
+    files: ["ItemManager.cpp", "ItemManager.h", "ItemStack.cpp", "ItemStack.h"],
+    classes: ["CItemManager", "CItemStack"],
+    functions: [
+      "InventoryInsertItemStack",
+      "InventoryAddItemStack",
+      "DeleteInventoryItemCount",
+      "ConvertItemByte"
+    ],
+    networkDetails: "Usa o sistema de packets original: handlers C1:22-26 acionam GCItemDurSend/GCItemDeleteSend e GDCreateItemSend ao fundir pilhas ou gerar item bônus ao atingir MaxStack.",
+    flow: "InventoryInsertItemStack percorre slots não equipáveis, compara index/level/socketBonus e soma durabilidade até MaxStack; ao atingir o limite, chama GDCreateItemSend com CreateItemIndex e remove a pilha, caso contrário atualiza durabilidade. InventoryAddItemStack move quantidade de SourceSlot para TargetSlot quando index/level/socketBonus coincidem, também gerando CreateItemIndex ao preencher a pilha e apagando fonte se zerar. DeleteInventoryItemCount consome itens contando durabilidade para pilhas e envia GCItemDurSend ou GCItemDeleteSend. ConvertItemByte limita durabilidade recebida pelo MaxStack para evitar pilhas maiores que o configurado.",
+    description: "Implementa a fusão e o consumo de pilhas de itens com limites por ItemStack.txt, incluindo criação automática de itens derivados quando a pilha atinge o máximo e sincronização de durabilidade/remoção via respostas de inventário."
+  },
+  {
     id: "server-inventory-equipment-effects",
     name: "Efeitos de itens equipados por durabilidade especial",
     type: "Servidor",
@@ -1350,6 +1366,18 @@ const ueGuides = {
       "5. Teste em PIE adicionando itens repetidos e verificando que a UI soma quantidades e cria itens derivados quando MaxStack é atingido."
     ]
   },
+  "server-item-stack-operations": {
+    title: "Fusão e consumo de pilhas na UE 5.7 em ordem cronológica",
+    steps: [
+      "1. Após carregar o DataTable de stack, garanta que `FItemData` tenha campo `Quantity` (ou reuse Durability para stacks) e esteja replicado em `UInventoryComponent` com `ReplicatedUsing=OnRep_Inventory`.",
+      "2. Implemente helper C++ `bool TryMergeIntoSlot(int32 TargetSlot, FItemData& Incoming, bool& bCreatedBonus)` que verifica se o slot alvo contém mesmo Index/Level/SocketBonus, soma Quantity até MaxStack e, se atingir o limite e existir CreateItemIndex, remove a pilha e chama um factory para gerar novo item em outro slot ou no chão. Retorne falso se MaxStack<=0 ou tipos divergentes.",
+      "3. Em `ServerAddItem` (pickup/drop) e `ServerMoveItem`, chame `TryMergeIntoSlot` antes de ocupar um slot vazio. Se `Incoming.Quantity` zerar, remova o item de origem e invoque RPC Client `ClientStackMerged(TargetSlot, bCreatedBonus)` para feedback. Não use packets legados.",
+      "4. Crie função `void ConsumeItemCount(int32 ItemIndex, int32 Level, int32 Count)` no servidor que percorre inventário replicado e consome stacks ou itens avulsos replicando `DeleteInventoryItemCount`; atualize Quantities e remova slots vazios, chamando OnRep para atualizar UI. Use frases de impossibilidade quando regras adicionais não estiverem no código.",
+      "5. No parsing de drops/loja (equivalente a ConvertItemByte), aplique clamp: `Quantity = FMath::Min(Quantity, MaxStack)` para evitar pilhas acima do limite ao criar `FItemData`.",
+      "6. Blueprint: no widget de inventário, ao arrastar um item sobre outro idêntico, chame `ServerMoveItem` e deixe o servidor decidir fusão; em OnRep/ClientStackMerged, atualize contadores visuais. Adicione mensagens quando CreateItemIndex gerar item bônus.",
+      "7. Ordem cronológica sugerida: (a) DataTable/serviço de stack carregado, (b) campo Quantity replicado em FItemData, (c) helpers TryMerge/Consume implementados, (d) integração nos RPCs de pickup/move/compras, (e) clamps em factories de item, (f) UI com feedback. Quando a ordem depender de regra ausente, registre a frase padrão."
+    ]
+  },
   "server-inventory-equipment-effects": {
     title: "Ativar/desativar efeitos de inventário estendido na UE 5.7 sem packets",
     globalOrderStep: 9,
@@ -1516,7 +1544,7 @@ const ueSystems = [
     id: "items-system",
     name: "Sistema de Items",
     status: "Encontrado",
-    mechanicsIds: ["server-protocolcore-dispatch", "server-item-structs", "server-item-packet-structs", "server-item-attribute-loader", "server-380-item-type-map", "server-380-item-option", "server-excellent-option-rate", "server-set-item-option", "server-item-handlers", "server-item-move-matrix", "server-chaos-event-muun-move", "server-muun-system", "server-item-require-checks", "server-item-move-allowlist", "server-item-stack-config", "server-inventory-equipment-effects", "server-socket-item-type", "server-item-option-rate", "server-item-value", "server-item-value-trade", "server-lucky-item-options", "server-harmony-options", "server-custom-jewel", "server-moss-merchant-gamble", "server-jewel-mix", "server-itembag-manager", "server-itembag-ex", "server-item-drop-config", "server-item-get-drop-conditions", "server-item-shop-handlers", "server-mapitem-drop-lifecycle", "server-pk-drop-system", "server-pentagram-system", "client-item-structs", "client-inventory-handling", "server-personal-shop"],
+    mechanicsIds: ["server-protocolcore-dispatch", "server-item-structs", "server-item-packet-structs", "server-item-attribute-loader", "server-380-item-type-map", "server-380-item-option", "server-excellent-option-rate", "server-set-item-option", "server-item-handlers", "server-item-move-matrix", "server-chaos-event-muun-move", "server-muun-system", "server-item-require-checks", "server-item-move-allowlist", "server-item-stack-config", "server-item-stack-operations", "server-inventory-equipment-effects", "server-socket-item-type", "server-item-option-rate", "server-item-value", "server-item-value-trade", "server-lucky-item-options", "server-harmony-options", "server-custom-jewel", "server-moss-merchant-gamble", "server-jewel-mix", "server-itembag-manager", "server-itembag-ex", "server-item-drop-config", "server-item-get-drop-conditions", "server-item-shop-handlers", "server-mapitem-drop-lifecycle", "server-pk-drop-system", "server-pentagram-system", "client-item-structs", "client-inventory-handling", "server-personal-shop"],
     codeSummary: "ProtocolCore (Protocol.cpp) roteia C1:22-26/32-34 para CItemManager (get/drop/move/use/buy/sell/repair) usando structs CItem/ITEM_INFO; o cliente mantém ITEM e PRECEIVE_INVENTORY para refletir o inventário e renderizar itens/viewport.",
     ue57Summary: "Mapear get/drop/move/use/buy/sell/repair para RPCs Server em Character/InventoryComponent, usar `FItemData` replicado, atores `AWorldItem` para drops e Widgets para UI; marcar campos ausentes com 'NÃO DÁ PARA INFERIR COM SEGURANÇA COM BASE NO CÓDIGO-FONTE C++'."
   },
@@ -1524,7 +1552,7 @@ const ueSystems = [
     id: "inventory-system",
     name: "Sistema de Inventory",
     status: "Encontrado",
-    mechanicsIds: ["server-protocolcore-dispatch", "server-character-list", "server-item-structs", "server-item-packet-structs", "server-item-attribute-loader", "server-380-item-type-map", "server-380-item-option", "server-excellent-option-rate", "server-set-item-option", "server-item-handlers", "server-item-move-matrix", "server-chaos-event-muun-move", "server-muun-system", "server-item-require-checks", "server-item-move-allowlist", "server-item-stack-config", "server-inventory-equipment-effects", "server-socket-item-type", "server-item-option-rate", "server-item-value", "server-item-value-trade", "server-lucky-item-options", "server-harmony-options", "server-custom-jewel", "server-moss-merchant-gamble", "server-jewel-mix", "server-itembag-manager", "server-itembag-ex", "server-item-drop-config", "server-item-get-drop-conditions", "server-item-shop-handlers", "server-mapitem-drop-lifecycle", "server-pentagram-system", "client-inventory-handling", "client-item-structs", "server-personal-shop"],
+    mechanicsIds: ["server-protocolcore-dispatch", "server-character-list", "server-item-structs", "server-item-packet-structs", "server-item-attribute-loader", "server-380-item-type-map", "server-380-item-option", "server-excellent-option-rate", "server-set-item-option", "server-item-handlers", "server-item-move-matrix", "server-chaos-event-muun-move", "server-muun-system", "server-item-require-checks", "server-item-move-allowlist", "server-item-stack-config", "server-item-stack-operations", "server-inventory-equipment-effects", "server-socket-item-type", "server-item-option-rate", "server-item-value", "server-item-value-trade", "server-lucky-item-options", "server-harmony-options", "server-custom-jewel", "server-moss-merchant-gamble", "server-jewel-mix", "server-itembag-manager", "server-itembag-ex", "server-item-drop-config", "server-item-get-drop-conditions", "server-item-shop-handlers", "server-mapitem-drop-lifecycle", "server-pentagram-system", "client-inventory-handling", "client-item-structs", "server-personal-shop"],
     codeSummary: "DGCharacterListRecv carrega slots iniciais enquanto CItemManager move/usa/compra/vende/repara itens entre inventário/equipamentos/warehouse/chaos; no cliente, ReceiveInventory/ReceiveGetItem/ReceiveDropItem/ReceiveTradeInventory sincronizam g_pMyInventory, MixInventory e lojas.",
     ue57Summary: "Replicar arrays de inventário/equipamento e saldos em componente anexado ao Character/PlayerState, criar RPCs para transferir/loja/reparar itens e usar hooks OnRep para atualizar UI; validar tamanho e contêiner conforme limites de Item.h e registrar 'NÃO DÁ PARA INFERIR COM SEGURANÇA COM BASE NO CÓDIGO-FONTE C++' quando regras faltarem."
   },
@@ -1707,6 +1735,15 @@ const roadmap = [
     description: "Migrar CheckItemValueTrade para RPCs UE garantindo débito de zen/coins e mensagens de erro replicadas antes de concluir trocas.",
     basedOnCode: true,
     notes: "Baseado diretamente no código C++ (ItemValueTrade.cpp linhas 30-223; ItemValueTrade.h linhas 9-27)."
+  },
+  {
+    id: "roadmap-stack-merge-rpc",
+    horizon: "Curto Prazo",
+    priority: "Alta",
+    mechanicsIds: ["server-item-stack-config", "server-item-stack-operations"],
+    description: "Migrar fusão/consumo de pilhas e criação de item bônus para RPCs UE, substituindo GCItemDurSend/GCItemDeleteSend/GDCreateItemSend por replicação e factories locais.",
+    basedOnCode: true,
+    notes: "Baseado diretamente no código C++ (ItemManager.cpp linhas 1188-1305 e 1916-1945; ItemStack.cpp linhas 26-103)."
   },
   {
     id: "roadmap-pentagram-rpc-migration",
