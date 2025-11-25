@@ -344,6 +344,17 @@ const mechanics = [
     description: "Fluxo servidor que manipula todos os comandos de item do cliente, aplicando regras de bloqueio e contêineres antes de atualizar inventário e responder pelos packets do protocolo original."
   },
   {
+    id: "server-item-shop-handlers",
+    name: "Compra, venda e reparo de itens",
+    type: "Servidor",
+    files: ["ItemManager.cpp", "ItemManager.h"],
+    classes: ["CItemManager"],
+    functions: ["CGItemBuyRecv", "CGItemSellRecv", "CGItemRepairRecv", "CGItemBuyConfirmRecv"],
+    networkDetails: "Sistema de packets original: C1:32 (buy), C1:33 (sell), C1:34 (repair) e C1:32/F3:ED (buy confirm) trafegam itens/slots; respostas usam PMSG_ITEM_BUY/SELL/REPAIR_SEND e atualizam dinheiro ou item stack.",
+    flow: "CGItemBuyRecv valida conexão, Interface=SHOP, TargetShopNumber e Transaction antes de buscar item em gShopManager/GetItemByIndex; aplica tax gCastleSiegeSync, lida com moedas Coin1-3 ou zen, tenta InventoryInsertItemStack/InventoryInsertItem e envia PMSG_ITEM_BUY_SEND com ItemInfo/money. CGItemSellRecv exige interface shop, checa INVENTORY_FULL_RANGE, valida item em Inventory[slot], calcula valor via gItemMove.CheckItemMoveAllowSell e atualiza Money com PMSG_ITEM_SELL_SEND, removendo item e recalculando atributos. CGItemRepairRecv opcionalmente repara tudo (slot 0xFF) ou slot específico, bloqueando trade/NPC inadequado, chama RepairItem para durabilidade e responde com PMSG_ITEM_REPAIR_SEND; recalcula atributos quando reparo é aplicado.",
+    description: "Implementa transações de loja no servidor, incluindo compra com impostos e moedas especiais, venda validando itens permitidos e reparo em lote ou individual com verificação de interface/nível antes de aplicar custos e atualizar inventário/dinheiro."
+  },
+  {
     id: "server-pk-drop-system",
     name: "Drop de itens ao morrer em PK",
     type: "Servidor",
@@ -371,10 +382,10 @@ const mechanics = [
     type: "Cliente",
     files: ["WSclient.cpp"],
     classes: [],
-    functions: ["ReceiveInventory", "ReceiveGetItem", "ReceiveDropItem", "ReceiveCreateItemViewport"],
-    networkDetails: "Sistema de packets original: trata C4:F3:10 (lista de itens), C3:22 (coleta), C1:23 (drop) e criação/remoção de itens no viewport, atualizando g_pMyInventory e tocando efeitos sonoros.",
-    flow: "ReceiveInventory limpa equipamentos/inventário/loja e, para cada PRECEIVE_INVENTORY, decide se equipa ou insere em mochila/loja. ReceiveGetItem interpreta Result 0xFF/0xFE/0xFD, atualiza Gold ou insere item e mensagens. ReceiveDropItem remove item de equipamento/mochila conforme KeyH/KeyL e lida com itens selecionados na UI. ReceiveCreateItemViewport instancia itens em mapa a partir de PCREATE_ITEM posicionando-os com TERRAIN_SCALE.",
-    description: "Camada cliente que aplica os packets de inventário, sincroniza slots e sons de coleta/drop, além de criar/remover representações de itens no mundo."
+    functions: ["ReceiveInventory", "ReceiveDeleteInventory", "ReceiveGetItem", "ReceiveDropItem", "ReceiveTradeInventory", "ReceiveCreateItemViewport"],
+    networkDetails: "Sistema de packets original: interpreta listas completas (C4:F3:10) em PRECEIVE_INVENTORY, confirma exclusão (C1:28), coleta (C3:22), drop (C1:23) e lotes de trade/loja/mix (C1:31) além de criação/remoção de itens no viewport.",
+    flow: "ReceiveInventory zera equipamentos/malas/loja, remove pets (DeleteBug/DeletePet), percorre Value entradas e distribui itens entre equipamentos, mochila e loja pessoal; ReceiveDeleteInventory remove slots específicos e desabilita uso quando Value !=0. ReceiveGetItem trata resultados NOT_GET_ITEM/GET_ITEM_ZEN/GET_ITEM_MULTI, atualiza Gold, insere item ou toca sons específicos, e envia mensagens de chat com nome do item; ReceiveDropItem aplica remoção no slot equipamento/mochila conforme KeyH e faz backup do item selecionado. ReceiveTradeInventory interpreta SubCode (3/5 mix falho/sucesso) tocando sons e reiniciando MixInventory ou popula Shop/Storage com PRECEIVE_INVENTORY recebido. ReceiveCreateItemViewport instancia itens no mapa com coordenadas escaladas e remove via ReceiveDeleteItemViewport quando necessário.",
+    description: "Camada cliente que sincroniza inventário, trade/mix/storage e itens no mundo usando os packets do protocolo original, removendo/atualizando slots e sons conforme respostas do servidor."
   }
 
 ];
@@ -715,6 +726,20 @@ const ueGuides = {
       "12. Para integração visual de equipamentos, no Character Blueprint, anexe SkeletalMesh/StaticMesh a sockets (ex.: `hand_r`, `spine`) usando `AttachToComponent` quando `InventoryComp` emitir um evento `OnRep_Items` indicando novo item com Slot < INVENTORY_WEAR_SIZE. Se faltar mapeamento exato de sockets, documente em comentários como 'NÃO DÁ PARA INFERIR COM SEGURANÇA COM BASE NO CÓDIGO-FONTE C++' e escolha sockets padrão de Character."
     ]
   },
+  "server-item-shop-handlers": {
+    title: "RPCs UE 5.7 para compra, venda e reparo de itens",
+    globalOrderStep: 5,
+    steps: [
+      "1. No `UInventoryComponent`, declare `UFUNCTION(Server, Reliable)` `void ServerRequestBuyItem(int32 ShopSlot);`, `void ServerRequestSellItem(int32 InventorySlot);` e `void ServerRequestRepairItem(int32 InventorySlot, uint8 RepairType);` para substituir C1:32/33/34.",
+      "2. No `.cpp`, em `ServerRequestBuyItem`, valide um estado `bShopOpen` replicado e um identificador de loja (substituindo TargetShopNumber). Use uma `TArray<FShopItemData>` carregada no GameMode para recuperar preço/ItemData e aplique taxa (DataTable/Config) equivalente a gCastleSiegeSync; se a regra de impostos não estiver clara, registre a frase padrão e use zero.",
+      "3. Implemente dedução de moedas replicadas (`Zen`, `Coin1`, `Coin2`, `Coin3`) no PlayerState; utilize `FMath::Clamp` para evitar overflow e chame `OnRep`/widgets após atualizar. Se o item for empilhável, chame um helper `TryStackItem`; caso contrário, use `InventoryComp->SetItemAt`.",
+      "4. Para venda, em `ServerRequestSellItem`, valide o slot com as mesmas checagens de INVENTORY_FULL_RANGE; consulte uma função `int32 GetSellValue(const FItemData&)` (mirroring gItemMove.CheckItemMoveAllowSell) e credite a moeda correspondente. Limpe o slot e chame `ClientConfirmSell` (Client, Reliable) para atualizar UI com novo saldo.",
+      "5. Para reparo, implemente `ServerRequestRepairItem` aceitando `InventorySlot` ou `-1` para reparar todos. Aplique custo por item e recalcule atributos (chame `RecalculateStats()` no Character) após ajustar Durability; se algum cálculo estiver ausente no código, registre a frase padrão e pule o item.",
+      "6. Crie Widgets UMG para loja: `WBP_Shop` com botões Buy/Sell/Repair. Nos OnClicked, chame as RPCs Server correspondentes passando o índice do slot e, em sucesso (Client RPC), atualize listas e saldos replicados.",
+      "7. Marque `UInventoryComponent` e PlayerState como replicados. No Character Blueprint, defina **Replicates** e use `GetLifetimeReplicatedProps` para Zen/Coin1/Coin2/Coin3. Teste em PIE abrindo loja, comprando, vendendo e reparando para garantir sincronização sem enviar buffers.",
+      "8. Documente em comentários que PMSG_ITEM_BUY_NEW e headers C1:32/33/34 são substituídos por essas RPCs; quando alguma regra de preço/tributo não for dedutível, anote 'NÃO DÁ PARA INFERIR COM SEGURANÇA COM BASE NO CÓDIGO-FONTE C++' para revisão."
+    ]
+  },
   "server-pk-drop-system": {
     title: "Queda forçada de itens em mortes PK na UE",
     steps: [
@@ -734,17 +759,17 @@ const ueSystems = [
     id: "items-system",
     name: "Sistema de Items",
     status: "Encontrado",
-    mechanicsIds: ["server-protocolcore-dispatch", "server-item-structs", "server-item-packet-structs", "server-item-handlers", "server-pk-drop-system", "client-item-structs", "client-inventory-handling"],
-    codeSummary: "ProtocolCore (Protocol.cpp) roteia C1:22-26 para CItemManager (get/drop/move/use) usando structs CItem/ITEM_INFO; o cliente mantém ITEM e PRECEIVE_INVENTORY para refletir o inventário e renderizar itens/viewport.",
-    ue57Summary: "Mapear get/drop/move/use para RPCs Server em Character/InventoryComponent, usar `FItemData` replicado, atores `AWorldItem` para drops e Widgets para UI; marcar campos ausentes com 'NÃO DÁ PARA INFERIR COM SEGURANÇA COM BASE NO CÓDIGO-FONTE C++'."
+    mechanicsIds: ["server-protocolcore-dispatch", "server-item-structs", "server-item-packet-structs", "server-item-handlers", "server-item-shop-handlers", "server-pk-drop-system", "client-item-structs", "client-inventory-handling"],
+    codeSummary: "ProtocolCore (Protocol.cpp) roteia C1:22-26/32-34 para CItemManager (get/drop/move/use/buy/sell/repair) usando structs CItem/ITEM_INFO; o cliente mantém ITEM e PRECEIVE_INVENTORY para refletir o inventário e renderizar itens/viewport.",
+    ue57Summary: "Mapear get/drop/move/use/buy/sell/repair para RPCs Server em Character/InventoryComponent, usar `FItemData` replicado, atores `AWorldItem` para drops e Widgets para UI; marcar campos ausentes com 'NÃO DÁ PARA INFERIR COM SEGURANÇA COM BASE NO CÓDIGO-FONTE C++'."
   },
   {
     id: "inventory-system",
     name: "Sistema de Inventory",
     status: "Encontrado",
-    mechanicsIds: ["server-protocolcore-dispatch", "server-character-list", "server-item-structs", "server-item-packet-structs", "server-item-handlers", "client-inventory-handling", "client-item-structs"],
-    codeSummary: "DGCharacterListRecv carrega slots iniciais enquanto CItemManager move/usa itens entre inventário/equipamentos/warehouse/chaos; no cliente, ReceiveInventory/ReceiveGetItem/ReceiveDropItem sincronizam g_pMyInventory e HUD.",
-    ue57Summary: "Replicar arrays de inventário/equipamento em componente anexado ao Character, criar RPCs para transferir itens e usar hooks OnRep para atualizar UI; validar tamanho e contêiner conforme limites de Item.h e registrar 'NÃO DÁ PARA INFERIR COM SEGURANÇA COM BASE NO CÓDIGO-FONTE C++' quando regras faltarem."
+    mechanicsIds: ["server-protocolcore-dispatch", "server-character-list", "server-item-structs", "server-item-packet-structs", "server-item-handlers", "server-item-shop-handlers", "client-inventory-handling", "client-item-structs"],
+    codeSummary: "DGCharacterListRecv carrega slots iniciais enquanto CItemManager move/usa/compra/vende/repara itens entre inventário/equipamentos/warehouse/chaos; no cliente, ReceiveInventory/ReceiveGetItem/ReceiveDropItem/ReceiveTradeInventory sincronizam g_pMyInventory, MixInventory e lojas.",
+    ue57Summary: "Replicar arrays de inventário/equipamento e saldos em componente anexado ao Character/PlayerState, criar RPCs para transferir/loja/reparar itens e usar hooks OnRep para atualizar UI; validar tamanho e contêiner conforme limites de Item.h e registrar 'NÃO DÁ PARA INFERIR COM SEGURANÇA COM BASE NO CÓDIGO-FONTE C++' quando regras faltarem."
   },
   {
     id: "character-system",
