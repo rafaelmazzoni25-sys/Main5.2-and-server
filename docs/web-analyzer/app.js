@@ -533,6 +533,30 @@ const mechanics = [
     description: "Regra de paridade de troca que garante que zen e moedas especiais cobrirem o valor configurado dos itens negociados, bloqueando e notificando quando faltam recursos."
   },
   {
+    id: "server-personal-shop",
+    name: "Loja pessoal: preço, abertura e compra",
+    type: "Servidor",
+    files: ["PersonalShop.cpp", "PersonalShop.h", "ItemManager.cpp", "CustomStore.cpp", "ServerInfo.h"],
+    classes: ["CPersonalShop"],
+    functions: [
+      "CGPShopSetItemPriceRecv",
+      "CGPShopOpenRecv",
+      "CGPShopCloseRecv",
+      "CGPShopItemListRecv",
+      "CGPShopBuyItemRecv",
+      "CGPShopLeaveRecv",
+      "GetRequireJewelCount",
+      "GetPaymentJewelCount",
+      "SetRequireJewelCount",
+      "SetPaymentJewelCount",
+      "GCPShop*Send",
+      "GDPShop*SaveSend"
+    ],
+    networkDetails: "Sistema original usa packets 0x3F e DataSend nas rotinas GCPShop*/GDPShop* para preço/abertura/lista/compra com persistência no DataServer; na UE 5.7 deve ser substituído por RPCs Server/Client/NetMulticast e replicação de estado de loja, sem uso do protocolo legado.",
+    flow: "CGPShopSetItemPriceRecv valida conexão, slot e existência do item, exige preço >0 (zen ou JoB/JoS/JoC em updates >=802) e nível >5 antes de gravar m_PShopValue/m_PShopJo* e responder com GCPShopSetItemPriceSend. CGPShopOpenRecv verifica switch do ServerInfo, interface livre, mapas proibidos (CA/CC/IT), nível >5 e toggla PShopOpen copiando texto; dispara GCPShopOpenSend e, se já aberto, GCPShopTextChangeSend. CGPShopItemListRecv confirma que o alvo está aberto, nome confere, marca PShopWantDeal/PShopDealerIndex e envia lista via GCPShopItemListSend com hooks gCustomStore. CGPShopBuyItemRecv valida transação/money, verifica preço/joias/saldo/jewels requeridos via GetRequire/PaymentJewelCount e limites de commission; insere item no comprador com InventoryInsertItem, debita zen, registra log, move joias conforme tabelas e remove item do vendedor com GCPShopSellItemSend/GD saves, fechando loja se vazia. CGPShopCloseRecv/LeaveRecv zeram flags de negociação; GCPShopViewportSend varre viewport para anunciar lojas abertas.",
+    description: "Implementa o ciclo completo de loja pessoal: definição de preço (zen ou joias), abertura com texto, listagem segura por nome/índice, compra com validações de saldo/joias/comissão e remoção do item do vendedor, além de persistir valores no DataServer via GDPShopItemValue*."
+  },
+  {
     id: "server-item-option-rate",
     name: "Taxas de opção e geração de opções de item",
     type: "Servidor",
@@ -1188,8 +1212,20 @@ const ueGuides = {
       "1. Depois de carregar ItemValueService, estenda `UInventoryComponent` com RPC `UFUNCTION(Server, Reliable)` `void ServerValidateTrade(const TArray<FItemData>& OfferedItems, APlayerState* Target);` para substituir CheckItemValueTrade.",
       "2. No corpo, some Value/Coin1-3 usando ItemValueService; para itens empilháveis use `Quantity` como durabilidade. Compare com `Money` e moedas replicadas do PlayerState de cada lado; se faltar, chame RPC Client `ClientTradeRejected` com código descritivo.",
       "3. Se válido, debite moedas/zen replicados (ex.: `ModifyMoney(-Money)` no PlayerState) e finalize a troca movendo itens via funções já replicadas de inventário, sem qualquer serialização de packet.",
-      "4. No Widget de Trade, ao aceitar, chame `ServerValidateTrade` passando a lista de itens ofertados; em OnRep das moedas/zen atualize a UI."
+      "4. No Widget de Trade, ao aceitar, chame `ServerValidateTrade` passando a lista de itens ofertados; em OnRep das moedas/zen atualize a UI.",
       "5. Registre sempre a frase padrão quando alguma moeda ou condição da troca não puder ser deduzida do código legado."
+    ]
+  },
+  "server-personal-shop": {
+    title: "Loja pessoal replicada na UE 5.7 (ordem cronológica)",
+    steps: [
+      "1. Após ter o `UInventoryComponent` replicado e o serviço de valor de item disponível, adicione a classe C++ `UPersonalShopComponent` (ActorComponent replicado) anexada ao Character. Declare `UPROPERTY(Replicated)` flags `bShopOpen`, `FString ShopText`, e arrays de preços por slot: `TMap<int32, int32> ZenPrices` e `TMap<int32, FIntVector> JewelPrices` (X=JoB, Y=JoS, Z=JoC).",
+      "2. Implemente RPC `UFUNCTION(Server, Reliable)` `void ServerSetShopPrice(int32 Slot, int32 Zen, int32 JoB, int32 JoS, int32 JoC);` validando Authority, slot válido, item existente no inventário, ao menos um preço >0 (espelhando m_PShopValue/m_PShopJo*), e `Level>5` do Character. Grave nos mapas e marque `bShopOpen` como false se necessário; invoque `OnRep` para atualizar UI.",
+      "3. Adicione RPC `UFUNCTION(Server, Reliable)` `void ServerOpenShop(const FString& Text);` que verifica flags de mapa proibido (DataTable de CA/CC/IT), ausência de Trade/Interface ativa e nível >5 antes de setar `bShopOpen=true`, copiar `ShopText` e fazer `OnRep` para todos. Para fechar, RPC `ServerCloseShop()` limpa `bShopOpen` e texto. Substitui CGPShopOpen/CloseRecv.",
+      "4. Para listar itens de outro jogador, crie RPC `UFUNCTION(Server, Reliable)` `void ServerRequestShopList(APlayerState* ShopOwner);` que valida se o alvo está aberto e não em transação. No sucesso, envie RPC Client `ClientReceiveShopList` com snapshot dos slots/preços e `ShopText`, substituindo GCPShopItemListSend.",
+      "5. Compra: implemente RPC `UFUNCTION(Server, Reliable)` `void ServerBuyShopItem(APlayerState* ShopOwner, int32 Slot);` que valida conexão, preço configurado, item existente, saldo de zen/moedas (usando ItemValueService e preços recebidos), filtros opcionais de joias (`GetRequireJewelCount/PaymentJewelCount` equivalentes) e `bInTransaction` no vendedor. Se válido, use `InventoryComponent->TryAddItem` para comprador, debite zen/joias do comprador, compute comissão (`PersonalShopMoneyCommissionRate/JewelCommissionRate` configuráveis) e credite vendedor; remova o item do vendedor e marque replicação. Use RPC Client `ClientShopResult` para ambos com códigos de erro/sucesso em ordem cronológica de validação.",
+      "6. No Widget UMG de loja pessoal, adicione botões 'Definir Preço', 'Abrir/Fechar' e uma lista de slots do vendedor. No Event Graph, `OnClicked` de 'Definir Preço' chama `ServerSetShopPrice`; 'Abrir' chama `ServerOpenShop`; ao clicar em item listado de outro jogador, chame `ServerBuyShopItem`. Bind `OnRep` de `UPersonalShopComponent` para atualizar UI.",
+      "7. Adicione `NetMulticast` opcional `MulticastShopAnnouncement` para exibir ícone/efeito em players com loja aberta (sugestão genérica se não houver efeito no código). Teste cronologicamente: (a) definir preço, (b) abrir loja, (c) listar em outro cliente, (d) comprar e validar transferências/fechamento automático sem qualquer packet legado."
     ]
   },
   "server-item-option-rate": {
@@ -1275,7 +1311,7 @@ const ueSystems = [
     id: "items-system",
     name: "Sistema de Items",
     status: "Encontrado",
-    mechanicsIds: ["server-protocolcore-dispatch", "server-item-structs", "server-item-packet-structs", "server-item-attribute-loader", "server-380-item-type-map", "server-380-item-option", "server-item-handlers", "server-item-move-matrix", "server-chaos-event-muun-move", "server-item-require-checks", "server-item-move-allowlist", "server-item-stack-config", "server-socket-item-type", "server-item-option-rate", "server-item-value", "server-item-value-trade", "server-lucky-item-options", "server-harmony-options", "server-moss-merchant-gamble", "server-jewel-mix", "server-itembag-manager", "server-item-drop-config", "server-item-get-drop-conditions", "server-item-shop-handlers", "server-mapitem-drop-lifecycle", "server-pk-drop-system", "client-item-structs", "client-inventory-handling"],
+    mechanicsIds: ["server-protocolcore-dispatch", "server-item-structs", "server-item-packet-structs", "server-item-attribute-loader", "server-380-item-type-map", "server-380-item-option", "server-item-handlers", "server-item-move-matrix", "server-chaos-event-muun-move", "server-item-require-checks", "server-item-move-allowlist", "server-item-stack-config", "server-socket-item-type", "server-item-option-rate", "server-item-value", "server-item-value-trade", "server-lucky-item-options", "server-harmony-options", "server-moss-merchant-gamble", "server-jewel-mix", "server-itembag-manager", "server-item-drop-config", "server-item-get-drop-conditions", "server-item-shop-handlers", "server-mapitem-drop-lifecycle", "server-pk-drop-system", "client-item-structs", "client-inventory-handling", "server-personal-shop"],
     codeSummary: "ProtocolCore (Protocol.cpp) roteia C1:22-26/32-34 para CItemManager (get/drop/move/use/buy/sell/repair) usando structs CItem/ITEM_INFO; o cliente mantém ITEM e PRECEIVE_INVENTORY para refletir o inventário e renderizar itens/viewport.",
     ue57Summary: "Mapear get/drop/move/use/buy/sell/repair para RPCs Server em Character/InventoryComponent, usar `FItemData` replicado, atores `AWorldItem` para drops e Widgets para UI; marcar campos ausentes com 'NÃO DÁ PARA INFERIR COM SEGURANÇA COM BASE NO CÓDIGO-FONTE C++'."
   },
@@ -1283,7 +1319,7 @@ const ueSystems = [
     id: "inventory-system",
     name: "Sistema de Inventory",
     status: "Encontrado",
-    mechanicsIds: ["server-protocolcore-dispatch", "server-character-list", "server-item-structs", "server-item-packet-structs", "server-item-attribute-loader", "server-380-item-type-map", "server-380-item-option", "server-item-handlers", "server-item-move-matrix", "server-chaos-event-muun-move", "server-item-require-checks", "server-item-move-allowlist", "server-item-stack-config", "server-socket-item-type", "server-item-option-rate", "server-item-value", "server-item-value-trade", "server-lucky-item-options", "server-harmony-options", "server-moss-merchant-gamble", "server-jewel-mix", "server-itembag-manager", "server-item-drop-config", "server-item-get-drop-conditions", "server-item-shop-handlers", "server-mapitem-drop-lifecycle", "client-inventory-handling", "client-item-structs"],
+    mechanicsIds: ["server-protocolcore-dispatch", "server-character-list", "server-item-structs", "server-item-packet-structs", "server-item-attribute-loader", "server-380-item-type-map", "server-380-item-option", "server-item-handlers", "server-item-move-matrix", "server-chaos-event-muun-move", "server-item-require-checks", "server-item-move-allowlist", "server-item-stack-config", "server-socket-item-type", "server-item-option-rate", "server-item-value", "server-item-value-trade", "server-lucky-item-options", "server-harmony-options", "server-moss-merchant-gamble", "server-jewel-mix", "server-itembag-manager", "server-item-drop-config", "server-item-get-drop-conditions", "server-item-shop-handlers", "server-mapitem-drop-lifecycle", "client-inventory-handling", "client-item-structs", "server-personal-shop"],
     codeSummary: "DGCharacterListRecv carrega slots iniciais enquanto CItemManager move/usa/compra/vende/repara itens entre inventário/equipamentos/warehouse/chaos; no cliente, ReceiveInventory/ReceiveGetItem/ReceiveDropItem/ReceiveTradeInventory sincronizam g_pMyInventory, MixInventory e lojas.",
     ue57Summary: "Replicar arrays de inventário/equipamento e saldos em componente anexado ao Character/PlayerState, criar RPCs para transferir/loja/reparar itens e usar hooks OnRep para atualizar UI; validar tamanho e contêiner conforme limites de Item.h e registrar 'NÃO DÁ PARA INFERIR COM SEGURANÇA COM BASE NO CÓDIGO-FONTE C++' quando regras faltarem."
   },
@@ -1448,6 +1484,15 @@ const roadmap = [
     description: "Migrar CheckItemValueTrade para RPCs UE garantindo débito de zen/coins e mensagens de erro replicadas antes de concluir trocas.",
     basedOnCode: true,
     notes: "Baseado diretamente no código C++ (ItemValueTrade.cpp linhas 30-223; ItemValueTrade.h linhas 9-27)."
+  },
+  {
+    id: "roadmap-personal-shop-migration",
+    horizon: "Médio Prazo",
+    priority: "Alta",
+    mechanicsIds: ["server-personal-shop"],
+    description: "Migrar fluxo de loja pessoal (definir preço, abrir, listar, comprar) para componentes replicados e RPCs UE, substituindo packets 0x3F e salvamentos GDPShop*.",
+    basedOnCode: true,
+    notes: "Baseado diretamente no código C++ (PersonalShop.cpp linhas 281-744; ServerInfo.h linhas 101-103; ItemManager.cpp linhas 2380-3793)."
   },
   {
     id: "roadmap-harmony-option-service",
