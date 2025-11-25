@@ -377,6 +377,28 @@ const mechanics = [
     description: "Aplica filtros de estado, tipo de item e regras especiais para pegar itens do mapa ou soltá-los, tratando zen, rings únicos, eventos e drops bloqueados antes de alterar inventário e responder ao cliente."
   },
   {
+    id: "server-380-item-option",
+    name: "Opções 380 e aplicação em atributos",
+    type: "Servidor",
+    files: ["380ItemOption.cpp", "380ItemOption.h"],
+    classes: ["C380ItemOption"],
+    functions: ["Load", "Calc380ItemOption", "InsertOption", "Is380Item", "SetInfo", "GetInfo"],
+    networkDetails: "Sem envio direto; calcula bônus em LPOBJ ao equipar itens com flag 0x80 (m_ItemOptionEx) usando tabelas 380 carregadas.",
+    flow: "Load lê ITEM_380_OPTION_INFO via MemScript (Index, Name, Value), inicializa m_380ItemOptionInfo e armazena por índice; Calc380ItemOption percorre INVENTORY_WEAR_SIZE, verifica IsItem/Is380Item e consulta g380ItemType.Get380ItemOptionIndex/Value para até 2 opções, aplicando InsertOption que soma AttackSuccessRatePvP, DamagePvP, DefenseSuccessRatePvP, DefensePvP, AddLife, AddShield ou SDRecovery em lpObj quando flag==0.",
+    description: "Gerencia tabela de opções 380 e aplica bônus PvP/SD/HP quando itens com bit 0x80 estão equipados, usando valores do script ou overrides por item." 
+  },
+  {
+    id: "server-380-item-type-map",
+    name: "Mapeamento de opções 380 por item",
+    type: "Servidor",
+    files: ["380ItemType.cpp", "380ItemType.h"],
+    classes: ["C380ItemType"],
+    functions: ["Load", "Check380ItemType", "Get380ItemOptionIndex", "Get380ItemOptionValue"],
+    networkDetails: "Nenhum packet direto; fornece índices/valores para C380ItemOption construir bônus ao equipar.",
+    flow: "Load lê ITEM_380_TYPE_INFO via MemScript, converte par (type,index) com GET_ITEM e armazena OptionIndex/OptionValue (2 posições) em std::map m_380ItemTypeInfo; Check380ItemType testa existência; Get380ItemOptionIndex/Value retornam dados ou -1 quando fora do mapa ou fora do range.",
+    description: "Tabela que vincula itens específicos a até duas opções 380 e valores associados, servindo de base para o cálculo de bônus no equipamento." 
+  },
+  {
     id: "server-item-shop-handlers",
     name: "Compra, venda e reparo de itens",
     type: "Servidor",
@@ -911,6 +933,30 @@ const ueGuides = {
     ]
   },
 
+  "server-380-item-type-map": {
+    title: "Ordem UE 5.7: mapa de opções 380 por item",
+    globalOrderStep: 2,
+    steps: [
+      "1. No Editor, crie um **Blueprint Struct** `FItem380TypeRow` com campos `int32 ItemIndex`, `int32 OptionIndex[2]`, `int32 OptionValue[2]` refletindo ITEM_380_TYPE_INFO.",
+      "2. Em **Add → Miscellaneous → Data Table**, escolha `FItem380TypeRow` e nomeie `DT_Item380Type`; preencha linhas com pares ItemIndex/OptionIndex/OptionValue conforme scripts do servidor. Se faltar linha ou valor no código, registre 'NÃO DÁ PARA INFERIR COM SEGURANÇA COM BASE NO CÓDIGO-FONTE C++' no comentário da linha.",
+      "3. Crie um **Game Instance Subsystem** `UItem380TypeService` com `UPROPERTY()` `TMap<int32, FItem380TypeRow> TypeMap` e métodos `LoadFromTable` e `bool GetOptionData(int32 ItemIndex, FItem380TypeRow& OutRow)`.",
+      "4. No `.cpp`, em `Initialize`, carregue `DT_Item380Type` (via SoftObjectPath) e preencha `TypeMap`; implemente `GetOptionData` retornando falso quando não achar o item. Não use parsing de bytes ou packets do legado: apenas DataTable e RPCs se necessário.",
+      "5. No Character ou InventoryComponent, ao equipar item, chame `GetSubsystem<UItem380TypeService>()->GetOptionData(ItemIndex, Row)` para decidir se o item é 380 e armazenar OptionIndex/Value replicados para uso pelos bônus."
+    ]
+  },
+
+  "server-380-item-option": {
+    title: "Ordem UE 5.7: aplicar bônus 380 em atributos",
+    globalOrderStep: 3,
+    steps: [
+      "1. Crie um **Blueprint Struct** `FItem380OptionRow` com `int32 Index`, `FString Name`, `int32 Value` espelhando ITEM_380_OPTION_INFO e gere `DT_Item380Option` como DataTable correspondente.",
+      "2. No mesmo subsystem `UItemRuleSubsystem` ou um novo `UItem380OptionService`, adicione `TMap<int32, FItem380OptionRow> OptionMap` e método `void Apply380Options(ACharacter* Target, const FItem380TypeRow& TypeRow, bool bRemove);`.",
+      "3. Implemente `Apply380Options` iterando `OptionIndex[0..1]`; para cada índice válido, consulte `OptionMap` para obter Value ou use `TypeRow.OptionValue` quando disponível, aplicando em variáveis replicadas do personagem (`AttackSuccessRatePvP`, `DamagePvP`, `DefenseSuccessRatePvP`, `DefensePvP`, `BonusMaxHP`, `BonusMaxSD`, `SDRecoveryType`, `SDRecoveryRate`). Quando um campo não existir no personagem, registre a frase padrão e pule a aplicação.",
+      "4. No Character, adicione `UPROPERTY(Replicated)` para os atributos acima e `UFUNCTION(Server, Reliable)` `void ServerRecalculate380Options();` que obtém itens equipados do InventoryComponent, consulta `UItem380TypeService` e chama `Apply380Options` com bRemove=true antes de reaplicar.",
+      "5. Configure `OnRep` para atributos relevantes para atualizar HUD ou efeitos locais; não use nenhum packet legado. Teste em PIE equipando/remoção de itens marcados como 380 e valide replicação em múltiplos clientes seguindo a ordem: carregar DataTables → equipar item → recalcular → atualizar UI."
+    ]
+  },
+
   "server-item-handlers": {
     title: "Plano UE 5.7 para sistema de itens (dados, inventário, drop e uso)",
     globalOrderStep: 4,
@@ -1101,7 +1147,7 @@ const ueSystems = [
     id: "items-system",
     name: "Sistema de Items",
     status: "Encontrado",
-    mechanicsIds: ["server-protocolcore-dispatch", "server-item-structs", "server-item-packet-structs", "server-item-attribute-loader", "server-item-handlers", "server-item-move-matrix", "server-chaos-event-muun-move", "server-item-require-checks", "server-item-move-allowlist", "server-item-stack-config", "server-item-option-rate", "server-lucky-item-options", "server-moss-merchant-gamble", "server-itembag-manager", "server-item-drop-config", "server-item-get-drop-conditions", "server-item-shop-handlers", "server-mapitem-drop-lifecycle", "server-pk-drop-system", "client-item-structs", "client-inventory-handling"],
+    mechanicsIds: ["server-protocolcore-dispatch", "server-item-structs", "server-item-packet-structs", "server-item-attribute-loader", "server-380-item-type-map", "server-380-item-option", "server-item-handlers", "server-item-move-matrix", "server-chaos-event-muun-move", "server-item-require-checks", "server-item-move-allowlist", "server-item-stack-config", "server-item-option-rate", "server-lucky-item-options", "server-moss-merchant-gamble", "server-itembag-manager", "server-item-drop-config", "server-item-get-drop-conditions", "server-item-shop-handlers", "server-mapitem-drop-lifecycle", "server-pk-drop-system", "client-item-structs", "client-inventory-handling"],
     codeSummary: "ProtocolCore (Protocol.cpp) roteia C1:22-26/32-34 para CItemManager (get/drop/move/use/buy/sell/repair) usando structs CItem/ITEM_INFO; o cliente mantém ITEM e PRECEIVE_INVENTORY para refletir o inventário e renderizar itens/viewport.",
     ue57Summary: "Mapear get/drop/move/use/buy/sell/repair para RPCs Server em Character/InventoryComponent, usar `FItemData` replicado, atores `AWorldItem` para drops e Widgets para UI; marcar campos ausentes com 'NÃO DÁ PARA INFERIR COM SEGURANÇA COM BASE NO CÓDIGO-FONTE C++'."
   },
@@ -1109,7 +1155,7 @@ const ueSystems = [
     id: "inventory-system",
     name: "Sistema de Inventory",
     status: "Encontrado",
-    mechanicsIds: ["server-protocolcore-dispatch", "server-character-list", "server-item-structs", "server-item-packet-structs", "server-item-attribute-loader", "server-item-handlers", "server-item-move-matrix", "server-chaos-event-muun-move", "server-item-require-checks", "server-item-move-allowlist", "server-item-stack-config", "server-item-option-rate", "server-lucky-item-options", "server-moss-merchant-gamble", "server-itembag-manager", "server-item-drop-config", "server-item-get-drop-conditions", "server-item-shop-handlers", "server-mapitem-drop-lifecycle", "client-inventory-handling", "client-item-structs"],
+    mechanicsIds: ["server-protocolcore-dispatch", "server-character-list", "server-item-structs", "server-item-packet-structs", "server-item-attribute-loader", "server-380-item-type-map", "server-380-item-option", "server-item-handlers", "server-item-move-matrix", "server-chaos-event-muun-move", "server-item-require-checks", "server-item-move-allowlist", "server-item-stack-config", "server-item-option-rate", "server-lucky-item-options", "server-moss-merchant-gamble", "server-itembag-manager", "server-item-drop-config", "server-item-get-drop-conditions", "server-item-shop-handlers", "server-mapitem-drop-lifecycle", "client-inventory-handling", "client-item-structs"],
     codeSummary: "DGCharacterListRecv carrega slots iniciais enquanto CItemManager move/usa/compra/vende/repara itens entre inventário/equipamentos/warehouse/chaos; no cliente, ReceiveInventory/ReceiveGetItem/ReceiveDropItem/ReceiveTradeInventory sincronizam g_pMyInventory, MixInventory e lojas.",
     ue57Summary: "Replicar arrays de inventário/equipamento e saldos em componente anexado ao Character/PlayerState, criar RPCs para transferir/loja/reparar itens e usar hooks OnRep para atualizar UI; validar tamanho e contêiner conforme limites de Item.h e registrar 'NÃO DÁ PARA INFERIR COM SEGURANÇA COM BASE NO CÓDIGO-FONTE C++' quando regras faltarem."
   },
@@ -1247,6 +1293,24 @@ const roadmap = [
     description: "Carregar tabelas de Rate 0-6 em DataTables UE e validar pesos antes de usá-las em drop/loja, replicando o fluxo de CItemOptionRate::Load/GetItemOption*.",
     basedOnCode: true,
     notes: "Baseado diretamente no código C++ (ItemOptionRate.cpp linhas 33-132 e 140-205)."
+  },
+  {
+    id: "roadmap-380-type-mapping",
+    horizon: "Curto Prazo",
+    priority: "Média",
+    mechanicsIds: ["server-380-item-type-map"],
+    description: "Migrar ITEM_380_TYPE_INFO para DataTable UE e validar leitura de OptionIndex/OptionValue antes de aplicar em equipamentos.",
+    basedOnCode: true,
+    notes: "Baseado diretamente no código C++ (380ItemType.cpp linhas 24-70)."
+  },
+  {
+    id: "roadmap-380-option-application",
+    horizon: "Médio Prazo",
+    priority: "Alta",
+    mechanicsIds: ["server-380-item-option"],
+    description: "Reaplicar bônus AttackSuccessRatePvP/DamagePvP/DefensePvP/HP/SD/SDRecovery em atributos replicados ao equipar itens 380.",
+    basedOnCode: true,
+    notes: "Baseado diretamente no código C++ (380ItemOption.cpp linhas 16-92)."
   },
   {
     id: "roadmap-lucky-item-service",
