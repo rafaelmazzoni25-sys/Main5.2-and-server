@@ -178,6 +178,17 @@ const mechanics = [
     description: "Gerencia reconexão para map server diferente após login, persistindo dados de servidor e ID do herói, disponibilizando getters e reinicializando estado local antes de enviar a troca."
   },
   {
+    id: "client-quest-reception",
+    name: "Recepção e aplicação de estados de Quest",
+    type: "Cliente",
+    files: ["WSclient.cpp", "CSQuest.h", "QuestMng.h"],
+    classes: ["CQuestMng"],
+    functions: ["ReceiveQuestHistory", "ReceiveQuestState", "ReceiveQuestResult", "ReceiveQuestPrize", "ReceiveEventCount"],
+    networkDetails: "Sistema de packets do projeto original: funções chamadas pelo dispatcher tratam buffers com estados/conclusões de quest, recompensas e contagem de evento.",
+    flow: "ReceiveQuestHistory lê m_byQuest/m_byCount e chama g_csQuest.setQuestLists usando a classe do herói; ReceiveQuestState atualiza uma quest individual e força exibição da interface NPCQUEST; ReceiveQuestResult atualiza estado quando m_byResult==0; ReceiveQuestPrize trata recompensas (level up points ou mudança de classe) disparando efeitos/sons e valida classe via ChangeServerClassTypeToClientClassType; ReceiveEventCount apenas encaminha m_wEventType/m_wLeftEnterCount para g_csQuest.SetEventCount.",
+    description: "Atualiza listas/estados de quest e recompensa o jogador com pontos ou mudança de classe, disparando UI e efeitos locais; na adaptação UE 5.7, esses fluxos devem ser convertidos para RPCs/replicação em vez de buffers C1/C3/C4."
+  },
+  {
     id: "buff-script-load",
     name: "Carga e descriptografia de BuffEffect_*.bmd",
     type: "Cliente",
@@ -1347,6 +1358,44 @@ const ueGuides = {
       "6. No UI (Widget de inventário), conecte botões de \"Pegar\" (em overlay de `AWorldItem`) para chamar `ServerRequestGetWorldItem` e botões de \"Dropar\" para chamar `ServerRequestDropItem` com `GetHitResultUnderCursor`. Teste cenários de anel duplicado e zen para confirmar a lógica."
     ]
   },
+
+  "server-trade-flow": {
+    title: "Fluxo de trade UE 5.7 sem packets legados (ordem cronológica)",
+    steps: [
+      "1. Após replicar inventário e moedas, crie componente `UTradeComponent` no PlayerController com `UPROPERTY(ReplicatedUsing=OnRep_TradeState)` contendo `TArray<FItemData> TradeSlots` (tamanho TRADE_BOX_SIZE), `int32 TradeZen`, `bool bTradeLocked` e `bool bTradeOk`.",
+      "2. Adicione RPCs `UFUNCTION(Server, Reliable)` `void ServerRequestTrade(APlayerController* Target);`, `void ServerAcceptTrade();`, `void ServerMoveTradeItem(int32 FromSlot, int32 ToSlot);`, `void ServerSetTradeZen(int32 Amount);`, `void ServerLockTrade(bool bLock);` e `void ServerConfirmTrade(bool bOk);` substituindo os cabeçalhos C1:3C-3D. Cada RPC deve validar Authority, distância (LineTrace ou radius) e estados de UI antes de mutar TradeState.",
+      "3. No GameMode, mantenha mapa de sessões de trade (`TMap<FString, FTradeSession>`) para parear iniciador e alvo; ao aceitar, inicialize TradeSlots vazios em ambos os componentes e limpe qualquer referência anterior. Registre 'NÃO DÁ PARA INFERIR COM SEGURANÇA COM BASE NO CÓDIGO-FONTE C++' quando alguma regra de distância/estado não estiver explícita.",
+      "4. Em `ServerMoveTradeItem`, remova itens do inventário replicado e insira em `TradeSlots`, usando helpers de empilhamento já criados; bloqueie quando bTradeLocked for true. Replica alterações com OnRep e chame RPC Client `ClientTradeItemMoved` para feedback.",
+      "5. Em `ServerLockTrade`, marque `bTradeLocked` e envie RPC Client `ClientTradeLocked`. Quando ambos marcarem `bTradeLocked`, habilite o botão de confirmação (OK). Em `ServerConfirmTrade`, marque `bTradeOk`; quando ambos estiverem true, transfira itens/zen entre inventários, recalculando stacks e disparando OnRep para UI. Desfaça transação se algum slot não puder ser inserido, retornando erros via `ClientTradeError`.",
+      "6. Blueprint/UI: crie Widget de trade com grids ligados a `TradeSlots` e `TradeZen`. Conecte botões para chamar os RPCs acima e use `OnRep_TradeState` para atualizar ícones/quantidades. Teste em ordem: solicitar trade → aceitar → mover itens → travar → confirmar → validar rollback/sucesso, sempre sem usar DataSend/DataRecv.",
+      "7. Adicione logs de depuração em cada transição de estado usando `UE_LOG(LogTrade, Log, TEXT(...))` para facilitar a migração e substitua quaisquer chamadas `DataSend`/`GCTradeResultSend` por RPCs/replicação."
+    ]
+  },
+
+  "client-mapserver-transition": {
+    title: "Mudança de Map Server em UE 5.7 (sequência prática)",
+    steps: [
+      "1. Substitua `CSMServer::ConnectChangeMapServer` por um fluxo de nível/servidor em UE: no GameInstance, crie função `RequestMapTravel(const FServerTravelInfo& Info)` contendo Address/Port/LevelName/AuthToken e mantenha `CurrentMapServer` replicado via GameState para todos os clientes.",
+      "2. Após login, quando o servidor desejar mover o jogador, chame RPC Client `ClientPrepareMapTravel(FServerTravelInfo Info)` no PlayerController. Esse RPC deve armazenar Info e apresentar um widget de carregamento, eliminando qualquer envio de cabeçalho BOTH_CONNECT_LOGIN ou chamadas `SendChangeMServer`.",
+      "3. No lado servidor, valide que o jogador não está em trade/chaos/vault antes de autorizar a troca. Quando autorizado, use `ServerTravel` (para troca de mapa dedicada) ou `ClientTravel` (para mundos abertos) com parâmetros `?AuthToken=` derivados de Info.HeroKey/Index. Documente com a frase padrão quando alguma condição de bloqueio não estiver clara no código original.",
+      "4. Ao carregar o novo mapa, no `GameMode::PostLogin`, replique `CurrentMapServer` e chame RPC Client `ClientSyncHeroContext` para reatribuir HeroID/Slot, recarregar inventário via `ClientReceiveInventory` e reconfigurar Buffs. Essa ordem substitui totalmente o handshake de reconexão com sockets e pacotes C1/C3/C4.",
+      "5. Para transições rápidas (ex.: eventos), implemente `AsyncLoadLevel` com LevelStreaming e, ao concluir, teleporte o personagem server-side e atualize `CurrentMapServer`. Use NetMulticast `MulticastMapTransitionFX` para efeitos visuais, garantindo que nada dependa do sistema de packets legado.",
+      "6. Teste em cronologia: (a) login inicial preenche CurrentMapServer, (b) servidor aciona `ClientPrepareMapTravel`, (c) fluxo de travel executa, (d) `PostLogin`/`BeginPlay` repopulam inventário/buffs, (e) verificações finais garantem que nenhum código chama WSclient ou ProtocolSend para mudar de mapa."
+    ]
+  },
+
+  "server-warehouse-sync": {
+    title: "Sincronizar Warehouse na UE 5.7 sem packets legados",
+    steps: [
+      "1. Crie um **Game Instance Subsystem** `UWarehouseSubsystem` (Add → New C++ Class → Game Instance Subsystem) para armazenar `TArray<FItemData> WarehouseSlots` do tamanho `WAREHOUSE_SIZE` e `int32 WarehouseMoney`, todos marcados como `UPROPERTY(Replicated)`. Implemente `GetLifetimeReplicatedProps` para esses campos.",
+      "2. No PlayerController `ANetworkPC`, declare RPCs `UFUNCTION(Server, Reliable)` `void ServerRequestWarehouseOpen();`, `void ServerMoveWarehouseItem(int32 FromSlot, int32 ToSlot);` e `void ServerWarehouseDeposit(int32 InventorySlot, int64 Amount);` substituindo os pacotes C1:81/82 usados pelo código original.",
+      "3. No `.cpp` do subsystem, implemente validadores equivalentes a `gWarehouse`: bloquear quando `bWarehouseLock` replicado estiver ativo, garantir que o personagem não esteja em trade/chaos/personal shop e checar rangos com helpers de `UInventoryComponent`. Quando faltar regra explícita no C++, registre 'NÃO DÁ PARA INFERIR COM SEGURANÇA COM BASE NO CÓDIGO-FONTE C++' e rejeite a operação.",
+      "4. Crie RPC Client `UFUNCTION(Client, Reliable)` `void ClientWarehouseSync(const TArray<FItemData>& Slots, int64 Money);` e `void ClientWarehouseError(const FString& Reason);` para substituir PMSG_ITEM_WAREHOUSE_LIST_SEND e mensagens de erro; no handler server, chame o Client após qualquer operação.",
+      "5. No Widget `WBP_Warehouse`, vincule botões Depositar/Retirar a chamadas BlueprintCallable que invocam os RPCs Server; ao receber `ClientWarehouseSync`, popular um GridPanel com os slots e atualizar texto de zen, mantendo a ordem cronológica: abrir → sincronizar → permitir mover/depositar → fechar.",
+      "6. Teste em PIE com duas instâncias, abrindo o warehouse em uma e confirmando que mudanças replicam para o servidor e não usam `gWarehouse` ou buffers C1/C2; documente no Blueprint que todo fluxo usa RPCs/replicação nativa."
+    ]
+  },
+
   "server-item-shop-handlers": {
     title: "RPCs UE 5.7 para compra, venda e reparo de itens",
     globalOrderStep: 5,
@@ -1359,6 +1408,18 @@ const ueGuides = {
       "6. Crie Widgets UMG para loja: `WBP_Shop` com botões Buy/Sell/Repair. Nos OnClicked, chame as RPCs Server correspondentes passando o índice do slot e, em sucesso (Client RPC), atualize listas e saldos replicados.",
       "7. Marque `UInventoryComponent` e PlayerState como replicados. No Character Blueprint, defina **Replicates** e use `GetLifetimeReplicatedProps` para Zen/Coin1/Coin2/Coin3. Teste em PIE abrindo loja, comprando, vendendo e reparando para garantir sincronização sem enviar buffers.",
       "8. Documente em comentários que PMSG_ITEM_BUY_NEW e headers C1:32/33/34 são substituídos por essas RPCs; quando alguma regra de preço/tributo não for dedutível, anote 'NÃO DÁ PARA INFERIR COM SEGURANÇA COM BASE NO CÓDIGO-FONTE C++' para revisão."
+    ]
+  },
+  "server-party-guild-flow": {
+    title: "Fluxo de Party e Guild na UE 5.7 (ordem cronológica)",
+    steps: [
+      "1. No GameMode `AUEProtocolRouter`, declare RPCs Server `void ServerPartyInvite(APlayerController* Target);`, `void ServerPartyResponse(APlayerController* Inviter, bool bAccept);`, `void ServerGuildRequest(const FText& GuildName);`, `void ServerGuildWarRequest(const FString& TargetGuild);` para substituir os casos 0x40-0x43 e 0x50-0x57 do ProtocolCore.",
+      "2. Crie componentes replicados `UPartyComponent` e `UGuildComponent` anexados ao PlayerState com `UPROPERTY(Replicated)` para PartyId/GuildId/GuildStatus e arrays de membros. Implemente `GetLifetimeReplicatedProps` e eventos `OnRep_PartyMembers`/`OnRep_GuildMembers` para atualizar UI.",
+      "3. No Server de convite, valide que nenhum dos jogadores está em duel/trade/chaos ou desconectado; se o código original tiver bloqueios adicionais não claros, registre a frase padrão de não inferência e retorne erro. Em sucesso, chame RPC Client `ClientReceivePartyInvite` no alvo.",
+      "4. Para respostas, ao aceitar, atribua PartyId (por exemplo, GUID) e replique a lista para todos os membros via `NetMulticast` ou atualização das arrays replicadas; ao recusar, chame `ClientPartyInviteResult` apenas no convidador. Evite qualquer envio de cabeçalho C1/C3 usado no legado.",
+      "5. No fluxo de guild, trate `ServerGuildRequest` como criação ou ingresso conforme contexto: valide requisitos de nível/reset disponíveis no código e, quando ausentes, registre a frase padrão e bloqueie. Use DataTables para armazenar regras e persistência via backend, não DataSend.",
+      "6. Para guerras de guild (equivalente a 0x61/0x66), declare RPCs `ServerDeclareGuildWar` e `NetMulticast` `MulticastGuildWarState` atualizando HUDs. Ordem cronológica: (a) convidar/aceitar party, (b) criar/ingressar guild, (c) sincronizar membros, (d) habilitar guerra, sempre sem sistema de packets legado.",
+      "7. Em UMG, crie widgets `WBP_Party` e `WBP_Guild` que leem as arrays replicadas nos componentes; em cada ação de botão, chame RPC Server correspondente. Teste com múltiplos clientes PIE garantindo que convites, entradas e guerras funcionem apenas com RPCs UE."
     ]
   },
   "server-pk-drop-system": {
@@ -1598,6 +1659,45 @@ const ueGuides = {
       "9. Integre persistência chamando `ServerSaveMuunInventory` ao salvar personagem ou desconectar; a implementação pode escrever em SaveGame ou serviço backend em vez de DataServer. Se não houver detalhes de persistência no código além das mensagens C2:27, anote como 'SUGESTÃO GENÉRICA, NÃO DIRETAMENTE INFERIDA DO CÓDIGO-FONTE C++'.",
       "10. Ordem cronológica sugerida: (a) criar DataTables e structs, (b) adicionar arrays replicados e constantes de tamanho, (c) implementar RPCs pickup/use/sell, (d) adicionar tick de aplicação de opções e multicast visual, (e) integrar UI UMG, (f) adicionar salvamento/restore. Quando alguma ordem não puder ser deduzida, documente com a frase padrão."
     ]
+  },
+
+  "client-inventory-handling": {
+    title: "Sincronizar inventário no cliente usando replicação UE 5.7 (ordem cronológica)",
+    steps: [
+      "1. Após criar `UInventoryComponent` replicado, adicione `UPROPERTY(ReplicatedUsing=OnRep_Inventory)` `TArray<FItemData> InventorySlots` do tamanho de INVENTORY_FULL_RANGE e implemente `OnRep_Inventory` para reconstruir widgets sem usar buffers C1/C3/C4.",
+      "2. No PlayerController `ANetworkPC`, crie RPC `UFUNCTION(Client, Reliable)` `void ClientReceiveInventory(const TArray<FItemData>& Slots);` chamado pelo servidor após login/respawn para substituir PRECEIVE_INVENTORY (C4:F3:10). Atualize `InventorySlots` e invoque `OnRep_Inventory`.",
+      "3. Para remoção de item (equivalente a ReceiveDeleteInventory), declare RPC `UFUNCTION(Client, Reliable)` `void ClientDeleteInventorySlot(int32 Slot, uint8 Reason);` e, no componente, zere o slot e dispare UI/sons com base no Reason. Use enums em vez de cabeçalhos C1:28.",
+      "4. Para coleta/drop (ReceiveGetItem/ReceiveDropItem), reutilize os RPCs de item do guia `server-item-get-drop-conditions` e, no lado do cliente, aplique o delta em `InventorySlots` antes de tocar sons ou mensagens. Documente mensagens desconhecidas com a frase padrão.",
+      "5. Para inventário de trade/loja/mix, declare RPCs dedicados (ClientReliable) que entregam arrays já descriptografados, eliminando toda a lógica de SimpleModulus do WSclient. Preencha `TradeSlots`, `ShopSlots`, `MixSlots` replicados e chame `OnRep` em cada um.",
+      "6. No Widget de inventário (UMG), conecte `OnRep_Inventory` para reconstruir listas e meshes; para efeitos visuais no mapa (ReceiveCreateItemViewport), responda a `MulticastSpawnWorldItem` do servidor em vez de manipular buffers manualmente.",
+      "7. Teste em ordem: (a) login chama `ClientReceiveInventory`, (b) dropar item e receber `ClientDeleteInventorySlot`, (c) coletar item e receber atualização, (d) abrir trade/loja e verificar arrays específicos, (e) garantir que nenhum trecho dependa do sistema de packets legado."
+    ]
+  },
+
+  "server-harmony-options": {
+    title: "Aplicar Jewel of Harmony/Smelt/Elevation na UE 5.7 sem packets",
+    steps: [
+      "1. Após carregar serviços de item e sockets, crie DataTable `FHarmonyOptionRow` com campos de JEWEL_OF_HARMONY_OPTION_INFO (Section, Rate, ValueTable[7], MoneyTable[7]) e mapeie índices 0/1/2 para arma/staff/armadura. Carregue no GameInstance em BeginPlay.",
+      "2. No `UInventoryComponent`, declare RPC `UFUNCTION(Server, Reliable)` `void ServerApplyHarmony(int32 SourceSlot, int32 TargetSlot, uint8 Action);` onde Action=0 aplica Harmony, 1 aplica SmeltStone, 2 aplica Jewel of Elevation. Valide Authority, item em ambos slots e bloqueie Set/Lucky/Socket como no código; registre a frase padrão quando algum filtro não estiver claro.",
+      "3. Em ação 0 (AddJewelOfHarmonyOption), sorteie opção/tier usando `FHarmonyOptionRow` e `FRandomStream`, limite nível conforme m_HarmonySuccessRate[AccountLevel] e reconverta o item chamando helper `RebuildItemStats`. Atualize arrays replicados e envie `ClientHarmonyResult` (RPC Client) com sucesso/erro.",
+      "4. Em ação 1 (AddSmeltStoneOption), incremente nível até 13 conforme taxas configuráveis (m_SmeltStoneSuccessRate1/2) e zere para nível base em falha; sempre marque OnRep no inventário e reavalie atributos do personagem. Documente taxas desconhecidas com a frase padrão.",
+      "5. Em ação 2 (AddJewelOfElevationOption), aplique Harmony em Lucky Items limitando nível a 13, reaproveitando o fluxo de sucesso/erro e a recalculação de CharSet/preview.",
+      "6. No Widget UMG de Harmony, crie botões 'Aplicar Harmony', 'Smelt' e 'Elevation'. No Event Graph, chame `ServerApplyHarmony` com Action apropriada e mostre feedback com base no retorno de `ClientHarmonyResult`. Garanta ordem cronológica: carregar DataTable → habilitar RPC → conectar UI.",
+      "7. Remova qualquer referência a DataSend/DataRecv/ProtocolCore; toda comunicação ocorre via RPCs e variáveis replicadas." 
+    ]
+  },
+
+  "server-item-stack-operations": {
+    title: "Empilhar/fundir itens replicados na UE (sequência passo a passo)",
+    steps: [
+      "1. Depois de definir `InventorySlots` replicados, adicione helpers `int32 GetMaxStack(int32 ItemIndex)` e `int32 GetCreateItemIndex(int32 ItemIndex)` consumindo DataTable equivalente a ItemStack.txt; retorne -1 e registre a frase padrão quando faltarem dados.",
+      "2. Crie RPC `UFUNCTION(Server, Reliable)` `void ServerStackItem(int32 SourceSlot, int32 TargetSlot);` validando Authority, existência de itens e compatibilidade de Index/Level/SocketBonus. Rejeite se Target estiver equipado ou se MaxStack<=0.",
+      "3. Ao empilhar, some `Quantity` (ou Durability para compatibilidade) até MaxStack; se exceder e `CreateItemIndex` estiver definido, gere um novo item com esse índice e remova a pilha original, replicando ambos os slots. Caso contrário, atualize a quantidade e, se zerar o Source, limpe o slot.",
+      "4. Para fusão em coleta (equivalente a InventoryInsertItemStack), reutilize o helper em `ServerRequestGetWorldItem` antes de inserir em slot vazio, respeitando MaxStack e criando item bônus quando aplicável.",
+      "5. Ao consumir itens por contagem (equivalente a DeleteInventoryItemCount), implemente função `bool ConsumeStackItem(int32 ItemIndex, int32 Count)` que percorre o inventário server-side, decrementa quantidades e replica alterações; retorne false quando faltar item e registre em log se alguma regra de exclusão não puder ser inferida.",
+      "6. Exponha BlueprintCallable `bool CanStackItem(const FItemData& A, const FItemData& B)` para UIs decidirem quando permitir arrastar sobre outro slot. Em widgets, use Branch para bloquear quando `CanStackItem` for falso ou quando MaxStack já estiver atingido.",
+      "7. Teste cronologicamente: (a) carregar DataTable de stack, (b) empilhar manualmente via UI, (c) coletar itens que autoempilham, (d) consumir pilhas para crafting/compras, (e) verificar criação automática de item bônus, sempre sem packets legados." 
+    ]
   }
 
 };
@@ -1634,6 +1734,14 @@ const ueSystems = [
     mechanicsIds: [],
     codeSummary: "NÃO DÁ PARA INFERIR COM SEGURANÇA COM BASE NO CÓDIGO-FONTE C++",
     ue57Summary: "NÃO DÁ PARA INFERIR COM SEGURANÇA COM BASE NO CÓDIGO-FONTE C++"
+  },
+  {
+    id: "quest-system",
+    name: "Sistema de Quests",
+    status: "Encontrado",
+    mechanicsIds: ["client-quest-reception"],
+    codeSummary: "WSclient.cpp recebe histórico, estado, resultado e recompensa de quest, atualiza g_csQuest e dispara UI/efeitos locais para pontos e mudança de classe.",
+    ue57Summary: "Replicar arrays de quest em componente de PlayerState, expor RPCs Server/Client para atualizar estados e recompensas e abrir widgets UMG; substituir mensagens C1/C3/C4 por replicação e Multicast para efeitos visuais."
   },
   {
     id: "appearance-by-items",
@@ -1807,6 +1915,24 @@ const roadmap = [
     description: "Migrar fusão/consumo de pilhas e criação de item bônus para RPCs UE, substituindo GCItemDurSend/GCItemDeleteSend/GDCreateItemSend por replicação e factories locais.",
     basedOnCode: true,
     notes: "Baseado diretamente no código C++ (ItemManager.cpp linhas 1188-1305 e 1916-1945; ItemStack.cpp linhas 26-103)."
+  },
+  {
+    id: "roadmap-quest-rpc-migration",
+    horizon: "Curto Prazo",
+    priority: "Alta",
+    mechanicsIds: ["client-quest-reception"],
+    description: "Transformar ReceiveQuestHistory/State/Result/Prize/EventCount em RPCs UE 5.7, replicando arrays de quest e recompensas sem usar buffers C1/C3/C4.",
+    basedOnCode: true,
+    notes: "Baseado diretamente no código C++ (WSclient.cpp linhas 9529-9606)."
+  },
+  {
+    id: "roadmap-quest-ui-sync",
+    horizon: "Médio Prazo",
+    priority: "Média",
+    mechanicsIds: ["client-quest-reception"],
+    description: "Recriar interface NPCQUEST em UMG com sequências cronológicas: replicar estados, abrir a tela ao receber RPC de quest, aplicar recompensas (pontos/classe) e efeitos com Multicast.",
+    basedOnCode: true,
+    notes: "Baseado diretamente no código C++ (WSclient.cpp linhas 9529-9606)."
   },
   {
     id: "roadmap-pentagram-rpc-migration",
@@ -2123,6 +2249,24 @@ const roadmap = [
     description: "Recriar na UE 5.7 as verificações de estado (DieRegen, Interface, Transaction), filtros de evento/Muun/quest e restrições de rings/zen antes de pegar ou dropar itens.",
     basedOnCode: true,
     notes: "Baseado diretamente no código C++ (ItemManager.cpp linhas 3123-3338)."
+  },
+  {
+    id: "roadmap-warehouse-rpc",
+    horizon: "Curto Prazo",
+    priority: "Alta",
+    mechanicsIds: ["server-warehouse-sync"],
+    description: "Substituir PMSG_ITEM_WAREHOUSE_LIST_SEND e C1:81/82 por RPCs Server/Client replicando slots e zen do warehouse com validadores de lock/estado.",
+    basedOnCode: true,
+    notes: "Baseado diretamente no código C++ (ItemManager.cpp linhas 3339-3520 e Protocol.cpp cases 0x81-0x83)."
+  },
+  {
+    id: "roadmap-party-guild-rpc",
+    horizon: "Médio Prazo",
+    priority: "Média",
+    mechanicsIds: ["server-party-guild-flow"],
+    description: "Migrar convites de party e guild, confirmações e guerras (cases 0x40-0x43 e 0x50-0x57) para RPCs UE com componentes replicados para membros e status.",
+    basedOnCode: true,
+    notes: "Baseado diretamente no código C++ (Protocol.cpp cases de party/guild e GuildClass.cpp regras de criação)."
   }
 
 ];
