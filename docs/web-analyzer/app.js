@@ -671,6 +671,27 @@ const mechanics = [
     description: "Especializa regras de sorteio e restauração para Lucky Items, encadeando a tabela de taxas global e reconstruindo o item com Convert para refletir mudanças visuais."
   },
   {
+    id: "server-lucky-item-decay-sync",
+    name: "Carga, regeneração e sincronização de durabilidade de Lucky Items",
+    type: "Servidor",
+    files: ["LuckyItem.cpp", "LuckyItem.h"],
+    classes: ["CLuckyItem"],
+    functions: [
+      "Load",
+      "IsLuckyItem",
+      "GetLuckyItemIndex",
+      "GetLuckyItemDecay",
+      "CharacterUseJewelOfExtension",
+      "CharacterUseJewelOfElevation",
+      "DGLuckyItemRecv",
+      "GDLuckyItemSend",
+      "GDLuckyItemSaveSend"
+    ],
+    networkDetails: "Sistema original usa mensagens C2:22:00 (send/recv) e C2:22:30 entre GameServer e DataServer para sincronizar slots/seriais e m_DurabilitySmall de itens Lucky; na UE 5.7 isso deve ser substituído por RPCs/replicação e salvamento nativo, sem packets legados.",
+    flow: "Load lê LuckyItem.txt via CMemScript preenchendo LUCKY_ITEM_INFO (Index, Group, Decay, Option0-6) no mapa m_LuckyItemInfo. IsLuckyItem verifica presença no mapa. GetLuckyItemIndex percorre o mapa por section/group e chama CheckItemRequireClass antes de devolver o índice. GetLuckyItemDecay retorna Decay por índice. CharacterUseJewelOfExtension valida ranges e existência nos slots fonte/alvo, exige Lucky com durabilidade não 0/255, seta m_Durability=255, reconverte o item com Convert e chama CharacterMakePreviewCharSet. CharacterUseJewelOfElevation delega a AddJewelOfElevationOption. DGLuckyItemRecv valida conta e, para cada SDHP_LUCKY_ITEM1 recebido, confere slot, existência, Lucky e serial antes de gravar m_DurabilitySmall. GDLuckyItemSend percorre INVENTORY_SIZE, coleta slot/serial de Lucky Items e envia PSWMSG_HEAD 0x22:00 ao DataServer. GDLuckyItemSaveSend monta 0x22:30 com serial e DurabilitySmall dos Lucky Items ativos.",
+    description: "Implementa carga de configurações Lucky, checagem de elegibilidade por classe/section, regeneração de durabilidade via Jewel of Extension/Elevation e sincronização periódica com DataServer dos seriais/durabilidades, rejeitando slots inválidos ou itens não Lucky."
+  },
+  {
     id: "server-harmony-options",
     name: "Opções Jewel of Harmony e Smelt/Elevation",
     type: "Servidor",
@@ -1489,6 +1510,18 @@ const ueGuides = {
       "7. Compile e execute dois clientes PIE verificando replicação da durabilidade e atualização visual sem qualquer uso de packets do legado."
     ]
   },
+  "server-lucky-item-decay-sync": {
+    title: "Persistência e sincronização de Lucky Items na UE (ordem cronológica)",
+    steps: [
+      "1. Depois de carregar `ULuckyItemService`, crie um **SaveGame** ou serviço backend `ULuckyItemPersistenceService` com um array `FLuckyItemPersist` (Slot, Serial, DurabilitySmall, ItemIndex). Marque o serviço para iniciar antes do login do jogador, substituindo o tráfego C2:22:00/30.",
+      "2. No `UInventoryComponent`, adicione `UPROPERTY(Replicated)` `TArray<FLuckyItemPersist> LuckySnapshot` para armazenar os dados recebidos do serviço. Exponha `BlueprintCallable` `void ApplyLuckySnapshot(const TArray<FLuckyItemPersist>& Data);` que percorre o inventário replicado, valida serial e Lucky antes de aplicar `DurabilitySmall` semelhante a DGLuckyItemRecv.",
+      "3. Implemente RPC `UFUNCTION(Server, Reliable)` `void ServerSyncLuckyItems();` chamado no BeginPlay do Character após o inventário base estar carregado. No corpo, consulte o serviço de persistência e chame `ClientReceiveLuckySnapshot` (Client, Reliable) enviando o array `FLuckyItemPersist` para popular `LuckySnapshot` e atualizar durabilidade dos slots. Nenhum packet legado deve ser usado.",
+      "4. Adicione RPC `UFUNCTION(Server, Reliable)` `void ServerUseJewelOfExtension(int32 SourceSlot, int32 TargetSlot);` que replica CLuckyItem::CharacterUseJewelOfExtension: valida ranges, existência de itens, `IsLucky`, e durabilidade !=0/255 antes de setar durabilidade máxima e reconverter o item. Após a atualização, invoque `MulticastLuckyRefreshFX` (NetMulticast) opcional para feedback visual.",
+      "5. Para salvar periodicamente, crie função `void CollectLuckySnapshot()` no componente que itera o inventário replicado, filtra Lucky e registra Slot/Serial/DurabilitySmall. No logout/desconexão (GameMode `Logout` ou GameInstance `OnEndPlay`), chame o serviço de persistência para gravar estes dados (SaveGame ou backend), substituindo GDLuckyItemSend/GDLuckyItemSaveSend.",
+      "6. No Widget de inventário, adicione botão 'Sincronizar Lucky' que chama `ServerSyncLuckyItems` e, ao receber `ClientReceiveLuckySnapshot`, percorre dados e atualiza barras de durabilidade na UI. Acrescente mensagens de erro com a frase padrão quando faltar serial/dado necessário.",
+      "7. Ordem cronológica sugerida: (a) criar structs e serviço de persistência, (b) replicar `LuckySnapshot` no inventário, (c) implementar RPC de sincronização na entrada, (d) implementar uso da Jewel of Extension, (e) adicionar coleta/salvamento na saída, (f) ligar UI de sincronização e FX. Se alguma ordem não puder ser inferida, registre a frase padrão." 
+    ]
+  },
   "server-harmony-options": {
     title: "Aplicar e refinar Jewel of Harmony na UE 5.7 (ordem cronológica)",
     steps: [
@@ -1574,7 +1607,7 @@ const ueSystems = [
     id: "items-system",
     name: "Sistema de Items",
     status: "Encontrado",
-    mechanicsIds: ["server-protocolcore-dispatch", "server-item-structs", "server-item-packet-structs", "server-item-attribute-loader", "server-380-item-type-map", "server-380-item-option", "server-excellent-option-rate", "server-set-item-option", "server-custom-quest-rewards", "server-item-handlers", "server-item-move-matrix", "server-chaos-event-muun-move", "server-muun-system", "server-item-require-checks", "server-item-move-allowlist", "server-item-stack-config", "server-item-stack-operations", "server-inventory-equipment-effects", "server-socket-item-type", "server-item-option-rate", "server-item-value", "server-item-value-trade", "server-lucky-item-options", "server-harmony-options", "server-custom-jewel", "server-moss-merchant-gamble", "server-jewel-mix", "server-itembag-manager", "server-itembag-ex", "server-item-drop-config", "server-item-get-drop-conditions", "server-item-shop-handlers", "server-mapitem-drop-lifecycle", "server-pk-drop-system", "server-pentagram-system", "client-item-structs", "client-inventory-handling", "server-personal-shop"],
+    mechanicsIds: ["server-protocolcore-dispatch", "server-item-structs", "server-item-packet-structs", "server-item-attribute-loader", "server-380-item-type-map", "server-380-item-option", "server-excellent-option-rate", "server-set-item-option", "server-custom-quest-rewards", "server-item-handlers", "server-item-move-matrix", "server-chaos-event-muun-move", "server-muun-system", "server-item-require-checks", "server-item-move-allowlist", "server-item-stack-config", "server-item-stack-operations", "server-inventory-equipment-effects", "server-socket-item-type", "server-item-option-rate", "server-item-value", "server-item-value-trade", "server-lucky-item-options", "server-lucky-item-decay-sync", "server-harmony-options", "server-custom-jewel", "server-moss-merchant-gamble", "server-jewel-mix", "server-itembag-manager", "server-itembag-ex", "server-item-drop-config", "server-item-get-drop-conditions", "server-item-shop-handlers", "server-mapitem-drop-lifecycle", "server-pk-drop-system", "server-pentagram-system", "client-item-structs", "client-inventory-handling", "server-personal-shop"],
     codeSummary: "ProtocolCore (Protocol.cpp) roteia C1:22-26/32-34 para CItemManager (get/drop/move/use/buy/sell/repair) usando structs CItem/ITEM_INFO; o cliente mantém ITEM e PRECEIVE_INVENTORY para refletir o inventário e renderizar itens/viewport.",
     ue57Summary: "Mapear get/drop/move/use/buy/sell/repair para RPCs Server em Character/InventoryComponent, usar `FItemData` replicado, atores `AWorldItem` para drops e Widgets para UI; marcar campos ausentes com 'NÃO DÁ PARA INFERIR COM SEGURANÇA COM BASE NO CÓDIGO-FONTE C++'."
   },
@@ -1582,7 +1615,7 @@ const ueSystems = [
     id: "inventory-system",
     name: "Sistema de Inventory",
     status: "Encontrado",
-    mechanicsIds: ["server-protocolcore-dispatch", "server-character-list", "server-item-structs", "server-item-packet-structs", "server-item-attribute-loader", "server-380-item-type-map", "server-380-item-option", "server-excellent-option-rate", "server-set-item-option", "server-custom-quest-rewards", "server-item-handlers", "server-item-move-matrix", "server-chaos-event-muun-move", "server-muun-system", "server-item-require-checks", "server-item-move-allowlist", "server-item-stack-config", "server-item-stack-operations", "server-inventory-equipment-effects", "server-socket-item-type", "server-item-option-rate", "server-item-value", "server-item-value-trade", "server-lucky-item-options", "server-harmony-options", "server-custom-jewel", "server-moss-merchant-gamble", "server-jewel-mix", "server-itembag-manager", "server-itembag-ex", "server-item-drop-config", "server-item-get-drop-conditions", "server-item-shop-handlers", "server-mapitem-drop-lifecycle", "server-pentagram-system", "client-inventory-handling", "client-item-structs", "server-personal-shop"],
+    mechanicsIds: ["server-protocolcore-dispatch", "server-character-list", "server-item-structs", "server-item-packet-structs", "server-item-attribute-loader", "server-380-item-type-map", "server-380-item-option", "server-excellent-option-rate", "server-set-item-option", "server-custom-quest-rewards", "server-item-handlers", "server-item-move-matrix", "server-chaos-event-muun-move", "server-muun-system", "server-item-require-checks", "server-item-move-allowlist", "server-item-stack-config", "server-item-stack-operations", "server-inventory-equipment-effects", "server-socket-item-type", "server-item-option-rate", "server-item-value", "server-item-value-trade", "server-lucky-item-options", "server-lucky-item-decay-sync", "server-harmony-options", "server-custom-jewel", "server-moss-merchant-gamble", "server-jewel-mix", "server-itembag-manager", "server-itembag-ex", "server-item-drop-config", "server-item-get-drop-conditions", "server-item-shop-handlers", "server-mapitem-drop-lifecycle", "server-pentagram-system", "client-inventory-handling", "client-item-structs", "server-personal-shop"],
     codeSummary: "DGCharacterListRecv carrega slots iniciais enquanto CItemManager move/usa/compra/vende/repara itens entre inventário/equipamentos/warehouse/chaos; no cliente, ReceiveInventory/ReceiveGetItem/ReceiveDropItem/ReceiveTradeInventory sincronizam g_pMyInventory, MixInventory e lojas.",
     ue57Summary: "Replicar arrays de inventário/equipamento e saldos em componente anexado ao Character/PlayerState, criar RPCs para transferir/loja/reparar itens e usar hooks OnRep para atualizar UI; validar tamanho e contêiner conforme limites de Item.h e registrar 'NÃO DÁ PARA INFERIR COM SEGURANÇA COM BASE NO CÓDIGO-FONTE C++' quando regras faltarem."
   },
@@ -1869,10 +1902,10 @@ const roadmap = [
     id: "roadmap-lucky-item-service",
     horizon: "Médio Prazo",
     priority: "Média",
-    mechanicsIds: ["server-lucky-item-options"],
-    description: "Criar serviço UE para Lucky Items que consulta taxas globais, aplica restauração de durabilidade e atualiza CharSet equivalente a CharacterMakePreviewCharSet.",
+    mechanicsIds: ["server-lucky-item-options", "server-lucky-item-decay-sync"],
+    description: "Criar serviço UE para Lucky Items que consulta taxas globais, aplica restauração de durabilidade, sincroniza serial/durabilidade e atualiza CharSet equivalente a CharacterMakePreviewCharSet.",
     basedOnCode: true,
-    notes: "Baseado diretamente no código C++ (LuckyItem.cpp linhas 166-246 e 344-362)."
+    notes: "Baseado diretamente no código C++ (LuckyItem.cpp linhas 31-188 e 322-544; LuckyItem.h linhas 14-102)."
   },
   {
     id: "roadmap-moss-merchant-gamble",
