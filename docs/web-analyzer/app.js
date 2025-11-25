@@ -1373,6 +1373,18 @@ const ueGuides = {
     ]
   },
 
+  "server-warehouse-sync": {
+    title: "Sincronizar Warehouse na UE 5.7 sem packets legados",
+    steps: [
+      "1. Crie um **Game Instance Subsystem** `UWarehouseSubsystem` (Add → New C++ Class → Game Instance Subsystem) para armazenar `TArray<FItemData> WarehouseSlots` do tamanho `WAREHOUSE_SIZE` e `int32 WarehouseMoney`, todos marcados como `UPROPERTY(Replicated)`. Implemente `GetLifetimeReplicatedProps` para esses campos.",
+      "2. No PlayerController `ANetworkPC`, declare RPCs `UFUNCTION(Server, Reliable)` `void ServerRequestWarehouseOpen();`, `void ServerMoveWarehouseItem(int32 FromSlot, int32 ToSlot);` e `void ServerWarehouseDeposit(int32 InventorySlot, int64 Amount);` substituindo os pacotes C1:81/82 usados pelo código original.",
+      "3. No `.cpp` do subsystem, implemente validadores equivalentes a `gWarehouse`: bloquear quando `bWarehouseLock` replicado estiver ativo, garantir que o personagem não esteja em trade/chaos/personal shop e checar rangos com helpers de `UInventoryComponent`. Quando faltar regra explícita no C++, registre 'NÃO DÁ PARA INFERIR COM SEGURANÇA COM BASE NO CÓDIGO-FONTE C++' e rejeite a operação.",
+      "4. Crie RPC Client `UFUNCTION(Client, Reliable)` `void ClientWarehouseSync(const TArray<FItemData>& Slots, int64 Money);` e `void ClientWarehouseError(const FString& Reason);` para substituir PMSG_ITEM_WAREHOUSE_LIST_SEND e mensagens de erro; no handler server, chame o Client após qualquer operação.",
+      "5. No Widget `WBP_Warehouse`, vincule botões Depositar/Retirar a chamadas BlueprintCallable que invocam os RPCs Server; ao receber `ClientWarehouseSync`, popular um GridPanel com os slots e atualizar texto de zen, mantendo a ordem cronológica: abrir → sincronizar → permitir mover/depositar → fechar.",
+      "6. Teste em PIE com duas instâncias, abrindo o warehouse em uma e confirmando que mudanças replicam para o servidor e não usam `gWarehouse` ou buffers C1/C2; documente no Blueprint que todo fluxo usa RPCs/replicação nativa."
+    ]
+  },
+
   "server-item-shop-handlers": {
     title: "RPCs UE 5.7 para compra, venda e reparo de itens",
     globalOrderStep: 5,
@@ -1385,6 +1397,18 @@ const ueGuides = {
       "6. Crie Widgets UMG para loja: `WBP_Shop` com botões Buy/Sell/Repair. Nos OnClicked, chame as RPCs Server correspondentes passando o índice do slot e, em sucesso (Client RPC), atualize listas e saldos replicados.",
       "7. Marque `UInventoryComponent` e PlayerState como replicados. No Character Blueprint, defina **Replicates** e use `GetLifetimeReplicatedProps` para Zen/Coin1/Coin2/Coin3. Teste em PIE abrindo loja, comprando, vendendo e reparando para garantir sincronização sem enviar buffers.",
       "8. Documente em comentários que PMSG_ITEM_BUY_NEW e headers C1:32/33/34 são substituídos por essas RPCs; quando alguma regra de preço/tributo não for dedutível, anote 'NÃO DÁ PARA INFERIR COM SEGURANÇA COM BASE NO CÓDIGO-FONTE C++' para revisão."
+    ]
+  },
+  "server-party-guild-flow": {
+    title: "Fluxo de Party e Guild na UE 5.7 (ordem cronológica)",
+    steps: [
+      "1. No GameMode `AUEProtocolRouter`, declare RPCs Server `void ServerPartyInvite(APlayerController* Target);`, `void ServerPartyResponse(APlayerController* Inviter, bool bAccept);`, `void ServerGuildRequest(const FText& GuildName);`, `void ServerGuildWarRequest(const FString& TargetGuild);` para substituir os casos 0x40-0x43 e 0x50-0x57 do ProtocolCore.",
+      "2. Crie componentes replicados `UPartyComponent` e `UGuildComponent` anexados ao PlayerState com `UPROPERTY(Replicated)` para PartyId/GuildId/GuildStatus e arrays de membros. Implemente `GetLifetimeReplicatedProps` e eventos `OnRep_PartyMembers`/`OnRep_GuildMembers` para atualizar UI.",
+      "3. No Server de convite, valide que nenhum dos jogadores está em duel/trade/chaos ou desconectado; se o código original tiver bloqueios adicionais não claros, registre a frase padrão de não inferência e retorne erro. Em sucesso, chame RPC Client `ClientReceivePartyInvite` no alvo.",
+      "4. Para respostas, ao aceitar, atribua PartyId (por exemplo, GUID) e replique a lista para todos os membros via `NetMulticast` ou atualização das arrays replicadas; ao recusar, chame `ClientPartyInviteResult` apenas no convidador. Evite qualquer envio de cabeçalho C1/C3 usado no legado.",
+      "5. No fluxo de guild, trate `ServerGuildRequest` como criação ou ingresso conforme contexto: valide requisitos de nível/reset disponíveis no código e, quando ausentes, registre a frase padrão e bloqueie. Use DataTables para armazenar regras e persistência via backend, não DataSend.",
+      "6. Para guerras de guild (equivalente a 0x61/0x66), declare RPCs `ServerDeclareGuildWar` e `NetMulticast` `MulticastGuildWarState` atualizando HUDs. Ordem cronológica: (a) convidar/aceitar party, (b) criar/ingressar guild, (c) sincronizar membros, (d) habilitar guerra, sempre sem sistema de packets legado.",
+      "7. Em UMG, crie widgets `WBP_Party` e `WBP_Guild` que leem as arrays replicadas nos componentes; em cada ação de botão, chame RPC Server correspondente. Teste com múltiplos clientes PIE garantindo que convites, entradas e guerras funcionem apenas com RPCs UE."
     ]
   },
   "server-pk-drop-system": {
@@ -2188,6 +2212,24 @@ const roadmap = [
     description: "Recriar na UE 5.7 as verificações de estado (DieRegen, Interface, Transaction), filtros de evento/Muun/quest e restrições de rings/zen antes de pegar ou dropar itens.",
     basedOnCode: true,
     notes: "Baseado diretamente no código C++ (ItemManager.cpp linhas 3123-3338)."
+  },
+  {
+    id: "roadmap-warehouse-rpc",
+    horizon: "Curto Prazo",
+    priority: "Alta",
+    mechanicsIds: ["server-warehouse-sync"],
+    description: "Substituir PMSG_ITEM_WAREHOUSE_LIST_SEND e C1:81/82 por RPCs Server/Client replicando slots e zen do warehouse com validadores de lock/estado.",
+    basedOnCode: true,
+    notes: "Baseado diretamente no código C++ (ItemManager.cpp linhas 3339-3520 e Protocol.cpp cases 0x81-0x83)."
+  },
+  {
+    id: "roadmap-party-guild-rpc",
+    horizon: "Médio Prazo",
+    priority: "Média",
+    mechanicsIds: ["server-party-guild-flow"],
+    description: "Migrar convites de party e guild, confirmações e guerras (cases 0x40-0x43 e 0x50-0x57) para RPCs UE com componentes replicados para membros e status.",
+    basedOnCode: true,
+    notes: "Baseado diretamente no código C++ (Protocol.cpp cases de party/guild e GuildClass.cpp regras de criação)."
   }
 
 ];
