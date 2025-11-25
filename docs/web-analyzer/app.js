@@ -366,6 +366,30 @@ const mechanics = [
     description: "Implementa regras específicas para transferir itens entre inventário normal e contêineres especiais (Chaos Box, Event Inventory, Muun), aplicando validações de expansão, serial e atualização visual quando Muun equipado."
   },
   {
+    id: "server-muun-system",
+    name: "Sistema de Muun (inventário, opções e handlers)",
+    type: "Servidor",
+    files: ["MuunSystem.cpp", "MuunSystem.h"],
+    classes: ["CMuunSystem"],
+    functions: [
+      "Load",
+      "MainProc",
+      "MuunInventoryInsertItem",
+      "CGMuunItemGetRecv",
+      "CGMuunItemUseRecv",
+      "CGMuunItemSellRecv",
+      "GCMuunItemStatusSend",
+      "DGMuunInventoryRecv",
+      "GDMuunInventorySaveSend"
+    ],
+    networkDetails:
+      "Sistema de packets original: cabeçalhos 0x4E (subcódigos 00,02-09) trafegam listas, durabilidade, deleção, status e uso de itens Muun entre GameServer e cliente; DataServer sincroniza slots via C2:27:00 (load) e C2:27:30 (save).",
+    flow:
+      "Load lê script de Muun (section 0 e 1) em m_MuunSystemInfo/m_MuunSystemOptionInfo; MainProc percorre MUUN_INVENTORY_WEAR_SIZE e consulta CheckSpecialOption/GetMuunSystemOptionInfo para aplicar/revogar status, recalculando atributos e enviando GCMuunItemStatusSend. CGMuunItemGetRecv (0x4E:00) valida conexão, interface, duelo e CheckItemGive; aceita apenas itens Muun/utilitários, insere via MuunInventoryInsertItem, remove do mapa e envia ItemInfo convertido. CGMuunItemUseRecv (0x4E:08) despacha type 1/2/3 para CharacterUseMuunLevelUp/EvolutionStone/JewelOfLife, apagando/modificando slots e retornando resultado. CGMuunItemSellRecv (0x4E:09) exige interface shop, valida slot e allow sell, calcula PetValue/Value, atualiza Money e remove item, recalculando CharSet/status quando slot de equipar. DGMuunInventoryRecv carrega slots e mapa 62x16 bytes vindos do DataServer; GDMuunInventorySend/GDMuunInventorySaveSend solicitam e persistem inventário completo em sessões.",
+    description:
+      "Gerencia inventário dedicado de Muun (62 slots, 2 de equipar), opções temporais e especiais carregadas de script, valida pick/use/sell via subcódigos 0x4E e sincroniza estado com DataServer, recalculando atributos e pré-visualização do personagem quando pets Muun são equipados ou removidos."
+  },
+  {
     id: "server-item-get-drop-conditions",
     name: "Condições de pegar e dropar itens (servidor)",
     type: "Servidor",
@@ -1300,7 +1324,22 @@ const ueGuides = {
       "2. Implemente um serviço `UItemDropService` com função `FItemData RollDrop(int32 MapNumber, int32 MonsterClass, int32 MonsterLevel)` que filtra as linhas por mapa/monstro/nivel e sorteia usando `FMath::RandRange(1,1000000)` comparando com DropRate; se nenhuma linha corresponder, retorne vazio.",
       "3. No `AMonster` C++ (derivado de ACharacter), ao morrer no servidor, chame `RollDrop` e, se obtiver item, invoque `SpawnWorldItem` (do guia de mapa de drop) passando `DurationSeconds` e opções/melhorias de Option0..Option6 preenchidas na struct `FItemData`.",
       "4. Adicione `UFUNCTION(NetMulticast, Unreliable)` `void MulticastDropFX()` no monstro ou no `AWorldItem` para mostrar animação/sons; marque como sugestão genérica quando não existir no código original.",
-      "5. Em testes PIE, configure linhas simples no DataTable e verifique que apenas monstros elegíveis geram itens, respeitando DropRate e DurationSeconds replicados no `AWorldItem`." 
+      "5. Em testes PIE, configure linhas simples no DataTable e verifique que apenas monstros elegíveis geram itens, respeitando DropRate e DurationSeconds replicados no `AWorldItem`."
+    ]
+  },
+  "server-muun-system": {
+    title: "Replicar Muun Inventory e opções na UE 5.7 sem packets legados",
+    steps: [
+      "1. Crie dois DataTables: `FMuunInfoRow` espelhando `MUUN_SYSTEM_INFO` (Index, Type, Rank, OptionIndex, EvolutionItemIndex) e `FMuunOptionRow` para `MUUN_SYSTEM_OPTION_INFO` (Index, OptionValue[5], MaxOptionValue, SpecialOptionIndex, SpecialOptionValue, MapZone, PlayTime, DayOfWeek, MinHour, MaxHour, MinLevel, MaxLevel, MinMasterLevel, MaxMasterLevel). Importe os valores dos scripts usados pelo servidor e marque qualquer coluna desconhecida com a frase padrão.",
+      "2. No componente replicado `UInventoryComponent`, adicione `UPROPERTY(Replicated)` arrays `TArray<FItemData> MuunSlots` (tamanho 62) e `TArray<uint8> MuunMap` (62*?16 -> use 62*16 para manter compatibilidade com os buffers do código). Mantenha constantes `MuunInventorySize=62` e `MuunWearSize=2` equivalentes às macros. Implemente `OnRep_MuunSlots` para atualizar UI e aplicar status.",
+      "3. Adicione RPCs Server: `ServerPickupMuun(int32 WorldItemId)`, `ServerUseMuun(int32 SourceSlot, int32 TargetSlot, uint8 Type)`, `ServerSellMuun(int32 Slot)` e `ServerSaveMuunInventory()`. Cada RPC valida autoridade, estado de morte/Interface ativa (substituir com flags boolean replicadas) e chama funções de validação equivalentes a `CheckItemGive`, `CheckItemMoveToMuunInventory` e `gItemMove.CheckItemMoveAllowSell` com registros de log quando não for possível inferir regra.",
+      "4. Ao pegar (`ServerPickupMuun`), confirme que o `AWorldItem` representa um Muun ou utilitário; tente inserir via `TryInsertMuunItem` que verifica retângulo livre (`MuunMap`) e retorna índice. Destrua o actor de mundo e envie RPC Client `ClientMuunPickupResult` com sucesso/erro, eliminando qualquer dependência de packet 0x4E:00.",
+      "5. Em `ServerUseMuun`, processe `Type` 1/2/3 mapeando para level up, evolution stone ou Jewel of Life conforme o código. Atualize `MuunSlots`/`MuunMap`, marque slots removidos e chame `MulticastMuunChanged(int32 Slot)` para quem estiver no viewport. Sempre replique `FMuunStatus` ou variável similar indicando ativação para substituir `GCMuunItemStatusSend`.",
+      "6. Para vender, valide que a interface de shop replicada está aberta, calcule valor usando dados do item (PetValue/Value) e atualize moeda replicada. Limpe slot e reexecute cálculo de aparência do personagem (preview CharSet) em um método server que recalcule meshes de pets anexados.",
+      "7. Implemente um tick server-side (Timer ou override de componente) que emula `MainProc`: percorra os 2 slots de equipar, recupere `FMuunInfoRow`/`FMuunOptionRow`, cheque condições de mapa/horário/nível e aplique bônus em atributos replicados do Character. Quando uma condição deixar de ser satisfeita, remova o bônus e dispare `MulticastMuunChanged` para atualizar visual.",
+      "8. Na UI (UMG) crie uma aba Muun Inventory. No Event Construct do widget, obtenha `InventoryComponent` do owning player, leia `MuunSlots` e popular um grid 4x15 começando em índice 2 para slots base. Conecte cliques/drag para chamar `ServerUseMuun` ou `ServerSellMuun`. Em OnRep, refresque durabilidade e status na tela.",
+      "9. Integre persistência chamando `ServerSaveMuunInventory` ao salvar personagem ou desconectar; a implementação pode escrever em SaveGame ou serviço backend em vez de DataServer. Se não houver detalhes de persistência no código além das mensagens C2:27, anote como 'SUGESTÃO GENÉRICA, NÃO DIRETAMENTE INFERIDA DO CÓDIGO-FONTE C++'.",
+      "10. Ordem cronológica sugerida: (a) criar DataTables e structs, (b) adicionar arrays replicados e constantes de tamanho, (c) implementar RPCs pickup/use/sell, (d) adicionar tick de aplicação de opções e multicast visual, (e) integrar UI UMG, (f) adicionar salvamento/restore. Quando alguma ordem não puder ser deduzida, documente com a frase padrão."
     ]
   }
 
@@ -1311,7 +1350,7 @@ const ueSystems = [
     id: "items-system",
     name: "Sistema de Items",
     status: "Encontrado",
-    mechanicsIds: ["server-protocolcore-dispatch", "server-item-structs", "server-item-packet-structs", "server-item-attribute-loader", "server-380-item-type-map", "server-380-item-option", "server-item-handlers", "server-item-move-matrix", "server-chaos-event-muun-move", "server-item-require-checks", "server-item-move-allowlist", "server-item-stack-config", "server-socket-item-type", "server-item-option-rate", "server-item-value", "server-item-value-trade", "server-lucky-item-options", "server-harmony-options", "server-moss-merchant-gamble", "server-jewel-mix", "server-itembag-manager", "server-item-drop-config", "server-item-get-drop-conditions", "server-item-shop-handlers", "server-mapitem-drop-lifecycle", "server-pk-drop-system", "client-item-structs", "client-inventory-handling", "server-personal-shop"],
+    mechanicsIds: ["server-protocolcore-dispatch", "server-item-structs", "server-item-packet-structs", "server-item-attribute-loader", "server-380-item-type-map", "server-380-item-option", "server-item-handlers", "server-item-move-matrix", "server-chaos-event-muun-move", "server-muun-system", "server-item-require-checks", "server-item-move-allowlist", "server-item-stack-config", "server-socket-item-type", "server-item-option-rate", "server-item-value", "server-item-value-trade", "server-lucky-item-options", "server-harmony-options", "server-moss-merchant-gamble", "server-jewel-mix", "server-itembag-manager", "server-item-drop-config", "server-item-get-drop-conditions", "server-item-shop-handlers", "server-mapitem-drop-lifecycle", "server-pk-drop-system", "client-item-structs", "client-inventory-handling", "server-personal-shop"],
     codeSummary: "ProtocolCore (Protocol.cpp) roteia C1:22-26/32-34 para CItemManager (get/drop/move/use/buy/sell/repair) usando structs CItem/ITEM_INFO; o cliente mantém ITEM e PRECEIVE_INVENTORY para refletir o inventário e renderizar itens/viewport.",
     ue57Summary: "Mapear get/drop/move/use/buy/sell/repair para RPCs Server em Character/InventoryComponent, usar `FItemData` replicado, atores `AWorldItem` para drops e Widgets para UI; marcar campos ausentes com 'NÃO DÁ PARA INFERIR COM SEGURANÇA COM BASE NO CÓDIGO-FONTE C++'."
   },
@@ -1319,7 +1358,7 @@ const ueSystems = [
     id: "inventory-system",
     name: "Sistema de Inventory",
     status: "Encontrado",
-    mechanicsIds: ["server-protocolcore-dispatch", "server-character-list", "server-item-structs", "server-item-packet-structs", "server-item-attribute-loader", "server-380-item-type-map", "server-380-item-option", "server-item-handlers", "server-item-move-matrix", "server-chaos-event-muun-move", "server-item-require-checks", "server-item-move-allowlist", "server-item-stack-config", "server-socket-item-type", "server-item-option-rate", "server-item-value", "server-item-value-trade", "server-lucky-item-options", "server-harmony-options", "server-moss-merchant-gamble", "server-jewel-mix", "server-itembag-manager", "server-item-drop-config", "server-item-get-drop-conditions", "server-item-shop-handlers", "server-mapitem-drop-lifecycle", "client-inventory-handling", "client-item-structs", "server-personal-shop"],
+    mechanicsIds: ["server-protocolcore-dispatch", "server-character-list", "server-item-structs", "server-item-packet-structs", "server-item-attribute-loader", "server-380-item-type-map", "server-380-item-option", "server-item-handlers", "server-item-move-matrix", "server-chaos-event-muun-move", "server-muun-system", "server-item-require-checks", "server-item-move-allowlist", "server-item-stack-config", "server-socket-item-type", "server-item-option-rate", "server-item-value", "server-item-value-trade", "server-lucky-item-options", "server-harmony-options", "server-moss-merchant-gamble", "server-jewel-mix", "server-itembag-manager", "server-item-drop-config", "server-item-get-drop-conditions", "server-item-shop-handlers", "server-mapitem-drop-lifecycle", "client-inventory-handling", "client-item-structs", "server-personal-shop"],
     codeSummary: "DGCharacterListRecv carrega slots iniciais enquanto CItemManager move/usa/compra/vende/repara itens entre inventário/equipamentos/warehouse/chaos; no cliente, ReceiveInventory/ReceiveGetItem/ReceiveDropItem/ReceiveTradeInventory sincronizam g_pMyInventory, MixInventory e lojas.",
     ue57Summary: "Replicar arrays de inventário/equipamento e saldos em componente anexado ao Character/PlayerState, criar RPCs para transferir/loja/reparar itens e usar hooks OnRep para atualizar UI; validar tamanho e contêiner conforme limites de Item.h e registrar 'NÃO DÁ PARA INFERIR COM SEGURANÇA COM BASE NO CÓDIGO-FONTE C++' quando regras faltarem."
   },
@@ -1737,6 +1776,15 @@ const roadmap = [
     description: "Mapear as expansões de inventário e mapas de slots ao portar Chaos/Event/Muun Inventory para componentes replicados, adicionando logs de rollback quando EventInventoryAddItemStack falhar.",
     basedOnCode: true,
     notes: "Baseado diretamente no código C++ (ItemManager.cpp linhas 2754-2810 e 3001-3114)."
+  },
+  {
+    id: "roadmap-muun-system-migration",
+    horizon: "Médio Prazo",
+    priority: "Alta",
+    mechanicsIds: ["server-muun-system"],
+    description: "Migrar inventário Muun, aplicação de opções e RPCs de pegar/usar/vender para componentes replicados e DataTables UE, substituindo os subcódigos 0x4E e sincronização C2:27.* com backend UE.",
+    basedOnCode: true,
+    notes: "Baseado diretamente no código C++ (MuunSystem.h linhas 10-171 e 206-248; MuunSystem.cpp linhas 1066-1215)."
   },
   {
     id: "roadmap-item-get-drop-validation",
