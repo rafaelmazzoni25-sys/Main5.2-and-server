@@ -2277,13 +2277,21 @@ document.addEventListener('DOMContentLoaded', () => {
   const tabContents = document.querySelectorAll('.tab-content');
   const ueSystemsContainer = document.getElementById('ue-systems-container');
 
+  if (!tabButtons.length || !tabContents.length) {
+    console.error('[web-analyzer] Não foi possível inicializar as abas: elementos não encontrados.');
+    return;
+  }
+
   function switchTab(targetId) {
     tabButtons.forEach(btn => btn.classList.toggle('active', btn.dataset.target === targetId));
     tabContents.forEach(content => content.classList.toggle('active', content.id === targetId));
   }
 
   tabButtons.forEach(btn => {
-    btn.addEventListener('click', () => switchTab(btn.dataset.target));
+    btn.addEventListener('click', (event) => {
+      event.preventDefault();
+      switchTab(btn.dataset.target);
+    });
   });
 
   // Mechanics rendering
