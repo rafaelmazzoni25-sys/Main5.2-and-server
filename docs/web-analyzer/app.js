@@ -220,7 +220,275 @@ const mechanics = [
     networkDetails: "Sem rede; apenas instancia controles e delega mensagens WM_TIMER.",
     flow: "Make cria BuffStateSystem, chama Initialize para instanciar BuffScriptLoader/BuffTimeControl/BuffStateValueControl; HandleWindowMessage delega para BuffTimeControl; globais em _GlobalFunctions expõem TheBuffStateSystem e g_BuffSystem para uso amplo.",
     description: "Coordena subsistemas de buff, centralizando criação e roteamento de mensagens de temporização para manter o estado em sincronia." 
+  },
+
+  {
+    id: "server-modern-socket",
+    name: "Servidor assíncrono SocketManagerModern",
+    type: "Servidor",
+    files: ["SocketManagerModern.cpp", "SocketManagerModern.h", "SocketConnection.cpp", "SocketConnection.h"],
+    classes: ["CSocketManagerModern", "CSocketConnection"],
+    functions: ["StartServer", "ListenServer", "PacketSend", "DataReceived", "ProtocolSend", "OnMessage"],
+    networkDetails: "Sistema de packets do projeto original: servidor usa olc::net::server_interface<ProtocolHead> para aceitar clientes, PacketSend encapsula head/size e envia, e DataReceived despacha CLIENT_LIVE_CLIENT, BOTH_CONNECT_LOGIN, BOTH_CONNECT_CHARACTER, BOTH_POSITION, BOTH_MOVE, BOTH_ATTACK1/2 e BOTH_MESSAGE (repassado a ProtocolCore).",
+    flow: "StartServer verifica porta com CheckPortUse, instancia CSocketConnection, inicia thread ListenServer que chama connection->Update; PacketSend cria message<ProtocolHead> com body via memcpy e chama connection->ProtocolSend; DataReceived faz switch em header.id, chama CGConnectAccountRecv/CGCharacterListRecv/CGPositionRecv/CGMoveRecv/gAttack/gSkillManager ou reconstrói recv[] e passa a ProtocolCore via gPacketManager.ExtractPacket.",
+    description: "Orquestra a camada de transporte moderna do servidor, encaminhando cada ProtocolHead para a lógica de jogo depois de validar e reconstruir o buffer recebido."
+  },
+  {
+    id: "server-login-auth",
+    name: "Handshake de conexão e autenticação do servidor",
+    type: "Servidor",
+    files: ["Protocol.cpp"],
+    classes: ["ProtocolCore"],
+    functions: ["GCConnectClientSend", "GCConnectAccountSend", "CGConnectAccountRecv"],
+    networkDetails: "Sistema de packets do projeto original: GCConnectClientSend/GCConnectAccountSend usam ProtocolHead::SERVER_CONNECT e BOTH_CONNECT_LOGIN quando NEW_PROTOCOL_SYSTEM==1; CGConnectAccountRecv valida ClientVersion/ClientSerial antes de encaminhar ao JoinServer.",
+    flow: "GCConnectClientSend monta PMSG_CONNECT_CLIENT_SEND com result, índices e ClientVersion e envia via gSocketManagerModern.PacketSend; GCConnectAccountSend devolve código de login. CGConnectAccountRecv exige Connected==OBJECT_CONNECTED, compara versões/seriais, registra TickCounts, decripta account/password com PacketArgumentDecrypt e chama GJConnectAccountSend com IP do cliente.",
+    description: "Processo de autenticação no servidor que confirma versão/serial e só depois pede validação de conta ao JoinServer."
+  },
+  {
+    id: "server-character-list",
+    name: "Envio da lista de personagens (servidor)",
+    type: "Servidor",
+    files: ["Protocol.cpp", "DSProtocol.cpp"],
+    classes: ["ProtocolCore"],
+    functions: ["CGCharacterListRecv", "GDCharacterListSend", "DGCharacterListRecv"],
+    networkDetails: "Sistema de packets do projeto original: BOTH_CONNECT_CHARACTER acionado em DataReceived chama CGCharacterListRecv e GDCharacterListSend; DSProtocol monta buffer com personagens e envia via gSocketManagerModern.PacketSend quando NEW_PROTOCOL_SYSTEM==1.",
+    flow: "CGCharacterListRecv retorna se Connected!=OBJECT_LOGGED; caso contrário, chama GDCharacterListSend. No retorno do DataServer (DGCharacterListRecv), o código preenche PMSG_CHARACTER_LIST_SEND com contagem, classe liberada e info de cada slot, ajusta header.size e envia pela PacketSend/ProtocolHead::BOTH_CONNECT_CHARACTER.",
+    description: "Fornece ao cliente a lista completa de personagens disponíveis após login, respeitando restrições de classe/nível e usando o protocolo moderno quando habilitado."
+  },
+  {
+    id: "server-position-sync",
+    name: "Atualização de posição e broadcast (servidor)",
+    type: "Servidor",
+    files: ["Protocol.cpp"],
+    classes: ["ProtocolCore"],
+    functions: ["CGPositionRecv"],
+    networkDetails: "Sistema de packets do projeto original: mensagem ProtocolHead::BOTH_POSITION recebida em DataReceived dispara CGPositionRecv, que envia PMSG_POSITION_SEND para o próprio jogador e para todos do viewport via PacketSend/DataSend.",
+    flow: "CGPositionRecv redefine PathCount/PathCur, atualiza X/Y/TX/TY/OldX/OldY, ajusta atributos do mapa e monta PMSG_POSITION_SEND com index/x/y; envia ao próprio usuário e itera VpPlayer2 para enviar a cada usuário ativo no entorno.",
+    description: "Sincroniza reposicionamento instantâneo do personagem no servidor e replica a nova coordenada para todos os jogadores visíveis."
+  },
+  {
+    id: "server-move-sync",
+    name: "Processamento de movimento comprimido (servidor)",
+    type: "Servidor",
+    files: ["Protocol.cpp"],
+    classes: ["ProtocolCore"],
+    functions: ["CGMoveRecv"],
+    networkDetails: "Sistema de packets do projeto original: ProtocolHead::BOTH_MOVE recebido em DataReceived chama CGMoveRecv, que converte path codificado em PMSG_MOVE_SEND e envia via PacketSend/DataSend para o jogador e seu viewport.",
+    flow: "CGMoveRecv verifica PathCount e colisão em gMap; se bloqueado, limpa Path e reposiciona. Caso contrário, deleta stand attr antiga, atualiza coordenadas/dir, seta nova stand attr, monta PMSG_MOVE_SEND com dir<<4 e envia ao jogador e a cada VpPlayer2 ativo.",
+    description: "Aplica o caminho enviado pelo cliente, lida com bloqueios de terreno e propaga o movimento comprimido para observadores próximos."
+  },
+  {
+    id: "server-dataserver-dispatch",
+    name: "Despacho de respostas do DataServer",
+    type: "Servidor",
+    files: ["DSProtocol.cpp"],
+    classes: ["DataServerProtocolCore"],
+    functions: ["DataServerProtocolCore"],
+    networkDetails: "Sistema de packets do projeto original: DataServerProtocolCore recebe cabeçalho head e, para subpacotes com C1/C2, avalia subcódigos em lpMsg[3] ou lpMsg[4] para direcionar warehouse, quest, master skill, NPCs e comandos personalizados.",
+    flow: "Switch em head (0x00 info, 0x01 lista de personagens, 0x02 criação, 0x03 deleção, 0x04 info). Para head 0x05, verifica subcódigos 0x00/0x01/0x70/0x71/0x75 e chama gWarehouse. 0x07 cria item, 0x08 opções, 0x09 pet info, 0x0A/0x0B checagem/rename de nome, 0x0C/0x0D/0x0E/0x0F/0x10/0x11 usam subcódigos para quest kill, master skill tree, NPCs (Leo/Santa), comandos reset/marry/rename/bloc/gift/top, QuestWorld e Gens insert/delete.",
+    description: "Centraliza o roteamento de mensagens vindas do DataServer, distribuindo para warehouse, personagem, comandos de reset e sistemas de quest/Gens conforme cabeçalho e subcódigo sem alterar o payload."
+  },
+  {
+    id: "server-joinserver-auth-move",
+    name: "Autenticação e troca de servidor via JoinServer",
+    type: "Servidor",
+    files: ["JSProtocol.cpp"],
+    classes: ["JoinServerProtocolCore"],
+    functions: ["JoinServerProtocolCore", "JGConnectAccountRecv", "JGMapServerMoveRecv", "JGMapServerMoveAuthRecv", "JGAccountLevelRecv", "JGAccountLevelRecv2", "JGAccountAlreadyConnectedRecv", "GJConnectAccountSend", "GJDisconnectAccountSend", "GJMapServerMoveSend", "GJMapServerMoveAuthSend"],
+    networkDetails: "Sistema de packets do projeto original: JoinServerProtocolCore switch em head (0x00-0x06,0x30) e envia/recebe pacotes SDHP_* usando gJoinServerConnection.DataSend; fluxo controla login, desconexão, mudança de mapa e níveis de conta.",
+    flow: "JGConnectAccountRecv decrementa LoginMessageSend, valida estado Connected, bloqueios e server lock, copia Account/PersonalCode/AccountLevel/expire date/Lock e envia GCConnectAccountSend. JGMapServerMoveRecv valida conta, em sucesso monta PMSG_MAP_SERVER_MOVE_SEND com IP/porta ou cancela e reenvia notice; em caso de NextServerCode válido grava AuthCodes e fecha character via CharacterGameClose. JGMapServerMoveAuthRecv revalida MapServerMoveRequest e estado Connected, aplica bloqueios e, em sucesso, atualiza Account/PersonalCode/AccountLevel/Lock/destinos e chama GDCharacterInfoSend. AccountLevelRecv atualiza nível e avisa via notice; AccountLevelRecv2 envia notices e GJAccountLevelSend para usuários com mesma conta; AccountAlreadyConnectedRecv mata usuário se configurado e notifica módulos CustomAttack/CustomStore. GJ* funções constroem SDHP_* e enviam ao JoinServer com header apropriado.",
+    description: "Gerencia autenticação centralizada com o JoinServer, inclusive verificação de bloqueios e mudança de MapServer, mantendo contadores de mensagens e replicando dados de conta antes de carregar personagem."
+  },
+  {
+    id: "server-packet-encryption-manager",
+    name: "Inicialização de criptografia e filtros de pacote",
+    type: "Servidor",
+    files: ["PacketManager.cpp", "PacketManager.h"],
+    classes: ["CPacketManager"],
+    functions: ["Init", "LoadEncryptionKey", "LoadDecryptionKey", "LoadKey"],
+    networkDetails: "Sistema de packets do projeto original: define chaves DES_XEX3 quando GAMESERVER_UPDATE>=701 ou tabelas XOR (m_SaveLoadXor, m_XorFilter) para criptografia/descrição de pacotes persistidos; LoadKey lê arquivo com ENCDEC_HEADER e campos Modulus/Key ofuscados.",
+    flow: "Init seta chaves DES ou zera m_Encryption/m_Decryption e preenche SaveLoadXor e XorFilter de 32 bytes; LoadEncryptionKey/LoadDecryptionKey chamam LoadKey (header 4370) que abre arquivo, valida header/size, lê tabelas com CreateFile/ReadFile e aplica XOR com SaveLoadXor para preencher Modulus/Key.",
+    description: "Prepara os filtros e chaves de criptografia usados pelo servidor para salvar/carregar dados e processar pacotes, sem enviar nada diretamente na rede."
+  },
+  {
+    id: "server-item-structs",
+    name: "Estruturas de item e limites de inventário",
+    type: "Servidor",
+    files: ["Item.h", "ItemManager.h"],
+    classes: ["CItem", "ITEM_INFO", "ITEM_ATTRIBUTE", "CItemManager"],
+    functions: ["CItem::Convert", "CItemManager::Load"],
+    networkDetails: "Definições usadas pelos packets de item (C1:22-26/32-34) no protocolo original; não enviam dados diretamente, mas são serializadas por ItemManager em respostas como PMSG_ITEM_GET/MOVE.",
+    flow: "CItem (Item.h) guarda Serial, Index, Level, Slot, TwoHand, Attack/Defense, Resistências, requisitos de atributos, opções (Option1/2/3, NewOption, SetOption, JewelOfHarmony, SocketOption), durabilidade e flags periódicas; macros INVENTORY_RANGE/WAREHOUSE_RANGE/TRADE_RANGE definem índices válidos. ItemManager::Load lê scripts via CMemScript e preenche ITEM_INFO com Index, Slot, Skill, Width/Height, HaveSerial/Option, DropItem, Name, atributos (Damage/Defense/Durability/Requirements) por seção.",
+    description: "Base de dados do servidor para calcular espaço, requisitos e opções de itens, incluindo sockets e período/validade, usada pelos handlers de rede e verificações de inventário."
+  },
+  {
+    id: "server-item-packet-structs",
+    name: "Packets de item (get/drop/move/use/buy/sell/repair)",
+    type: "Servidor",
+    files: ["ItemManager.h"],
+    classes: [],
+    functions: ["PMSG_ITEM_GET_RECV", "PMSG_ITEM_DROP_RECV", "PMSG_ITEM_MOVE_RECV", "PMSG_ITEM_USE_RECV", "PMSG_ITEM_BUY_RECV", "PMSG_ITEM_SELL_RECV", "PMSG_ITEM_REPAIR_RECV", "PMSG_ITEM_GET_SEND", "PMSG_ITEM_DROP_SEND", "PMSG_ITEM_MOVE_SEND", "PMSG_ITEM_CHANGE_SEND", "PMSG_ITEM_DELETE_SEND", "PMSG_ITEM_DUR_SEND", "PMSG_ITEM_BUY_SEND", "PMSG_ITEM_SELL_SEND", "PMSG_ITEM_REPAIR_SEND", "PMSG_ITEM_LIST_SEND", "PMSG_ITEM_LIST", "PMSG_ITEM_EQUIPMENT_SEND", "PMSG_ITEM_MODIFY_SEND", "PMSG_ITEM_BUY_NEW"],
+    networkDetails: "Sistema de packets original: cabeçalhos PBMSG_HEAD/PSWMSG_HEAD/PSBMSG_HEAD com opcodes C1:22-26/32-34 e F3:10/13/14 encapsulam solicitações e respostas de item entre cliente e GameServer.",
+    flow: "Packets de cliente carregam índices/slots/ItemInfo (12 bytes) e coordenadas (drop x/y). Packets de servidor retornam result/slot/ItemInfo, updates de durabilidade, deleção, lista completa (count+PMSG_ITEM_LIST) ou equipamentos (CharSet). Os structs definem exatamente os campos transportados sem lógica adicional.",
+    description: "Mapa completo dos pacotes de item usados no protocolo original para get/drop/move/use/buy/sell/repair e sincronização de listas/equipamentos." 
+  },
+  {
+    id: "server-item-handlers",
+    name: "Handlers de packet de item (pegar/soltar/mover/usar)",
+    type: "Servidor",
+    files: ["ItemManager.cpp", "ItemManager.h"],
+    classes: ["CItemManager"],
+    functions: ["CGItemGetRecv", "CGItemDropRecv", "CGItemMoveRecv", "CGItemUseRecv"],
+    networkDetails: "Sistema de packets original: recebe C1:22 (get), 0x23 (drop), 0x24 (move), 0x26 (use) e responde com PMSG_ITEM_GET/DROP/MOVE/DUR/DELETE via DataSend.",
+    flow: "CGItemGetRecv valida estado, bloqueia itens de evento/Muun, trata zen (0xFE) e insere itens via InventoryInsertItem/ItemByteConvert antes de retornar PMSG_ITEM_GET_SEND. CGItemDropRecv impede drops quando lock/DieRegen/Interface e chama gMap.ItemDrop; se êxito, InventoryDelItem e PMSG_ITEM_DROP_SEND. CGItemMoveRecv constrói resposta 0x24, checa interfaces (Trade/Warehouse/Chaos/PersonalShop/Trainer) e chama MoveItemTo* para trocar entre inventário, trade, warehouse, chaos, personal shop, event e muun, convertendo ItemInfo e notificando durabilidade/período. CGItemUseRecv filtra índices (scrolls, bless bundle, fruit) e, ao consumir, envia GCItemDeleteSend/GCItemModifySend conforme o alvo.",
+    description: "Fluxo servidor que manipula todos os comandos de item do cliente, aplicando regras de bloqueio e contêineres antes de atualizar inventário e responder pelos packets do protocolo original."
+  },
+  {
+    id: "server-item-move-matrix",
+    name: "Regras de movimento entre contêineres (Inventory/Trade/Warehouse/Chaos/Shop/Trainer)",
+    type: "Servidor",
+    files: ["ItemManager.cpp", "ItemManager.h"],
+    classes: ["CItemManager"],
+    functions: ["CGItemMoveRecv", "MoveItemToInventoryFromInventory", "MoveItemToTradeFromInventory", "MoveItemToWarehouseFromInventory", "MoveItemToChaosBoxFromInventory"],
+    networkDetails: "Sistema de packets original: C1:24 carrega SourceFlag/TargetFlag/slots e ItemInfo; servidor responde com PMSG_ITEM_MOVE_SEND result/slot/ItemInfo.",
+    flow: "CGItemMoveRecv cria PMSG_ITEM_MOVE_SEND (0x24), bloqueia se DieRegen ou interfaces incorretas. Valida SourceFlag/TargetFlag para Trade (Interface.type==INTERFACE_TRADE), Warehouse (Interface.type==INTERFACE_WAREHOUSE e LoadWarehouse/WarehouseLock), Chaos Box (Interface.type==INTERFACE_CHAOS_BOX ou flags 6-20), PersonalShop (PShopOpen/PShopTransaction) e Trainer (Interface.type==INTERFACE_TRAINER). Cada combinação chama MoveItemTo* correspondente (Inventory→Inventory/Trade/Warehouse/Chaos/PersonalShop/EventInventory/Muun, Trade→Inventory/Trade/EventInventory, Warehouse→Inventory/Warehouse, ChaosBox→Inventory/ChaosBox, PersonalShop→Inventory/PersonalShop) e, em sucesso, converte ItemInfo do alvo. Restrições impedem operação sem interface ativa ou locks.",
+    description: "Tabela de roteamento de movimento que verifica flags de interface antes de mover itens entre contêineres, retornando result/slot e ItemInfo preenchido somente após validações específicas de Trade, Warehouse, Chaos, PersonalShop e Trainer."
+  },
+  {
+    id: "server-chaos-event-muun-move",
+    name: "Movimentação para Chaos Box, Event Inventory e Muun Inventory",
+    type: "Servidor",
+    files: ["ItemManager.cpp", "ItemManager.h"],
+    classes: ["CItemManager"],
+    functions: ["MoveItemToChaosBoxFromInventory", "MoveItemToEventInventoryFromEventInventory", "MoveItemToMuunInventoryFromMuunInventory"],
+    networkDetails: "Parte do fluxo C1:24; CGItemMoveRecv chama essas funções quando SourceFlag/TargetFlag correspondem a Chaos Box, Event Inventory ou Muun Inventory, respondendo via PMSG_ITEM_MOVE_SEND.",
+    flow: "MoveItemToChaosBoxFromInventory exige range de inventário e Chaos, checa expansões Ext1-4 e CheckItemMoveToChaos, verifica serial em inventário/warehouse e adiciona no ChaosBox, deletando e atualizando viewport ao sucesso. MoveItemToEventInventoryFromEventInventory (>=802) valida slots, impede Source=Target, confere serial duplicado, tenta empilhar via EventInventoryAddItemStack, copia mapa, marca source 0xFF e reverte mapa em falha; ao sucesso, move item, atualiza mapa e retorna TargetFlag. MoveItemToMuunInventoryFromMuunInventory (>=803) valida range, impede Source=Target, checa CheckItemMoveToMuunInventory, move com cópia de mapa e, quando envolve slots de equipar, refaz CharSet e envia GCMuunItemChangeSend/GCMuunItemStatusSend.",
+    description: "Implementa regras específicas para transferir itens entre inventário normal e contêineres especiais (Chaos Box, Event Inventory, Muun), aplicando validações de expansão, serial e atualização visual quando Muun equipado."
+  },
+  {
+    id: "server-item-get-drop-conditions",
+    name: "Condições de pegar e dropar itens (servidor)",
+    type: "Servidor",
+    files: ["ItemManager.cpp", "ItemManager.h"],
+    classes: ["CItemManager"],
+    functions: ["CGItemGetRecv", "CGItemDropRecv"],
+    networkDetails: "Sistema de packets original: C1:22 solicita pegar item do mapa e C1:23 soltar item; respostas usam PMSG_ITEM_GET_SEND ou PMSG_ITEM_DROP_SEND.",
+    flow: "CGItemGetRecv valida conexão, DieRegen, interface ativa, duelo, transação, range de mapa e CheckItemGive; bloqueia itens de evento/Muun e contagem de quest. Impede duplicar rings específicos e trata zen (14,15) creditando Money com result 0xFE. Caso contrário, tenta InventoryInsertItemStack ou InventoryInsertItem e envia ItemByteConvert/GCPartyItemInfoSend, incluindo notificações periódicas e eventos BloodCastle/IllusionTemple. CGItemDropRecv valida estados semelhantes, impede Lucky/Periodic/Lock, consulta CheckItemMoveAllowDrop e bloqueia itens level>4 ou excellent/set/harmony; tenta DropItemByItemIndex ou casos especiais (Summon/Life Stone). Em sucesso, remove do inventário e confirma via DataSend.",
+    description: "Aplica filtros de estado, tipo de item e regras especiais para pegar itens do mapa ou soltá-los, tratando zen, rings únicos, eventos e drops bloqueados antes de alterar inventário e responder ao cliente."
+  },
+  {
+    id: "server-item-shop-handlers",
+    name: "Compra, venda e reparo de itens",
+    type: "Servidor",
+    files: ["ItemManager.cpp", "ItemManager.h"],
+    classes: ["CItemManager"],
+    functions: ["CGItemBuyRecv", "CGItemSellRecv", "CGItemRepairRecv", "CGItemBuyConfirmRecv"],
+    networkDetails: "Sistema de packets original: C1:32 (buy), C1:33 (sell), C1:34 (repair) e C1:32/F3:ED (buy confirm) trafegam itens/slots; respostas usam PMSG_ITEM_BUY/SELL/REPAIR_SEND e atualizam dinheiro ou item stack.",
+    flow: "CGItemBuyRecv valida conexão, Interface=SHOP, TargetShopNumber e Transaction antes de buscar item em gShopManager/GetItemByIndex; aplica tax gCastleSiegeSync, lida com moedas Coin1-3 ou zen, tenta InventoryInsertItemStack/InventoryInsertItem e envia PMSG_ITEM_BUY_SEND com ItemInfo/money. CGItemSellRecv exige interface shop, checa INVENTORY_FULL_RANGE, valida item em Inventory[slot], calcula valor via gItemMove.CheckItemMoveAllowSell e atualiza Money com PMSG_ITEM_SELL_SEND, removendo item e recalculando atributos. CGItemRepairRecv opcionalmente repara tudo (slot 0xFF) ou slot específico, bloqueando trade/NPC inadequado, chama RepairItem para durabilidade e responde com PMSG_ITEM_REPAIR_SEND; recalcula atributos quando reparo é aplicado.",
+    description: "Implementa transações de loja no servidor, incluindo compra com impostos e moedas especiais, venda validando itens permitidos e reparo em lote ou individual com verificação de interface/nível antes de aplicar custos e atualizar inventário/dinheiro."
+  },
+  {
+    id: "server-mapitem-drop-lifecycle",
+    name: "Criação e tempo de vida de itens no mapa",
+    type: "Servidor",
+    files: ["MapItem.cpp", "MapItem.h"],
+    classes: ["CMapItem"],
+    functions: ["Init", "CreateItem", "DropCreateItem"],
+    networkDetails: "Sem envio direto; instâncias CMapItem são geradas e depois serializadas pelos handlers de item ao responder pacotes de drop/get.",
+    flow: "CreateItem/DropCreateItem chamam Init, ajustam Level/Durability e Convert com opções (Option1/2/3/New/Set/JewelOfHarmony/ItemOptionEx/Socket/SocketBonus), definem flags periódicas e tempo restante (m_IsPeriodicItem/m_LoadPeriodicItem/m_PeriodicItemTime), posicionam m_X/m_Y, marcam m_Live=1, m_Give=0, m_State=OBJECT_CREATE e programam m_Time e m_LootTime usando gServerInfo.m_ItemDropTime (100% e 50% do valor) antes de gravar Serial.",
+    description: "Define o ciclo de vida de objetos de item no mundo com timers de loot e expiração baseados em configuração, preparando-os para coleta ou remoção posterior."
+  },
+  {
+    id: "server-pk-drop-system",
+    name: "Drop de itens ao morrer em PK",
+    type: "Servidor",
+    files: ["User.cpp", "ItemManager.h"],
+    classes: [],
+    functions: ["gObjDie", "CItemManager::CGPkDrop"],
+    networkDetails: "Sistema de packets original: reutiliza PMSG_ITEM_DROP_RECV para simular drop forçado quando PKLevel>=6 e m_PkItemDropRate passa no rand(); usa GetItemName para logar e CGPkDrop para processar.",
+    flow: "Em gObjDie, quando m_PkItemDropSwitch e m_PkItemDropEnable permitem, sorteia até 24 tentativas em slots 0-11 ou inventário principal, monta PMSG_ITEM_DROP_RECV com slot/x/y e chama CGPkDrop; ignora alguns índices especiais (GET_ITEM(13,20) com níveis 1-2) e registra LogAdd de drop ao sucesso.",
+    description: "Implementa perda de item em mortes PK via reuso do handler de drop, respeitando limites de mapa, PKLevel e itens bloqueados, e limpando inventário conforme CGPkDrop." 
+  },
+  {
+    id: "client-item-structs",
+    name: "Struct ITEM do cliente e atributos carregados",
+    type: "Cliente",
+    files: ["_struct.h"],
+    classes: ["ITEM", "ITEM_ATTRIBUTE"],
+    functions: [],
+    networkDetails: "Estruturas locais usadas para armazenar dados vindos dos packets de inventário/equipamentos; não enviam dados diretamente.",
+    flow: "ITEM inclui campos Type, Level, requisitos, opções especiais, sockets, posição (x/y) e flags de período/opção 380; ITEM_ATTRIBUTE guarda nome, TwoHand, SkillIndex, requisitos e resistências carregadas dos scripts.",
+    description: "Modelo de item usado pelo cliente para renderização e validação, mantendo informações de sockets e posição em grid compatíveis com o layout do inventário."
+  },
+  {
+    id: "client-inventory-handling",
+    name: "Recebimento de inventário e interação de itens no cliente",
+    type: "Cliente",
+    files: ["WSclient.cpp"],
+    classes: [],
+    functions: ["ReceiveInventory", "ReceiveDeleteInventory", "ReceiveGetItem", "ReceiveDropItem", "ReceiveTradeInventory", "ReceiveCreateItemViewport"],
+    networkDetails: "Sistema de packets original: interpreta listas completas (C4:F3:10) em PRECEIVE_INVENTORY, confirma exclusão (C1:28), coleta (C3:22), drop (C1:23) e lotes de trade/loja/mix (C1:31) além de criação/remoção de itens no viewport.",
+    flow: "ReceiveInventory zera equipamentos/malas/loja, remove pets (DeleteBug/DeletePet), percorre Value entradas e distribui itens entre equipamentos, mochila e loja pessoal; ReceiveDeleteInventory remove slots específicos e desabilita uso quando Value !=0. ReceiveGetItem trata resultados NOT_GET_ITEM/GET_ITEM_ZEN/GET_ITEM_MULTI, atualiza Gold, insere item ou toca sons específicos, e envia mensagens de chat com nome do item; ReceiveDropItem aplica remoção no slot equipamento/mochila conforme KeyH e faz backup do item selecionado. ReceiveTradeInventory interpreta SubCode (3/5 mix falho/sucesso) tocando sons e reiniciando MixInventory ou popula Shop/Storage com PRECEIVE_INVENTORY recebido. ReceiveCreateItemViewport instancia itens no mapa com coordenadas escaladas e remove via ReceiveDeleteItemViewport quando necessário.",
+    description: "Camada cliente que sincroniza inventário, trade/mix/storage e itens no mundo usando os packets do protocolo original, removendo/atualizando slots e sons conforme respostas do servidor."
+  },
+  {
+    id: "server-item-require-checks",
+    name: "Validação de requisitos e movimentação para slots",
+    type: "Servidor",
+    files: ["ItemManager.cpp", "ItemManager.h"],
+    classes: ["CItemManager"],
+    functions: [
+      "CheckItemRequireLevel",
+      "CheckItemRequireStrength",
+      "CheckItemRequireDexterity",
+      "CheckItemRequireVitality",
+      "CheckItemRequireEnergy",
+      "CheckItemRequireLeadership",
+      "CheckItemRequireClass",
+      "CheckItemMoveToInventory",
+      "CheckItemMoveToTrade",
+      "CheckItemMoveToVault",
+      "CheckItemMoveToChaos",
+      "CheckItemMoveToBlock"
+    ],
+    networkDetails: "Usado por handlers de item (C1:22-26/32-34) antes de aceitar movimentação, trade, vault ou chaos; não envia pacotes diretamente, mas determina respostas de sucesso/erro nos fluxos de item do protocolo original.",
+    flow: "CheckItemRequire* compara nível/força/destreza/vitalidade/energia/liderança e classe contra campos m_Require* e RequireClass; CheckItemMoveToInventory exige item válido, valida range de slot equipável, requisitos, combinações de mão (slots 0/1 e 10/11), bloqueia montaria em Atlans e rings duplicados. CheckItemMoveToTrade/Vault/Chaos verificam periodicidade, itens Lucky/Pentagram, filtros gItemMove e bloqueios (TradeDuel, Lock, gServerInfo TradeItemBlock). CheckItemMoveToBlock rejeita trocas de itens Exc/Set/Harmony conforme limites de gServerInfo.",
+    description: "Camada de regras que determina se um item pode ser equipado, trocado, armazenado ou enviado para caos, incluindo restrições por mapa, mão dupla e flags de servidor; influência direta no resultado dos packets de movimentação."
+  },
+  {
+    id: "server-item-move-allowlist",
+    name: "Lista de permissões de drop/venda/troca/vault por item",
+    type: "Servidor",
+    files: ["ItemMove.h"],
+    classes: ["CItemMove"],
+    functions: ["Load", "CheckItemMoveAllowDrop", "CheckItemMoveAllowSell", "CheckItemMoveAllowTrade", "CheckItemMoveAllowVault"],
+    networkDetails: "Consultado pelos handlers de movimento e trade antes de aceitar ações nos pacotes C1:23/C1:24/C1:32-34 para decidir se um item específico pode ser dropado, vendido, trocado ou enviado ao vault.",
+    flow: "ITEM_MOVE_INFO contém flags AllowDrop/AllowSell/AllowTrade/AllowVault carregadas via Load em m_ItemMoveInfo; métodos CheckItemMoveAllow* consultam o map por Index e retornam permissão binária usada por CItemManager ao processar os comandos de item.",
+    description: "Tabela de permissão granular para ações de drop/venda/troca/vault por código de item, influenciando respostas de pacotes de movimentação e comércio."
+  },
+  {
+    id: "server-item-stack-config",
+    name: "Configuração de stack e item criado a partir de stack",
+    type: "Servidor",
+    files: ["ItemStack.h"],
+    classes: ["CItemStack"],
+    functions: ["Load", "GetItemMaxStack", "GetCreateItemIndex"],
+    networkDetails: "Sem envio direto; fornece limites usados quando handlers de item e inventário avaliam empilhamento em respostas de pacotes.",
+    flow: "ITEM_STACK_INFO armazena Index, MaxStack e CreateItemIndex; Load popula m_ItemStackInfo, e GetItemMaxStack/GetCreateItemIndex retornam o limite de pilha e item resultante quando a stack é consumida ou convertida.",
+    description: "Define quantidades máximas por item empilhável e qual item pode ser criado, permitindo ao servidor validar e resolver pilhas durante operações de inventário e drops."
+  },
+  {
+    id: "server-item-drop-config",
+    name: "Tabela de drop configurado por monstro/mapa",
+    type: "Servidor",
+    files: ["ItemDrop.h"],
+    classes: ["CItemDrop"],
+    functions: ["Load", "DropItem", "GetItemDropRate"],
+    networkDetails: "Orientado a servidor: decide qual item é criado antes de enviar packets de drop/mundo aos clientes.",
+    flow: "ITEM_DROP_INFO guarda Index, Level, Grade, opções 0-6, duração, mapa, monstro e faixa de nível, além de DropRate; Load preenche m_ItemDropInfo e DropItem seleciona itens considerando GetItemDropRate com parâmetros do monstro/target.",
+    description: "Camada de configuração que determina quais itens podem cair de monstros específicos em mapas e níveis definidos, alimentando a criação de itens no mundo."
   }
+
 ];
 
 const ueGuides = {
@@ -434,8 +702,361 @@ const ueGuides = {
       "4. Adicione `UFUNCTION(BlueprintPure)` `UBuffScriptLoaderUE* GetLoader();` e equivalentes para tempo/valores, permitindo acesso de UI e outros componentes, assim como os wrappers TheBuffStateSystem.",
       "5. Implemente método `Deinitialize` limpando timers e referências, replicando Destroy() do código original; compile e marque o subsistema para iniciar automaticamente."
     ]
+  },
+
+  "server-modern-socket": {
+    title: "Encaminhar ProtocolHead no servidor UE 5.7",
+    steps: [
+      "1. Abra o Unreal Engine 5.7 e em **Add → New C++ Class → GameMode Base** crie `AUEProtocolRouter` para substituir o socket server manual.",
+      "2. No `.h`, marque `bUseSeamlessTravel` se necessário e declare `UFUNCTION(Server, Reliable)` manipuladores como `void ServerHandleLogin(const FLoginRequest& Request);`, `void ServerHandleMove(const TArray<uint8>& DirData);` e `void ServerHandlePosition(const FVector& Pos);` para substituir os casos BOTH_CONNECT_LOGIN/BOTH_MOVE/BOTH_POSITION.",
+      "3. No `.cpp`, em cada handler valide o `APlayerController` chamador com `ensure(HasAuthority())` e repasse para componentes de jogo; em vez de reconstruir buffers, processe os parâmetros tipados e chame funções de gameplay.",
+      "4. Crie `UFUNCTION(NetMulticast, Reliable)` notificações como `void MulticastPositionUpdate(ACharacter* Target, const FVector& Pos);` para substituir PacketSend para VpPlayer2; chame-as quando o servidor aplicar a mudança.",
+      "5. Abra **Edit → Project Settings → Maps & Modes** e defina `AUEProtocolRouter` como GameMode padrão para que todas as sessões usem os RPCs.",
+      "6. No Blueprint do GameMode, documente que o servidor da UE usa RPCs e replicação padrão em vez de olc::net/PacketManager; não crie sockets ou buffers manuais.",
+      "7. Execute **Build** no Editor para compilar e, em seguida, teste com dois clientes PIE verificando se `MulticastPositionUpdate` replica as posições."
+    ]
+  },
+  "server-login-auth": {
+    title: "Autenticar cliente no servidor UE (versão/serial)",
+    steps: [
+      "1. No PlayerController C++ (`ANetworkPC`), declare `UFUNCTION(Server, Reliable)` `void ServerSubmitLogin(const FString& Account, const FString& Password, const FString& ClientVersion, const FString& ClientSerial);`.",
+      "2. No `.cpp`, em `ServerSubmitLogin`, chame `HasAuthority()` e compare `ClientVersion`/`ClientSerial` com valores armazenados no GameInstance; se divergirem, chame `ClientNotifyLoginResult` (RPC Client) com código de erro análogo a GCConnectAccountSend.",
+      "3. No GameMode `AUEProtocolRouter`, crie método `bool ValidateLogin(const FString& Account, const FString& Password);` que consulta um backend ou tabela local; se faltar implementação no código original, registre 'NÃO DÁ PARA INFERIR COM SEGURANÇA COM BASE NO CÓDIGO-FONTE C++' em um log.",
+      "4. Declare `UFUNCTION(Client, Reliable)` `void ClientReceiveJoinData(uint8 Result, uint8 IndexA, uint8 IndexB, const FString& ServerVersion);` para substituir GCConnectClientSend; calcule HeroKey como no código original e atualize estados replicados.",
+      "5. No Blueprint de UI de login, capture clique/ação e chame `ServerSubmitLogin`; mostre mensagens conforme códigos retornados em `ClientNotifyLoginResult` (mapeando os cases 0x00..0xD2).",
+      "6. No Editor, abra **Edit → Project Settings → Input** e crie Action Mapping `LoginSubmit`; no Event Graph do Widget use `InputAction LoginSubmit` para disparar a chamada RPC.",
+      "7. Compile e teste em duas instâncias PIE para garantir que apenas o servidor execute a validação e que os RPCs Client mostrem os pop-ups corretos." 
+    ]
+  },
+  "server-character-list": {
+    title: "Entregar lista de personagens via RPC",
+    steps: [
+      "1. Crie um `USTRUCT(BlueprintType)` `FCharacterSummary` com campos Name, Level, Class e GuildStatus equivalentes aos preenchidos em DGCharacterListRecv.",
+      "2. No GameMode `AUEProtocolRouter`, declare `UFUNCTION(Server, Reliable)` `void ServerRequestCharacterList(ANetworkPC* RequestingPC);` que será chamado pelo PlayerController após login.",
+      "3. No `.cpp`, ao receber a solicitação, monte `TArray<FCharacterSummary>` a partir do backend (substituindo GDCharacterListSend) e chame `ClientReceiveCharacterList` (RPC Client, Reliable) no PlayerController.",
+      "4. No PlayerController, declare `UFUNCTION(Client, Reliable)` `void ClientReceiveCharacterList(const TArray<FCharacterSummary>& Characters);` e atualize um `UPROPERTY(BlueprintAssignable)` event para a UI preencher a lista.",
+      "5. Se houver classes bloqueadas por nível/reset, aplique a mesma lógica ao montar o array e, quando alguma regra não puder ser inferida, registre 'NÃO DÁ PARA INFERIR COM SEGURANÇA COM BASE NO CÓDIGO-FONTE C++' em um log.",
+      "6. Em UMG, crie um ListView de personagens e, no Event Graph, consuma o array recebido para popular os itens.",
+      "7. Compile e valide com dois clientes PIE que o servidor envia a lista apenas após autenticação bem-sucedida." 
+    ]
+  },
+  "server-position-sync": {
+    title: "Replicar posição recebida do cliente",
+    steps: [
+      "1. No Character C++ derivado de `ACharacter`, marque em **Class Defaults** a opção **Replicate Movement** e ative **Replicates**.",
+      "2. No `.h`, declare `UFUNCTION(Server, Unreliable)` `void ServerUpdatePosition(const FVector& NewPos);` e `UFUNCTION(NetMulticast, Unreliable)` `void MulticastApplyPosition(const FVector& NewPos);` para substituir CGPositionRecv e o broadcast subsequente.",
+      "3. No `.cpp`, implemente `ServerUpdatePosition` com `if (!HasAuthority()) return;` seguido de validação simples (se faltar regra, registre a frase padrão) e chamada de `MulticastApplyPosition`.",
+      "4. Em `MulticastApplyPosition`, chame `SetActorLocation(NewPos, false, nullptr, ETeleportType::TeleportPhysics);` para atualizar todos os clientes simultaneamente.",
+      "5. No PlayerController, ao detectar teleporte ou correção de posição, chame `ServerUpdatePosition` passando `GetPawn()->GetActorLocation()`.",
+      "6. No Editor, teste com dois players em PIE verificando se a posição é replicada para observadores próximos sem usar buffers path[8].",
+      "7. Documente no Blueprint ou comentários que o envio é Unreliable, espelhando o comportamento contínuo do pacote original." 
+    ]
+  },
+  "server-move-sync": {
+    title: "Aplicar e replicar movimento comprimido",
+    steps: [
+      "1. No Character C++, declare `UFUNCTION(Server, Reliable)` `void ServerSubmitMove(const TArray<uint8>& Directions, uint8 DirByte);` representando o path comprimido do cliente.",
+      "2. No `.cpp`, em `ServerSubmitMove`, valide tamanho de `Directions` contra um limite constante equivalente a MAX_PATH_FIND; se houver colisão ou dados faltantes, registre a frase padrão de não inferência e retorne.",
+      "3. Calcule a posição alvo somando vetores de direção (use tabela de vetores de 8 direções) e chame `SetActorLocation` ou movimentação por `CharacterMovementComponent`.",
+      "4. Declare `UFUNCTION(NetMulticast, Unreliable)` `void MulticastConfirmMove(const TArray<FVector>& PathPoints, uint8 DirByte);` e dispare após aplicar o movimento no servidor.",
+      "5. No Multicast, atualize uma fila de destinos para reproduzir o movimento nos demais clientes; se não houver path detalhado no código, registre a frase padrão antes de usar apenas a posição final.",
+      "6. Em **Edit → Project Settings → Input**, configure Action/Axis para movimento e, no Event Graph do Character Blueprint, chame `ServerSubmitMove` ao processar input.",
+      "7. Compile e teste com múltiplos clientes PIE garantindo que o caminho não ultrapasse o limite e que os observadores recebam `MulticastConfirmMove`."
+    ]
+  },
+  "server-dataserver-dispatch": {
+    title: "Roteio de respostas de backend em UE",
+    steps: [
+      "1. No Unreal 5.7, crie um **GameInstance Subsystem** chamado `UDataBackendRouter` (Add → New C++ Class → Game Instance Subsystem) para substituir `DataServerProtocolCore`.",
+      "2. No `.h`, declare `UFUNCTION(Server, Reliable)` handlers como `void ServerHandleWarehouse(const FWarehousePayload& Data);`, `void ServerHandleCharacterList(const TArray<FCharacterSummary>& Characters);` e `void ServerHandleCommandReset(const FResetResult& Result);` espelhando os cases 0x01-0x0F do código original.",
+      "3. No `.cpp`, registre um mapa `TMap<uint8, TFunction<void(const TArray<uint8>&)>>` que associa cada head/subcódigo a um delegate forte; em `Initialize`, preencha os delegates chamando funções tipadas em vez de parsing manual de bytes.",
+      "4. Para notificações ao cliente, declare `UFUNCTION(Client, Reliable)` como `void ClientReceiveWarehouseItems(const FWarehousePayload& Data);` ou `ClientReceiveQuestKill(const FQuestKillData& Data);` e chame-as nos handlers, substituindo o envio de buffers gWarehouse/DGQuestKillCountRecv.",
+      "5. Se alguma estrutura de retorno não puder ser inferida do código original, inclua na implementação um `UE_LOG` com a mensagem 'NÃO DÁ PARA INFERIR COM SEGURANÇA COM BASE NO CÓDIGO-FONTE C++' e bloqueie a chamada até obter especificação.",
+      "6. Em **Edit → Project Settings → Maps & Modes**, marque o GameMode para usar este subsistema (via `GetGameInstance()->GetSubsystem<UDataBackendRouter>()`) ao iniciar a sessão e teste em PIE chamando manualmente os handlers para ver as notificações Client." 
+    ]
+  },
+  "server-joinserver-auth-move": {
+    title: "Autenticar e trocar de mapa com JoinServer em UE",
+    steps: [
+      "1. Crie um **GameInstance Subsystem** `UJoinServerBridge` (Add → New C++ Class → Game Instance Subsystem) para manter dados de conta, AuthCodes e contadores equivalentes a LoginMessageSend.",
+      "2. No PlayerController `ANetworkPC`, declare `UPROPERTY(Replicated)` `uint8 LoginMessageSend` e implemente `GetLifetimeReplicatedProps` com `DOREPLIFETIME` para esse campo e `AccountLevel`.",
+      "3. No `.h` do PlayerController, adicione `UFUNCTION(Server, Reliable)` `void ServerSubmitAccount(const FString& Account, const FString& Password);`, `void ServerRequestMapMove(int32 NextServerCode, uint8 Map, uint8 X, uint8 Y);` e `void ServerConfirmMapAuth(const FAuthPayload& Auth);`.",
+      "4. No GameMode, crie `UFUNCTION(Server, Reliable)` `void ServerProcessMapMove(ANetworkPC* PC, int32 NextServerCode, uint8 Map, uint8 X, uint8 Y);` que consulta o `UJoinServerBridge` para validar bloqueios/Lock e em sucesso chama `ClientReceiveMapMove` (RPC Client) com IP/porta ou envia `ClientMapMoveCanceled` caso contrário.",
+      "5. No PlayerController, implemente `UFUNCTION(Client, Reliable)` `void ClientReceiveJoinResult(uint8 ResultCode, uint8 AccountLevel, const FString& ExpireDate);` e `void ClientReceiveMapMove(const FString& Ip, uint16 Port, const FAuthPayload& Auth);` para substituir GCConnectAccountSend/JGMapServerMoveRecv; atualize estados replicados e chame `ServerTravel` somente após confirmação.",
+      "6. Para contas já conectadas, declare `UFUNCTION(Server, Reliable)` `void ServerHandleAlreadyConnected(const FString& Account);` e, caso `UJoinServerBridge` detecte duplicidade, chame `ClientForceLogout()` (RPC Client) ou finalize o pawn com `Destroy()` conforme gServerInfo.m_DisconnectOnlineAccount.",
+      "7. Em UMG de login, conecte botão "Login" à chamada `ServerSubmitAccount`; para mudança de mapa, ligue o evento correspondente ao botão de teleporte para disparar `ServerRequestMapMove`. Compile, ative **Replicates** no PlayerController Blueprint e teste transições em PIE."
+    ]
+  },
+  "server-packet-encryption-manager": {
+    title: "Configurar segurança de transporte sem buffers manuais",
+    steps: [
+      "1. No Editor, adicione um **Game Instance Subsystem** `UPacketSecuritySubsystem` (Add → New C++ Class → Game Instance Subsystem) para substituir `CPacketManager`.",
+      "2. No `.h`, declare `UPROPERTY()` arrays para chaves `TArray<uint8> EncryptionKey` e `DecryptionKey` e métodos `UFUNCTION(BlueprintCallable)` `void InitializeKeys();` e `void ApplySecuritySettings();`.",
+      "3. Em `InitializeKeys` no `.cpp`, carregue chaves de um DataTable ou arquivo `INI` usando `GConfig`; se não houver arquivo equivalente ao ENCDEC_HEADER, registre 'NÃO DÁ PARA INFERIR COM SEGURANÇA COM BASE NO CÓDIGO-FONTE C++' e use chaves padrões do backend.",
+      "4. Em `ApplySecuritySettings`, configure `UNetDriver::EncryptionKey` ou utilize `FEncryptionContext` da UE para assinar/criptografar pacotes, em vez de aplicar XOR manual; documente em comentários que não são usados buffers m_SaveLoadXor/m_XorFilter.",
+      "5. No GameMode inicial (por exemplo `AUEProtocolRouter`), chame `GetGameInstance()->GetSubsystem<UPacketSecuritySubsystem>()->InitializeKeys();` no BeginPlay para garantir que a sessão configure as chaves antes de qualquer RPC.",
+      "6. Se precisar registrar telemetria, crie `UFUNCTION(BlueprintCallable)` `FString DescribeKeysForDebug();` que retorna apenas tamanhos ou hashes, nunca o conteúdo; compile e teste conexão em PIE para confirmar que os RPCs continuam funcionando sem serialização manual."
+    ]
+  },
+  "server-item-packet-structs": {
+    title: "Mapear structs de packet de item para RPCs UE",
+    steps: [
+      "1. No projeto UE 5.7, crie `USTRUCT(BlueprintType)` `FItemPacketPayload` com campos `int32 Slot`, `FVector_NetQuantize10 DropPos`, `TArray<uint8> ItemInfoBytes` (12 bytes) e `uint8 ResultCode` para espelhar `PMSG_ITEM_GET/DROP/MOVE/USE/BUY/SELL/REPAIR`.",
+      "2. No PlayerController, declare `UFUNCTION(Server, Reliable)` wrappers como `void ServerSendItemGet(int32 WorldItemId);`, `void ServerSendItemDrop(int32 Slot, const FVector& Pos);`, `void ServerSendItemMove(int32 FromFlag, int32 FromSlot, const TArray<uint8>& ItemInfo, int32 ToFlag, int32 ToSlot);` e `void ServerSendItemUse(int32 SourceSlot, int32 TargetSlot, uint8 UseType);` substituindo os pacotes C1:22/23/24/26.",
+      "3. No GameMode ou InventorySubsystem, declare `UFUNCTION(Client, Reliable)` `void ClientItemGetResult(const FItemPacketPayload& Payload);`, `ClientItemDropResult`, `ClientItemMoveResult`, `ClientItemDurUpdate`, `ClientItemDelete` correspondentes aos PMSG de retorno; marque Payload como `const` e atualize arrays replicados ao receber.",
+      "4. Registre as chamadas no BeginPlay do PlayerController conectando eventos de UI e input a esses RPCs; sempre valide tamanhos `ItemInfoBytes.Num()==12` e, se faltar algum campo do pacote original, logue 'NÃO DÁ PARA INFERIR COM SEGURANÇA COM BASE NO CÓDIGO-FONTE C++' antes de rejeitar.",
+      "5. Use `FNetSerialize` customizado em `FItemPacketPayload` se quiser comprimir `ItemInfoBytes` em bits; teste em PIE enviando e recebendo payloads e verificando que InventoryComponent atualiza slots de forma consistente."
+    ]
+  },
+
+  "server-item-handlers": {
+    title: "Plano UE 5.7 para sistema de itens (dados, inventário, drop e uso)",
+    globalOrderStep: 4,
+    steps: [
+      "1. No Content Browser, crie um **Blueprint Struct** `FItemData` (Add → Blueprints → Structure) contendo campos equivalentes ao CItem/ITEM_INFO: `int32 Index`, `int32 Level`, `float Durability`, `int32 Slot`, `bool bIsTwoHand`, `TArray<uint8> Special`, `TArray<uint8> SocketOptions`, `int32 RequireStrength/Dexterity/Energy/Vitality/Leadership`, `int32 SellPrice`, `bool bIsPeriodic`, `int32 PeriodicSeconds`, `int32 SerialLow` (se precisar). Para quaisquer campos não documentados no código, registre "NÃO DÁ PARA INFERIR COM SEGURANÇA COM BASE NO CÓDIGO-FONTE C++" em comentários do struct.",
+      "2. Adicione um **C++ Class** derivado de `UActorComponent` chamado `UInventoryComponent` (Add → New C++ Class → Actor Component). No `.h`, declare `UPROPERTY(ReplicatedUsing=OnRep_Items)` `TArray<FItemData> InventorySlots` com tamanho inicial conforme INVENTORY_SIZE (Item.h) e `TArray<FItemData> EquipmentSlots` com INVENTORY_WEAR_SIZE. Implemente `GetLifetimeReplicatedProps` com `DOREPLIFETIME` para ambos.",
+      "3. No `.cpp` de `UInventoryComponent`, implemente `void InitializeSlots(int32 InventorySize, int32 EquipSize)` para preencher arrays com entradas vazias e funções helpers `bool SetItemAt(int32 Slot, const FItemData&)`, `bool MoveItem(int32 From, int32 To)` que validem índices usando constantes copiadas de Item.h; se alguma regra de colisão não puder ser deduzida, logue a frase padrão antes de retornar falso.",
+      "4. No Character C++ derivado de `ACharacter`, adicione `UPROPERTY(VisibleAnywhere)` `UInventoryComponent* InventoryComp;` inicializado no construtor com `CreateDefaultSubobject`. Marque o Character como `bReplicates=true` e ative **Replicate Movement** em Class Defaults.",
+      "5. Declare no Character `UFUNCTION(Server, Reliable)` `void ServerRequestGetItem(int32 WorldItemId);`, `void ServerRequestDropItem(int32 Slot, const FVector& DropPos);`, `void ServerRequestMoveItem(int32 FromSlot, int32 ToSlot);`, `void ServerRequestUseItem(int32 Slot, int32 TargetSlot, uint8 UseType);` correspondendo aos packets C1:22/23/24/26. Cada função deve validar `InventoryComp` e os limites de slot antes de chamar lógica interna.",
+      "6. Crie um **C++ Class** derivado de `AActor` chamado `AWorldItem` com `UPROPERTY(Replicated)` `FItemData ItemData` e `UStaticMeshComponent* Mesh`. Em Class Defaults, marque **Replicates**. Adicione `void InitializeFromData(const FItemData&)` e RPC `UFUNCTION(NetMulticast, Reliable)` `void MulticastPlayDropFX()` para efeitos de drop; se animações específicas não existirem no código, documente como 'SUGESTÃO GENÉRICA, NÃO DIRETAMENTE INFERIDA DO CÓDIGO-FONTE C++'.",
+      "7. No GameMode ou em um `UItemWorldSubsystem`, implemente funções server-only `bool SpawnWorldItem(const FItemData&, const FVector& Pos)` que chamam `GetWorld()->SpawnActor<AWorldItem>` e armazenam um mapa `WorldItemId → Actor`. Vincule `ServerRequestGetItem` para procurar o ID, aplicar validações equivalentes a CGItemGetRecv (estado vivo, interfaces) e, em sucesso, preencher `InventoryComp->InventorySlots` e destruir o `AWorldItem` com `Destroy()`.",
+      "8. Em `ServerRequestDropItem`, leia `InventoryComp->InventorySlots[Slot]`, valide locks semelhantes a CGItemDropRecv (ex.: estado morto/lock flag replicada), e se permitido chame `SpawnWorldItem` com os campos do item e limpe o slot. Chame `MulticastPlayDropFX` no item criado para reproduzir efeitos visuais.",
+      "9. Em `ServerRequestMoveItem`, espelhe a lógica de CGItemMoveRecv chamando helpers `MoveItem` para Inventário→Equipamento e outros contêineres. Se o projeto precisar de outros inventários (warehouse/chaos), crie componentes adicionais e registre em comentários quando regras não forem dedutíveis.",
+      "10. Em `ServerRequestUseItem`, aplique casos específicos vistos em CGItemUseRecv: para pergaminhos ou frutas use Branch/Switch em Blueprint ou `switch` no C++ para chamar funções `ApplyScrollEffect`, `ApplyFruitStats`, consumindo o item (`SetItemAt` com vazio) e chamando RPC `ClientItemRemoved` (Client, Reliable) para atualizar UI. Sempre que a mecânica exata não estiver clara, chame `UE_LOG` com a frase padrão antes de abortar.",
+      "11. Crie um Widget Blueprint `WBP_Inventory` (Add → User Interface → Widget Blueprint). No Event Construct, obtenha o Pawn → `GetComponentByClass` (InventoryComponent) e armazene como variável. Use `ForEachLoop` sobre `InventorySlots` para popular botões de slot; no OnClicked de cada botão, chame funções BlueprintCallable que invocam `ServerRequestMoveItem` ou `ServerRequestUseItem` conforme contexto. Vincule um botão \"Drop\" que chama `ServerRequestDropItem` com `GetHitResultUnderCursor` para posição.",
+      "12. Para integração visual de equipamentos, no Character Blueprint, anexe SkeletalMesh/StaticMesh a sockets (ex.: `hand_r`, `spine`) usando `AttachToComponent` quando `InventoryComp` emitir um evento `OnRep_Items` indicando novo item com Slot < INVENTORY_WEAR_SIZE. Se faltar mapeamento exato de sockets, documente em comentários como 'NÃO DÁ PARA INFERIR COM SEGURANÇA COM BASE NO CÓDIGO-FONTE C++' e escolha sockets padrão de Character."
+    ]
+  },
+  "server-item-move-matrix": {
+    title: "Replicar matriz de movimento entre contêineres",
+    steps: [
+      "1. No componente `UInventoryComponent`, declare constantes de faixa equivalentes a INVENTORY_FULL_RANGE/TRADE_RANGE/WAREHOUSE_RANGE e exponha `bool bWarehouseLoaded`, `bool bWarehouseLocked`, `bool bChaosLocked`, `bool bPersonalShopOpen` como UPROPERTY(Replicated).",
+      "2. Declare RPCs Server `void ServerMoveItem(int32 SourceFlag, int32 SourceSlot, int32 TargetFlag, int32 TargetSlot, const TArray<uint8>& ItemInfo);` correspondendo ao C1:24. Valide `ItemInfo.Num()==12` e retorne se qualquer flag não estiver autorizada (por exemplo, Warehouse sem bWarehouseLoaded).",
+      "3. Implemente um dispatcher em `ServerMoveItem` usando `switch`/`if` para cada combinação de SourceFlag/TargetFlag (Inventory→Inventory/Trade/Warehouse/Chaos/PersonalShop/Event/Muun; Trade→Inventory/Trade/Event; Warehouse→Inventory/Warehouse; Chaos→Inventory/Chaos; PersonalShop→Inventory/PersonalShop). Se alguma combinação não existir no código, logue 'NÃO DÁ PARA INFERIR COM SEGURANÇA COM BASE NO CÓDIGO-FONTE C++' e rejeite.",
+      "4. Para Trade, valide que o PlayerController mantém um estado `EInterfaceState::Trade` replicado e que o alvo ainda existe; para Warehouse, cheque `bWarehouseLocked` e `bWarehouseLoaded`; para Chaos/Trainer, valide um estado replicado `EInterfaceState::ChaosBox`/`Trainer`.",
+      "5. Após mover, atualize o array replicado `InventorySlots` ou contêiner correspondente e dispare `ClientItemMoveResult` (Client, Reliable) com um `FItemPacketPayload` contendo ResultCode/TargetSlot/ItemInfo, substituindo PMSG_ITEM_MOVE_SEND.",
+      "6. No Widget de inventário (`WBP_Inventory`), conecte arrastar/soltar ou cliques a `ServerMoveItem`, preenchendo SourceFlag/TargetFlag conforme aba ativa (inventário, trade, warehouse). Use Branch nodes para bloquear ações quando estados replicados indicarem lock ou interface diferente.",
+      "7. No Character Blueprint, use `OnRep` para bChaosLocked/bPersonalShopOpen para desabilitar botões correspondentes. Se faltarem regras de bloqueio específicas, documente nos comentários a frase padrão e mantenha comportamento conservador (negar movimento)."
+    ]
+  },
+  "server-mapitem-drop-lifecycle": {
+    title: "Temporizar itens dropados no mundo",
+    steps: [
+      "1. Crie uma classe C++ `AWorldItem` (Add → New C++ Class → Actor). No `.h`, declare `UPROPERTY(Replicated)` `FItemData ItemData;`, `UPROPERTY(VisibleAnywhere)` `UStaticMeshComponent* Mesh;`, `UPROPERTY(Replicated)` `float LootExpireTime;` e `float LootProtectionTime;`. Marque `bReplicates=true` no construtor e em Class Defaults.",
+      "2. No `.cpp`, implemente `void InitializeFromItem(const FItemData& Data, float DropDurationSeconds)` para copiar campos, definir `LootExpireTime=GetWorld()->GetTimeSeconds()+DropDurationSeconds` e `LootProtectionTime=GetWorld()->GetTimeSeconds()+DropDurationSeconds*0.5f` (espelhando m_Time e m_LootTime). Chame `SetReplicateMovement(true)` para sincronizar posição.",
+      "3. Crie `UFUNCTION(NetMulticast, Unreliable)` `void MulticastPlaySpawnFX();` e chame efeitos de partícula/áudio (se inexistentes no código original, marque como 'SUGESTÃO GENÉRICA, NÃO DIRETAMENTE INFERIDA DO CÓDIGO-FONTE C++'). Invocar após spawn para todos os clientes.",
+      "4. Em um subsistema ou GameMode `UItemWorldSubsystem`, implemente `AWorldItem* SpawnWorldItem(const FItemData& Data, const FVector& Pos, float DurationSeconds);` que instancia AWorldItem, chama `InitializeFromItem` e retorna ponteiro armazenado em mapa `WorldItemId→Actor`.",
+      "5. No tick server-side ou timer, percorra WorldItems e destrua aqueles cuja `LootExpireTime` foi ultrapassada; antes disso, permita coleta apenas se o solicitante for proprietário ou se `GetWorld()->GetTimeSeconds()>LootProtectionTime` para liberar para todos, replicando regras de m_LootTime.",
+      "6. Conecte `ServerRequestDropItem` do guia de itens para chamar `SpawnWorldItem` com duração configurável (DataTable ou Config). Ao coletar, destrua o actor e envie `ClientItemGetResult` ao coletor.",
+      "7. No Blueprint de inventário, exiba temporizadores se `AWorldItem` expuser `LootExpireTime` via interface BlueprintCallable; teste em PIE deixando itens no chão para confirmar expiração e liberação de loot antes da coleta."
+    ]
+  },
+  "server-chaos-event-muun-move": {
+    title: "Replicar Chaos Box, Event Inventory e Muun Inventory",
+    steps: [
+      "1. No componente `UInventoryComponent`, adicione arrays replicados separados: `TArray<FItemData> ChaosBoxSlots`, `EventInventorySlots`, `MuunInventorySlots`, cada um com tamanho definido por constantes equivalentes às macros CHAOS_BOX_SIZE/EVENT_INVENTORY_SIZE/MUUN_INVENTORY_SIZE. Declare `UPROPERTY(Replicated)` mapas de ocupação `TArray<uint8> ChaosMap`, `EventMap`, `MuunMap` se precisar espelhar os mapas do código.",
+      "2. Declare RPC Server `void ServerMoveChaosEventMuun(int32 SourceFlag, int32 SourceSlot, int32 TargetFlag, int32 TargetSlot);` que será chamado pelo cliente quando mover itens nesses contêineres. Valide intervalos usando helpers que correspondam às macros INVENTORY_FULL_RANGE/CHAOS_BOX_RANGE/EVENT_INVENTORY_RANGE/MUUN_INVENTORY_RANGE; rejeite se `SourceSlot==TargetSlot`.",
+      "3. Para Chaos Box, bloqueie quando expansões não estiverem habilitadas (equivalentes a ExtInventory<1..4) e quando uma função `CheckItemMoveToChaos(const FItemData&)` retornar falso (parâmetro para configurar em DataTable). Ao mover, copie o item, remova do inventário e atualize `ChaosBoxSlots[TargetSlot]`, disparando um OnRep para widgets de Chaos.",
+      "4. Para Event Inventory, implemente um helper `bool TryStackEvent(int32 SourceSlot,int32 TargetSlot)` que soma quantidades e retorna falha quando não caber; se falhar, reverta os mapas como o código original faz. Em sucesso, marque mapas (0xFF para limpar source, 1 para ocupado target), movendo `EventInventorySlots` e notificando via `ClientEventInventoryChanged` (Client, Reliable).",
+      "5. Para Muun Inventory, adicione validação `CheckItemMoveToMuunInventory` configurável e, quando o alvo for slot de equipar, recalcule uma variável replicada `FMuunPreviewData` no Character e chame um multicast `MulticastMuunChanged(int32 Slot)` para atualizar meshes/particles em todos os clientes.",
+      "6. No UI Blueprint de cada aba (Chaos, Event, Muun), conecte arrastar/soltar ou botões para chamar `ServerMoveChaosEventMuun` com flags numéricas equivalentes; em OnRep dos arrays, reconstrua os itens. Documente com a frase padrão quaisquer flags ou tamanhos não dedutíveis.",
+      "7. Teste em PIE movendo itens entre Inventário→Chaos, Event→Event e Muun→Muun para garantir que os mapas se mantêm consistentes e que a visualização Muun é atualizada via RPC multicast quando slots de equipar são usados."
+    ]
+  },
+  "server-item-get-drop-conditions": {
+    title: "Validar pegar e dropar itens",
+    steps: [
+      "1. No componente `UInventoryComponent`, declare RPCs `UFUNCTION(Server, Reliable)` `void ServerRequestGetWorldItem(int32 WorldItemId);` e `void ServerRequestDropItem(int32 Slot, const FVector& Pos);` que substituem os packets C1:22 e C1:23. Valide `bIsDead`, `bInTransaction`, `bInterfaceLock` replicados antes de prosseguir.",
+      "2. Em `ServerRequestGetWorldItem`, recupere o actor `AWorldItem` do mapa `WorldItemId→Actor`; rejeite se for item de evento/Muun (flags no FItemData) ou se `QuestObjective` interno indicar excedente. Impedir anéis duplicados verificando `CountItem` pelo índice/nível. Para zen, aumente `Money` replicado e envie `ClientMoneySync` (Client, Reliable); para outros itens tente `TryStackItem` e, se falhar, insira em slot vazio e destrua o `AWorldItem`.",
+      "3. Em `ServerRequestDropItem`, valide lock/estado de morte/duelo equivalentes e chame um helper `bool IsDropAllowed(const FItemData&)` que verifica flags `bLucky`, `bPeriodic`, filtros `gItemMove.CheckItemMoveAllowDrop` carregados em DataTable e limites de nível/opções. Se rejeitado, envie `ClientItemError` com a frase padrão."
+      "4. Quando o drop for permitido, remova o item do inventário, chame `SpawnWorldItem` (do guia de drop) com posição/tempo e chame `MulticastPlayDropFX`. Para itens especiais como mercenário ou life stone, documente com a frase padrão se não houver equivalente em UE.",
+      "5. Atualize widgets após pegar/dropar usando OnRep do inventário e OnRep da moeda; utilize `GCPartyItemInfoSend` equivalente (Client RPC multicast opcional) se precisar notificar grupo sobre o item adquirido, anotando quando a necessidade não puder ser inferida.",
+      "6. No UI (Widget de inventário), conecte botões de \"Pegar\" (em overlay de `AWorldItem`) para chamar `ServerRequestGetWorldItem` e botões de \"Dropar\" para chamar `ServerRequestDropItem` com `GetHitResultUnderCursor`. Teste cenários de anel duplicado e zen para confirmar a lógica."
+    ]
+  },
+  "server-item-shop-handlers": {
+    title: "RPCs UE 5.7 para compra, venda e reparo de itens",
+    globalOrderStep: 5,
+    steps: [
+      "1. No `UInventoryComponent`, declare `UFUNCTION(Server, Reliable)` `void ServerRequestBuyItem(int32 ShopSlot);`, `void ServerRequestSellItem(int32 InventorySlot);` e `void ServerRequestRepairItem(int32 InventorySlot, uint8 RepairType);` para substituir C1:32/33/34.",
+      "2. No `.cpp`, em `ServerRequestBuyItem`, valide um estado `bShopOpen` replicado e um identificador de loja (substituindo TargetShopNumber). Use uma `TArray<FShopItemData>` carregada no GameMode para recuperar preço/ItemData e aplique taxa (DataTable/Config) equivalente a gCastleSiegeSync; se a regra de impostos não estiver clara, registre a frase padrão e use zero.",
+      "3. Implemente dedução de moedas replicadas (`Zen`, `Coin1`, `Coin2`, `Coin3`) no PlayerState; utilize `FMath::Clamp` para evitar overflow e chame `OnRep`/widgets após atualizar. Se o item for empilhável, chame um helper `TryStackItem`; caso contrário, use `InventoryComp->SetItemAt`.",
+      "4. Para venda, em `ServerRequestSellItem`, valide o slot com as mesmas checagens de INVENTORY_FULL_RANGE; consulte uma função `int32 GetSellValue(const FItemData&)` (mirroring gItemMove.CheckItemMoveAllowSell) e credite a moeda correspondente. Limpe o slot e chame `ClientConfirmSell` (Client, Reliable) para atualizar UI com novo saldo.",
+      "5. Para reparo, implemente `ServerRequestRepairItem` aceitando `InventorySlot` ou `-1` para reparar todos. Aplique custo por item e recalcule atributos (chame `RecalculateStats()` no Character) após ajustar Durability; se algum cálculo estiver ausente no código, registre a frase padrão e pule o item.",
+      "6. Crie Widgets UMG para loja: `WBP_Shop` com botões Buy/Sell/Repair. Nos OnClicked, chame as RPCs Server correspondentes passando o índice do slot e, em sucesso (Client RPC), atualize listas e saldos replicados.",
+      "7. Marque `UInventoryComponent` e PlayerState como replicados. No Character Blueprint, defina **Replicates** e use `GetLifetimeReplicatedProps` para Zen/Coin1/Coin2/Coin3. Teste em PIE abrindo loja, comprando, vendendo e reparando para garantir sincronização sem enviar buffers.",
+      "8. Documente em comentários que PMSG_ITEM_BUY_NEW e headers C1:32/33/34 são substituídos por essas RPCs; quando alguma regra de preço/tributo não for dedutível, anote 'NÃO DÁ PARA INFERIR COM SEGURANÇA COM BASE NO CÓDIGO-FONTE C++' para revisão."
+    ]
+  },
+  "server-pk-drop-system": {
+    title: "Queda forçada de itens em mortes PK na UE",
+    steps: [
+      "1. No Character C++ (Player), adicione `UPROPERTY(Replicated)` `uint8 PKLevel` e `bool bAllowPkDrop` com `GetLifetimeReplicatedProps` usando `DOREPLIFETIME`; configure valores ao criar o pawn conforme regras do servidor original.",
+      "2. Crie um componente ou função em GameMode `void HandlePkDeath(AUECharacter* Dead, AUECharacter* Killer);` chamada no evento de morte; valide `bAllowPkDrop`, `PKLevel>=6` e restrições de mapa (ex.: `AllowedMaps` DataTable). Se alguma regra estiver ausente, logue a frase padrão e retorne.",
+      "3. Para selecionar o item, percorra `InventoryComp->InventorySlots` priorizando slots 0-11 (equipamentos) e depois mochila, respeitando filtros de exclusão (ex.: se Index corresponde a itens bloqueados). Caso não haja item elegível, finalize sem drop.",
+      "4. Construa um `FItemData` com o slot escolhido, remova-o do inventário e chame função server `SpawnWorldItem` (do guia de itens) para criar `AWorldItem` na posição do personagem morto; chame `MulticastPlayDropFX` para mostrar efeito.",
+      "5. Notifique o jogador via `UFUNCTION(Client, Reliable)` `void ClientPkDropLog(const FString& ItemName);` para espelhar os logs `LogAdd` do servidor original; atualize UI de inventário através de OnRep/Widgets.",
+      "6. Em testes PIE, force PKLevel alto e provoque morte para validar que apenas um item cai e que regras de bloqueio são respeitadas; registre em comentários quando detalhes de exclusão não puderem ser inferidos."
+    ]
+  },
+  "server-item-require-checks": {
+    title: "Validar requisitos de item e slots no servidor UE",
+    steps: [
+      "1. No componente `UInventoryComponent` (replicado), implemente helpers C++ `bool CheckRequirements(const FItemData& Item) const` verificando Level/Strength/Dexterity/Vitality/Energy/Leadership replicados do Character/PlayerState antes de equipar. Inclua classe/personagem com DataTable equivalente a RequireClass; se os requisitos de classe não puderem ser mapeados, registre a frase padrão.",
+      "2. Adicione `bool CanMoveToSlot(const FItemData& Item, int32 TargetSlot, int32 CurrentSlot)` que replica as regras de mão dupla (slots 0/1 e 10/11), bloqueio de montarias em mapas específicos e duplicidade de rings; defina tabelas `TSet<int32>` para índices proibidos em mapas (ex.: Atlans) e verifique pares de slot.",
+      "3. Em RPCs `ServerMoveItem`/`ServerEquipItem`, chame `CheckRequirements` e `CanMoveToSlot` antes de alterar arrays replicados; se falhar, retorne via `ClientItemError` (Client, Reliable) sem modificar estado.",
+      "4. Para bloqueios de trade/vault/chaos, crie enums `EItemMoveContext { Inventory, Trade, Vault, Chaos }` e função `bool CanMoveInContext(const FItemData&, EItemMoveContext)` que checa flags de periodicidade, Lucky/Pentagram e bloqueios de segurança (`bLock`, `bInTrade`). Mantenha arrays de configuração no GameMode ou DataTable para replicar gServerInfo/gItemMove filtros; caso algum filtro não esteja no código, documente como sugestão genérica.",
+      "5. Exponha `CheckRequirements` e `CanMoveToSlot` para Blueprints (`BlueprintCallable`) para que widgets validem antes de chamar RPCs, evitando enviar comandos inválidos.",
+      "6. Teste em PIE equipando itens incompatíveis e movendo-os entre contêineres; confirme que o servidor rejeita e envia mensagens de erro replicadas ao cliente sem alterar o inventário." 
+    ]
+  },
+  "server-item-move-allowlist": {
+    title: "Permissões de drop/venda/troca/vault por item na UE",
+    steps: [
+      "1. Crie um DataTable `FItemMoveRule` com campos `ItemIndex`, `bAllowDrop`, `bAllowSell`, `bAllowTrade`, `bAllowVault` correspondentes a ITEM_MOVE_INFO. Carregue-o no GameMode em BeginPlay.",
+      "2. No `UInventoryComponent`, mantenha um ponteiro para essas regras e implemente `bool IsActionAllowed(const FItemData&, EItemMoveAction Action)` com switch para Drop/Sell/Trade/Vault, retornando falso se o índice não existir ou se o flag for 0.",
+      "3. Antes de executar RPCs `ServerDropItem`, `ServerSellItem`, `ServerTradeItem`, `ServerStoreVault`, chame `IsActionAllowed`; se negar, retorne via `ClientItemError` e não altere estado.",
+      "4. Para venda, exponha os flags ao UI (BlueprintCallable) para desabilitar botões quando `bAllowSell` for falso. Para drop, faça o mesmo em widgets de confirmação de drop.",
+      "5. Documente em comentários que isso substitui gItemMove.CheckItemMoveAllow* e que qualquer regra ausente deve ser marcada com 'NÃO DÁ PARA INFERIR COM SEGURANÇA COM BASE NO CÓDIGO-FONTE C++'."
+    ]
+  },
+  "server-item-stack-config": {
+    title: "Regras de empilhamento e criação de item na UE",
+    steps: [
+      "1. Defina um `USTRUCT` `FItemStackRule` com `int32 ItemIndex`, `int32 MaxStack`, `int32 CreateItemIndex`. Carregue um DataTable no GameMode para popular um `TMap<int32, FItemStackRule>`.",
+      "2. No `UInventoryComponent`, implemente `int32 GetMaxStack(int32 ItemIndex)` e `int32 GetCreateItemIndex(int32 ItemIndex)` lendo o mapa; exponha como BlueprintCallable para UI.",
+      "3. Em `ServerAddItem`/`ServerMoveItem`, antes de adicionar ao slot, chame um helper `bool TryStackItem(int32 TargetSlot, const FItemData& Incoming)` que soma `Quantity` até `MaxStack` e, se exceder, gera novo item baseado em `CreateItemIndex` quando aplicável; se não houver regra, mantenha comportamento original e marque a lacuna com a frase padrão.",
+      "4. Replicação: marque `InventorySlots` como `UPROPERTY(ReplicatedUsing=OnRep_Inventory)` e, no OnRep, atualize widgets de quantidade. Use RPC Client `ClientStackMerged` para feedback visual quando pilhas são fundidas.",
+      "5. Teste em PIE adicionando itens repetidos e verificando que a UI soma quantidades e cria itens derivados quando MaxStack é atingido." 
+    ]
+  },
+  "server-item-drop-config": {
+    title: "Tabela de drop configurado em UE",
+    steps: [
+      "1. Crie um DataTable `FDropRow` com campos `ItemIndex`, `Level`, `Grade`, `Option0..Option6`, `DurationSeconds`, `MapNumber`, `MonsterClass`, `MonsterLevelMin`, `MonsterLevelMax`, `DropRate`. Carregue-o no GameMode ou em um Subsystem.",
+      "2. Implemente um serviço `UItemDropService` com função `FItemData RollDrop(int32 MapNumber, int32 MonsterClass, int32 MonsterLevel)` que filtra as linhas por mapa/monstro/nivel e sorteia usando `FMath::RandRange(1,1000000)` comparando com DropRate; se nenhuma linha corresponder, retorne vazio.",
+      "3. No `AMonster` C++ (derivado de ACharacter), ao morrer no servidor, chame `RollDrop` e, se obtiver item, invoque `SpawnWorldItem` (do guia de mapa de drop) passando `DurationSeconds` e opções/melhorias de Option0..Option6 preenchidas na struct `FItemData`.",
+      "4. Adicione `UFUNCTION(NetMulticast, Unreliable)` `void MulticastDropFX()` no monstro ou no `AWorldItem` para mostrar animação/sons; marque como sugestão genérica quando não existir no código original.",
+      "5. Em testes PIE, configure linhas simples no DataTable e verifique que apenas monstros elegíveis geram itens, respeitando DropRate e DurationSeconds replicados no `AWorldItem`." 
+    ]
   }
+
 };
+
+const ueSystems = [
+  {
+    id: "items-system",
+    name: "Sistema de Items",
+    status: "Encontrado",
+    mechanicsIds: ["server-protocolcore-dispatch", "server-item-structs", "server-item-packet-structs", "server-item-handlers", "server-item-move-matrix", "server-chaos-event-muun-move", "server-item-require-checks", "server-item-move-allowlist", "server-item-stack-config", "server-item-drop-config", "server-item-get-drop-conditions", "server-item-shop-handlers", "server-mapitem-drop-lifecycle", "server-pk-drop-system", "client-item-structs", "client-inventory-handling"],
+    codeSummary: "ProtocolCore (Protocol.cpp) roteia C1:22-26/32-34 para CItemManager (get/drop/move/use/buy/sell/repair) usando structs CItem/ITEM_INFO; o cliente mantém ITEM e PRECEIVE_INVENTORY para refletir o inventário e renderizar itens/viewport.",
+    ue57Summary: "Mapear get/drop/move/use/buy/sell/repair para RPCs Server em Character/InventoryComponent, usar `FItemData` replicado, atores `AWorldItem` para drops e Widgets para UI; marcar campos ausentes com 'NÃO DÁ PARA INFERIR COM SEGURANÇA COM BASE NO CÓDIGO-FONTE C++'."
+  },
+  {
+    id: "inventory-system",
+    name: "Sistema de Inventory",
+    status: "Encontrado",
+    mechanicsIds: ["server-protocolcore-dispatch", "server-character-list", "server-item-structs", "server-item-packet-structs", "server-item-handlers", "server-item-move-matrix", "server-chaos-event-muun-move", "server-item-require-checks", "server-item-move-allowlist", "server-item-stack-config", "server-item-drop-config", "server-item-get-drop-conditions", "server-item-shop-handlers", "server-mapitem-drop-lifecycle", "client-inventory-handling", "client-item-structs"],
+    codeSummary: "DGCharacterListRecv carrega slots iniciais enquanto CItemManager move/usa/compra/vende/repara itens entre inventário/equipamentos/warehouse/chaos; no cliente, ReceiveInventory/ReceiveGetItem/ReceiveDropItem/ReceiveTradeInventory sincronizam g_pMyInventory, MixInventory e lojas.",
+    ue57Summary: "Replicar arrays de inventário/equipamento e saldos em componente anexado ao Character/PlayerState, criar RPCs para transferir/loja/reparar itens e usar hooks OnRep para atualizar UI; validar tamanho e contêiner conforme limites de Item.h e registrar 'NÃO DÁ PARA INFERIR COM SEGURANÇA COM BASE NO CÓDIGO-FONTE C++' quando regras faltarem."
+  },
+  {
+    id: "character-system",
+    name: "Sistema de Character",
+    status: "Encontrado",
+    mechanicsIds: ["protocol-character-and-move", "server-character-list"],
+    codeSummary: "CGCharacterListRecv/GDCharacterListSend enviam resumo de personagens após login e os envios de posição/movimento partem do cliente (SendPositionNew/SendCharacterMoveNew).",
+    ue57Summary: "Criar classe derivada de ACharacter replicada, com RPC Server para solicitar lista de personagens e variáveis replicadas para atributos básicos; onde faltarem estatísticas específicas, registrar 'NÃO DÁ PARA INFERIR COM SEGURANÇA COM BASE NO CÓDIGO-FONTE C++'."
+  },
+  {
+    id: "character-appearance",
+    name: "Sistema de Aparência do Character",
+    status: "NaoEncontrado",
+    mechanicsIds: [],
+    codeSummary: "NÃO DÁ PARA INFERIR COM SEGURANÇA COM BASE NO CÓDIGO-FONTE C++",
+    ue57Summary: "NÃO DÁ PARA INFERIR COM SEGURANÇA COM BASE NO CÓDIGO-FONTE C++"
+  },
+  {
+    id: "appearance-by-items",
+    name: "Mudanças de Aparência por Items nos Slots",
+    status: "NaoEncontrado",
+    mechanicsIds: [],
+    codeSummary: "NÃO DÁ PARA INFERIR COM SEGURANÇA COM BASE NO CÓDIGO-FONTE C++",
+    ue57Summary: "NÃO DÁ PARA INFERIR COM SEGURANÇA COM BASE NO CÓDIGO-FONTE C++"
+  },
+  {
+    id: "hud-system",
+    name: "HUD",
+    status: "NaoEncontrado",
+    mechanicsIds: [],
+    codeSummary: "NÃO DÁ PARA INFERIR COM SEGURANÇA COM BASE NO CÓDIGO-FONTE C++",
+    ue57Summary: "Para recriar UI em UE 5.7 seria necessário UMG, mas a ordem e campos exibidos não estão no código: 'NÃO DÁ PARA INFERIR COM SEGURANÇA COM BASE NO CÓDIGO-FONTE C++'."
+  },
+  {
+    id: "character-movement",
+    name: "Movimentação do Character",
+    status: "Encontrado",
+    mechanicsIds: ["protocol-character-and-move", "server-position-sync", "server-move-sync"],
+    codeSummary: "SendCharacterMoveNew envia caminho comprimido (PathNum/DirTable) e CGMoveRecv aplica path validando colisão em gMap, atualizando stand attr e difundindo via PacketSend para jogadores do viewport.",
+    ue57Summary: "Usar ACharacter com bReplicateMovement, RPC Server para receber Arrays de direções e validação de colisão no servidor; broadcast via NetMulticast ou variáveis replicadas para posição/rota."
+  },
+  {
+    id: "mobs-system",
+    name: "Mobs",
+    status: "NaoEncontrado",
+    mechanicsIds: [],
+    codeSummary: "NÃO DÁ PARA INFERIR COM SEGURANÇA COM BASE NO CÓDIGO-FONTE C++",
+    ue57Summary: "NÃO DÁ PARA INFERIR COM SEGURANÇA COM BASE NO CÓDIGO-FONTE C++"
+  },
+  {
+    id: "mob-ai",
+    name: "AI dos Mobs",
+    status: "NaoEncontrado",
+    mechanicsIds: [],
+    codeSummary: "NÃO DÁ PARA INFERIR COM SEGURANÇA COM BASE NO CÓDIGO-FONTE C++",
+    ue57Summary: "NÃO DÁ PARA INFERIR COM SEGURANÇA COM BASE NO CÓDIGO-FONTE C++"
+  },
+  {
+    id: "mob-spawn",
+    name: "Spawn de Mobs",
+    status: "NaoEncontrado",
+    mechanicsIds: [],
+    codeSummary: "NÃO DÁ PARA INFERIR COM SEGURANÇA COM BASE NO CÓDIGO-FONTE C++",
+    ue57Summary: "NÃO DÁ PARA INFERIR COM SEGURANÇA COM BASE NO CÓDIGO-FONTE C++"
+  },
+  {
+    id: "drop-system",
+    name: "Sistema de Drop (com animação)",
+    status: "Encontrado",
+    mechanicsIds: ["server-protocolcore-dispatch"],
+    codeSummary: "ProtocolCore roteia comandos de pegar/soltar item (0x22-0x26), mas nenhuma animação é descrita nos handlers; o servidor apenas valida e repassa via PacketSend/DataSend.",
+    ue57Summary: "Transformar comandos de drop em RPC Server que spawnem AActor replicado para o item no mundo; animações ou efeitos visuais devem ser marcados como 'SUGESTÃO GENÉRICA, NÃO DIRETAMENTE INFERIDA DO CÓDIGO-FONTE C++' quando não estiverem no código."
+  },
+  {
+    id: "item-effects",
+    name: "Sistema de Efeitos dos Items",
+    status: "Encontrado",
+    mechanicsIds: ["buff-script-load", "buff-time-control", "buff-value-control", "buff-system-dispatch"],
+    codeSummary: "BuffScriptLoader lê BuffEffect_<ML>.bmd com XOR e checksum, BuffTimeControl registra timers via WM_TIMER e BuffStateValueControl calcula valores a partir de BuffInfo/ItemAddOptioninfo.",
+    ue57Summary: "Criar subsistemas UE que carreguem tabelas de buff em USTRUCT, usem FTimerManager para contagem regressiva e exponham valores replicados quando afetarem outros jogadores; textos ausentes devem usar 'NÃO DÁ PARA INFERIR COM SEGURANÇA COM BASE NO CÓDIGO-FONTE C++'."
+  },
+  {
+    id: "character-sockets",
+    name: "Sistema de Sockets no Personagem (Weapons, Wings, Pets, Montaria)",
+    status: "Encontrado",
+    mechanicsIds: ["socket-option-script", "socket-tooltip-bonus"],
+    codeSummary: "CSocketItemMgr lê scripts de socket com XOR rotativo e cálculos CalcSocketOptionValue/Bonus, e funções de tooltip para SeedSphere e bônus usam esses dados.",
+    ue57Summary: "Armazenar opções de socket em USTRUCT carregado localmente e anexar armas/itens a sockets do esqueleto via AttachToComponent; quando a relação exata de slots não aparecer, registrar 'NÃO DÁ PARA INFERIR COM SEGURANÇA COM BASE NO CÓDIGO-FONTE C++'."
+  },
+  {
+    id: "terrain-system",
+    name: "Sistema de Terrain (coordenadas/rotação)",
+    status: "Encontrado",
+    mechanicsIds: ["server-move-sync"],
+    codeSummary: "CGMoveRecv consulta gMap para verificar bloqueios (stand attr) e reposiciona o jogador quando o path encontra colisão, limpando e setando stand attr conforme a nova coordenada.",
+    ue57Summary: "Executar validação de terreno no servidor UE usando navegação/colisão antes de replicar movimento; ajustes de unidade/rotação não aparecem no código, então 'NÃO DÁ PARA INFERIR COM SEGURANÇA COM BASE NO CÓDIGO-FONTE C++' para conversões específicas."
+  }
+];
 
 const roadmap = [
   {
@@ -572,12 +1193,87 @@ const roadmap = [
     description: "Criar testes que verifiquem consistência de m_BuffStateValue ao longo de múltiplas chamadas GetValue e cargas de itens variáveis.",
     basedOnCode: true,
     notes: "Baseado diretamente no código C++ (w_BuffStateValueControl.cpp linhas 20-83)."
+  },
+
+  {
+    id: "roadmap-modern-socket-cleanup",
+    horizon: "Curto Prazo",
+    priority: "Alta",
+    mechanicsIds: ["server-modern-socket"],
+    description: "Revisar thread detach no destrutor de CSocketManagerModern e adicionar desligamento ordenado do connection->Stop().",
+    basedOnCode: true,
+    notes: "Baseado diretamente no código C++ (SocketManagerModern.h destrutor detach sem join)."
+  },
+  {
+    id: "roadmap-login-version-serial",
+    horizon: "Curto Prazo",
+    priority: "Média",
+    mechanicsIds: ["server-login-auth"],
+    description: "Externalizar tabelas de versão/serial do servidor para configuração em vez de constantes compiladas.",
+    basedOnCode: true,
+    notes: "Baseado diretamente no código C++ (Protocol.cpp GCConnectClientSend/CGConnectAccountRecv comparando ClientVersion/ClientSerial)."
+  },
+  {
+    id: "roadmap-move-collision",
+    horizon: "Médio Prazo",
+    priority: "Alta",
+    mechanicsIds: ["server-move-sync", "server-position-sync"],
+    description: "Adicionar logs detalhados quando gMap.CheckAttr bloquear movimento e teleporte corretivo for aplicado em CGMoveRecv/CGPositionRecv.",
+    basedOnCode: true,
+    notes: "Baseado diretamente no código C++ (Protocol.cpp blocos de gMap.CheckAttr e resets de PathCount)."
+  },
+  {
+    id: "roadmap-dataserver-telemetry",
+    horizon: "Curto Prazo",
+    priority: "Média",
+    mechanicsIds: ["server-dataserver-dispatch"],
+    description: "Registrar métricas por head/subcódigo em DataServerProtocolCore e validar acessos a lpMsg[3]/lpMsg[4] antes de chamar handlers.",
+    basedOnCode: true,
+    notes: "Baseado diretamente no código C++ (DSProtocol.cpp switch de head 0x00-0x11 e subcódigos 0x00/0x01/0x70/0x71/0x75)."
+  },
+  {
+    id: "roadmap-joinserver-dup-protection",
+    horizon: "Médio Prazo",
+    priority: "Alta",
+    mechanicsIds: ["server-joinserver-auth-move"],
+    description: "Fortalecer tratamento de conta duplicada em JGAccountAlreadyConnectedRecv sincronizando com CustomAttack/CustomStore para encerrar sessões conflitantes.",
+    basedOnCode: true,
+    notes: "Baseado diretamente no código C++ (JSProtocol.cpp função JGAccountAlreadyConnectedRecv e uso de gCustomAttack/gCustomStore)."
+  },
+  {
+    id: "roadmap-packet-key-config",
+    horizon: "Curto Prazo",
+    priority: "Média",
+    mechanicsIds: ["server-packet-encryption-manager"],
+    description: "Externalizar chaves DES_XEX3/XorFilter para arquivo de configuração e adicionar validação de header 4370 antes de ApplySecuritySettings.",
+    basedOnCode: true,
+    notes: "Baseado diretamente no código C++ (PacketManager.cpp Init/LoadKey usando ENCDEC_HEADER e m_SaveLoadXor/m_XorFilter)."
+  },
+  {
+    id: "roadmap-chaos-event-muun-replication",
+    horizon: "Médio Prazo",
+    priority: "Alta",
+    mechanicsIds: ["server-chaos-event-muun-move"],
+    description: "Mapear as expansões de inventário e mapas de slots ao portar Chaos/Event/Muun Inventory para componentes replicados, adicionando logs de rollback quando EventInventoryAddItemStack falhar.",
+    basedOnCode: true,
+    notes: "Baseado diretamente no código C++ (ItemManager.cpp linhas 2754-2810 e 3001-3114)."
+  },
+  {
+    id: "roadmap-item-get-drop-validation",
+    horizon: "Curto Prazo",
+    priority: "Alta",
+    mechanicsIds: ["server-item-get-drop-conditions"],
+    description: "Recriar na UE 5.7 as verificações de estado (DieRegen, Interface, Transaction), filtros de evento/Muun/quest e restrições de rings/zen antes de pegar ou dropar itens.",
+    basedOnCode: true,
+    notes: "Baseado diretamente no código C++ (ItemManager.cpp linhas 3123-3338)."
   }
+
 ];
 
 // UI Logic
 const tabButtons = document.querySelectorAll('.tab-button');
 const tabContents = document.querySelectorAll('.tab-content');
+const ueSystemsContainer = document.getElementById('ue-systems-container');
 
 function switchTab(targetId) {
   tabButtons.forEach(btn => btn.classList.toggle('active', btn.dataset.target === targetId));
@@ -730,9 +1426,35 @@ roadmapHorizon.addEventListener('change', renderRoadmap);
 roadmapPriority.addEventListener('change', renderRoadmap);
 roadmapMechanic.addEventListener('change', renderRoadmap);
 
+// UE Systems rendering
+function renderUESystems() {
+  if (!ueSystemsContainer) return;
+  const mechanicsMap = new Map(mechanics.map(m => [m.id, m.name]));
+  ueSystemsContainer.innerHTML = '';
+  ueSystems.forEach(sys => {
+    const card = document.createElement('div');
+    card.className = 'system-card';
+    const statusClass = sys.status === 'Encontrado' ? 'status-found' : 'status-missing';
+    const mechanicsList = sys.mechanicsIds && sys.mechanicsIds.length
+      ? sys.mechanicsIds.map(id => mechanicsMap.get(id) || id).join(', ')
+      : 'NÃO DÁ PARA INFERIR COM SEGURANÇA COM BASE NO CÓDIGO-FONTE C++';
+    card.innerHTML = `
+      <div class="system-header">
+        <h3>${sys.name}</h3>
+        <span class="status-tag ${statusClass}">${sys.status === 'Encontrado' ? 'Encontrado no código' : 'NÃO DÁ PARA INFERIR COM SEGURANÇA COM BASE NO CÓDIGO-FONTE C++'}</span>
+      </div>
+      <div class="system-section"><strong>Mecânicas Relacionadas:</strong> ${mechanicsList}</div>
+      <div class="system-section"><strong>Resumo técnico (código):</strong> ${sys.codeSummary}</div>
+      <div class="system-section"><strong>Adaptação UE 5.7:</strong> ${sys.ue57Summary}</div>
+    `;
+    ueSystemsContainer.appendChild(card);
+  });
+}
+
 // Initial render
 populateGuideSelect();
 populateRoadmapMechanicFilter();
 renderMechanicsList();
 renderGuide();
 renderRoadmap();
+renderUESystems();
