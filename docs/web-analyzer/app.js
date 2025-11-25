@@ -472,7 +472,7 @@ const mechanics = [
       "GCPentagramJewelInfoSend"
     ],
     networkDetails: "Sistema de packets original: C1:EC:00 (insert), C1:EC:01 (remove), C1:EC:02 (refine mix), C1:EC:03 (upgrade level/rank) e C1:EE:01 (info) usam structs PMSG_PENTAGRAM_JEWEL_* com slots/alvo/tipo; DataServer interage via C2:23:00/ C1:23:00 para salvar/recuperar info.",
-    flow: "Load/LoadJewel/LoadMixRate leem tabelas de tipo/opções/rates via CMemScript para mapas m_PentagramTypeInfo/m_PentagramOptionInfo/m_PentagramJewelOptionInfo/m_PentagramJewelRemoveInfo/m_PentagramJewelUpgrade*. CGPentagramJewelInsertRecv valida conexão e range, confirma PentagramItem e PentagramJewel, calcula SocketSlot e só permite se slot está 0xFE e atributo combina; AddPentagramJewelInfo registra info, envia PMSG_PENTAGRAM_JEWEL_INSERT_SEND, grava índice na m_SocketOption e remove o item de origem. CGPentagramJewelRemoveRecv checa ranges/validações, consulta GetPentagramJewelInfo e espaço no inventário, avalia taxa MixRate por atributo, cria item de joia (GDCreateItemSend) ou apenas limpa slot para 0xFE, removendo info e enviando resultado. CGPentagramJewelRefineRecv e CGPentagramJewelUpgradeRecv aplicam ChaosLock/PShopOpen, zeram dinheiro/sucesso e delegam para gChaosBox mixes (mithril/elixir/jewel/decomposite/upgrade level/rank). GCPentagramJewelInfoSend varre arrays PentagramJewelInfo_* e envia blocos via 0xEE:01 para cliente."
+    flow: "Load/LoadJewel/LoadMixRate leem tabelas de tipo/opções/rates via CMemScript para mapas m_PentagramTypeInfo/m_PentagramOptionInfo/m_PentagramJewelOptionInfo/m_PentagramJewelRemoveInfo/m_PentagramJewelUpgrade*. CGPentagramJewelInsertRecv valida conexão e range, confirma PentagramItem e PentagramJewel, calcula SocketSlot e só permite se slot está 0xFE e atributo combina; AddPentagramJewelInfo registra info, envia PMSG_PENTAGRAM_JEWEL_INSERT_SEND, grava índice na m_SocketOption e remove o item de origem. CGPentagramJewelRemoveRecv checa ranges/validações, consulta GetPentagramJewelInfo e espaço no inventário, avalia taxa MixRate por atributo, cria item de joia (GDCreateItemSend) ou apenas limpa slot para 0xFE, removendo info e enviando resultado. CGPentagramJewelRefineRecv e CGPentagramJewelUpgradeRecv aplicam ChaosLock/PShopOpen, zeram dinheiro/sucesso e delegam para gChaosBox mixes (mithril/elixir/jewel/decomposite/upgrade level/rank). GCPentagramJewelInfoSend varre arrays PentagramJewelInfo_* e envia blocos via 0xEE:01 para cliente.",
     description: "Gerencia joias elementais (pentagram) carregando tabelas de tipo/opção/rate e tratando inserção, remoção, refino e upgrade com validações de slots, atributos e espaço, usando mixes de Chaos e sincronização com DataServer/cliente."
   },
   {
@@ -761,6 +761,28 @@ const mechanics = [
     networkDetails: "Orientado a servidor: decide qual item é criado antes de enviar packets de drop/mundo aos clientes.",
     flow: "ITEM_DROP_INFO guarda Index, Level, Grade, opções 0-6, duração, mapa, monstro e faixa de nível, além de DropRate; Load preenche m_ItemDropInfo e DropItem seleciona itens considerando GetItemDropRate com parâmetros do monstro/target.",
     description: "Camada de configuração que determina quais itens podem cair de monstros específicos em mapas e níveis definidos, alimentando a criação de itens no mundo."
+  },
+  {
+    id: "server-excellent-option-rate",
+    name: "Seleção de opção excellent por taxa e faixa de item",
+    type: "Servidor",
+    files: ["ItemExcellentOptionRate.cpp", "ItemExcellentOptionRate.h"],
+    classes: ["CItemExOptionRate"],
+    functions: ["Load", "GetExcellentOptionByRate"],
+    networkDetails: "Processo interno de geração de opção antes de enviar criação de item ao cliente; não recebe packets diretos.",
+    flow: "Load usa CMemScript para criar ITEM_EX_OPTION_RATE_INFO com OptionIndex, ItemMinIndex/ItemMaxIndex, Name e OptionRate, armazenando em m_ItemExOptionRateInfo. GetExcellentOptionByRate instancia CRandomManager, filtra registros pela faixa de índice do item e por opções já presentes (NewOption & OptionIndex), adiciona OptionIndex à roleta com OptionRate e retorna o OptionIndex sorteado via GetRandomElement.",
+    description: "Carrega tabela de chance de opções excellent por intervalo de ItemIndex e escolhe uma opção ainda não aplicada ao item ao gerar loot ou recompensas."
+  },
+  {
+    id: "server-set-item-option",
+    name: "Aplicação de bônus de Set Item",
+    type: "Servidor",
+    files: ["SetItemOption.cpp", "SetItemOption.h", "SetItemType.h"],
+    classes: ["CSetItemOption"],
+    functions: ["Init", "Load", "GetInventorySetItemOptionCount", "CalcSetItemStat", "CalcSetItemOption", "InsertOption"],
+    networkDetails: "Sem packets dedicados; altera atributos do personagem antes de sincronizar estado/CharSet com o cliente.",
+    flow: "Load reinicializa m_SetItemOptionInfo e lê OptionTable/FullOptionTable via CMemScript para cada índice de set. CalcSetItemStat percorre INVENTORY_WEAR, verifica IsSetItem e tipo via gSetItemType, obtém ItemOption com GetSetItemStatType e chama InsertOption para aplicar atributos base (Strength/Dexterity/Vitality/Energy/Leadership). CalcSetItemOption conta peças equipadas por set (GetInventorySetItemOptionCount), aplica OptionTable para cada quantidade-1 e, quando o máximo é atingido, aplica FullOptionTable e marca lpObj->IsFullSetItem.",
+    description: "Calcula bônus de sets equipados somando atributos, dano, defesa, resistências e flags de set completo conforme tabelas de OptionTable/FullOptionTable carregadas."
   }
 
 ];
@@ -1058,7 +1080,7 @@ const ueGuides = {
       "4. No GameMode, crie `UFUNCTION(Server, Reliable)` `void ServerProcessMapMove(ANetworkPC* PC, int32 NextServerCode, uint8 Map, uint8 X, uint8 Y);` que consulta o `UJoinServerBridge` para validar bloqueios/Lock e em sucesso chama `ClientReceiveMapMove` (RPC Client) com IP/porta ou envia `ClientMapMoveCanceled` caso contrário.",
       "5. No PlayerController, implemente `UFUNCTION(Client, Reliable)` `void ClientReceiveJoinResult(uint8 ResultCode, uint8 AccountLevel, const FString& ExpireDate);` e `void ClientReceiveMapMove(const FString& Ip, uint16 Port, const FAuthPayload& Auth);` para substituir GCConnectAccountSend/JGMapServerMoveRecv; atualize estados replicados e chame `ServerTravel` somente após confirmação.",
       "6. Para contas já conectadas, declare `UFUNCTION(Server, Reliable)` `void ServerHandleAlreadyConnected(const FString& Account);` e, caso `UJoinServerBridge` detecte duplicidade, chame `ClientForceLogout()` (RPC Client) ou finalize o pawn com `Destroy()` conforme gServerInfo.m_DisconnectOnlineAccount.",
-      "7. Em UMG de login, conecte botão "Login" à chamada `ServerSubmitAccount`; para mudança de mapa, ligue o evento correspondente ao botão de teleporte para disparar `ServerRequestMapMove`. Compile, ative **Replicates** no PlayerController Blueprint e teste transições em PIE."
+      "7. Em UMG de login, conecte botão \"Login\" à chamada `ServerSubmitAccount`; para mudança de mapa, ligue o evento correspondente ao botão de teleporte para disparar `ServerRequestMapMove`. Compile, ative **Replicates** no PlayerController Blueprint e teste transições em PIE."
     ]
   },
   "server-packet-encryption-manager": {
@@ -1119,11 +1141,38 @@ const ueGuides = {
     ]
   },
 
+  "server-excellent-option-rate": {
+    title: "Ordem UE 5.7: rolar opção excellent por taxa",
+    globalOrderStep: 5,
+    steps: [
+      "1. Crie um **Blueprint Struct** `FExcellentOptionRateRow` com `int32 OptionIndex`, `int32 ItemMinIndex`, `int32 ItemMaxIndex`, `FString Name`, `int32 OptionRate` (espelhando ITEM_EX_OPTION_RATE_INFO). Depois, adicione um **Data Table** `DT_ExcellentOptionRate` com esse struct.",
+      "2. Adicione um **Game Instance Subsystem** `UExcellentOptionService` com `TArray<FExcellentOptionRateRow> Rows` e um método `UFUNCTION(BlueprintCallable)` `bool RollExcellentOption(int32 ItemIndex, int32 CurrentOptionMask, int32& OutOptionIndex);`.",
+      "3. No `.cpp`, em `Initialize`, carregue `DT_ExcellentOptionRate` via SoftObjectPath e preencha `Rows`. Em `RollExcellentOption`, percorra `Rows`, filtre por faixa (`ItemIndex` dentro de ItemMin/ItemMax) e descarte opções já presentes (`CurrentOptionMask & OptionIndex`), acumulando pesos `OptionRate` em um `FRandomStream` ou `FWeightedRandomSampler`. Retorne falso quando nada se encaixar.",
+      "4. Integre a ordem cronológica: após carregar os dados de item (passos 1-4), invoque `RollExcellentOption` no fluxo de criação de loot/upgrade antes de construir `FItemData`. Se o código original não indicar quantas opções aplicar, registre 'NÃO DÁ PARA INFERIR COM SEGURANÇA COM BASE NO CÓDIGO-FONTE C++' em log e aplique apenas uma opção sorteada.",
+      "5. Para auditoria, exponha `UFUNCTION(Client, Reliable)` `void ClientDebugExcellentRoll(int32 ItemIndex, int32 RolledOption);` chamado apenas em builds de teste. Não use qualquer packet legado; toda comunicação deve ser via RPCs nativos UE.",
+      "6. No Blueprint do sistema de loot (por exemplo, Controller de mobs), chame `RollExcellentOption` ao gerar item e escreva o resultado em `FItemData.ExcellentOptionsMask` replicado, garantindo que o cliente atualize tooltips via OnRep."
+    ]
+  },
+
+  "server-set-item-option": {
+    title: "Ordem UE 5.7: bônus de Set Item e set completo",
+    globalOrderStep: 6,
+    steps: [
+      "1. Crie um **Blueprint Struct** `FSetItemOptionRow` com `int32 Index`, `FString Name`, `int32 OptionTable[3][6]` (Index/Value pareados) e `int32 FullOptionTable[3][2]` espelhando SET_ITEM_OPTION_INFO. Preencha um **Data Table** `DT_SetItemOption` com essas linhas; onde valores não estiverem no código, registre 'NÃO DÁ PARA INFERIR COM SEGURANÇA COM BASE NO CÓDIGO-FONTE C++'.",
+      "2. Adicione um **Game Instance Subsystem** `USetItemOptionService` com `TMap<int32, FSetItemOptionRow> OptionMap` e métodos `void LoadFromTable()` e `void ApplySetOptions(ACharacter* Target, const TArray<FEquippedItem>& EquippedItems, bool bRemove);`.",
+      "3. No `.cpp`, em `Initialize`, carregue `DT_SetItemOption` e preencha `OptionMap`. Em `ApplySetOptions`, conte peças por set usando `EquippedItems` (estrutura com ItemIndex, SetMask). Para cada set, avalie quantidade equipada-1 para percorrer `OptionTable` e aplicar valores em atributos replicados (força, destreza, vitalidade, energia, liderança, dano, defesa, resistências). Quando a quantidade atingir o máximo disponível, aplique `FullOptionTable` e marque um flag replicado `bHasFullSet`.",
+      "4. No Character C++, adicione `UPROPERTY(Replicated)` variáveis para bônus agregados (`SetAddStrength`, `SetAddDexterity`, `SetAddVitality`, `SetAddEnergy`, `SetAddLeadership`, `SetAddDefense`, `SetAddDamage`, `SetResistance[7]`, `bHasFullSet`). Crie `UFUNCTION(Server, Reliable)` `void ServerRecalculateSetOptions();` que chama o serviço com `bRemove=true` para limpar e reaplicar.",
+      "5. No InventoryComponent, em `OnRep_EquippedItems`, chame `ServerRecalculateSetOptions` (se autoridade) ou solicite via RPC Server para que o servidor recalcule. Atualize HUD com OnRep dos atributos agregados. Se alguma correspondência de slot não estiver clara, registre a frase padrão e ignore a peça.",
+      "6. Na UI, adicione tooltips exibindo Name/OptionTable/FullOptionTable do set usando dados da DataTable. Não use packets legados; toda sincronização deve ocorrer pelas propriedades replicadas e RPCs descritos acima.",
+      "7. Ordem cronológica: (a) carregar DataTable de set, (b) adicionar atributos replicados no Character, (c) implementar serviço de aplicação, (d) conectar OnRep de equipamentos, (e) atualizar HUD/tooltips."
+    ]
+  },
+
   "server-item-handlers": {
     title: "Plano UE 5.7 para sistema de itens (dados, inventário, drop e uso)",
     globalOrderStep: 4,
     steps: [
-      "1. No Content Browser, crie um **Blueprint Struct** `FItemData` (Add → Blueprints → Structure) contendo campos equivalentes ao CItem/ITEM_INFO: `int32 Index`, `int32 Level`, `float Durability`, `int32 Slot`, `bool bIsTwoHand`, `TArray<uint8> Special`, `TArray<uint8> SocketOptions`, `int32 RequireStrength/Dexterity/Energy/Vitality/Leadership`, `int32 SellPrice`, `bool bIsPeriodic`, `int32 PeriodicSeconds`, `int32 SerialLow` (se precisar). Para quaisquer campos não documentados no código, registre "NÃO DÁ PARA INFERIR COM SEGURANÇA COM BASE NO CÓDIGO-FONTE C++" em comentários do struct.",
+      "1. No Content Browser, crie um **Blueprint Struct** `FItemData` (Add → Blueprints → Structure) contendo campos equivalentes ao CItem/ITEM_INFO: `int32 Index`, `int32 Level`, `float Durability`, `int32 Slot`, `bool bIsTwoHand`, `TArray<uint8> Special`, `TArray<uint8> SocketOptions`, `int32 RequireStrength/Dexterity/Energy/Vitality/Leadership`, `int32 SellPrice`, `bool bIsPeriodic`, `int32 PeriodicSeconds`, `int32 SerialLow` (se precisar). Para quaisquer campos não documentados no código, registre \"NÃO DÁ PARA INFERIR COM SEGURANÇA COM BASE NO CÓDIGO-FONTE C++\" em comentários do struct.",
       "2. Adicione um **C++ Class** derivado de `UActorComponent` chamado `UInventoryComponent` (Add → New C++ Class → Actor Component). No `.h`, declare `UPROPERTY(ReplicatedUsing=OnRep_Items)` `TArray<FItemData> InventorySlots` com tamanho inicial conforme INVENTORY_SIZE (Item.h) e `TArray<FItemData> EquipmentSlots` com INVENTORY_WEAR_SIZE. Implemente `GetLifetimeReplicatedProps` com `DOREPLIFETIME` para ambos.",
       "3. No `.cpp` de `UInventoryComponent`, implemente `void InitializeSlots(int32 InventorySize, int32 EquipSize)` para preencher arrays com entradas vazias e funções helpers `bool SetItemAt(int32 Slot, const FItemData&)`, `bool MoveItem(int32 From, int32 To)` que validem índices usando constantes copiadas de Item.h; se alguma regra de colisão não puder ser deduzida, logue a frase padrão antes de retornar falso.",
       "4. No Character C++ derivado de `ACharacter`, adicione `UPROPERTY(VisibleAnywhere)` `UInventoryComponent* InventoryComp;` inicializado no construtor com `CreateDefaultSubobject`. Marque o Character como `bReplicates=true` e ative **Replicate Movement** em Class Defaults.",
@@ -1139,7 +1188,7 @@ const ueGuides = {
   },
   "server-itembag-manager": {
     title: "Ordem UE 5.7: tabelas de drop ItemBag",
-    globalOrderStep: 6,
+    globalOrderStep: 7,
     steps: [
       "1. No Editor, crie `USTRUCT(BlueprintType)` `FItemBagEntry` com campos `int32 Index`, `int32 ItemIndex`, `int32 ItemLevel`, `int32 MonsterClass`, `int32 SpecialValue` para espelhar ITEM_BAG_MANAGER_INFO. Adicione `TSoftObjectPtr<UDataTable> BagTable` para referenciar DataTables de loot específicos.",
       "2. Crie uma classe C++ `UItemBagManagerSubsystem` derivada de `UGameInstanceSubsystem`. No `.h`, mantenha `UPROPERTY()` `TMap<int32, FItemBagEntry> BagEntries` e métodos `void LoadBagEntry(const FItemBagEntry&)`, `bool GetItemByItemIndex(int32 ItemIndex, int32 ItemLevel, FItemData& OutItem)`, `bool GetItemByMonsterClass(int32 MonsterClass, FItemData& OutItem)`, `bool GetItemBySpecialValue(int32 SpecialValue, FItemData& OutItem)`.",
@@ -1151,7 +1200,7 @@ const ueGuides = {
 
   "server-itembag-ex": {
     title: "Ordem UE 5.7: ItemBagEx com seções e requisitos de classe",
-    globalOrderStep: 7,
+    globalOrderStep: 8,
     steps: [
       "1. Crie três **Blueprint Structs**: `FItemBagExInfo` (Index, DropRate), `FItemBagExDropInfo` (Index, Section, SectionRate, MoneyAmount, OptionValue, RequireClass[6]) e `FItemBagExItemInfo` (Index, Level, Grade, Option0-6, Duration). Importe os dados do script usado pelo servidor; onde valores não estiverem no código, registre 'NÃO DÁ PARA INFERIR COM SEGURANÇA COM BASE NO CÓDIGO-FONTE C++'.",
       "2. Crie DataTables para cada struct (`DT_ItemBagEx`, `DT_ItemBagExDrop`, `DT_ItemBagExItem`) e preencha seções 3/4/5+ conforme o arquivo lido no C++ (seções 3 para BagInfo, 4 para DropInfo, >=5 para itens agrupados por seção). Mantenha o índice de seção como chave para os itens.",
@@ -1206,7 +1255,7 @@ const ueGuides = {
     steps: [
       "1. No componente `UInventoryComponent`, declare RPCs `UFUNCTION(Server, Reliable)` `void ServerRequestGetWorldItem(int32 WorldItemId);` e `void ServerRequestDropItem(int32 Slot, const FVector& Pos);` que substituem os packets C1:22 e C1:23. Valide `bIsDead`, `bInTransaction`, `bInterfaceLock` replicados antes de prosseguir.",
       "2. Em `ServerRequestGetWorldItem`, recupere o actor `AWorldItem` do mapa `WorldItemId→Actor`; rejeite se for item de evento/Muun (flags no FItemData) ou se `QuestObjective` interno indicar excedente. Impedir anéis duplicados verificando `CountItem` pelo índice/nível. Para zen, aumente `Money` replicado e envie `ClientMoneySync` (Client, Reliable); para outros itens tente `TryStackItem` e, se falhar, insira em slot vazio e destrua o `AWorldItem`.",
-      "3. Em `ServerRequestDropItem`, valide lock/estado de morte/duelo equivalentes e chame um helper `bool IsDropAllowed(const FItemData&)` que verifica flags `bLucky`, `bPeriodic`, filtros `gItemMove.CheckItemMoveAllowDrop` carregados em DataTable e limites de nível/opções. Se rejeitado, envie `ClientItemError` com a frase padrão."
+      "3. Em `ServerRequestDropItem`, valide lock/estado de morte/duelo equivalentes e chame um helper `bool IsDropAllowed(const FItemData&)` que verifica flags `bLucky`, `bPeriodic`, filtros `gItemMove.CheckItemMoveAllowDrop` carregados em DataTable e limites de nível/opções. Se rejeitado, envie `ClientItemError` com a frase padrão.",
       "4. Quando o drop for permitido, remova o item do inventário, chame `SpawnWorldItem` (do guia de drop) com posição/tempo e chame `MulticastPlayDropFX`. Para itens especiais como mercenário ou life stone, documente com a frase padrão se não houver equivalente em UE.",
       "5. Atualize widgets após pegar/dropar usando OnRep do inventário e OnRep da moeda; utilize `GCPartyItemInfoSend` equivalente (Client RPC multicast opcional) se precisar notificar grupo sobre o item adquirido, anotando quando a necessidade não puder ser inferida.",
       "6. No UI (Widget de inventário), conecte botões de \"Pegar\" (em overlay de `AWorldItem`) para chamar `ServerRequestGetWorldItem` e botões de \"Dropar\" para chamar `ServerRequestDropItem` com `GetHitResultUnderCursor`. Teste cenários de anel duplicado e zen para confirmar a lógica."
@@ -1301,7 +1350,7 @@ const ueGuides = {
       "1. Antes de gerar opções de item, crie um DataTable `FSocketItemTypeRow` com `ItemIndex` e `MaxSocket` refletindo SocketItemType.txt. Carregue-o no GameInstance/Subsystem em BeginPlay e preencha um `TMap<int32, int32>`.",
       "2. No serviço já usado para MakeSocketOption (ex.: `UItemOptionRateService`), injete o mapa de MaxSocket e exponha `int32 GetMaxSocket(int32 ItemIndex) const` retornando 0 quando não houver linha (registrando 'NÃO DÁ PARA INFERIR COM SEGURANÇA COM BASE NO CÓDIGO-FONTE C++').",
       "3. Em qualquer fábrica de item (drops, lojas, Moss Merchant), antes de preencher sockets, chame `GetMaxSocket` e limite o tamanho do array de sockets replicado para `MaxSocket`, preenchendo 0xFE nos demais.",
-      "4. No `UInventoryComponent`, ao equipar ou receber itens replicados, valide que o número de sockets não ultrapassa `MaxSocket`; se ultrapassar, rejeite e logue a frase padrão."
+      "4. No `UInventoryComponent`, ao equipar ou receber itens replicados, valide que o número de sockets não ultrapassa `MaxSocket`; se ultrapassar, rejeite e logue a frase padrão.",
       "5. Em widgets de tooltip, leia `MaxSocket` e exiba o número máximo suportado; como feedback opcional, destaque itens sem entrada de tabela como 'NÃO DÁ PARA INFERIR COM SEGURANÇA COM BASE NO CÓDIGO-FONTE C++'."
     ]
   },
@@ -1371,7 +1420,7 @@ const ueGuides = {
       "3. No `UInventoryComponent`, adicione RPC `UFUNCTION(Server, Reliable)` `void ServerApplyHarmony(int32 SourceSlot, int32 TargetSlot);` que verifica autoridade, se SourceSlot tem Jewel/SmeltStone e TargetSlot contém item elegível (não Set, não Socket, não Lucky salvo para Elevation). Consulte `UHarmonyOptionService` para `RollHarmonyOption`, e aplique `ItemData.HarmonyOption = (Option << 4) | Level` usando taxa configurada (exponha `HarmonySuccessRate` em Config).",
       "4. Adicione RPC `UFUNCTION(Server, Reliable)` `void ServerSmeltHarmony(int32 SourceSlot, int32 TargetSlot);` que valida item Harmony existente, confere nível < 13 e escolhe taxa conforme SmeltStone usada. Em sucesso incremente nível, caso contrário resete para nível base da tabela. Atualize o item replicado e chame `ClientHarmonyResult` (Client, Reliable) com códigos equivalentes aos resultados do servidor. Em falta de regra, retorne a frase padrão.",
       "5. Adicione RPC `UFUNCTION(Server, Reliable)` `void ServerApplyElevation(int32 SourceSlot, int32 TargetSlot);` específico para Lucky Items, limitando nível ao mínimo entre 13 e Level do item, usando a mesma taxa de sucesso. Em falha, apenas registre mensagem e mantenha o item.",
-      "6. No Character/PlayerState, implemente `void RecalculateHarmonyOptions(bool bRemove=false);` percorrendo equipamentos replicados (`INVENTORY_WEAR_SIZE` equivalente) e consultando `UHarmonyOptionService` para `FHarmonyOptionRow`. Para cada item Harmony, aplique `ValueTable[Level]` em atributos replicados (PhysiDamage, MagicDamage, CriticalDamage, SkillDamageBonus, Defense, AddBP, AddLife, HPRecovery, MPRecovery, DefenseSuccessRatePvP, DamageReduction, ShieldGaugeRate, IgnoreShieldGaugeRate) usando funções helper; se um atributo não existir, logue a frase padrão e pule."
+      "6. No Character/PlayerState, implemente `void RecalculateHarmonyOptions(bool bRemove=false);` percorrendo equipamentos replicados (`INVENTORY_WEAR_SIZE` equivalente) e consultando `UHarmonyOptionService` para `FHarmonyOptionRow`. Para cada item Harmony, aplique `ValueTable[Level]` em atributos replicados (PhysiDamage, MagicDamage, CriticalDamage, SkillDamageBonus, Defense, AddBP, AddLife, HPRecovery, MPRecovery, DefenseSuccessRatePvP, DamageReduction, ShieldGaugeRate, IgnoreShieldGaugeRate) usando funções helper; se um atributo não existir, logue a frase padrão e pule.",
       "7. Em Blueprints do inventário, adicione botões 'Aplicar Harmony', 'Smelt' e 'Elevation'. No Event Graph, use `OnClicked` → `ServerApplyHarmony/ServerSmeltHarmony/ServerApplyElevation` com os slots selecionados. Use `Branch` para checar códigos retornados via `ClientHarmonyResult` e exibir mensagens equivalentes (sucesso, falha, item inválido).",
       "8. Configure **Replicates** no Character e marque `InventoryComponent` como `ReplicatedUsing=OnRep_Inventory`. Na função `OnRep`, chame `RecalculateHarmonyOptions` para atualizar atributos locais. Teste cronologicamente: (a) carregar tabelas, (b) aplicar Harmony, (c) smelt até nível 13, (d) aplicar em Lucky Items com Elevation, (e) verificar replicação entre dois clientes PIE sem qualquer packet legado."
     ]
@@ -1435,7 +1484,7 @@ const ueSystems = [
     id: "items-system",
     name: "Sistema de Items",
     status: "Encontrado",
-    mechanicsIds: ["server-protocolcore-dispatch", "server-item-structs", "server-item-packet-structs", "server-item-attribute-loader", "server-380-item-type-map", "server-380-item-option", "server-item-handlers", "server-item-move-matrix", "server-chaos-event-muun-move", "server-muun-system", "server-item-require-checks", "server-item-move-allowlist", "server-item-stack-config", "server-inventory-equipment-effects", "server-socket-item-type", "server-item-option-rate", "server-item-value", "server-item-value-trade", "server-lucky-item-options", "server-harmony-options", "server-moss-merchant-gamble", "server-jewel-mix", "server-itembag-manager", "server-itembag-ex", "server-item-drop-config", "server-item-get-drop-conditions", "server-item-shop-handlers", "server-mapitem-drop-lifecycle", "server-pk-drop-system", "server-pentagram-system", "client-item-structs", "client-inventory-handling", "server-personal-shop"],
+    mechanicsIds: ["server-protocolcore-dispatch", "server-item-structs", "server-item-packet-structs", "server-item-attribute-loader", "server-380-item-type-map", "server-380-item-option", "server-excellent-option-rate", "server-set-item-option", "server-item-handlers", "server-item-move-matrix", "server-chaos-event-muun-move", "server-muun-system", "server-item-require-checks", "server-item-move-allowlist", "server-item-stack-config", "server-inventory-equipment-effects", "server-socket-item-type", "server-item-option-rate", "server-item-value", "server-item-value-trade", "server-lucky-item-options", "server-harmony-options", "server-moss-merchant-gamble", "server-jewel-mix", "server-itembag-manager", "server-itembag-ex", "server-item-drop-config", "server-item-get-drop-conditions", "server-item-shop-handlers", "server-mapitem-drop-lifecycle", "server-pk-drop-system", "server-pentagram-system", "client-item-structs", "client-inventory-handling", "server-personal-shop"],
     codeSummary: "ProtocolCore (Protocol.cpp) roteia C1:22-26/32-34 para CItemManager (get/drop/move/use/buy/sell/repair) usando structs CItem/ITEM_INFO; o cliente mantém ITEM e PRECEIVE_INVENTORY para refletir o inventário e renderizar itens/viewport.",
     ue57Summary: "Mapear get/drop/move/use/buy/sell/repair para RPCs Server em Character/InventoryComponent, usar `FItemData` replicado, atores `AWorldItem` para drops e Widgets para UI; marcar campos ausentes com 'NÃO DÁ PARA INFERIR COM SEGURANÇA COM BASE NO CÓDIGO-FONTE C++'."
   },
@@ -1443,7 +1492,7 @@ const ueSystems = [
     id: "inventory-system",
     name: "Sistema de Inventory",
     status: "Encontrado",
-    mechanicsIds: ["server-protocolcore-dispatch", "server-character-list", "server-item-structs", "server-item-packet-structs", "server-item-attribute-loader", "server-380-item-type-map", "server-380-item-option", "server-item-handlers", "server-item-move-matrix", "server-chaos-event-muun-move", "server-muun-system", "server-item-require-checks", "server-item-move-allowlist", "server-item-stack-config", "server-inventory-equipment-effects", "server-socket-item-type", "server-item-option-rate", "server-item-value", "server-item-value-trade", "server-lucky-item-options", "server-harmony-options", "server-moss-merchant-gamble", "server-jewel-mix", "server-itembag-manager", "server-itembag-ex", "server-item-drop-config", "server-item-get-drop-conditions", "server-item-shop-handlers", "server-mapitem-drop-lifecycle", "server-pentagram-system", "client-inventory-handling", "client-item-structs", "server-personal-shop"],
+    mechanicsIds: ["server-protocolcore-dispatch", "server-character-list", "server-item-structs", "server-item-packet-structs", "server-item-attribute-loader", "server-380-item-type-map", "server-380-item-option", "server-excellent-option-rate", "server-set-item-option", "server-item-handlers", "server-item-move-matrix", "server-chaos-event-muun-move", "server-muun-system", "server-item-require-checks", "server-item-move-allowlist", "server-item-stack-config", "server-inventory-equipment-effects", "server-socket-item-type", "server-item-option-rate", "server-item-value", "server-item-value-trade", "server-lucky-item-options", "server-harmony-options", "server-moss-merchant-gamble", "server-jewel-mix", "server-itembag-manager", "server-itembag-ex", "server-item-drop-config", "server-item-get-drop-conditions", "server-item-shop-handlers", "server-mapitem-drop-lifecycle", "server-pentagram-system", "client-inventory-handling", "client-item-structs", "server-personal-shop"],
     codeSummary: "DGCharacterListRecv carrega slots iniciais enquanto CItemManager move/usa/compra/vende/repara itens entre inventário/equipamentos/warehouse/chaos; no cliente, ReceiveInventory/ReceiveGetItem/ReceiveDropItem/ReceiveTradeInventory sincronizam g_pMyInventory, MixInventory e lojas.",
     ue57Summary: "Replicar arrays de inventário/equipamento e saldos em componente anexado ao Character/PlayerState, criar RPCs para transferir/loja/reparar itens e usar hooks OnRep para atualizar UI; validar tamanho e contêiner conforme limites de Item.h e registrar 'NÃO DÁ PARA INFERIR COM SEGURANÇA COM BASE NO CÓDIGO-FONTE C++' quando regras faltarem."
   },
@@ -1680,6 +1729,24 @@ const roadmap = [
     description: "Reaplicar bônus AttackSuccessRatePvP/DamagePvP/DefensePvP/HP/SD/SDRecovery em atributos replicados ao equipar itens 380.",
     basedOnCode: true,
     notes: "Baseado diretamente no código C++ (380ItemOption.cpp linhas 16-92)."
+  },
+  {
+    id: "roadmap-excellent-option-rate",
+    horizon: "Curto Prazo",
+    priority: "Alta",
+    mechanicsIds: ["server-excellent-option-rate"],
+    description: "Migrar ITEM_EX_OPTION_RATE_INFO para DataTable UE e implementar rolagem de opção excellent evitando duplicidade de bits já aplicados.",
+    basedOnCode: true,
+    notes: "Baseado diretamente no código C++ (ItemExcellentOptionRate.cpp linhas 18-78 e 80-109)."
+  },
+  {
+    id: "roadmap-set-item-option-service",
+    horizon: "Médio Prazo",
+    priority: "Alta",
+    mechanicsIds: ["server-set-item-option"],
+    description: "Portar OptionTable/FullOptionTable de sets para DataTables UE e recalcular atributos replicados sempre que peças de set forem equipadas ou removidas.",
+    basedOnCode: true,
+    notes: "Baseado diretamente no código C++ (SetItemOption.cpp linhas 25-191, 193-327 e 329-463)."
   },
   {
     id: "roadmap-lucky-item-service",
