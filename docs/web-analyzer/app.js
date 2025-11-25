@@ -500,6 +500,39 @@ const mechanics = [
     description: "Define quantidades máximas por item empilhável e qual item pode ser criado, permitindo ao servidor validar e resolver pilhas durante operações de inventário e drops."
   },
   {
+    id: "server-socket-item-type",
+    name: "Tipos de item com limite de sockets",
+    type: "Servidor",
+    files: ["SocketItemType.cpp", "SocketItemType.h"],
+    classes: ["CSocketItemType"],
+    functions: ["Load", "CheckSocketItemType", "GetSocketItemMaxSocket"],
+    networkDetails: "Sem envio direto; fornece limites consultados por MakeSocketOption e validações de criação antes de enviar respostas de item no protocolo original.",
+    flow: "Load percorre script com CMemScript, converte tipo/índice via SafeGetItem(GET_ITEM), armazena MaxSocket em m_SocketItemTypeInfo; CheckSocketItemType retorna existência do registro e GetSocketItemMaxSocket devolve o limite de sockets usado por MakeSocketOption.",
+    description: "Tabela de quais itens aceitam sockets e quantos, aplicada nas rotinas de geração de opções e validação de itens com socket."
+  },
+  {
+    id: "server-item-value",
+    name: "Tabela de valor de item e moedas", 
+    type: "Servidor",
+    files: ["ItemValue.cpp", "ItemValue.h"],
+    classes: ["CItemValue"],
+    functions: ["Load", "GetItemValue", "GetItemValueNew"],
+    networkDetails: "Usado por verificações de preço/venda antes de responder a operações de item; não envia pacotes diretamente.",
+    flow: "Load lê ITEM_VALUE_INFO (Index, Level, Grade, Value, Coin1-3, Sell) para m_ItemValueInfo; GetItemValue retorna Value ajustado por durabilidade para itens empilháveis; GetItemValueNew devolve valor e moedas específicas considerando Level/Grade ou curingas (-1) para complementar outras rotinas de economia.",
+    description: "Mantém tabela de avaliação monetária e moedas especiais por item/nível/grade, reutilizada para cálculos de venda e consumo em operações de inventário."
+  },
+  {
+    id: "server-item-value-trade",
+    name: "Validação de valor e moedas em troca",
+    type: "Servidor",
+    files: ["ItemValueTrade.cpp", "ItemValueTrade.h"],
+    classes: ["CItemValueTrade"],
+    functions: ["Load", "CheckItemValueTrade"],
+    networkDetails: "Executado no servidor ao processar trocas antes de confirmar os pacotes de trade do protocolo original; deduz zen e moedas via GDSetCoinSend/GCMoneySend.",
+    flow: "Load monta m_ItemValueTradeInfo com Index e valores Money/Coin1-3. CheckItemValueTrade soma valor das pilhas em cada lado (usando gItemStack e durabilidade para stack) e compara com Money/Coin disponíveis; emite GCNotice em falta, envia GDSetCoinSend para debitar moedas virtuais e ajusta Money de ambos os jogadores antes de finalizar a troca.",
+    description: "Regra de paridade de troca que garante que zen e moedas especiais cobrirem o valor configurado dos itens negociados, bloqueando e notificando quando faltam recursos."
+  },
+  {
     id: "server-item-option-rate",
     name: "Taxas de opção e geração de opções de item",
     type: "Servidor",
@@ -1110,6 +1143,36 @@ const ueGuides = {
       "5. Teste em PIE adicionando itens repetidos e verificando que a UI soma quantidades e cria itens derivados quando MaxStack é atingido."
     ]
   },
+  "server-socket-item-type": {
+    title: "Limites de sockets por item na UE (ordem cronológica)",
+    steps: [
+      "1. Antes de gerar opções de item, crie um DataTable `FSocketItemTypeRow` com `ItemIndex` e `MaxSocket` refletindo SocketItemType.txt. Carregue-o no GameInstance/Subsystem em BeginPlay e preencha um `TMap<int32, int32>`.",
+      "2. No serviço já usado para MakeSocketOption (ex.: `UItemOptionRateService`), injete o mapa de MaxSocket e exponha `int32 GetMaxSocket(int32 ItemIndex) const` retornando 0 quando não houver linha (registrando 'NÃO DÁ PARA INFERIR COM SEGURANÇA COM BASE NO CÓDIGO-FONTE C++').",
+      "3. Em qualquer fábrica de item (drops, lojas, Moss Merchant), antes de preencher sockets, chame `GetMaxSocket` e limite o tamanho do array de sockets replicado para `MaxSocket`, preenchendo 0xFE nos demais.",
+      "4. No `UInventoryComponent`, ao equipar ou receber itens replicados, valide que o número de sockets não ultrapassa `MaxSocket`; se ultrapassar, rejeite e logue a frase padrão."
+      "5. Em widgets de tooltip, leia `MaxSocket` e exiba o número máximo suportado; como feedback opcional, destaque itens sem entrada de tabela como 'NÃO DÁ PARA INFERIR COM SEGURANÇA COM BASE NO CÓDIGO-FONTE C++'."
+    ]
+  },
+  "server-item-value": {
+    title: "Avaliação de itens e moedas na UE (sequência guiada)",
+    steps: [
+      "1. Crie DataTable `FItemValueRow` com campos `ItemIndex`, `Level`, `Grade`, `Value`, `Coin1`, `Coin2`, `Coin3`, `Sell` alinhados a ITEM_VALUE_INFO. Carregue em um `UItemValueService` inicializado após os serviços de stack e socket.",
+      "2. No serviço, implemente `bool GetItemValue(const FItemData&, int32& OutValue)` que aplica multiplicador de quantidade/durabilidade para itens empilháveis; quando não houver linha aplicável, retorne false e registre 'NÃO DÁ PARA INFERIR COM SEGURANÇA COM BASE NO CÓDIGO-FONTE C++'.",
+      "3. Implemente `bool GetItemValueDetailed(const FItemData&, int32& OutValue, int32& OutCoin1, int32& OutCoin2, int32& OutCoin3, int32& OutSell)` respeitando combinatória de Level/Grade ou curingas (-1).",
+      "4. Nos RPCs Server de vender/descartar/comprar, consulte `GetItemValueDetailed` antes de debitar/adicionar moedas e envie RPC Client de resultado; não use packets legados.",
+      "5. Em UI de venda (Widget), no Event Graph, ao selecionar um item, chame função BlueprintCallable que consulta o serviço e exibe Value/CoinX; se retornar false, mostre a frase padrão e bloqueie a ação."
+    ]
+  },
+  "server-item-value-trade": {
+    title: "Validação de moedas em troca na UE sem packets",
+    steps: [
+      "1. Depois de carregar ItemValueService, estenda `UInventoryComponent` com RPC `UFUNCTION(Server, Reliable)` `void ServerValidateTrade(const TArray<FItemData>& OfferedItems, APlayerState* Target);` para substituir CheckItemValueTrade.",
+      "2. No corpo, some Value/Coin1-3 usando ItemValueService; para itens empilháveis use `Quantity` como durabilidade. Compare com `Money` e moedas replicadas do PlayerState de cada lado; se faltar, chame RPC Client `ClientTradeRejected` com código descritivo.",
+      "3. Se válido, debite moedas/zen replicados (ex.: `ModifyMoney(-Money)` no PlayerState) e finalize a troca movendo itens via funções já replicadas de inventário, sem qualquer serialização de packet.",
+      "4. No Widget de Trade, ao aceitar, chame `ServerValidateTrade` passando a lista de itens ofertados; em OnRep das moedas/zen atualize a UI."
+      "5. Registre sempre a frase padrão quando alguma moeda ou condição da troca não puder ser deduzida do código legado."
+    ]
+  },
   "server-item-option-rate": {
     title: "Importar taxas de opção e gerar opções na UE (ordem cronológica)",
     steps: [
@@ -1180,7 +1243,7 @@ const ueSystems = [
     id: "items-system",
     name: "Sistema de Items",
     status: "Encontrado",
-    mechanicsIds: ["server-protocolcore-dispatch", "server-item-structs", "server-item-packet-structs", "server-item-attribute-loader", "server-380-item-type-map", "server-380-item-option", "server-item-handlers", "server-item-move-matrix", "server-chaos-event-muun-move", "server-item-require-checks", "server-item-move-allowlist", "server-item-stack-config", "server-item-option-rate", "server-lucky-item-options", "server-moss-merchant-gamble", "server-jewel-mix", "server-itembag-manager", "server-item-drop-config", "server-item-get-drop-conditions", "server-item-shop-handlers", "server-mapitem-drop-lifecycle", "server-pk-drop-system", "client-item-structs", "client-inventory-handling"],
+    mechanicsIds: ["server-protocolcore-dispatch", "server-item-structs", "server-item-packet-structs", "server-item-attribute-loader", "server-380-item-type-map", "server-380-item-option", "server-item-handlers", "server-item-move-matrix", "server-chaos-event-muun-move", "server-item-require-checks", "server-item-move-allowlist", "server-item-stack-config", "server-socket-item-type", "server-item-option-rate", "server-item-value", "server-item-value-trade", "server-lucky-item-options", "server-moss-merchant-gamble", "server-jewel-mix", "server-itembag-manager", "server-item-drop-config", "server-item-get-drop-conditions", "server-item-shop-handlers", "server-mapitem-drop-lifecycle", "server-pk-drop-system", "client-item-structs", "client-inventory-handling"],
     codeSummary: "ProtocolCore (Protocol.cpp) roteia C1:22-26/32-34 para CItemManager (get/drop/move/use/buy/sell/repair) usando structs CItem/ITEM_INFO; o cliente mantém ITEM e PRECEIVE_INVENTORY para refletir o inventário e renderizar itens/viewport.",
     ue57Summary: "Mapear get/drop/move/use/buy/sell/repair para RPCs Server em Character/InventoryComponent, usar `FItemData` replicado, atores `AWorldItem` para drops e Widgets para UI; marcar campos ausentes com 'NÃO DÁ PARA INFERIR COM SEGURANÇA COM BASE NO CÓDIGO-FONTE C++'."
   },
@@ -1188,7 +1251,7 @@ const ueSystems = [
     id: "inventory-system",
     name: "Sistema de Inventory",
     status: "Encontrado",
-    mechanicsIds: ["server-protocolcore-dispatch", "server-character-list", "server-item-structs", "server-item-packet-structs", "server-item-attribute-loader", "server-380-item-type-map", "server-380-item-option", "server-item-handlers", "server-item-move-matrix", "server-chaos-event-muun-move", "server-item-require-checks", "server-item-move-allowlist", "server-item-stack-config", "server-item-option-rate", "server-lucky-item-options", "server-moss-merchant-gamble", "server-jewel-mix", "server-itembag-manager", "server-item-drop-config", "server-item-get-drop-conditions", "server-item-shop-handlers", "server-mapitem-drop-lifecycle", "client-inventory-handling", "client-item-structs"],
+    mechanicsIds: ["server-protocolcore-dispatch", "server-character-list", "server-item-structs", "server-item-packet-structs", "server-item-attribute-loader", "server-380-item-type-map", "server-380-item-option", "server-item-handlers", "server-item-move-matrix", "server-chaos-event-muun-move", "server-item-require-checks", "server-item-move-allowlist", "server-item-stack-config", "server-socket-item-type", "server-item-option-rate", "server-item-value", "server-item-value-trade", "server-lucky-item-options", "server-moss-merchant-gamble", "server-jewel-mix", "server-itembag-manager", "server-item-drop-config", "server-item-get-drop-conditions", "server-item-shop-handlers", "server-mapitem-drop-lifecycle", "client-inventory-handling", "client-item-structs"],
     codeSummary: "DGCharacterListRecv carrega slots iniciais enquanto CItemManager move/usa/compra/vende/repara itens entre inventário/equipamentos/warehouse/chaos; no cliente, ReceiveInventory/ReceiveGetItem/ReceiveDropItem/ReceiveTradeInventory sincronizam g_pMyInventory, MixInventory e lojas.",
     ue57Summary: "Replicar arrays de inventário/equipamento e saldos em componente anexado ao Character/PlayerState, criar RPCs para transferir/loja/reparar itens e usar hooks OnRep para atualizar UI; validar tamanho e contêiner conforme limites de Item.h e registrar 'NÃO DÁ PARA INFERIR COM SEGURANÇA COM BASE NO CÓDIGO-FONTE C++' quando regras faltarem."
   },
@@ -1326,6 +1389,33 @@ const roadmap = [
     description: "Carregar tabelas de Rate 0-6 em DataTables UE e validar pesos antes de usá-las em drop/loja, replicando o fluxo de CItemOptionRate::Load/GetItemOption*.",
     basedOnCode: true,
     notes: "Baseado diretamente no código C++ (ItemOptionRate.cpp linhas 33-132 e 140-205)."
+  },
+  {
+    id: "roadmap-socket-max-table",
+    horizon: "Curto Prazo",
+    priority: "Média",
+    mechanicsIds: ["server-socket-item-type"],
+    description: "Extrair limites de MaxSocket para DataTable UE antes de aplicar opções de socket em drops ou lojas.",
+    basedOnCode: true,
+    notes: "Baseado diretamente no código C++ (SocketItemType.cpp linhas 26-103; SocketItemType.h linhas 9-23)."
+  },
+  {
+    id: "roadmap-item-value-service",
+    horizon: "Curto Prazo",
+    priority: "Alta",
+    mechanicsIds: ["server-item-value"],
+    description: "Criar serviço UE para carregar ITEM_VALUE_INFO e fornecer valores/coinagens para venda e validações antes de RPCs de economia.",
+    basedOnCode: true,
+    notes: "Baseado diretamente no código C++ (ItemValue.cpp linhas 27-175; ItemValue.h linhas 9-29)."
+  },
+  {
+    id: "roadmap-trade-coin-validation",
+    horizon: "Curto Prazo",
+    priority: "Alta",
+    mechanicsIds: ["server-item-value-trade"],
+    description: "Migrar CheckItemValueTrade para RPCs UE garantindo débito de zen/coins e mensagens de erro replicadas antes de concluir trocas.",
+    basedOnCode: true,
+    notes: "Baseado diretamente no código C++ (ItemValueTrade.cpp linhas 30-223; ItemValueTrade.h linhas 9-27)."
   },
   {
     id: "roadmap-jewel-mix-flow",
