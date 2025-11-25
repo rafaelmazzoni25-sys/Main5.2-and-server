@@ -344,6 +344,17 @@ const mechanics = [
     description: "Fluxo servidor que manipula todos os comandos de item do cliente, aplicando regras de bloqueio e contêineres antes de atualizar inventário e responder pelos packets do protocolo original."
   },
   {
+    id: "server-item-move-matrix",
+    name: "Regras de movimento entre contêineres (Inventory/Trade/Warehouse/Chaos/Shop/Trainer)",
+    type: "Servidor",
+    files: ["ItemManager.cpp", "ItemManager.h"],
+    classes: ["CItemManager"],
+    functions: ["CGItemMoveRecv", "MoveItemToInventoryFromInventory", "MoveItemToTradeFromInventory", "MoveItemToWarehouseFromInventory", "MoveItemToChaosBoxFromInventory"],
+    networkDetails: "Sistema de packets original: C1:24 carrega SourceFlag/TargetFlag/slots e ItemInfo; servidor responde com PMSG_ITEM_MOVE_SEND result/slot/ItemInfo.",
+    flow: "CGItemMoveRecv cria PMSG_ITEM_MOVE_SEND (0x24), bloqueia se DieRegen ou interfaces incorretas. Valida SourceFlag/TargetFlag para Trade (Interface.type==INTERFACE_TRADE), Warehouse (Interface.type==INTERFACE_WAREHOUSE e LoadWarehouse/WarehouseLock), Chaos Box (Interface.type==INTERFACE_CHAOS_BOX ou flags 6-20), PersonalShop (PShopOpen/PShopTransaction) e Trainer (Interface.type==INTERFACE_TRAINER). Cada combinação chama MoveItemTo* correspondente (Inventory→Inventory/Trade/Warehouse/Chaos/PersonalShop/EventInventory/Muun, Trade→Inventory/Trade/EventInventory, Warehouse→Inventory/Warehouse, ChaosBox→Inventory/ChaosBox, PersonalShop→Inventory/PersonalShop) e, em sucesso, converte ItemInfo do alvo. Restrições impedem operação sem interface ativa ou locks.",
+    description: "Tabela de roteamento de movimento que verifica flags de interface antes de mover itens entre contêineres, retornando result/slot e ItemInfo preenchido somente após validações específicas de Trade, Warehouse, Chaos, PersonalShop e Trainer."
+  },
+  {
     id: "server-item-shop-handlers",
     name: "Compra, venda e reparo de itens",
     type: "Servidor",
@@ -353,6 +364,17 @@ const mechanics = [
     networkDetails: "Sistema de packets original: C1:32 (buy), C1:33 (sell), C1:34 (repair) e C1:32/F3:ED (buy confirm) trafegam itens/slots; respostas usam PMSG_ITEM_BUY/SELL/REPAIR_SEND e atualizam dinheiro ou item stack.",
     flow: "CGItemBuyRecv valida conexão, Interface=SHOP, TargetShopNumber e Transaction antes de buscar item em gShopManager/GetItemByIndex; aplica tax gCastleSiegeSync, lida com moedas Coin1-3 ou zen, tenta InventoryInsertItemStack/InventoryInsertItem e envia PMSG_ITEM_BUY_SEND com ItemInfo/money. CGItemSellRecv exige interface shop, checa INVENTORY_FULL_RANGE, valida item em Inventory[slot], calcula valor via gItemMove.CheckItemMoveAllowSell e atualiza Money com PMSG_ITEM_SELL_SEND, removendo item e recalculando atributos. CGItemRepairRecv opcionalmente repara tudo (slot 0xFF) ou slot específico, bloqueando trade/NPC inadequado, chama RepairItem para durabilidade e responde com PMSG_ITEM_REPAIR_SEND; recalcula atributos quando reparo é aplicado.",
     description: "Implementa transações de loja no servidor, incluindo compra com impostos e moedas especiais, venda validando itens permitidos e reparo em lote ou individual com verificação de interface/nível antes de aplicar custos e atualizar inventário/dinheiro."
+  },
+  {
+    id: "server-mapitem-drop-lifecycle",
+    name: "Criação e tempo de vida de itens no mapa",
+    type: "Servidor",
+    files: ["MapItem.cpp", "MapItem.h"],
+    classes: ["CMapItem"],
+    functions: ["Init", "CreateItem", "DropCreateItem"],
+    networkDetails: "Sem envio direto; instâncias CMapItem são geradas e depois serializadas pelos handlers de item ao responder pacotes de drop/get.",
+    flow: "CreateItem/DropCreateItem chamam Init, ajustam Level/Durability e Convert com opções (Option1/2/3/New/Set/JewelOfHarmony/ItemOptionEx/Socket/SocketBonus), definem flags periódicas e tempo restante (m_IsPeriodicItem/m_LoadPeriodicItem/m_PeriodicItemTime), posicionam m_X/m_Y, marcam m_Live=1, m_Give=0, m_State=OBJECT_CREATE e programam m_Time e m_LootTime usando gServerInfo.m_ItemDropTime (100% e 50% do valor) antes de gravar Serial.",
+    description: "Define o ciclo de vida de objetos de item no mundo com timers de loot e expiração baseados em configuração, preparando-os para coleta ou remoção posterior."
   },
   {
     id: "server-pk-drop-system",
@@ -726,6 +748,30 @@ const ueGuides = {
       "12. Para integração visual de equipamentos, no Character Blueprint, anexe SkeletalMesh/StaticMesh a sockets (ex.: `hand_r`, `spine`) usando `AttachToComponent` quando `InventoryComp` emitir um evento `OnRep_Items` indicando novo item com Slot < INVENTORY_WEAR_SIZE. Se faltar mapeamento exato de sockets, documente em comentários como 'NÃO DÁ PARA INFERIR COM SEGURANÇA COM BASE NO CÓDIGO-FONTE C++' e escolha sockets padrão de Character."
     ]
   },
+  "server-item-move-matrix": {
+    title: "Replicar matriz de movimento entre contêineres",
+    steps: [
+      "1. No componente `UInventoryComponent`, declare constantes de faixa equivalentes a INVENTORY_FULL_RANGE/TRADE_RANGE/WAREHOUSE_RANGE e exponha `bool bWarehouseLoaded`, `bool bWarehouseLocked`, `bool bChaosLocked`, `bool bPersonalShopOpen` como UPROPERTY(Replicated).",
+      "2. Declare RPCs Server `void ServerMoveItem(int32 SourceFlag, int32 SourceSlot, int32 TargetFlag, int32 TargetSlot, const TArray<uint8>& ItemInfo);` correspondendo ao C1:24. Valide `ItemInfo.Num()==12` e retorne se qualquer flag não estiver autorizada (por exemplo, Warehouse sem bWarehouseLoaded).",
+      "3. Implemente um dispatcher em `ServerMoveItem` usando `switch`/`if` para cada combinação de SourceFlag/TargetFlag (Inventory→Inventory/Trade/Warehouse/Chaos/PersonalShop/Event/Muun; Trade→Inventory/Trade/Event; Warehouse→Inventory/Warehouse; Chaos→Inventory/Chaos; PersonalShop→Inventory/PersonalShop). Se alguma combinação não existir no código, logue 'NÃO DÁ PARA INFERIR COM SEGURANÇA COM BASE NO CÓDIGO-FONTE C++' e rejeite.",
+      "4. Para Trade, valide que o PlayerController mantém um estado `EInterfaceState::Trade` replicado e que o alvo ainda existe; para Warehouse, cheque `bWarehouseLocked` e `bWarehouseLoaded`; para Chaos/Trainer, valide um estado replicado `EInterfaceState::ChaosBox`/`Trainer`.",
+      "5. Após mover, atualize o array replicado `InventorySlots` ou contêiner correspondente e dispare `ClientItemMoveResult` (Client, Reliable) com um `FItemPacketPayload` contendo ResultCode/TargetSlot/ItemInfo, substituindo PMSG_ITEM_MOVE_SEND.",
+      "6. No Widget de inventário (`WBP_Inventory`), conecte arrastar/soltar ou cliques a `ServerMoveItem`, preenchendo SourceFlag/TargetFlag conforme aba ativa (inventário, trade, warehouse). Use Branch nodes para bloquear ações quando estados replicados indicarem lock ou interface diferente.",
+      "7. No Character Blueprint, use `OnRep` para bChaosLocked/bPersonalShopOpen para desabilitar botões correspondentes. Se faltarem regras de bloqueio específicas, documente nos comentários a frase padrão e mantenha comportamento conservador (negar movimento)."
+    ]
+  },
+  "server-mapitem-drop-lifecycle": {
+    title: "Temporizar itens dropados no mundo",
+    steps: [
+      "1. Crie uma classe C++ `AWorldItem` (Add → New C++ Class → Actor). No `.h`, declare `UPROPERTY(Replicated)` `FItemData ItemData;`, `UPROPERTY(VisibleAnywhere)` `UStaticMeshComponent* Mesh;`, `UPROPERTY(Replicated)` `float LootExpireTime;` e `float LootProtectionTime;`. Marque `bReplicates=true` no construtor e em Class Defaults.",
+      "2. No `.cpp`, implemente `void InitializeFromItem(const FItemData& Data, float DropDurationSeconds)` para copiar campos, definir `LootExpireTime=GetWorld()->GetTimeSeconds()+DropDurationSeconds` e `LootProtectionTime=GetWorld()->GetTimeSeconds()+DropDurationSeconds*0.5f` (espelhando m_Time e m_LootTime). Chame `SetReplicateMovement(true)` para sincronizar posição.",
+      "3. Crie `UFUNCTION(NetMulticast, Unreliable)` `void MulticastPlaySpawnFX();` e chame efeitos de partícula/áudio (se inexistentes no código original, marque como 'SUGESTÃO GENÉRICA, NÃO DIRETAMENTE INFERIDA DO CÓDIGO-FONTE C++'). Invocar após spawn para todos os clientes.",
+      "4. Em um subsistema ou GameMode `UItemWorldSubsystem`, implemente `AWorldItem* SpawnWorldItem(const FItemData& Data, const FVector& Pos, float DurationSeconds);` que instancia AWorldItem, chama `InitializeFromItem` e retorna ponteiro armazenado em mapa `WorldItemId→Actor`.",
+      "5. No tick server-side ou timer, percorra WorldItems e destrua aqueles cuja `LootExpireTime` foi ultrapassada; antes disso, permita coleta apenas se o solicitante for proprietário ou se `GetWorld()->GetTimeSeconds()>LootProtectionTime` para liberar para todos, replicando regras de m_LootTime.",
+      "6. Conecte `ServerRequestDropItem` do guia de itens para chamar `SpawnWorldItem` com duração configurável (DataTable ou Config). Ao coletar, destrua o actor e envie `ClientItemGetResult` ao coletor.",
+      "7. No Blueprint de inventário, exiba temporizadores se `AWorldItem` expuser `LootExpireTime` via interface BlueprintCallable; teste em PIE deixando itens no chão para confirmar expiração e liberação de loot antes da coleta."
+    ]
+  },
   "server-item-shop-handlers": {
     title: "RPCs UE 5.7 para compra, venda e reparo de itens",
     globalOrderStep: 5,
@@ -759,7 +805,7 @@ const ueSystems = [
     id: "items-system",
     name: "Sistema de Items",
     status: "Encontrado",
-    mechanicsIds: ["server-protocolcore-dispatch", "server-item-structs", "server-item-packet-structs", "server-item-handlers", "server-item-shop-handlers", "server-pk-drop-system", "client-item-structs", "client-inventory-handling"],
+    mechanicsIds: ["server-protocolcore-dispatch", "server-item-structs", "server-item-packet-structs", "server-item-handlers", "server-item-move-matrix", "server-item-shop-handlers", "server-mapitem-drop-lifecycle", "server-pk-drop-system", "client-item-structs", "client-inventory-handling"],
     codeSummary: "ProtocolCore (Protocol.cpp) roteia C1:22-26/32-34 para CItemManager (get/drop/move/use/buy/sell/repair) usando structs CItem/ITEM_INFO; o cliente mantém ITEM e PRECEIVE_INVENTORY para refletir o inventário e renderizar itens/viewport.",
     ue57Summary: "Mapear get/drop/move/use/buy/sell/repair para RPCs Server em Character/InventoryComponent, usar `FItemData` replicado, atores `AWorldItem` para drops e Widgets para UI; marcar campos ausentes com 'NÃO DÁ PARA INFERIR COM SEGURANÇA COM BASE NO CÓDIGO-FONTE C++'."
   },
@@ -767,7 +813,7 @@ const ueSystems = [
     id: "inventory-system",
     name: "Sistema de Inventory",
     status: "Encontrado",
-    mechanicsIds: ["server-protocolcore-dispatch", "server-character-list", "server-item-structs", "server-item-packet-structs", "server-item-handlers", "server-item-shop-handlers", "client-inventory-handling", "client-item-structs"],
+    mechanicsIds: ["server-protocolcore-dispatch", "server-character-list", "server-item-structs", "server-item-packet-structs", "server-item-handlers", "server-item-move-matrix", "server-item-shop-handlers", "server-mapitem-drop-lifecycle", "client-inventory-handling", "client-item-structs"],
     codeSummary: "DGCharacterListRecv carrega slots iniciais enquanto CItemManager move/usa/compra/vende/repara itens entre inventário/equipamentos/warehouse/chaos; no cliente, ReceiveInventory/ReceiveGetItem/ReceiveDropItem/ReceiveTradeInventory sincronizam g_pMyInventory, MixInventory e lojas.",
     ue57Summary: "Replicar arrays de inventário/equipamento e saldos em componente anexado ao Character/PlayerState, criar RPCs para transferir/loja/reparar itens e usar hooks OnRep para atualizar UI; validar tamanho e contêiner conforme limites de Item.h e registrar 'NÃO DÁ PARA INFERIR COM SEGURANÇA COM BASE NO CÓDIGO-FONTE C++' quando regras faltarem."
   },
