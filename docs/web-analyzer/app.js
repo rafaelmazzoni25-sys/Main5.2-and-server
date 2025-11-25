@@ -576,6 +576,25 @@ const mechanics = [
     description: "Especializa regras de sorteio e restauração para Lucky Items, encadeando a tabela de taxas global e reconstruindo o item com Convert para refletir mudanças visuais."
   },
   {
+    id: "server-harmony-options",
+    name: "Opções Jewel of Harmony e Smelt/Elevation",
+    type: "Servidor",
+    files: ["JewelOfHarmonyOption.cpp", "JewelOfHarmonyOption.h", "ServerInfo.h"],
+    classes: ["CJewelOfHarmonyOption"],
+    functions: [
+      "Load",
+      "GetJewelOfHarmonyItemOptionType",
+      "GetJewelOfHarmonyRandomOption",
+      "AddJewelOfHarmonyOption",
+      "AddSmeltStoneOption",
+      "AddJewelOfElevationOption",
+      "CalcJewelOfHarmonyOption"
+    ],
+    networkDetails: "Sem envio direto; as funções são chamadas por handlers de inventário/chaos antes de responder pelos packets tradicionais, atribuindo opções Harmony ao item e recalculando atributos do personagem.",
+    flow: "Load percorre seções por tipo (weapon/staff/armor) via CMemScript, preenchendo JEWEL_OF_HARMONY_OPTION_INFO com ValueTable/MoneyTable e Rate. GetJewelOfHarmonyItemOptionType categoriza o índice (armas/staff/armaduras) ignorando sockets. GetJewelOfHarmonyRandomOption usa CRandomManager para sortear opção elegível respeitando Level e requisitos de STR/DEX. AddJewelOfHarmonyOption valida slots, bloqueia Set/Lucky/Socket, sorteia opção/nível inicial e, se sucesso percentual m_HarmonySuccessRate[AccountLevel], grava m_JewelOfHarmonyOption e reconverte o item atualizando CharSet. AddSmeltStoneOption exige item Harmony, calcula rate por pedra (m_SmeltStoneSuccessRate1/2), incrementa nível até 13 ou reseta para nível base e reconverte. AddJewelOfElevationOption aplica Harmony em Lucky Items (nível clamped a 13) usando a mesma taxa. CalcJewelOfHarmonyOption percorre INVENTORY_WEAR_SIZE e chama InsertOption para aplicar bônus em atributos (dano, crítico, SkillDamage, defesa, HP/MP/BP, redução de dano, SD) conforme type/index e flag.",
+    description: "Implementa carga de tabela Harmony, categorização por tipo de item, sorteio aplicado com taxas configuráveis e recálculo de atributos ao equipar ou refinar, com tratamentos específicos para Smelt/Elevation e atualização de CharSet."
+  },
+  {
     id: "server-moss-merchant-gamble",
     name: "Sorteio de item no Moss Merchant",
     type: "Servidor",
@@ -1199,6 +1218,19 @@ const ueGuides = {
       "7. Compile e execute dois clientes PIE verificando replicação da durabilidade e atualização visual sem qualquer uso de packets do legado."
     ]
   },
+  "server-harmony-options": {
+    title: "Aplicar e refinar Jewel of Harmony na UE 5.7 (ordem cronológica)",
+    steps: [
+      "1. Após carregar serviços de ItemOptionRate e ItemInfo, crie um **Blueprint Struct** `FHarmonyOptionRow` com campos `int32 Index`, `int32 Rate`, `int32 Level`, `TArray<int32> ValueTable`, `TArray<int32> MoneyTable`, `EItemHarmonyType Type` (Weapon/Staff/Armor). Gere DataTable `DT_HarmonyOptions` espelhando o script lido em CJewelOfHarmonyOption::Load; se faltar alguma linha, registre 'NÃO DÁ PARA INFERIR COM SEGURANÇA COM BASE NO CÓDIGO-FONTE C++'.",
+      "2. Crie um **Game Instance Subsystem** `UHarmonyOptionService` com `TMap<EItemHarmonyType, TMap<int32, FHarmonyOptionRow>> OptionMap` e métodos `void LoadFromTable(UDataTable*); int32 GetRestoreMoney(const FItemData& Item); uint8 RollHarmonyOption(const FItemData& Item);`. Em `RollHarmonyOption`, replique os filtros do código (ignorar sockets, checar Level e RequireStrength/Dexterity > 0 para sub require).",
+      "3. No `UInventoryComponent`, adicione RPC `UFUNCTION(Server, Reliable)` `void ServerApplyHarmony(int32 SourceSlot, int32 TargetSlot);` que verifica autoridade, se SourceSlot tem Jewel/SmeltStone e TargetSlot contém item elegível (não Set, não Socket, não Lucky salvo para Elevation). Consulte `UHarmonyOptionService` para `RollHarmonyOption`, e aplique `ItemData.HarmonyOption = (Option << 4) | Level` usando taxa configurada (exponha `HarmonySuccessRate` em Config).",
+      "4. Adicione RPC `UFUNCTION(Server, Reliable)` `void ServerSmeltHarmony(int32 SourceSlot, int32 TargetSlot);` que valida item Harmony existente, confere nível < 13 e escolhe taxa conforme SmeltStone usada. Em sucesso incremente nível, caso contrário resete para nível base da tabela. Atualize o item replicado e chame `ClientHarmonyResult` (Client, Reliable) com códigos equivalentes aos resultados do servidor. Em falta de regra, retorne a frase padrão.",
+      "5. Adicione RPC `UFUNCTION(Server, Reliable)` `void ServerApplyElevation(int32 SourceSlot, int32 TargetSlot);` específico para Lucky Items, limitando nível ao mínimo entre 13 e Level do item, usando a mesma taxa de sucesso. Em falha, apenas registre mensagem e mantenha o item.",
+      "6. No Character/PlayerState, implemente `void RecalculateHarmonyOptions(bool bRemove=false);` percorrendo equipamentos replicados (`INVENTORY_WEAR_SIZE` equivalente) e consultando `UHarmonyOptionService` para `FHarmonyOptionRow`. Para cada item Harmony, aplique `ValueTable[Level]` em atributos replicados (PhysiDamage, MagicDamage, CriticalDamage, SkillDamageBonus, Defense, AddBP, AddLife, HPRecovery, MPRecovery, DefenseSuccessRatePvP, DamageReduction, ShieldGaugeRate, IgnoreShieldGaugeRate) usando funções helper; se um atributo não existir, logue a frase padrão e pule."
+      "7. Em Blueprints do inventário, adicione botões 'Aplicar Harmony', 'Smelt' e 'Elevation'. No Event Graph, use `OnClicked` → `ServerApplyHarmony/ServerSmeltHarmony/ServerApplyElevation` com os slots selecionados. Use `Branch` para checar códigos retornados via `ClientHarmonyResult` e exibir mensagens equivalentes (sucesso, falha, item inválido).",
+      "8. Configure **Replicates** no Character e marque `InventoryComponent` como `ReplicatedUsing=OnRep_Inventory`. Na função `OnRep`, chame `RecalculateHarmonyOptions` para atualizar atributos locais. Teste cronologicamente: (a) carregar tabelas, (b) aplicar Harmony, (c) smelt até nível 13, (d) aplicar em Lucky Items com Elevation, (e) verificar replicação entre dois clientes PIE sem qualquer packet legado."
+    ]
+  },
   "server-moss-merchant-gamble": {
     title: "Implementar Moss Merchant com opções sorteadas na UE (ordem cronológica)",
     steps: [
@@ -1243,7 +1275,7 @@ const ueSystems = [
     id: "items-system",
     name: "Sistema de Items",
     status: "Encontrado",
-    mechanicsIds: ["server-protocolcore-dispatch", "server-item-structs", "server-item-packet-structs", "server-item-attribute-loader", "server-380-item-type-map", "server-380-item-option", "server-item-handlers", "server-item-move-matrix", "server-chaos-event-muun-move", "server-item-require-checks", "server-item-move-allowlist", "server-item-stack-config", "server-socket-item-type", "server-item-option-rate", "server-item-value", "server-item-value-trade", "server-lucky-item-options", "server-moss-merchant-gamble", "server-jewel-mix", "server-itembag-manager", "server-item-drop-config", "server-item-get-drop-conditions", "server-item-shop-handlers", "server-mapitem-drop-lifecycle", "server-pk-drop-system", "client-item-structs", "client-inventory-handling"],
+    mechanicsIds: ["server-protocolcore-dispatch", "server-item-structs", "server-item-packet-structs", "server-item-attribute-loader", "server-380-item-type-map", "server-380-item-option", "server-item-handlers", "server-item-move-matrix", "server-chaos-event-muun-move", "server-item-require-checks", "server-item-move-allowlist", "server-item-stack-config", "server-socket-item-type", "server-item-option-rate", "server-item-value", "server-item-value-trade", "server-lucky-item-options", "server-harmony-options", "server-moss-merchant-gamble", "server-jewel-mix", "server-itembag-manager", "server-item-drop-config", "server-item-get-drop-conditions", "server-item-shop-handlers", "server-mapitem-drop-lifecycle", "server-pk-drop-system", "client-item-structs", "client-inventory-handling"],
     codeSummary: "ProtocolCore (Protocol.cpp) roteia C1:22-26/32-34 para CItemManager (get/drop/move/use/buy/sell/repair) usando structs CItem/ITEM_INFO; o cliente mantém ITEM e PRECEIVE_INVENTORY para refletir o inventário e renderizar itens/viewport.",
     ue57Summary: "Mapear get/drop/move/use/buy/sell/repair para RPCs Server em Character/InventoryComponent, usar `FItemData` replicado, atores `AWorldItem` para drops e Widgets para UI; marcar campos ausentes com 'NÃO DÁ PARA INFERIR COM SEGURANÇA COM BASE NO CÓDIGO-FONTE C++'."
   },
@@ -1251,7 +1283,7 @@ const ueSystems = [
     id: "inventory-system",
     name: "Sistema de Inventory",
     status: "Encontrado",
-    mechanicsIds: ["server-protocolcore-dispatch", "server-character-list", "server-item-structs", "server-item-packet-structs", "server-item-attribute-loader", "server-380-item-type-map", "server-380-item-option", "server-item-handlers", "server-item-move-matrix", "server-chaos-event-muun-move", "server-item-require-checks", "server-item-move-allowlist", "server-item-stack-config", "server-socket-item-type", "server-item-option-rate", "server-item-value", "server-item-value-trade", "server-lucky-item-options", "server-moss-merchant-gamble", "server-jewel-mix", "server-itembag-manager", "server-item-drop-config", "server-item-get-drop-conditions", "server-item-shop-handlers", "server-mapitem-drop-lifecycle", "client-inventory-handling", "client-item-structs"],
+    mechanicsIds: ["server-protocolcore-dispatch", "server-character-list", "server-item-structs", "server-item-packet-structs", "server-item-attribute-loader", "server-380-item-type-map", "server-380-item-option", "server-item-handlers", "server-item-move-matrix", "server-chaos-event-muun-move", "server-item-require-checks", "server-item-move-allowlist", "server-item-stack-config", "server-socket-item-type", "server-item-option-rate", "server-item-value", "server-item-value-trade", "server-lucky-item-options", "server-harmony-options", "server-moss-merchant-gamble", "server-jewel-mix", "server-itembag-manager", "server-item-drop-config", "server-item-get-drop-conditions", "server-item-shop-handlers", "server-mapitem-drop-lifecycle", "client-inventory-handling", "client-item-structs"],
     codeSummary: "DGCharacterListRecv carrega slots iniciais enquanto CItemManager move/usa/compra/vende/repara itens entre inventário/equipamentos/warehouse/chaos; no cliente, ReceiveInventory/ReceiveGetItem/ReceiveDropItem/ReceiveTradeInventory sincronizam g_pMyInventory, MixInventory e lojas.",
     ue57Summary: "Replicar arrays de inventário/equipamento e saldos em componente anexado ao Character/PlayerState, criar RPCs para transferir/loja/reparar itens e usar hooks OnRep para atualizar UI; validar tamanho e contêiner conforme limites de Item.h e registrar 'NÃO DÁ PARA INFERIR COM SEGURANÇA COM BASE NO CÓDIGO-FONTE C++' quando regras faltarem."
   },
@@ -1416,6 +1448,15 @@ const roadmap = [
     description: "Migrar CheckItemValueTrade para RPCs UE garantindo débito de zen/coins e mensagens de erro replicadas antes de concluir trocas.",
     basedOnCode: true,
     notes: "Baseado diretamente no código C++ (ItemValueTrade.cpp linhas 30-223; ItemValueTrade.h linhas 9-27)."
+  },
+  {
+    id: "roadmap-harmony-option-service",
+    horizon: "Médio Prazo",
+    priority: "Média",
+    mechanicsIds: ["server-harmony-options"],
+    description: "Carregar tabela de Jewel of Harmony em DataTables UE e implementar RPCs de aplicar/smelt/elevation com recálculo de atributos replicados.",
+    basedOnCode: true,
+    notes: "Baseado diretamente no código C++ (JewelOfHarmonyOption.cpp linhas 37-441, 443-603, 605-761; JewelOfHarmonyOption.h linhas 9-63)."
   },
   {
     id: "roadmap-jewel-mix-flow",
