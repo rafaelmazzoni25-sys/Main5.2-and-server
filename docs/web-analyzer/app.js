@@ -818,6 +818,22 @@ const mechanics = [
     networkDetails: "Sem packets dedicados; altera atributos do personagem antes de sincronizar estado/CharSet com o cliente.",
     flow: "Load reinicializa m_SetItemOptionInfo e lê OptionTable/FullOptionTable via CMemScript para cada índice de set. CalcSetItemStat percorre INVENTORY_WEAR, verifica IsSetItem e tipo via gSetItemType, obtém ItemOption com GetSetItemStatType e chama InsertOption para aplicar atributos base (Strength/Dexterity/Vitality/Energy/Leadership). CalcSetItemOption conta peças equipadas por set (GetInventorySetItemOptionCount), aplica OptionTable para cada quantidade-1 e, quando o máximo é atingido, aplica FullOptionTable e marca lpObj->IsFullSetItem.",
     description: "Calcula bônus de sets equipados somando atributos, dano, defesa, resistências e flags de set completo conforme tabelas de OptionTable/FullOptionTable carregadas."
+  },
+  {
+    id: "server-custom-quest-rewards",
+    name: "Recompensas de CustomQuest com validação de espaço e sockets",
+    type: "Servidor",
+    files: ["CustomQuest.cpp", "CustomQuest.h"],
+    classes: ["CCustomQuest"],
+    functions: [
+      "CheckItemRewardInventorySpace",
+      "CheckItemInventorySpace",
+      "AddRewardItem",
+      "QuestCommand"
+    ],
+    networkDetails: "Uso do sistema original: QuestCommand envia SDHP_CUSTOMQUEST_SAVE_SEND (C1:F2) ao DataServer e chama GDCreateItemSend para criar itens de recompensa; não há RPCs/replicação na Unreal.",
+    flow: "CheckItemRewardInventorySpace percorre recompensas do quest aplicável, filtra por classe e usa CheckItemInventorySpace para encontrar retângulo livre com InventoryRectCheck antes de premiar; AddRewardItem monta ItemSocketOption limitado por gSocketItemType.GetSocketItemMaxSocket, chama GDCreateItemSend com opções/JOH/OpEx/Duration e sockets definidos e aplica duração via time(0)+Duration; QuestCommand valida switch CustomQuest, interfaces e trade duel, verifica Character/Item/Monster e espaço, incrementa lpObj->CustomQuest, envia SDHP_CUSTOMQUEST_SAVE_SEND ao DataServer, remove itens/moedas requeridos e chama AddRewardCoin/Item/Buff/Experience seguido de GCFireworksSend.",
+    description: "Implementa fluxo de conclusão de CustomQuest com pré-checagem de inventário e sockets antes de premiar itens, moedas e buffs, coordenando salvamento no DataServer e efeitos visuais ao concluir."
   }
 
 ];
@@ -1203,6 +1219,20 @@ const ueGuides = {
     ]
   },
 
+  "server-custom-quest-rewards": {
+    title: "UE 5.7: recompensas de CustomQuest sem packets legados (ordem cronológica)",
+    steps: [
+      "1. Crie **Blueprint Structs** `FCustomQuestRewardItem` (Index, ItemIndex, ItemLevel, Durability, Option1-3, NewOption, AncOption, JOH, OpEx, Socket[5], DurationSeconds, ClassReq) e `FCustomQuestReward` (Index, Coin1-3, Zen). Importe dados equivalentes aos arrays de CCustomQuest::Load; onde não houver valor no código, registre 'NÃO DÁ PARA INFERIR COM SEGURANÇA COM BASE NO CÓDIGO-FONTE C++'.",
+      "2. Adicione um **GameInstanceSubsystem** `UCustomQuestSubsystem` em C++ com `TMap<int32, FCustomQuestRewardItem>` e `TMap<int32, FCustomQuestReward>` e uma função `bool GetRewards(int32 QuestId, TArray<FCustomQuestRewardItem>& OutItems, FCustomQuestReward& OutCurrency)` que filtra pelo Index e classe (ClassReq).",
+      "3. No `APlayerState` (ou componente de progressão), declare `UPROPERTY(ReplicatedUsing=OnRep_QuestId)` `int32 CurrentQuestId` e RPC `UFUNCTION(Server, Reliable)` `void ServerCompleteQuest(int32 QuestId);` em substituição ao packet C1:F2. No corpo, valide que QuestId corresponde a CurrentQuestId+1 e que o jogador não está em trade/menus (mantenha flags replicadas equivalentes a Interface/TradeDuel; se ausentes, registre a frase padrão).",
+      "4. Implemente helpers `bool HasInventorySpaceForRewards(const TArray<FCustomQuestRewardItem>&)` no `UInventoryComponent` replicado, percorrendo slots e chamando `InventoryRectCheck` equivalente para verificar largura/altura dos itens como em CheckItemInventorySpace. Retorne falso e envie Client RPC de erro quando não houver espaço.",
+      "5. Em `ServerCompleteQuest`, consulte `UCustomQuestSubsystem::GetRewards`, chame `HasInventorySpaceForRewards`, debite moedas/itens exigidos (usando helpers existentes de consumo) e incremente CurrentQuestId. Em seguida, para cada `FCustomQuestRewardItem`, crie `FItemData` preenchendo sockets até o limite conhecido e chame `SpawnInventoryItem` ou `AddItem` no componente (não use sockets/packets diretos).",
+      "6. Para efeitos/buffs, crie um serviço `UEffectManager` que aplique buffs quando o reward contiver EffectID/Time/Power; use `UFUNCTION(NetMulticast, Reliable)` `void MulticastApplyQuestRewardFX()` para substituir `GCFireworksSend` exibindo VFX no personagem ao concluir a quest.",
+      "7. Integre UI: em um Widget Blueprint de quest, no OnClicked do botão Concluir, chame `ServerCompleteQuest`. Em `OnRep_QuestId`, atualize a UI de progresso. Para mensagens de erro (sem espaço/requisitos), apresente texto em tela replicando os avisos do servidor original.",
+      "8. Ordem cronológica recomendada: (a) criar structs/DataTables de recompensa, (b) subsystem de consulta, (c) replicar CurrentQuestId, (d) validar espaço e requisitos em RPC Server, (e) adicionar itens/buffs/moedas e FX multicast, (f) ligar UI. Quando a ordem depender de detalhes ausentes, anote a frase padrão e não implemente lógica supositiva."
+    ]
+  },
+
   "server-item-handlers": {
     title: "Plano UE 5.7 para sistema de itens (dados, inventário, drop e uso)",
     globalOrderStep: 4,
@@ -1544,7 +1574,7 @@ const ueSystems = [
     id: "items-system",
     name: "Sistema de Items",
     status: "Encontrado",
-    mechanicsIds: ["server-protocolcore-dispatch", "server-item-structs", "server-item-packet-structs", "server-item-attribute-loader", "server-380-item-type-map", "server-380-item-option", "server-excellent-option-rate", "server-set-item-option", "server-item-handlers", "server-item-move-matrix", "server-chaos-event-muun-move", "server-muun-system", "server-item-require-checks", "server-item-move-allowlist", "server-item-stack-config", "server-item-stack-operations", "server-inventory-equipment-effects", "server-socket-item-type", "server-item-option-rate", "server-item-value", "server-item-value-trade", "server-lucky-item-options", "server-harmony-options", "server-custom-jewel", "server-moss-merchant-gamble", "server-jewel-mix", "server-itembag-manager", "server-itembag-ex", "server-item-drop-config", "server-item-get-drop-conditions", "server-item-shop-handlers", "server-mapitem-drop-lifecycle", "server-pk-drop-system", "server-pentagram-system", "client-item-structs", "client-inventory-handling", "server-personal-shop"],
+    mechanicsIds: ["server-protocolcore-dispatch", "server-item-structs", "server-item-packet-structs", "server-item-attribute-loader", "server-380-item-type-map", "server-380-item-option", "server-excellent-option-rate", "server-set-item-option", "server-custom-quest-rewards", "server-item-handlers", "server-item-move-matrix", "server-chaos-event-muun-move", "server-muun-system", "server-item-require-checks", "server-item-move-allowlist", "server-item-stack-config", "server-item-stack-operations", "server-inventory-equipment-effects", "server-socket-item-type", "server-item-option-rate", "server-item-value", "server-item-value-trade", "server-lucky-item-options", "server-harmony-options", "server-custom-jewel", "server-moss-merchant-gamble", "server-jewel-mix", "server-itembag-manager", "server-itembag-ex", "server-item-drop-config", "server-item-get-drop-conditions", "server-item-shop-handlers", "server-mapitem-drop-lifecycle", "server-pk-drop-system", "server-pentagram-system", "client-item-structs", "client-inventory-handling", "server-personal-shop"],
     codeSummary: "ProtocolCore (Protocol.cpp) roteia C1:22-26/32-34 para CItemManager (get/drop/move/use/buy/sell/repair) usando structs CItem/ITEM_INFO; o cliente mantém ITEM e PRECEIVE_INVENTORY para refletir o inventário e renderizar itens/viewport.",
     ue57Summary: "Mapear get/drop/move/use/buy/sell/repair para RPCs Server em Character/InventoryComponent, usar `FItemData` replicado, atores `AWorldItem` para drops e Widgets para UI; marcar campos ausentes com 'NÃO DÁ PARA INFERIR COM SEGURANÇA COM BASE NO CÓDIGO-FONTE C++'."
   },
@@ -1552,7 +1582,7 @@ const ueSystems = [
     id: "inventory-system",
     name: "Sistema de Inventory",
     status: "Encontrado",
-    mechanicsIds: ["server-protocolcore-dispatch", "server-character-list", "server-item-structs", "server-item-packet-structs", "server-item-attribute-loader", "server-380-item-type-map", "server-380-item-option", "server-excellent-option-rate", "server-set-item-option", "server-item-handlers", "server-item-move-matrix", "server-chaos-event-muun-move", "server-muun-system", "server-item-require-checks", "server-item-move-allowlist", "server-item-stack-config", "server-item-stack-operations", "server-inventory-equipment-effects", "server-socket-item-type", "server-item-option-rate", "server-item-value", "server-item-value-trade", "server-lucky-item-options", "server-harmony-options", "server-custom-jewel", "server-moss-merchant-gamble", "server-jewel-mix", "server-itembag-manager", "server-itembag-ex", "server-item-drop-config", "server-item-get-drop-conditions", "server-item-shop-handlers", "server-mapitem-drop-lifecycle", "server-pentagram-system", "client-inventory-handling", "client-item-structs", "server-personal-shop"],
+    mechanicsIds: ["server-protocolcore-dispatch", "server-character-list", "server-item-structs", "server-item-packet-structs", "server-item-attribute-loader", "server-380-item-type-map", "server-380-item-option", "server-excellent-option-rate", "server-set-item-option", "server-custom-quest-rewards", "server-item-handlers", "server-item-move-matrix", "server-chaos-event-muun-move", "server-muun-system", "server-item-require-checks", "server-item-move-allowlist", "server-item-stack-config", "server-item-stack-operations", "server-inventory-equipment-effects", "server-socket-item-type", "server-item-option-rate", "server-item-value", "server-item-value-trade", "server-lucky-item-options", "server-harmony-options", "server-custom-jewel", "server-moss-merchant-gamble", "server-jewel-mix", "server-itembag-manager", "server-itembag-ex", "server-item-drop-config", "server-item-get-drop-conditions", "server-item-shop-handlers", "server-mapitem-drop-lifecycle", "server-pentagram-system", "client-inventory-handling", "client-item-structs", "server-personal-shop"],
     codeSummary: "DGCharacterListRecv carrega slots iniciais enquanto CItemManager move/usa/compra/vende/repara itens entre inventário/equipamentos/warehouse/chaos; no cliente, ReceiveInventory/ReceiveGetItem/ReceiveDropItem/ReceiveTradeInventory sincronizam g_pMyInventory, MixInventory e lojas.",
     ue57Summary: "Replicar arrays de inventário/equipamento e saldos em componente anexado ao Character/PlayerState, criar RPCs para transferir/loja/reparar itens e usar hooks OnRep para atualizar UI; validar tamanho e contêiner conforme limites de Item.h e registrar 'NÃO DÁ PARA INFERIR COM SEGURANÇA COM BASE NO CÓDIGO-FONTE C++' quando regras faltarem."
   },
@@ -1780,6 +1810,15 @@ const roadmap = [
     description: "Migrar CustomJewel.txt e fluxo de uso (CheckCustomJewelApplyItem/CharacterUseCustomJewel) para DataTables, serviço e RPC Server/Client substituindo C1:24 e GCItemDelete/Modify.",
     basedOnCode: true,
     notes: "Baseado diretamente no código C++ (CustomJewel.h linhas 9-86; CustomJewel.cpp linhas 202-602; ObjectManager.cpp linhas 2793-2874; ItemManager.cpp linhas 4088-4121)."
+  },
+  {
+    id: "roadmap-custom-quest-rewards",
+    horizon: "Médio Prazo",
+    priority: "Média",
+    mechanicsIds: ["server-custom-quest-rewards"],
+    description: "Migrar conclusão de CustomQuest para RPCs UE com verificação de espaço no inventário, criação de itens com sockets limitados e sincronização de progresso sem packets C1:F1/F2.",
+    basedOnCode: true,
+    notes: "Baseado diretamente no código C++ (CustomQuest.h linhas 11-145; CustomQuest.cpp linhas 558-930)."
   },
   {
     id: "roadmap-jewel-mix-flow",
