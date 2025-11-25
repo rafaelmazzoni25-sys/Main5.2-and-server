@@ -453,7 +453,27 @@ const mechanics = [
     functions: ["gObjDie", "CItemManager::CGPkDrop"],
     networkDetails: "Sistema de packets original: reutiliza PMSG_ITEM_DROP_RECV para simular drop forçado quando PKLevel>=6 e m_PkItemDropRate passa no rand(); usa GetItemName para logar e CGPkDrop para processar.",
     flow: "Em gObjDie, quando m_PkItemDropSwitch e m_PkItemDropEnable permitem, sorteia até 24 tentativas em slots 0-11 ou inventário principal, monta PMSG_ITEM_DROP_RECV com slot/x/y e chama CGPkDrop; ignora alguns índices especiais (GET_ITEM(13,20) com níveis 1-2) e registra LogAdd de drop ao sucesso.",
-    description: "Implementa perda de item em mortes PK via reuso do handler de drop, respeitando limites de mapa, PKLevel e itens bloqueados, e limpando inventário conforme CGPkDrop." 
+    description: "Implementa perda de item em mortes PK via reuso do handler de drop, respeitando limites de mapa, PKLevel e itens bloqueados, e limpando inventário conforme CGPkDrop."
+  },
+  {
+    id: "server-pentagram-system",
+    name: "Pentagram: inserção/remoção/refino de joias elementais",
+    type: "Servidor",
+    files: ["PentagramSystem.cpp", "PentagramSystem.h"],
+    classes: ["CPentagramSystem"],
+    functions: [
+      "Load",
+      "LoadJewel",
+      "LoadMixRate",
+      "CGPentagramJewelInsertRecv",
+      "CGPentagramJewelRemoveRecv",
+      "CGPentagramJewelRefineRecv",
+      "CGPentagramJewelUpgradeRecv",
+      "GCPentagramJewelInfoSend"
+    ],
+    networkDetails: "Sistema de packets original: C1:EC:00 (insert), C1:EC:01 (remove), C1:EC:02 (refine mix), C1:EC:03 (upgrade level/rank) e C1:EE:01 (info) usam structs PMSG_PENTAGRAM_JEWEL_* com slots/alvo/tipo; DataServer interage via C2:23:00/ C1:23:00 para salvar/recuperar info.",
+    flow: "Load/LoadJewel/LoadMixRate leem tabelas de tipo/opções/rates via CMemScript para mapas m_PentagramTypeInfo/m_PentagramOptionInfo/m_PentagramJewelOptionInfo/m_PentagramJewelRemoveInfo/m_PentagramJewelUpgrade*. CGPentagramJewelInsertRecv valida conexão e range, confirma PentagramItem e PentagramJewel, calcula SocketSlot e só permite se slot está 0xFE e atributo combina; AddPentagramJewelInfo registra info, envia PMSG_PENTAGRAM_JEWEL_INSERT_SEND, grava índice na m_SocketOption e remove o item de origem. CGPentagramJewelRemoveRecv checa ranges/validações, consulta GetPentagramJewelInfo e espaço no inventário, avalia taxa MixRate por atributo, cria item de joia (GDCreateItemSend) ou apenas limpa slot para 0xFE, removendo info e enviando resultado. CGPentagramJewelRefineRecv e CGPentagramJewelUpgradeRecv aplicam ChaosLock/PShopOpen, zeram dinheiro/sucesso e delegam para gChaosBox mixes (mithril/elixir/jewel/decomposite/upgrade level/rank). GCPentagramJewelInfoSend varre arrays PentagramJewelInfo_* e envia blocos via 0xEE:01 para cliente."
+    description: "Gerencia joias elementais (pentagram) carregando tabelas de tipo/opção/rate e tratando inserção, remoção, refino e upgrade com validações de slots, atributos e espaço, usando mixes de Chaos e sincronização com DataServer/cliente."
   },
   {
     id: "client-item-structs",
@@ -1179,6 +1199,20 @@ const ueGuides = {
       "6. Em testes PIE, force PKLevel alto e provoque morte para validar que apenas um item cai e que regras de bloqueio são respeitadas; registre em comentários quando detalhes de exclusão não puderem ser inferidos."
     ]
   },
+  "server-pentagram-system": {
+    title: "Pentagram e joias elementais sem packets legados",
+    globalOrderStep: 11,
+    steps: [
+      "1. Crie DataTables UE para `PentagramType`, `PentagramOption`, `PentagramJewelOption`, `PentagramJewelRemove` e `PentagramJewelUpgrade` replicando os campos carregados por Load/LoadJewel/LoadMixRate (Index, OptionIndex/Value, Rank/Level arrays, MixRate). Marque em comentários qualquer campo cujo significado não esteja claro com 'NÃO DÁ PARA INFERIR COM SEGURANÇA COM BASE NO CÓDIGO-FONTE C++'.",
+      "2. No componente `UInventoryComponent` (replicado), adicione arrays `TArray<FPentagramJewelInfo> InventoryPentagramInfo` e `TArray<FPentagramJewelInfo> WarehousePentagramInfo` com tamanho MAX_PENTAGRAM_JEWEL_INFO. Crie `USTRUCT` FPentagramJewelInfo com campos Type/Index/Attribute/ItemSection/ItemType/ItemLevel/OptionIndexRank[1..5]/OptionLevelRank[1..5] espelhando PENTAGRAM_JEWEL_INFO. Marque como `UPROPERTY(Replicated)` e implemente `GetLifetimeReplicatedProps`.",
+      "3. Declare RPCs Server: `ServerInsertPentagramJewel(int32 TargetSlot,int32 SourceSlot);`, `ServerRemovePentagramJewel(int32 SourceSlot,uint8 SocketSlot);`, `ServerRefinePentagram(uint8 MixType);` e `ServerUpgradePentagram(uint8 MixType,uint8 Info);` substituindo os packets C1:EC:00/01/02/03. Em cada RPC, valide conexão/locks equivalentes (IsDead, bInPShop, ChaosLock) e ranges de slot (funções helper para INVENTORY_BASE_RANGE e CHECK_RANGE).",
+      "4. Na lógica de inserção, verifique se TargetSlot contém item Pentagram (faixa GET_ITEM(12,200-220)) e SourceSlot contém joia (12,221-261), calcule SocketSlot = (ItemIndex-221)/10 e confirme que `SocketOption[SocketSlot]==0xFE` e que `SocketOptionBonus` bate com o atributo. Em sucesso, registre o jewel info na array replicada e grave o índice no slot do item; dispare `OnRep_PentagramSlots` ou RPC Client `ClientPentagramInserted` para atualizar UI. Caso qualquer validação falhe, retorne com erro sem modificar estado.",
+      "5. Para remoção, busque o FPentagramJewelInfo correspondente ao índice armazenado no socket; valide espaço livre em inventário antes de criar o item. Aplique MixRate por atributo (usar DataTable PentagramJewelRemoveInfo) para decidir entre sucesso (spawn item de joia) ou falha (apenas limpar slot). Use `ServerSpawnWorldItem` ou inserção direta no inventário e chame um RPC Client para resultado. Em todos os casos, limpe `SocketOption[SocketSlot]=0xFE` e remova o registro replicado.",
+      "6. Em `ServerRefinePentagram`, bloqueie quando ChaosLock/PShop estiverem ativos, zere variáveis de mix e roteie para funções específicas (mithril/elixir/jewel/decomposite) que consumam ChaosBox slots replicados; use timers/async se o mix tiver duração, e em sucesso/falha notifique via `ClientPentagramMixResult`. Para upgrade (MixType level/rank), siga sequência similar e aplique custos a moedas replicadas. Quando qualquer regra de custo/duração não estiver no código, marque com a frase padrão.",
+      "7. Exponha um RPC Client `ClientSyncPentagramJewelInfo(TArray<FPentagramJewelInfo> Info, uint8 Type)` equivalente ao envio C1:EE:01 para povoar UI ao entrar no jogo. No Widget de Pentagram, no Event Construct, chame esse RPC ou leia OnRep das arrays replicadas para mostrar joias equipadas e atributos.",
+      "8. No Blueprint do personagem, marque **Replicates** e adicione lógica visual opcional para representar o atributo elemental (material parameter ou particle). Qualquer parte estética não presente no código deve ser rotulada como 'SUGESTÃO GENÉRICA, NÃO DIRETAMENTE INFERIDA DO CÓDIGO-FONTE C++'. Teste em PIE a ordem: carregar DataTables → replicar info → inserir joia → remover joia → refino/upgrade, sem enviar buffers manuais."
+    ]
+  },
   "server-item-require-checks": {
     title: "Validar requisitos de item e slots no servidor UE",
     steps: [
@@ -1350,7 +1384,7 @@ const ueSystems = [
     id: "items-system",
     name: "Sistema de Items",
     status: "Encontrado",
-    mechanicsIds: ["server-protocolcore-dispatch", "server-item-structs", "server-item-packet-structs", "server-item-attribute-loader", "server-380-item-type-map", "server-380-item-option", "server-item-handlers", "server-item-move-matrix", "server-chaos-event-muun-move", "server-muun-system", "server-item-require-checks", "server-item-move-allowlist", "server-item-stack-config", "server-socket-item-type", "server-item-option-rate", "server-item-value", "server-item-value-trade", "server-lucky-item-options", "server-harmony-options", "server-moss-merchant-gamble", "server-jewel-mix", "server-itembag-manager", "server-item-drop-config", "server-item-get-drop-conditions", "server-item-shop-handlers", "server-mapitem-drop-lifecycle", "server-pk-drop-system", "client-item-structs", "client-inventory-handling", "server-personal-shop"],
+    mechanicsIds: ["server-protocolcore-dispatch", "server-item-structs", "server-item-packet-structs", "server-item-attribute-loader", "server-380-item-type-map", "server-380-item-option", "server-item-handlers", "server-item-move-matrix", "server-chaos-event-muun-move", "server-muun-system", "server-item-require-checks", "server-item-move-allowlist", "server-item-stack-config", "server-socket-item-type", "server-item-option-rate", "server-item-value", "server-item-value-trade", "server-lucky-item-options", "server-harmony-options", "server-moss-merchant-gamble", "server-jewel-mix", "server-itembag-manager", "server-item-drop-config", "server-item-get-drop-conditions", "server-item-shop-handlers", "server-mapitem-drop-lifecycle", "server-pk-drop-system", "server-pentagram-system", "client-item-structs", "client-inventory-handling", "server-personal-shop"],
     codeSummary: "ProtocolCore (Protocol.cpp) roteia C1:22-26/32-34 para CItemManager (get/drop/move/use/buy/sell/repair) usando structs CItem/ITEM_INFO; o cliente mantém ITEM e PRECEIVE_INVENTORY para refletir o inventário e renderizar itens/viewport.",
     ue57Summary: "Mapear get/drop/move/use/buy/sell/repair para RPCs Server em Character/InventoryComponent, usar `FItemData` replicado, atores `AWorldItem` para drops e Widgets para UI; marcar campos ausentes com 'NÃO DÁ PARA INFERIR COM SEGURANÇA COM BASE NO CÓDIGO-FONTE C++'."
   },
@@ -1358,7 +1392,7 @@ const ueSystems = [
     id: "inventory-system",
     name: "Sistema de Inventory",
     status: "Encontrado",
-    mechanicsIds: ["server-protocolcore-dispatch", "server-character-list", "server-item-structs", "server-item-packet-structs", "server-item-attribute-loader", "server-380-item-type-map", "server-380-item-option", "server-item-handlers", "server-item-move-matrix", "server-chaos-event-muun-move", "server-muun-system", "server-item-require-checks", "server-item-move-allowlist", "server-item-stack-config", "server-socket-item-type", "server-item-option-rate", "server-item-value", "server-item-value-trade", "server-lucky-item-options", "server-harmony-options", "server-moss-merchant-gamble", "server-jewel-mix", "server-itembag-manager", "server-item-drop-config", "server-item-get-drop-conditions", "server-item-shop-handlers", "server-mapitem-drop-lifecycle", "client-inventory-handling", "client-item-structs", "server-personal-shop"],
+    mechanicsIds: ["server-protocolcore-dispatch", "server-character-list", "server-item-structs", "server-item-packet-structs", "server-item-attribute-loader", "server-380-item-type-map", "server-380-item-option", "server-item-handlers", "server-item-move-matrix", "server-chaos-event-muun-move", "server-muun-system", "server-item-require-checks", "server-item-move-allowlist", "server-item-stack-config", "server-socket-item-type", "server-item-option-rate", "server-item-value", "server-item-value-trade", "server-lucky-item-options", "server-harmony-options", "server-moss-merchant-gamble", "server-jewel-mix", "server-itembag-manager", "server-item-drop-config", "server-item-get-drop-conditions", "server-item-shop-handlers", "server-mapitem-drop-lifecycle", "server-pentagram-system", "client-inventory-handling", "client-item-structs", "server-personal-shop"],
     codeSummary: "DGCharacterListRecv carrega slots iniciais enquanto CItemManager move/usa/compra/vende/repara itens entre inventário/equipamentos/warehouse/chaos; no cliente, ReceiveInventory/ReceiveGetItem/ReceiveDropItem/ReceiveTradeInventory sincronizam g_pMyInventory, MixInventory e lojas.",
     ue57Summary: "Replicar arrays de inventário/equipamento e saldos em componente anexado ao Character/PlayerState, criar RPCs para transferir/loja/reparar itens e usar hooks OnRep para atualizar UI; validar tamanho e contêiner conforme limites de Item.h e registrar 'NÃO DÁ PARA INFERIR COM SEGURANÇA COM BASE NO CÓDIGO-FONTE C++' quando regras faltarem."
   },
@@ -1523,6 +1557,15 @@ const roadmap = [
     description: "Migrar CheckItemValueTrade para RPCs UE garantindo débito de zen/coins e mensagens de erro replicadas antes de concluir trocas.",
     basedOnCode: true,
     notes: "Baseado diretamente no código C++ (ItemValueTrade.cpp linhas 30-223; ItemValueTrade.h linhas 9-27)."
+  },
+  {
+    id: "roadmap-pentagram-rpc-migration",
+    horizon: "Médio Prazo",
+    priority: "Alta",
+    mechanicsIds: ["server-pentagram-system"],
+    description: "Migrar inserção/remoção/refino/upgrade de joias pentagram para RPCs UE com DataTables de taxa/opções e arrays replicados de FPentagramJewelInfo em inventário e warehouse.",
+    basedOnCode: true,
+    notes: "Baseado diretamente no código C++ (PentagramSystem.h linhas 11-216; PentagramSystem.cpp linhas 1487-1841)."
   },
   {
     id: "roadmap-personal-shop-migration",
