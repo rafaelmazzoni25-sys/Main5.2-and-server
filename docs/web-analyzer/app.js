@@ -1347,6 +1347,32 @@ const ueGuides = {
       "6. No UI (Widget de inventário), conecte botões de \"Pegar\" (em overlay de `AWorldItem`) para chamar `ServerRequestGetWorldItem` e botões de \"Dropar\" para chamar `ServerRequestDropItem` com `GetHitResultUnderCursor`. Teste cenários de anel duplicado e zen para confirmar a lógica."
     ]
   },
+
+  "server-trade-flow": {
+    title: "Fluxo de trade UE 5.7 sem packets legados (ordem cronológica)",
+    steps: [
+      "1. Após replicar inventário e moedas, crie componente `UTradeComponent` no PlayerController com `UPROPERTY(ReplicatedUsing=OnRep_TradeState)` contendo `TArray<FItemData> TradeSlots` (tamanho TRADE_BOX_SIZE), `int32 TradeZen`, `bool bTradeLocked` e `bool bTradeOk`.",
+      "2. Adicione RPCs `UFUNCTION(Server, Reliable)` `void ServerRequestTrade(APlayerController* Target);`, `void ServerAcceptTrade();`, `void ServerMoveTradeItem(int32 FromSlot, int32 ToSlot);`, `void ServerSetTradeZen(int32 Amount);`, `void ServerLockTrade(bool bLock);` e `void ServerConfirmTrade(bool bOk);` substituindo os cabeçalhos C1:3C-3D. Cada RPC deve validar Authority, distância (LineTrace ou radius) e estados de UI antes de mutar TradeState.",
+      "3. No GameMode, mantenha mapa de sessões de trade (`TMap<FString, FTradeSession>`) para parear iniciador e alvo; ao aceitar, inicialize TradeSlots vazios em ambos os componentes e limpe qualquer referência anterior. Registre 'NÃO DÁ PARA INFERIR COM SEGURANÇA COM BASE NO CÓDIGO-FONTE C++' quando alguma regra de distância/estado não estiver explícita.",
+      "4. Em `ServerMoveTradeItem`, remova itens do inventário replicado e insira em `TradeSlots`, usando helpers de empilhamento já criados; bloqueie quando bTradeLocked for true. Replica alterações com OnRep e chame RPC Client `ClientTradeItemMoved` para feedback.",
+      "5. Em `ServerLockTrade`, marque `bTradeLocked` e envie RPC Client `ClientTradeLocked`. Quando ambos marcarem `bTradeLocked`, habilite o botão de confirmação (OK). Em `ServerConfirmTrade`, marque `bTradeOk`; quando ambos estiverem true, transfira itens/zen entre inventários, recalculando stacks e disparando OnRep para UI. Desfaça transação se algum slot não puder ser inserido, retornando erros via `ClientTradeError`.",
+      "6. Blueprint/UI: crie Widget de trade com grids ligados a `TradeSlots` e `TradeZen`. Conecte botões para chamar os RPCs acima e use `OnRep_TradeState` para atualizar ícones/quantidades. Teste em ordem: solicitar trade → aceitar → mover itens → travar → confirmar → validar rollback/sucesso, sempre sem usar DataSend/DataRecv.",
+      "7. Adicione logs de depuração em cada transição de estado usando `UE_LOG(LogTrade, Log, TEXT(...))` para facilitar a migração e substitua quaisquer chamadas `DataSend`/`GCTradeResultSend` por RPCs/replicação."
+    ]
+  },
+
+  "client-mapserver-transition": {
+    title: "Mudança de Map Server em UE 5.7 (sequência prática)",
+    steps: [
+      "1. Substitua `CSMServer::ConnectChangeMapServer` por um fluxo de nível/servidor em UE: no GameInstance, crie função `RequestMapTravel(const FServerTravelInfo& Info)` contendo Address/Port/LevelName/AuthToken e mantenha `CurrentMapServer` replicado via GameState para todos os clientes.",
+      "2. Após login, quando o servidor desejar mover o jogador, chame RPC Client `ClientPrepareMapTravel(FServerTravelInfo Info)` no PlayerController. Esse RPC deve armazenar Info e apresentar um widget de carregamento, eliminando qualquer envio de cabeçalho BOTH_CONNECT_LOGIN ou chamadas `SendChangeMServer`.",
+      "3. No lado servidor, valide que o jogador não está em trade/chaos/vault antes de autorizar a troca. Quando autorizado, use `ServerTravel` (para troca de mapa dedicada) ou `ClientTravel` (para mundos abertos) com parâmetros `?AuthToken=` derivados de Info.HeroKey/Index. Documente com a frase padrão quando alguma condição de bloqueio não estiver clara no código original.",
+      "4. Ao carregar o novo mapa, no `GameMode::PostLogin`, replique `CurrentMapServer` e chame RPC Client `ClientSyncHeroContext` para reatribuir HeroID/Slot, recarregar inventário via `ClientReceiveInventory` e reconfigurar Buffs. Essa ordem substitui totalmente o handshake de reconexão com sockets e pacotes C1/C3/C4.",
+      "5. Para transições rápidas (ex.: eventos), implemente `AsyncLoadLevel` com LevelStreaming e, ao concluir, teleporte o personagem server-side e atualize `CurrentMapServer`. Use NetMulticast `MulticastMapTransitionFX` para efeitos visuais, garantindo que nada dependa do sistema de packets legado.",
+      "6. Teste em cronologia: (a) login inicial preenche CurrentMapServer, (b) servidor aciona `ClientPrepareMapTravel`, (c) fluxo de travel executa, (d) `PostLogin`/`BeginPlay` repopulam inventário/buffs, (e) verificações finais garantem que nenhum código chama WSclient ou ProtocolSend para mudar de mapa."
+    ]
+  },
+
   "server-item-shop-handlers": {
     title: "RPCs UE 5.7 para compra, venda e reparo de itens",
     globalOrderStep: 5,
