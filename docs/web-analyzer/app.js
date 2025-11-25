@@ -6,12 +6,14 @@ const mechanics = [
     name: "Leitura e descriptografia de ServerList.bmd",
     type: "Cliente",
     implementationOrder: 1,
+    coherenceStatus: "Legado (não necessário na UE 5.7)",
+    coherenceNotes: "Na UE 5.7 os assets de ServerList já chegam descriptografados; o BuxConvert só deve ser mantido como fallback para detectar arquivos legados e registrar aviso.",
     files: ["ServerListManager.cpp", "ServerListManager.h"],
     classes: ["CServerListManager"],
     functions: ["LoadServerListScript", "BuxConvert"],
     networkDetails: "Nenhum envio de rede: leitura local do arquivo Data\\\\Local\\\\ServerList.bmd e armazenamento em m_mapServerListScript.",
-    flow: "LoadServerListScript abre ServerList.bmd, verifica erro, descriptografa campos com BuxConvert e insere SERVER_GROUP_INFO decodificados em m_mapServerListScript, retornando false se o arquivo não for encontrado.",
-    description: "Mantém um cache de grupos de servidor a partir do arquivo binário local, aplicando XOR rotativo (0xfc,0xcf,0xab) em cada byte lido antes de copiar para SServerGroupInfo e checando falha de fopen."
+    flow: "LoadServerListScript abre ServerList.bmd, verifica erro e insere SERVER_GROUP_INFO em m_mapServerListScript; na UE 5.7 o arquivo já está convertido e não precisa de BuxConvert, mas o fallback pode registrar aviso se detectar bytes ofuscados.",
+    description: "Mantém um cache de grupos de servidor a partir do arquivo binário local. No client legado aplicava XOR rotativo (0xfc,0xcf,0xab); na UE 5.7 lê direto e apenas alerta quando encontra um asset antigo criptografado."
   },
   {
     id: "servergroup-creation",
@@ -71,6 +73,8 @@ const mechanics = [
     type: "Cliente",
     implementationOrder: 6,
     dependsOn: ["server-selection-state"],
+    coherenceStatus: "Requer redesign na UE 5.7",
+    coherenceNotes: "Fluxo depende de CustomClient/olc::net e flags globais; na UE deve virar RPCs/replicação ou sockets cross-platform, sem DataSend bruto.",
     files: ["ProtocolSend.cpp", "ProtocolSend.h"],
     classes: ["CProtocolSend", "CustomClient"],
     functions: ["ConnectServer", "DisconnectServer", "CheckConnected", "SendPingTest", "SendCheckOnline", "SendPacket", "SendPacketClassic"],
@@ -84,6 +88,8 @@ const mechanics = [
     type: "Cliente",
     implementationOrder: 7,
     dependsOn: ["protocol-connection"],
+    coherenceStatus: "Requer redesign na UE 5.7",
+    coherenceNotes: "Parsing de C1/C2/C3/C4 e SimpleModulus só faz sentido no protocolo legado; na UE 5.7 trocar por mensagens replicadas/NetDriver, mantendo apenas como referência de regras de negócio.",
     files: ["ProtocolSend.cpp", "WSclient.cpp"],
     classes: ["CProtocolSend"],
     functions: ["RecvMessage"],
@@ -97,6 +103,8 @@ const mechanics = [
     type: "Cliente",
     implementationOrder: 8,
     dependsOn: ["protocol-connection"],
+    coherenceStatus: "Requer redesign na UE 5.7",
+    coherenceNotes: "O fluxo com BuxConvert e CustomClient não se aplica à UE; substituir por autenticação HTTP/backend ou OnlineSubsystem, eliminando criptografia legado.",
     files: ["ProtocolSend.cpp", "ProtocolSend.h"],
     classes: ["CProtocolSend"],
     functions: ["SendRequestLogInNew"],
@@ -108,12 +116,14 @@ const mechanics = [
     id: "socket-option-script",
     name: "Leitura de opções de socket e descriptografia",
     type: "Cliente",
+    coherenceStatus: "Legado (não necessário na UE 5.7)",
+    coherenceNotes: "Os binários de opções já devem estar convertidos para a UE 5.7; remover XOR/BuxConvert e só manter log caso um arquivo antigo criptografado seja carregado.",
     files: ["SocketSystem.cpp", "SocketSystem.h"],
     classes: ["CSocketItemMgr"],
     functions: ["OpenSocketItemScript", "BuxConvert", "CalcSocketOptionValue", "CalcSocketOptionValueText", "CreateSocketOptionText"],
     networkDetails: "Sem rede; o sistema de packets do projeto original não participa desta carga de dados local.",
-    flow: "OpenSocketItemScript abre arquivo binário de opções, faz fread de SOCKET_OPTION_INFO em duplo loop por tipo e índice, aplica BuxConvert (XOR 0xfc/0xcf/0xab) para descriptografar, fecha o arquivo e calcula m_iNumEquitSetBonusOptions até encontrar entrada vazia.",
-    description: "Processa script de opções de socket em binário local, aplicando XOR por byte, montando valores numéricos e texto de bônus (CalcSocketOptionValue/CalcSocketOptionValueText) para uso por ferramentas de tooltip e cálculo de status."
+    flow: "OpenSocketItemScript abre arquivo binário de opções e percorre tipos/índices preenchendo SOCKET_OPTION_INFO; no cliente legado aplicava BuxConvert (XOR 0xfc/0xcf/0xab), mas na UE 5.7 o caminho esperado é carregar dados já convertidos e apenas avisar se um arquivo criptografado for detectado.",
+    description: "Processa script de opções de socket em binário local. A versão original descriptografava byte a byte; na UE 5.7 usa leitura direta e só loga quando encontra um asset legado."
   },
   {
     id: "socket-tooltip-bonus",
@@ -163,6 +173,8 @@ const mechanics = [
     id: "wsclient-socket-decode",
     name: "Criação de socket assíncrono e descriptografia de pacotes (WSclient)",
     type: "Cliente",
+    coherenceStatus: "Incompatível com alvo UE 5.7",
+    coherenceNotes: "Depende de WinSock/WM_ASYNCSELECTMSG e SimpleModulus; na UE 5.7 deve ser substituído por sockets cross-platform ou RPCs, mantendo só como documentação do protocolo legado.",
     files: ["WSclient.cpp", "wsclientinline.h"],
     classes: ["CWsctlc"],
     functions: ["CreateSocket", "DeleteSocket", "ProtocolCompiler", "AddDebugText", "ReceiveCheckSumRequest"],
@@ -208,12 +220,14 @@ const mechanics = [
     name: "Carga e descriptografia de BuffEffect_*.bmd",
     type: "Cliente",
     implementationOrder: 20,
+    coherenceStatus: "Legado (não necessário na UE 5.7)",
+    coherenceNotes: "BuffEffect_<ML>.bmd já deve estar convertido sem XOR; use leitura direta e somente alerte quando um arquivo criptografado antigo for detectado.",
     files: ["w_BuffScriptLoader.cpp", "w_BuffScriptLoader.h"],
     classes: ["BuffScriptLoader", "BuffInfo"],
     functions: ["BuffScriptLoader::Load", "BuxConvert", "BuxConvertW", "CutTokenString", "GetBuffinfo", "IsBuffClass", "GetBuffIndex", "GetBuffType"],
     networkDetails: "Nenhuma comunicação de rede; leitura local de arquivo data/local/<ML>/BuffEffect_<ML>.bmd com checagem de checksum e xor BuxConvert.",
-    flow: "Construtor forma nome do arquivo, chama Load; Load abre BIN, lê listsize e buffer criptografado, aplica BuxConvert/BuxConvertW, valida checksum com GenerateCheckSum2, monta BuffInfo com nomes/descrições tokenizadas e insere em m_Info; opcionalmente resolve índices/tipos por item code.",
-    description: "Deserializa tabelas de buffs de arquivo BMD, aplica xor rotativo, valida checksum e tokeniza descrições em lista para uso posterior, abortando com MessageBox/SendMessage em corrupção ou ausência de arquivo."
+    flow: "Construtor forma nome do arquivo, chama Load; no código legado o BIN era lido, descriptografado com BuxConvert/BuxConvertW e validado por checksum; na UE 5.7 espera-se leitura direta do arquivo já convertido e apenas um aviso se bytes ofuscados forem detectados.",
+    description: "Deserializa tabelas de buffs a partir do BMD. A etapa de XOR/checksum era necessária no cliente antigo; com assets convertidos para UE 5.7, a leitura é direta e a criptografia vira apenas detecção de legado."
   },
   {
     id: "buff-time-control",
@@ -2353,6 +2367,14 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
 
+  function coherenceBadgeClass(status) {
+    if (!status) return 'text-bg-secondary';
+    if (status.toLowerCase().includes('incompat')) return 'text-bg-danger';
+    if (status.toLowerCase().includes('legado')) return 'text-bg-warning';
+    if (status.toLowerCase().includes('redesign')) return 'text-bg-warning';
+    return 'text-bg-success';
+  }
+
   // Mechanics rendering
   const mechanicsListEl = document.getElementById('mechanics-list');
   const mechanicDetailEl = document.getElementById('mechanic-detail');
@@ -2462,6 +2484,21 @@ document.addEventListener('DOMContentLoaded', () => {
     `;
   }
 
+  function buildCoherenceBlock(mechanic) {
+    const status = mechanic.coherenceStatus || 'Não avaliado';
+    const notes = mechanic.coherenceNotes || missingText;
+    const badgeClass = coherenceBadgeClass(mechanic.coherenceStatus);
+    return `
+      <div class="mb-3">
+        <div class="text-muted text-uppercase small mb-1">Coerência / Viabilidade</div>
+        <div class="d-flex flex-wrap gap-2 align-items-center">
+          <span class="badge ${badgeClass} detail-badge">${status}</span>
+          <span class="text-muted-80 small">${notes}</span>
+        </div>
+      </div>
+    `;
+  }
+
   function selectMechanic(id) {
     const m = mechanics.find(x => x.id === id);
     if (!m) return;
@@ -2478,6 +2515,7 @@ document.addEventListener('DOMContentLoaded', () => {
         <div class="text-muted small">Fluxo de rede e adaptação Unreal</div>
       </div>
       <p class="text-muted-80">${m.description}</p>
+      ${buildCoherenceBlock(m)}
       ${buildChronologyBlock(m)}
       ${renderPillGroup('Arquivos', m.files)}
       ${renderPillGroup('Classes', m.classes)}
