@@ -478,6 +478,42 @@ const mechanics = [
     description: "Define quantidades máximas por item empilhável e qual item pode ser criado, permitindo ao servidor validar e resolver pilhas durante operações de inventário e drops."
   },
   {
+    id: "server-item-attribute-loader",
+    name: "Carregamento e cache de atributos de item",
+    type: "Servidor",
+    files: ["ItemManager.cpp", "ItemManager.h"],
+    classes: ["CItemManager"],
+    functions: [
+      "Load",
+      "GetInfo",
+      "GetItemDurability",
+      "GetItemRepairMoney"
+    ],
+    networkDetails: "Sem envio direto; preenche m_ItemInfo usado pelos handlers C1:22-26/32-34 e pelas conversões ItemByteConvert/DBItemByteConvert antes de responder via packets.",
+    flow: "Load lê MemScript seccionado e cria ITEM_INFO com index, slot, skill, dimensões, flags de serial/opção/drop, nome, dano/defesa, AttackSpeed/WalkSpeed, Durability somada a MagicDurability, requisitos de level/atributos/resistências e preço; marca TwoHand quando Width>=2 e insere em m_ItemInfo para consultas posteriores.",
+    description: "Carrega e armazena todos os atributos de item do arquivo script, disponibilizando requisitos, dimensões e preços para as demais rotinas de inventário, reparo e montagem de packets."
+  },
+  {
+    id: "server-itembag-manager",
+    name: "Roteamento de ItemBag por índice/monstro/evento",
+    type: "Servidor",
+    files: ["ItemBagManager.cpp", "ItemBagManager.h"],
+    classes: ["CItemBagManager"],
+    functions: [
+      "Load",
+      "LoadEventItemBag",
+      "GetItemByItemIndex",
+      "GetItemByMonsterClass",
+      "GetItemBySpecialValue",
+      "DropItemByItemIndex",
+      "DropItemByMonsterClass",
+      "DropItemBySpecialValue"
+    ],
+    networkDetails: "Servidor decide itens a dropar antes de enviar criação de item aos clientes; sem envio direto, mas influencia os packets de drop/loot processados em ProtocolCore.",
+    flow: "Load popula m_ItemBagManagerInfo com ItemIndex, ItemLevel, MonsterClass e SpecialValue; LoadEventItemBag percorre diretório EventItemBag/ e associa ItemBag.Load para cada arquivo; métodos GetItem/DropItem iteram o map e delegam a ItemBag.GetItem/DropItem conforme filtro de item, monstro ou valor especial.",
+    description: "Administra a associação entre tabelas de drop (ItemBag) e filtros de índice/monstro/evento, retornando itens gerados ou disparando quedas no mapa conforme configuração carregada."
+  },
+  {
     id: "server-item-drop-config",
     name: "Tabela de drop configurado por monstro/mapa",
     type: "Servidor",
@@ -809,6 +845,18 @@ const ueGuides = {
     ]
   },
 
+  "server-item-attribute-loader": {
+    title: "Ordem UE 5.7: importar atributos de item",
+    globalOrderStep: 1,
+    steps: [
+      "1. Abra o Unreal Engine 5.7 e clique em **Add → New C++ Class**. Selecione **None** e crie uma classe `UItemDataLibrary` derivada de `UObject` marcada com `UCLASS(BlueprintType)`. No `.h`, declare `USTRUCT(BlueprintType) FItemInfoRow` copiando campos de ITEM_INFO: `int32 Index`, `int32 Slot`, `int32 Skill`, `int32 Width`, `int32 Height`, `bool bHaveSerial`, `bool bHaveOption`, `bool bDropItem`, `FString Name`, `int32 Level`, `int32 DamageMin/Max`, `int32 MagicDamageRate`, `bool bTwoHand`, `int32 Defense`, `int32 MagicDefense`, `int32 DefenseSuccessRate`, `int32 AttackSpeed`, `int32 WalkSpeed`, `int32 Durability`, `int32 MagicDurability`, `int32 Value`, `int32 BuyMoney`, `int32 Resistance[8]`, `int32 RequireLevel/Strength/Dexterity/Energy/Vitality/Leadership`, `TArray<int32> RequireClass`. Para campos não encontrados no código, registre em comentário: 'NÃO DÁ PARA INFERIR COM SEGURANÇA COM BASE NO CÓDIGO-FONTE C++'.",
+      "2. Compile. No Content Browser, clique em **Add → Miscellaneous → Data Table**, escolha `FItemInfoRow` como Row Structure e nomeie `DT_ItemInfo`. Preencha manualmente os valores equivalentes aos scripts carregados por CItemManager::Load; quando faltar dado de seção 12-15 que não esteja no código, escreva a frase padrão no campo de descrição da linha.",
+      "3. Em `UItemDataLibrary`, adicione método `UFUNCTION(BlueprintCallable)` `bool FindItemInfo(int32 Index, FItemInfoRow& OutRow)` que busca na DataTable (via `FindRow`) e retorna falso se não encontrar. No `.cpp`, inicialize um ponteiro `UDataTable* ItemInfoTable` em `BeginPlay` do GameMode lendo um SoftObjectPath para `DT_ItemInfo`.",
+      "4. No GameMode ou em um `UItemRuleSubsystem` (Add → New C++ Class → Game Instance Subsystem), exponha função `GetItemDurabilityUE` que soma `Durability + MagicDurability` como faz `GetItemDurability` no C++; use essa função ao inicializar novos `FItemData` no inventário. Quando não houver regra específica de seções (por exemplo, itens 12-15), logue a frase padrão e retorne o valor básico do DataTable.",
+      "5. Marque `UItemRuleSubsystem` como replicável via RPCs Client para enviar tabelas resumidas somente quando for necessário (por exemplo, `ClientSyncItemRow(Index, Row)`), lembrando que a tabela não usa sockets nem parsing manual; apenas serialização padrão UE."
+    ]
+  },
+
   "server-item-handlers": {
     title: "Plano UE 5.7 para sistema de itens (dados, inventário, drop e uso)",
     globalOrderStep: 4,
@@ -827,6 +875,18 @@ const ueGuides = {
       "12. Para integração visual de equipamentos, no Character Blueprint, anexe SkeletalMesh/StaticMesh a sockets (ex.: `hand_r`, `spine`) usando `AttachToComponent` quando `InventoryComp` emitir um evento `OnRep_Items` indicando novo item com Slot < INVENTORY_WEAR_SIZE. Se faltar mapeamento exato de sockets, documente em comentários como 'NÃO DÁ PARA INFERIR COM SEGURANÇA COM BASE NO CÓDIGO-FONTE C++' e escolha sockets padrão de Character."
     ]
   },
+  "server-itembag-manager": {
+    title: "Ordem UE 5.7: tabelas de drop ItemBag",
+    globalOrderStep: 6,
+    steps: [
+      "1. No Editor, crie `USTRUCT(BlueprintType)` `FItemBagEntry` com campos `int32 Index`, `int32 ItemIndex`, `int32 ItemLevel`, `int32 MonsterClass`, `int32 SpecialValue` para espelhar ITEM_BAG_MANAGER_INFO. Adicione `TSoftObjectPtr<UDataTable> BagTable` para referenciar DataTables de loot específicos.",
+      "2. Crie uma classe C++ `UItemBagManagerSubsystem` derivada de `UGameInstanceSubsystem`. No `.h`, mantenha `UPROPERTY()` `TMap<int32, FItemBagEntry> BagEntries` e métodos `void LoadBagEntry(const FItemBagEntry&)`, `bool GetItemByItemIndex(int32 ItemIndex, int32 ItemLevel, FItemData& OutItem)`, `bool GetItemByMonsterClass(int32 MonsterClass, FItemData& OutItem)`, `bool GetItemBySpecialValue(int32 SpecialValue, FItemData& OutItem)`.",
+      "3. No `.cpp`, implemente `Initialize` carregando DataTables apontadas por `BagTable` e preencha `BagEntries`. Para cada busca GetItem*, itere `BagEntries` filtrando campos como no C++ (ItemIndex+ItemLevel ou MonsterClass ou SpecialValue). Quando não houver correspondência, retorne falso. Use a frase padrão se alguma condição adicional não estiver clara.",
+      "4. Adicione `bool DropItemBy...` equivalentes que chamam `SpawnWorldItem` (do guia de drops) ao encontrar uma linha válida. Atribua posição/quantidade a partir do contexto de gameplay (ex.: morte de monstro). Se o fluxo exato de evento não estiver no código, marque como 'SUGESTÃO GENÉRICA, NÃO DIRETAMENTE INFERIDA DO CÓDIGO-FONTE C++'.",
+      "5. No Blueprint do GameMode ou em um Actor Controller de mobs, ao finalizar um inimigo, chame o Subsystem `GetItemByMonsterClass` e, em sucesso, invoque RPC Server de drop para criar `AWorldItem` replicado. Configure ordem cronológica: carregar DataTables na inicialização do servidor, registrar bag entries, depois conectar eventos de morte/loot, por fim testar coleta em PIE."
+    ]
+  },
+
   "server-item-move-matrix": {
     title: "Replicar matriz de movimento entre contêineres",
     steps: [
@@ -948,7 +1008,7 @@ const ueSystems = [
     id: "items-system",
     name: "Sistema de Items",
     status: "Encontrado",
-    mechanicsIds: ["server-protocolcore-dispatch", "server-item-structs", "server-item-packet-structs", "server-item-handlers", "server-item-move-matrix", "server-chaos-event-muun-move", "server-item-require-checks", "server-item-move-allowlist", "server-item-stack-config", "server-item-drop-config", "server-item-get-drop-conditions", "server-item-shop-handlers", "server-mapitem-drop-lifecycle", "server-pk-drop-system", "client-item-structs", "client-inventory-handling"],
+    mechanicsIds: ["server-protocolcore-dispatch", "server-item-structs", "server-item-packet-structs", "server-item-attribute-loader", "server-item-handlers", "server-item-move-matrix", "server-chaos-event-muun-move", "server-item-require-checks", "server-item-move-allowlist", "server-item-stack-config", "server-itembag-manager", "server-item-drop-config", "server-item-get-drop-conditions", "server-item-shop-handlers", "server-mapitem-drop-lifecycle", "server-pk-drop-system", "client-item-structs", "client-inventory-handling"],
     codeSummary: "ProtocolCore (Protocol.cpp) roteia C1:22-26/32-34 para CItemManager (get/drop/move/use/buy/sell/repair) usando structs CItem/ITEM_INFO; o cliente mantém ITEM e PRECEIVE_INVENTORY para refletir o inventário e renderizar itens/viewport.",
     ue57Summary: "Mapear get/drop/move/use/buy/sell/repair para RPCs Server em Character/InventoryComponent, usar `FItemData` replicado, atores `AWorldItem` para drops e Widgets para UI; marcar campos ausentes com 'NÃO DÁ PARA INFERIR COM SEGURANÇA COM BASE NO CÓDIGO-FONTE C++'."
   },
@@ -956,7 +1016,7 @@ const ueSystems = [
     id: "inventory-system",
     name: "Sistema de Inventory",
     status: "Encontrado",
-    mechanicsIds: ["server-protocolcore-dispatch", "server-character-list", "server-item-structs", "server-item-packet-structs", "server-item-handlers", "server-item-move-matrix", "server-chaos-event-muun-move", "server-item-require-checks", "server-item-move-allowlist", "server-item-stack-config", "server-item-drop-config", "server-item-get-drop-conditions", "server-item-shop-handlers", "server-mapitem-drop-lifecycle", "client-inventory-handling", "client-item-structs"],
+    mechanicsIds: ["server-protocolcore-dispatch", "server-character-list", "server-item-structs", "server-item-packet-structs", "server-item-attribute-loader", "server-item-handlers", "server-item-move-matrix", "server-chaos-event-muun-move", "server-item-require-checks", "server-item-move-allowlist", "server-item-stack-config", "server-itembag-manager", "server-item-drop-config", "server-item-get-drop-conditions", "server-item-shop-handlers", "server-mapitem-drop-lifecycle", "client-inventory-handling", "client-item-structs"],
     codeSummary: "DGCharacterListRecv carrega slots iniciais enquanto CItemManager move/usa/compra/vende/repara itens entre inventário/equipamentos/warehouse/chaos; no cliente, ReceiveInventory/ReceiveGetItem/ReceiveDropItem/ReceiveTradeInventory sincronizam g_pMyInventory, MixInventory e lojas.",
     ue57Summary: "Replicar arrays de inventário/equipamento e saldos em componente anexado ao Character/PlayerState, criar RPCs para transferir/loja/reparar itens e usar hooks OnRep para atualizar UI; validar tamanho e contêiner conforme limites de Item.h e registrar 'NÃO DÁ PARA INFERIR COM SEGURANÇA COM BASE NO CÓDIGO-FONTE C++' quando regras faltarem."
   },
@@ -1067,6 +1127,24 @@ const roadmap = [
     description: "Adicionar verificação de tamanho e logs antes de aplicar BuxConvert e fread para evitar leituras parciais.",
     basedOnCode: true,
     notes: "Baseado diretamente no código C++ (ServerListManager.cpp linha 79-94)."
+  },
+  {
+    id: "roadmap-item-info-datatable",
+    horizon: "Curto Prazo",
+    priority: "Alta",
+    mechanicsIds: ["server-item-attribute-loader"],
+    description: "Gerar DataTable UE com campos de ITEM_INFO e validar carregamento similar ao loop de CItemManager::Load incluindo seções 0-15 e requisitos.",
+    basedOnCode: true,
+    notes: "Baseado diretamente no código C++ (ItemManager.cpp linhas 65-199)."
+  },
+  {
+    id: "roadmap-itembag-binding",
+    horizon: "Médio Prazo",
+    priority: "Média",
+    mechanicsIds: ["server-itembag-manager", "server-item-drop-config"],
+    description: "Mapear ItemBagManager (ItemIndex/MonsterClass/SpecialValue) para DataTables UE e garantir carregamento de arquivos EventItemBag/*.",
+    basedOnCode: true,
+    notes: "Baseado diretamente no código C++ (ItemBagManager.cpp linhas 26-200)."
   },
   {
     id: "roadmap-group-iterator-reset",
