@@ -48,6 +48,8 @@ body {
   border-radius: 8px;
   cursor: pointer;
   transition: all 0.2s ease;
+  text-decoration: none;
+  display: inline-block;
 }
 .tab-button:hover { border-color: var(--accent); color: var(--accent); }
 .tab-button.active {
