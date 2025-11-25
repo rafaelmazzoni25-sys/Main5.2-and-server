@@ -730,6 +730,17 @@ const mechanics = [
     description: "Administra a associação entre tabelas de drop (ItemBag) e filtros de índice/monstro/evento, retornando itens gerados ou disparando quedas no mapa conforme configuração carregada."
   },
   {
+    id: "server-itembag-ex",
+    name: "ItemBagEx: drop seccional com requisitos de classe",
+    type: "Servidor",
+    files: ["ItemBagEx.cpp", "ItemBagEx.h"],
+    classes: ["CItemBagEx"],
+    functions: ["Load", "GetItem", "DropItem", "CheckDropClass", "GetRandomItemDropLocation"],
+    networkDetails: "Não recebe pacotes diretos; DropItem usa GDCreateItemSend para criar itens no mapa após sortear seções/itens. Regras de classe podem envolver party (CheckDropClass) e acionam efeitos via GCFireworksSend.",
+    flow: "Load lê seções do script: seção 3 popula m_ItemBagInfo (Index/DropRate); seção 4 insere DropInfo (Section/Rate/Money/OptionValue/RequireClass) em cada ItemBag; seções >=5 acumulam ITEM_BAG_EX_ITEM_INFO (Index/Level/Grade/Option0-6/Duration) agrupados pela seção. GetItem percorre ItemBags, aplica DropRate (<10000), filtra DropInfo por classe/party (OptionValue&2) e usa CRandomManager para escolher seção; pega item aleatório da seção, aplica opções via gItemOptionRate (Option0-6, set/socket) e converte no CItem retornado. DropItem replica a seleção mas chama GetRandomItemDropLocation quando o tile está bloqueado e usa GDCreateItemSend para spawnar no mapa, ou MoneyItemDrop quando faltam itens, disparando fogos quando OptionValue&1.",
+    description: "Implementa tabelas avançadas de drop com seções e requisitos de classe/party, aplicando opções/sets/socket e duração a itens criados no mundo, reutilizando ItemOptionRate e verificando posições válidas de spawn."
+  },
+  {
     id: "server-item-drop-config",
     name: "Tabela de drop configurado por monstro/mapa",
     type: "Servidor",
@@ -1127,6 +1138,22 @@ const ueGuides = {
     ]
   },
 
+  "server-itembag-ex": {
+    title: "Ordem UE 5.7: ItemBagEx com seções e requisitos de classe",
+    globalOrderStep: 7,
+    steps: [
+      "1. Crie três **Blueprint Structs**: `FItemBagExInfo` (Index, DropRate), `FItemBagExDropInfo` (Index, Section, SectionRate, MoneyAmount, OptionValue, RequireClass[6]) e `FItemBagExItemInfo` (Index, Level, Grade, Option0-6, Duration). Importe os dados do script usado pelo servidor; onde valores não estiverem no código, registre 'NÃO DÁ PARA INFERIR COM SEGURANÇA COM BASE NO CÓDIGO-FONTE C++'.",
+      "2. Crie DataTables para cada struct (`DT_ItemBagEx`, `DT_ItemBagExDrop`, `DT_ItemBagExItem`) e preencha seções 3/4/5+ conforme o arquivo lido no C++ (seções 3 para BagInfo, 4 para DropInfo, >=5 para itens agrupados por seção). Mantenha o índice de seção como chave para os itens.",
+      "3. Adicione um **Game Instance Subsystem** `UItemBagExSubsystem` com mapas `TMap<int32, FItemBagExInfo> BagInfo`, `TMultiMap<int32, FItemBagExDropInfo> DropInfo`, `TMultiMap<int32, FItemBagExItemInfo> SectionItems`. No `Initialize`, carregue DataTables e popular esses mapas mantendo a associação de seções.",
+      "4. Implemente método server-only `bool SelectItem(int32& OutSection, FItemBagExItemInfo& OutItem, const FItemContext& Ctx)` que percorre `BagInfo`, testa `DropRate` com rand 0-9999, filtra `DropInfo` por classe/party (OptionValue bit 1) comparando `RequireClass` com o ChangeUp equivalente e usa `FRandomStream` para escolher SectionRate. Depois, randomize `SectionItems` da seção e preencha `OutItem`. Quando não encontrar seção ou item, retorne falso.",
+      "5. Adicione função server `FItemData BuildItemFromBagEx(const FItemBagExItemInfo& ItemRow)` que aplica regras equivalentes a gItemOptionRate.GetItemOption0-6/MakeNew/MakeSet/MakeSocket. Use um serviço já criado para ItemOptionRate (passos anteriores) e preencha sockets/sets na struct FItemData; defina `DurationSeconds` se Duration>0.",
+      "6. No GameMode/Subsystem de loot, exponha `bool TrySpawnItemBagEx(const FItemContext& Ctx, const FVector& Pos)` que chama `SelectItem` e, em sucesso, converte para `FItemData` e chama o serviço de spawn `SpawnWorldItem` (do guia de drops). Se nenhum item for encontrado mas MoneyAmount for >0, crie um AWorldItem que representa dinheiro ou atualize moeda do jogador diretamente.",
+      "7. Para efeitos, adicione `UFUNCTION(NetMulticast, Unreliable)` `void MulticastBagExDropFX(const FVector& Pos)` no GameMode ou Actor do monstro e chame após `SpawnWorldItem` quando `OptionValue & 1` vier marcado, substituindo `GCFireworksSend` sem usar packets legados.",
+      "8. Integre a ordem cronológica: (a) carregar DataTables de BagEx, (b) carregar serviço de ItemOptionRate, (c) implementar seleção/validação de classe, (d) construir item com opções/set/socket, (e) spawn/loot replicado, (f) efeitos multicast. Quando a ordem exata não estiver explícita no código, anote a frase padrão após o passo.",
+      "9. Para teste, crie um Blueprint de mob que em `Event OnDeath` chama `TrySpawnItemBagEx` com contexto (classe do killer, ChangeUp, party). Valide em PIE que somente classes autorizadas recebem drops e que o efeito multicast dispara conforme OptionValue." 
+    ]
+  },
+
   "server-item-move-matrix": {
     title: "Replicar matriz de movimento entre contêineres",
     steps: [
@@ -1384,7 +1411,7 @@ const ueSystems = [
     id: "items-system",
     name: "Sistema de Items",
     status: "Encontrado",
-    mechanicsIds: ["server-protocolcore-dispatch", "server-item-structs", "server-item-packet-structs", "server-item-attribute-loader", "server-380-item-type-map", "server-380-item-option", "server-item-handlers", "server-item-move-matrix", "server-chaos-event-muun-move", "server-muun-system", "server-item-require-checks", "server-item-move-allowlist", "server-item-stack-config", "server-socket-item-type", "server-item-option-rate", "server-item-value", "server-item-value-trade", "server-lucky-item-options", "server-harmony-options", "server-moss-merchant-gamble", "server-jewel-mix", "server-itembag-manager", "server-item-drop-config", "server-item-get-drop-conditions", "server-item-shop-handlers", "server-mapitem-drop-lifecycle", "server-pk-drop-system", "server-pentagram-system", "client-item-structs", "client-inventory-handling", "server-personal-shop"],
+    mechanicsIds: ["server-protocolcore-dispatch", "server-item-structs", "server-item-packet-structs", "server-item-attribute-loader", "server-380-item-type-map", "server-380-item-option", "server-item-handlers", "server-item-move-matrix", "server-chaos-event-muun-move", "server-muun-system", "server-item-require-checks", "server-item-move-allowlist", "server-item-stack-config", "server-socket-item-type", "server-item-option-rate", "server-item-value", "server-item-value-trade", "server-lucky-item-options", "server-harmony-options", "server-moss-merchant-gamble", "server-jewel-mix", "server-itembag-manager", "server-itembag-ex", "server-item-drop-config", "server-item-get-drop-conditions", "server-item-shop-handlers", "server-mapitem-drop-lifecycle", "server-pk-drop-system", "server-pentagram-system", "client-item-structs", "client-inventory-handling", "server-personal-shop"],
     codeSummary: "ProtocolCore (Protocol.cpp) roteia C1:22-26/32-34 para CItemManager (get/drop/move/use/buy/sell/repair) usando structs CItem/ITEM_INFO; o cliente mantém ITEM e PRECEIVE_INVENTORY para refletir o inventário e renderizar itens/viewport.",
     ue57Summary: "Mapear get/drop/move/use/buy/sell/repair para RPCs Server em Character/InventoryComponent, usar `FItemData` replicado, atores `AWorldItem` para drops e Widgets para UI; marcar campos ausentes com 'NÃO DÁ PARA INFERIR COM SEGURANÇA COM BASE NO CÓDIGO-FONTE C++'."
   },
@@ -1392,7 +1419,7 @@ const ueSystems = [
     id: "inventory-system",
     name: "Sistema de Inventory",
     status: "Encontrado",
-    mechanicsIds: ["server-protocolcore-dispatch", "server-character-list", "server-item-structs", "server-item-packet-structs", "server-item-attribute-loader", "server-380-item-type-map", "server-380-item-option", "server-item-handlers", "server-item-move-matrix", "server-chaos-event-muun-move", "server-muun-system", "server-item-require-checks", "server-item-move-allowlist", "server-item-stack-config", "server-socket-item-type", "server-item-option-rate", "server-item-value", "server-item-value-trade", "server-lucky-item-options", "server-harmony-options", "server-moss-merchant-gamble", "server-jewel-mix", "server-itembag-manager", "server-item-drop-config", "server-item-get-drop-conditions", "server-item-shop-handlers", "server-mapitem-drop-lifecycle", "server-pentagram-system", "client-inventory-handling", "client-item-structs", "server-personal-shop"],
+    mechanicsIds: ["server-protocolcore-dispatch", "server-character-list", "server-item-structs", "server-item-packet-structs", "server-item-attribute-loader", "server-380-item-type-map", "server-380-item-option", "server-item-handlers", "server-item-move-matrix", "server-chaos-event-muun-move", "server-muun-system", "server-item-require-checks", "server-item-move-allowlist", "server-item-stack-config", "server-socket-item-type", "server-item-option-rate", "server-item-value", "server-item-value-trade", "server-lucky-item-options", "server-harmony-options", "server-moss-merchant-gamble", "server-jewel-mix", "server-itembag-manager", "server-itembag-ex", "server-item-drop-config", "server-item-get-drop-conditions", "server-item-shop-handlers", "server-mapitem-drop-lifecycle", "server-pentagram-system", "client-inventory-handling", "client-item-structs", "server-personal-shop"],
     codeSummary: "DGCharacterListRecv carrega slots iniciais enquanto CItemManager move/usa/compra/vende/repara itens entre inventário/equipamentos/warehouse/chaos; no cliente, ReceiveInventory/ReceiveGetItem/ReceiveDropItem/ReceiveTradeInventory sincronizam g_pMyInventory, MixInventory e lojas.",
     ue57Summary: "Replicar arrays de inventário/equipamento e saldos em componente anexado ao Character/PlayerState, criar RPCs para transferir/loja/reparar itens e usar hooks OnRep para atualizar UI; validar tamanho e contêiner conforme limites de Item.h e registrar 'NÃO DÁ PARA INFERIR COM SEGURANÇA COM BASE NO CÓDIGO-FONTE C++' quando regras faltarem."
   },
@@ -1521,6 +1548,15 @@ const roadmap = [
     description: "Mapear ItemBagManager (ItemIndex/MonsterClass/SpecialValue) para DataTables UE e garantir carregamento de arquivos EventItemBag/*.",
     basedOnCode: true,
     notes: "Baseado diretamente no código C++ (ItemBagManager.cpp linhas 26-200)."
+  },
+  {
+    id: "roadmap-itembag-ex-import",
+    horizon: "Médio Prazo",
+    priority: "Média",
+    mechanicsIds: ["server-itembag-ex"],
+    description: "Importar tabelas ItemBagEx (seções 3/4/5+) para DataTables UE, implementar seleção por RequireClass/SectionRate e substituição de GCFireworksSend por multicast FX.",
+    basedOnCode: true,
+    notes: "Baseado diretamente no código C++ (ItemBagEx.cpp linhas 25-196 e 200-310)."
   },
   {
     id: "roadmap-item-option-rate-tables",
