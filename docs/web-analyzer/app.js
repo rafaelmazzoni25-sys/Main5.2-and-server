@@ -86,7 +86,7 @@ const mechanics = [
     classes: ["CProtocolSend"],
     functions: ["SendRequestLogInNew"],
     networkDetails: "Sistema de packets do projeto original: envia PMSG_CONNECT_ACCOUNT_SEND via ProtocolHead::BOTH_CONNECT_LOGIN com campos codificados por BuxConvert e versão/serial do cliente.",
-    flow: "Configura LogIn=1, CurrentProtocolState=REQUEST_LOG_IN, copia account/password com strncpy, faz BuxConvert nos campos, define TickCount/versão/serial, escreve mensagens em g_pChatListBox e chama SendPacket." ,
+    flow: "Configura LogIn=1, CurrentProtocolState=REQUEST_LOG_IN, copia account/password com strncpy, faz BuxConvert nos campos, define TickCount/versão/serial, escreve mensagens em g_pChatListBox e chama SendPacket.",
     description: "Constrói pacote de autenticação e notifica UI via g_pChatListBox antes do envio."
   },
   {
@@ -119,7 +119,7 @@ const mechanics = [
     classes: ["CProtocolSend"],
     functions: ["RecvJoinServerNew", "RecvLoginNew"],
     networkDetails: "Manipula mensagens ProtocolHead::SERVER_CONNECT e BOTH_CONNECT_LOGIN recebidas na fila.",
-    flow: "RecvJoinServerNew extrai HeroKey, loga dados de versão, quando LogIn!=0 chama g_csMapServer.SendChangeMapServer; caso contrário mostra m_LoginWin, seta CurrentProtocolState conforme result ou abre PopUpMsgWin e valida Version vs ClientVersion; RecvLoginNew faz switch nos códigos 0x00-0xD2, ajusta CurrentProtocolState/LogIn, chama CheckHack nos casos de sucesso e mostra PopUpMsgWin para erros diversos." ,
+    flow: "RecvJoinServerNew extrai HeroKey, loga dados de versão, quando LogIn!=0 chama g_csMapServer.SendChangeMapServer; caso contrário mostra m_LoginWin, seta CurrentProtocolState conforme result ou abre PopUpMsgWin e valida Version vs ClientVersion; RecvLoginNew faz switch nos códigos 0x00-0xD2, ajusta CurrentProtocolState/LogIn, chama CheckHack nos casos de sucesso e mostra PopUpMsgWin para erros diversos.",
     description: "Define o estado de conexão após resposta do servidor, aciona troca de map server quando já logado e aplica validação de versão e mensagens de erro específicas."
   },
   {
@@ -130,7 +130,7 @@ const mechanics = [
     classes: ["CProtocolSend"],
     functions: ["SendRequestCharactersListNew", "SendPositionNew", "SendCharacterMoveNew"],
     networkDetails: "Sistema de packets do projeto original: pacotes enviados com cabeçalhos BOTH_CONNECT_CHARACTER, BOTH_POSITION e BOTH_MOVE; PathNum limitado por MAX_PATH_FIND e codificado em nibbles.",
-    flow: "SendRequestCharactersListNew envia PMSG_SIMPLE_RESULT_SEND.result=1; SendPositionNew envia PMSG_POSITION_SEND com x/y; SendCharacterMoveNew valida PathNum, copia coordenadas iniciais, calcula Path[8] e Dir baseado em DirTable, agrega PathNum e envia pacote." ,
+    flow: "SendRequestCharactersListNew envia PMSG_SIMPLE_RESULT_SEND.result=1; SendPositionNew envia PMSG_POSITION_SEND com x/y; SendCharacterMoveNew valida PathNum, copia coordenadas iniciais, calcula Path[8] e Dir baseado em DirTable, agrega PathNum e envia pacote.",
     description: "Aciona listagem de personagens e movimento do avatar com compressão de trajeto em bytes path[8]." 
   },
   {
@@ -482,8 +482,30 @@ const mechanics = [
       "CGPentagramJewelUpgradeRecv",
       "GCPentagramJewelInfoSend"
     ],
-    networkDetails: "Sistema de packets original: C1:EC:00 (insert), C1:EC:01 (remove), C1:EC:02 (refine mix), C1:EC:03 (upgrade level/rank) e C1:EE:01 (info) usam structs PMSG_PENTAGRAM_JEWEL_* com slots/alvo/tipo; DataServer interage via C2:23:00/ C1:23:00 para salvar/recuperar info.",
-    flow: "Load/LoadJewel/LoadMixRate leem tabelas de tipo/opções/rates via CMemScript para mapas m_PentagramTypeInfo/m_PentagramOptionInfo/m_PentagramJewelOptionInfo/m_PentagramJewelRemoveInfo/m_PentagramJewelUpgrade*. CGPentagramJewelInsertRecv valida conexão e range, confirma PentagramItem e PentagramJewel, calcula SocketSlot e só permite se slot está 0xFE e atributo combina; AddPentagramJewelInfo registra info, envia PMSG_PENTAGRAM_JEWEL_INSERT_SEND, grava índice na m_SocketOption e remove o item de origem. CGPentagramJewelRemoveRecv checa ranges/validações, consulta GetPentagramJewelInfo e espaço no inventário, avalia taxa MixRate por atributo, cria item de joia (GDCreateItemSend) ou apenas limpa slot para 0xFE, removendo info e enviando resultado. CGPentagramJewelRefineRecv e CGPentagramJewelUpgradeRecv aplicam ChaosLock/PShopOpen, zeram dinheiro/sucesso e delegam para gChaosBox mixes (mithril/elixir/jewel/decomposite/upgrade level/rank). GCPentagramJewelInfoSend varre arrays PentagramJewelInfo_* e envia blocos via 0xEE:01 para cliente."
+    networkDetails: [
+      "Sistema de packets original: C1:EC:00 (insert), C1:EC:01 (remove),",
+      "C1:EC:02 (refine mix), C1:EC:03 (upgrade level/rank) e C1:EE:01",
+      "(info) usam structs PMSG_PENTAGRAM_JEWEL_* com slots/alvo/tipo;",
+      "DataServer interage via C2:23:00/ C1:23:00 para salvar/recuperar info."
+    ].join(' '),
+    flow: [
+      "Load/LoadJewel/LoadMixRate leem tabelas de tipo/opções/rates via",
+      "CMemScript para mapas m_PentagramTypeInfo/m_PentagramOptionInfo/",
+      "m_PentagramJewelOptionInfo/m_PentagramJewelRemoveInfo/m_Pentagram",
+      "JewelUpgrade*. CGPentagramJewelInsertRecv valida conexão e range,",
+      "confirma PentagramItem e PentagramJewel, calcula SocketSlot e só",
+      "permite se slot está 0xFE e atributo combina; AddPentagramJewelInfo",
+      "registra info, envia PMSG_PENTAGRAM_JEWEL_INSERT_SEND, grava índice",
+      "na m_SocketOption e remove o item de origem. CGPentagramJewelRemove",
+      "Recv checa ranges/validações, consulta GetPentagramJewelInfo e",
+      "espaço no inventário, avalia taxa MixRate por atributo, cria item de",
+      "joia (GDCreateItemSend) ou apenas limpa slot para 0xFE, removendo info",
+      "e enviando resultado. CGPentagramJewelRefineRecv e",
+      "CGPentagramJewelUpgradeRecv aplicam ChaosLock/PShopOpen, zeram",
+      "dinheiro/sucesso e delegam para gChaosBox mixes (mithril/elixir/jewel/",
+      "decomposite/upgrade level/rank). GCPentagramJewelInfoSend varre arrays",
+      "PentagramJewelInfo_* e envia blocos via 0xEE:01 para cliente."
+    ].join(' '),
     description: "Gerencia joias elementais (pentagram) carregando tabelas de tipo/opção/rate e tratando inserção, remoção, refino e upgrade com validações de slots, atributos e espaço, usando mixes de Chaos e sincronização com DataServer/cliente."
   },
   {
@@ -1163,7 +1185,7 @@ const ueGuides = {
       "4. No GameMode, crie `UFUNCTION(Server, Reliable)` `void ServerProcessMapMove(ANetworkPC* PC, int32 NextServerCode, uint8 Map, uint8 X, uint8 Y);` que consulta o `UJoinServerBridge` para validar bloqueios/Lock e em sucesso chama `ClientReceiveMapMove` (RPC Client) com IP/porta ou envia `ClientMapMoveCanceled` caso contrário.",
       "5. No PlayerController, implemente `UFUNCTION(Client, Reliable)` `void ClientReceiveJoinResult(uint8 ResultCode, uint8 AccountLevel, const FString& ExpireDate);` e `void ClientReceiveMapMove(const FString& Ip, uint16 Port, const FAuthPayload& Auth);` para substituir GCConnectAccountSend/JGMapServerMoveRecv; atualize estados replicados e chame `ServerTravel` somente após confirmação.",
       "6. Para contas já conectadas, declare `UFUNCTION(Server, Reliable)` `void ServerHandleAlreadyConnected(const FString& Account);` e, caso `UJoinServerBridge` detecte duplicidade, chame `ClientForceLogout()` (RPC Client) ou finalize o pawn com `Destroy()` conforme gServerInfo.m_DisconnectOnlineAccount.",
-      "7. Em UMG de login, conecte botão "Login" à chamada `ServerSubmitAccount`; para mudança de mapa, ligue o evento correspondente ao botão de teleporte para disparar `ServerRequestMapMove`. Compile, ative **Replicates** no PlayerController Blueprint e teste transições em PIE."
+      "7. Em UMG de login, conecte botão \"Login\" à chamada `ServerSubmitAccount`; para mudança de mapa, ligue o evento correspondente ao botão de teleporte para disparar `ServerRequestMapMove`. Compile, ative **Replicates** no PlayerController Blueprint e teste transições em PIE."
     ]
   },
   "server-packet-encryption-manager": {
@@ -1269,7 +1291,7 @@ const ueGuides = {
     title: "Plano UE 5.7 para sistema de itens (dados, inventário, drop e uso)",
     globalOrderStep: 4,
     steps: [
-      "1. No Content Browser, crie um **Blueprint Struct** `FItemData` (Add → Blueprints → Structure) contendo campos equivalentes ao CItem/ITEM_INFO: `int32 Index`, `int32 Level`, `float Durability`, `int32 Slot`, `bool bIsTwoHand`, `TArray<uint8> Special`, `TArray<uint8> SocketOptions`, `int32 RequireStrength/Dexterity/Energy/Vitality/Leadership`, `int32 SellPrice`, `bool bIsPeriodic`, `int32 PeriodicSeconds`, `int32 SerialLow` (se precisar). Para quaisquer campos não documentados no código, registre "NÃO DÁ PARA INFERIR COM SEGURANÇA COM BASE NO CÓDIGO-FONTE C++" em comentários do struct.",
+      "1. No Content Browser, crie um **Blueprint Struct** `FItemData` (Add → Blueprints → Structure) contendo campos equivalentes ao CItem/ITEM_INFO: `int32 Index`, `int32 Level`, `float Durability`, `int32 Slot`, `bool bIsTwoHand`, `TArray<uint8> Special`, `TArray<uint8> SocketOptions`, `int32 RequireStrength/Dexterity/Energy/Vitality/Leadership`, `int32 SellPrice`, `bool bIsPeriodic`, `int32 PeriodicSeconds`, `int32 SerialLow` (se precisar). Para quaisquer campos não documentados no código, registre \"NÃO DÁ PARA INFERIR COM SEGURANÇA COM BASE NO CÓDIGO-FONTE C++\" em comentários do struct.",
       "2. Adicione um **C++ Class** derivado de `UActorComponent` chamado `UInventoryComponent` (Add → New C++ Class → Actor Component). No `.h`, declare `UPROPERTY(ReplicatedUsing=OnRep_Items)` `TArray<FItemData> InventorySlots` com tamanho inicial conforme INVENTORY_SIZE (Item.h) e `TArray<FItemData> EquipmentSlots` com INVENTORY_WEAR_SIZE. Implemente `GetLifetimeReplicatedProps` com `DOREPLIFETIME` para ambos.",
       "3. No `.cpp` de `UInventoryComponent`, implemente `void InitializeSlots(int32 InventorySize, int32 EquipSize)` para preencher arrays com entradas vazias e funções helpers `bool SetItemAt(int32 Slot, const FItemData&)`, `bool MoveItem(int32 From, int32 To)` que validem índices usando constantes copiadas de Item.h; se alguma regra de colisão não puder ser deduzida, logue a frase padrão antes de retornar falso.",
       "4. No Character C++ derivado de `ACharacter`, adicione `UPROPERTY(VisibleAnywhere)` `UInventoryComponent* InventoryComp;` inicializado no construtor com `CreateDefaultSubobject`. Marque o Character como `bReplicates=true` e ative **Replicate Movement** em Class Defaults.",
@@ -1352,7 +1374,7 @@ const ueGuides = {
     steps: [
       "1. No componente `UInventoryComponent`, declare RPCs `UFUNCTION(Server, Reliable)` `void ServerRequestGetWorldItem(int32 WorldItemId);` e `void ServerRequestDropItem(int32 Slot, const FVector& Pos);` que substituem os packets C1:22 e C1:23. Valide `bIsDead`, `bInTransaction`, `bInterfaceLock` replicados antes de prosseguir.",
       "2. Em `ServerRequestGetWorldItem`, recupere o actor `AWorldItem` do mapa `WorldItemId→Actor`; rejeite se for item de evento/Muun (flags no FItemData) ou se `QuestObjective` interno indicar excedente. Impedir anéis duplicados verificando `CountItem` pelo índice/nível. Para zen, aumente `Money` replicado e envie `ClientMoneySync` (Client, Reliable); para outros itens tente `TryStackItem` e, se falhar, insira em slot vazio e destrua o `AWorldItem`.",
-      "3. Em `ServerRequestDropItem`, valide lock/estado de morte/duelo equivalentes e chame um helper `bool IsDropAllowed(const FItemData&)` que verifica flags `bLucky`, `bPeriodic`, filtros `gItemMove.CheckItemMoveAllowDrop` carregados em DataTable e limites de nível/opções. Se rejeitado, envie `ClientItemError` com a frase padrão."
+      "3. Em `ServerRequestDropItem`, valide lock/estado de morte/duelo equivalentes e chame um helper `bool IsDropAllowed(const FItemData&)` que verifica flags `bLucky`, `bPeriodic`, filtros `gItemMove.CheckItemMoveAllowDrop` carregados em DataTable e limites de nível/opções. Se rejeitado, envie `ClientItemError` com a frase padrão.",
       "4. Quando o drop for permitido, remova o item do inventário, chame `SpawnWorldItem` (do guia de drop) com posição/tempo e chame `MulticastPlayDropFX`. Para itens especiais como mercenário ou life stone, documente com a frase padrão se não houver equivalente em UE.",
       "5. Atualize widgets após pegar/dropar usando OnRep do inventário e OnRep da moeda; utilize `GCPartyItemInfoSend` equivalente (Client RPC multicast opcional) se precisar notificar grupo sobre o item adquirido, anotando quando a necessidade não puder ser inferida.",
       "6. No UI (Widget de inventário), conecte botões de \"Pegar\" (em overlay de `AWorldItem`) para chamar `ServerRequestGetWorldItem` e botões de \"Dropar\" para chamar `ServerRequestDropItem` com `GetHitResultUnderCursor`. Teste cenários de anel duplicado e zen para confirmar a lógica."
@@ -1509,7 +1531,7 @@ const ueGuides = {
       "1. Antes de gerar opções de item, crie um DataTable `FSocketItemTypeRow` com `ItemIndex` e `MaxSocket` refletindo SocketItemType.txt. Carregue-o no GameInstance/Subsystem em BeginPlay e preencha um `TMap<int32, int32>`.",
       "2. No serviço já usado para MakeSocketOption (ex.: `UItemOptionRateService`), injete o mapa de MaxSocket e exponha `int32 GetMaxSocket(int32 ItemIndex) const` retornando 0 quando não houver linha (registrando 'NÃO DÁ PARA INFERIR COM SEGURANÇA COM BASE NO CÓDIGO-FONTE C++').",
       "3. Em qualquer fábrica de item (drops, lojas, Moss Merchant), antes de preencher sockets, chame `GetMaxSocket` e limite o tamanho do array de sockets replicado para `MaxSocket`, preenchendo 0xFE nos demais.",
-      "4. No `UInventoryComponent`, ao equipar ou receber itens replicados, valide que o número de sockets não ultrapassa `MaxSocket`; se ultrapassar, rejeite e logue a frase padrão."
+      "4. No `UInventoryComponent`, ao equipar ou receber itens replicados, valide que o número de sockets não ultrapassa `MaxSocket`; se ultrapassar, rejeite e logue a frase padrão.",
       "5. Em widgets de tooltip, leia `MaxSocket` e exiba o número máximo suportado; como feedback opcional, destaque itens sem entrada de tabela como 'NÃO DÁ PARA INFERIR COM SEGURANÇA COM BASE NO CÓDIGO-FONTE C++'."
     ]
   },
@@ -1591,7 +1613,7 @@ const ueGuides = {
       "3. No `UInventoryComponent`, adicione RPC `UFUNCTION(Server, Reliable)` `void ServerApplyHarmony(int32 SourceSlot, int32 TargetSlot);` que verifica autoridade, se SourceSlot tem Jewel/SmeltStone e TargetSlot contém item elegível (não Set, não Socket, não Lucky salvo para Elevation). Consulte `UHarmonyOptionService` para `RollHarmonyOption`, e aplique `ItemData.HarmonyOption = (Option << 4) | Level` usando taxa configurada (exponha `HarmonySuccessRate` em Config).",
       "4. Adicione RPC `UFUNCTION(Server, Reliable)` `void ServerSmeltHarmony(int32 SourceSlot, int32 TargetSlot);` que valida item Harmony existente, confere nível < 13 e escolhe taxa conforme SmeltStone usada. Em sucesso incremente nível, caso contrário resete para nível base da tabela. Atualize o item replicado e chame `ClientHarmonyResult` (Client, Reliable) com códigos equivalentes aos resultados do servidor. Em falta de regra, retorne a frase padrão.",
       "5. Adicione RPC `UFUNCTION(Server, Reliable)` `void ServerApplyElevation(int32 SourceSlot, int32 TargetSlot);` específico para Lucky Items, limitando nível ao mínimo entre 13 e Level do item, usando a mesma taxa de sucesso. Em falha, apenas registre mensagem e mantenha o item.",
-      "6. No Character/PlayerState, implemente `void RecalculateHarmonyOptions(bool bRemove=false);` percorrendo equipamentos replicados (`INVENTORY_WEAR_SIZE` equivalente) e consultando `UHarmonyOptionService` para `FHarmonyOptionRow`. Para cada item Harmony, aplique `ValueTable[Level]` em atributos replicados (PhysiDamage, MagicDamage, CriticalDamage, SkillDamageBonus, Defense, AddBP, AddLife, HPRecovery, MPRecovery, DefenseSuccessRatePvP, DamageReduction, ShieldGaugeRate, IgnoreShieldGaugeRate) usando funções helper; se um atributo não existir, logue a frase padrão e pule."
+      "6. No Character/PlayerState, implemente `void RecalculateHarmonyOptions(bool bRemove=false);` percorrendo equipamentos replicados (`INVENTORY_WEAR_SIZE` equivalente) e consultando `UHarmonyOptionService` para `FHarmonyOptionRow`. Para cada item Harmony, aplique `ValueTable[Level]` em atributos replicados (PhysiDamage, MagicDamage, CriticalDamage, SkillDamageBonus, Defense, AddBP, AddLife, HPRecovery, MPRecovery, DefenseSuccessRatePvP, DamageReduction, ShieldGaugeRate, IgnoreShieldGaugeRate) usando funções helper; se um atributo não existir, logue a frase padrão e pule.",
       "7. Em Blueprints do inventário, adicione botões 'Aplicar Harmony', 'Smelt' e 'Elevation'. No Event Graph, use `OnClicked` → `ServerApplyHarmony/ServerSmeltHarmony/ServerApplyElevation` com os slots selecionados. Use `Branch` para checar códigos retornados via `ClientHarmonyResult` e exibir mensagens equivalentes (sucesso, falha, item inválido).",
       "8. Configure **Replicates** no Character e marque `InventoryComponent` como `ReplicatedUsing=OnRep_Inventory`. Na função `OnRep`, chame `RecalculateHarmonyOptions` para atualizar atributos locais. Teste cronologicamente: (a) carregar tabelas, (b) aplicar Harmony, (c) smelt até nível 13, (d) aplicar em Lucky Items com Elevation, (e) verificar replicação entre dois clientes PIE sem qualquer packet legado."
     ]
@@ -2272,190 +2294,287 @@ const roadmap = [
 ];
 
 // UI Logic
-const tabButtons = document.querySelectorAll('.tab-button');
-const tabContents = document.querySelectorAll('.tab-content');
-const ueSystemsContainer = document.getElementById('ue-systems-container');
+document.addEventListener('DOMContentLoaded', () => {
+  const tabButtons = document.querySelectorAll('.tab-button');
+  const tabContents = document.querySelectorAll('.tab-pane-section');
+  const ueSystemsContainer = document.getElementById('ue-systems-container');
 
-function switchTab(targetId) {
-  tabButtons.forEach(btn => btn.classList.toggle('active', btn.dataset.target === targetId));
-  tabContents.forEach(content => content.classList.toggle('active', content.id === targetId));
-}
-
-tabButtons.forEach(btn => {
-  btn.addEventListener('click', () => switchTab(btn.dataset.target));
-});
-
-// Mechanics rendering
-const mechanicsListEl = document.getElementById('mechanics-list');
-const mechanicDetailEl = document.getElementById('mechanic-detail');
-const searchInput = document.getElementById('mechanics-search');
-const typeFilter = document.getElementById('mechanics-type-filter');
-
-function renderMechanicsList() {
-  const query = searchInput.value.toLowerCase();
-  const type = typeFilter.value;
-  mechanicsListEl.innerHTML = '';
-  mechanics
-    .filter(m => (!type || m.type === type))
-    .filter(m => m.name.toLowerCase().includes(query))
-    .forEach(m => {
-      const li = document.createElement('li');
-      li.textContent = `${m.name} (${m.type})`;
-      li.dataset.id = m.id;
-      li.addEventListener('click', () => selectMechanic(m.id));
-      mechanicsListEl.appendChild(li);
-    });
-}
-
-function formatList(label, items) {
-  if (!items || !items.length) return `<div><strong>${label}:</strong> NÃO DÁ PARA INFERIR COM SEGURANÇA COM BASE NO CÓDIGO-FONTE C/C++</div>`;
-  return `<div><strong>${label}:</strong> ${items.join(', ')}</div>`;
-}
-
-function selectMechanic(id) {
-  const m = mechanics.find(x => x.id === id);
-  if (!m) return;
-  mechanicsListEl.querySelectorAll('li').forEach(li => li.classList.toggle('active', li.dataset.id === id));
-  mechanicDetailEl.innerHTML = `
-    <h3>${m.name}</h3>
-    <div class="tag ${m.type}">${m.type}</div>
-    <p>${m.description}</p>
-    ${formatList('Arquivos', m.files)}
-    ${formatList('Classes', m.classes)}
-    ${formatList('Funções', m.functions)}
-    <p><strong>Fluxo:</strong> ${m.flow}</p>
-    <p><strong>Rede:</strong> ${m.networkDetails || 'NÃO DÁ PARA INFERIR COM SEGURANÇA COM BASE NO CÓDIGO-FONTE C/C++'}</p>
-  `;
-  updateGuideSelection(id);
-}
-
-searchInput.addEventListener('input', renderMechanicsList);
-typeFilter.addEventListener('change', renderMechanicsList);
-
-// Guides rendering
-const guideSelect = document.getElementById('guide-mechanic-filter');
-const guideContent = document.getElementById('guide-content');
-
-function populateGuideSelect() {
-  guideSelect.innerHTML = '<option value="">Selecione uma mecânica</option>';
-  mechanics.forEach(m => {
-    const opt = document.createElement('option');
-    opt.value = m.id;
-    opt.textContent = m.name;
-    guideSelect.appendChild(opt);
-  });
-}
-
-function updateGuideSelection(id) {
-  if (guideSelect.value !== id) {
-    guideSelect.value = id;
-  }
-  renderGuide();
-}
-
-function renderGuide() {
-  const id = guideSelect.value;
-  if (!id || !ueGuides[id]) {
-    guideContent.textContent = 'Selecione uma mecânica para ver o guia.';
+  if (!tabButtons.length || !tabContents.length) {
+    console.error('[web-analyzer] Não foi possível inicializar as abas: elementos não encontrados.');
     return;
   }
-  const guide = ueGuides[id];
-  guideContent.innerHTML = `
-    <h3>${guide.title}</h3>
-    <ol>${guide.steps.map(step => `<li>${step}</li>`).join('')}</ol>
-  `;
-}
 
-guideSelect.addEventListener('change', renderGuide);
+  function switchTab(targetId) {
+    tabButtons.forEach(btn => btn.classList.toggle('active', btn.dataset.target === targetId));
+    tabContents.forEach(content => content.classList.toggle('active', content.id === targetId));
+  }
 
-// Roadmap rendering
-const roadmapHorizon = document.getElementById('roadmap-horizon-filter');
-const roadmapPriority = document.getElementById('roadmap-priority-filter');
-const roadmapMechanic = document.getElementById('roadmap-mechanic-filter');
-const roadmapGroups = document.getElementById('roadmap-groups');
-
-function populateRoadmapMechanicFilter() {
-  roadmapMechanic.innerHTML = '<option value="">Todas mecânicas</option>';
-  mechanics.forEach(m => {
-    const opt = document.createElement('option');
-    opt.value = m.id;
-    opt.textContent = m.name;
-    roadmapMechanic.appendChild(opt);
-  });
-}
-
-function renderRoadmap() {
-  const horizon = roadmapHorizon.value;
-  const priority = roadmapPriority.value;
-  const mechFilter = roadmapMechanic.value;
-
-  const grouped = {};
-  roadmap
-    .filter(item => (!horizon || item.horizon === horizon))
-    .filter(item => (!priority || item.priority === priority))
-    .filter(item => (!mechFilter || item.mechanicsIds.includes(mechFilter)))
-    .forEach(item => {
-      grouped[item.horizon] = grouped[item.horizon] || [];
-      grouped[item.horizon].push(item);
+  tabButtons.forEach(btn => {
+    btn.addEventListener('click', (event) => {
+      event.preventDefault();
+      switchTab(btn.dataset.target);
     });
+  });
 
-  roadmapGroups.innerHTML = '';
-  Object.keys(grouped).forEach(hz => {
-    const groupDiv = document.createElement('div');
-    groupDiv.className = 'roadmap-group';
-    groupDiv.innerHTML = `<h3>${hz}</h3>`;
-    grouped[hz].forEach(item => {
-      const mechNames = item.mechanicsIds.map(id => mechanics.find(m => m.id === id)?.name || id).join(', ');
-      const note = item.notes || '';
-      groupDiv.innerHTML += `
-        <div class="roadmap-item">
-          <div><span class="priority">[${item.priority}]</span> ${item.description}</div>
-          <div>Mecânicas: ${mechNames}</div>
-          <div class="note">${note}</div>
+  const missingText = 'NÃO DÁ PARA INFERIR COM SEGURANÇA COM BASE NO CÓDIGO-FONTE C/C++';
+
+  function typeBadgeClass(type) {
+    switch (type) {
+      case 'Cliente':
+        return 'text-bg-info';
+      case 'Servidor':
+        return 'text-bg-success';
+      case 'Compartilhada':
+        return 'text-bg-warning';
+      default:
+        return 'text-bg-secondary';
+    }
+  }
+
+  // Mechanics rendering
+  const mechanicsListEl = document.getElementById('mechanics-list');
+  const mechanicDetailEl = document.getElementById('mechanic-detail');
+  const searchInput = document.getElementById('mechanics-search');
+  const typeFilter = document.getElementById('mechanics-type-filter');
+
+  function renderMechanicsList() {
+    const query = searchInput.value.toLowerCase();
+    const type = typeFilter.value;
+    mechanicsListEl.innerHTML = '';
+    mechanics
+      .filter(m => (!type || m.type === type))
+      .filter(m => m.name.toLowerCase().includes(query))
+      .forEach(m => {
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.className = 'list-group-item list-group-item-action d-flex justify-content-between align-items-start';
+        button.dataset.id = m.id;
+        button.innerHTML = `
+          <div class="me-2 text-start">
+            <div class="fw-semibold">${m.name}</div>
+            <div class="small text-muted">${m.files?.[0] || 'C/C++'}</div>
+          </div>
+          <span class="badge rounded-pill ${typeBadgeClass(m.type)} align-self-center">${m.type}</span>
+        `;
+        button.addEventListener('click', () => selectMechanic(m.id));
+        mechanicsListEl.appendChild(button);
+      });
+  }
+
+  function renderPillGroup(label, items) {
+    if (!items || !items.length) {
+      return `
+        <div class="mb-3">
+          <div class="text-muted text-uppercase small mb-1">${label}</div>
+          <div class="text-muted-80">${missingText}</div>
         </div>
       `;
-    });
-    roadmapGroups.appendChild(groupDiv);
-  });
-
-  if (!Object.keys(grouped).length) {
-    roadmapGroups.textContent = 'Nenhum item encontrado com os filtros atuais.';
-  }
-}
-
-roadmapHorizon.addEventListener('change', renderRoadmap);
-roadmapPriority.addEventListener('change', renderRoadmap);
-roadmapMechanic.addEventListener('change', renderRoadmap);
-
-// UE Systems rendering
-function renderUESystems() {
-  if (!ueSystemsContainer) return;
-  const mechanicsMap = new Map(mechanics.map(m => [m.id, m.name]));
-  ueSystemsContainer.innerHTML = '';
-  ueSystems.forEach(sys => {
-    const card = document.createElement('div');
-    card.className = 'system-card';
-    const statusClass = sys.status === 'Encontrado' ? 'status-found' : 'status-missing';
-    const mechanicsList = sys.mechanicsIds && sys.mechanicsIds.length
-      ? sys.mechanicsIds.map(id => mechanicsMap.get(id) || id).join(', ')
-      : 'NÃO DÁ PARA INFERIR COM SEGURANÇA COM BASE NO CÓDIGO-FONTE C++';
-    card.innerHTML = `
-      <div class="system-header">
-        <h3>${sys.name}</h3>
-        <span class="status-tag ${statusClass}">${sys.status === 'Encontrado' ? 'Encontrado no código' : 'NÃO DÁ PARA INFERIR COM SEGURANÇA COM BASE NO CÓDIGO-FONTE C++'}</span>
+    }
+    return `
+      <div class="mb-3">
+        <div class="text-muted text-uppercase small mb-1">${label}</div>
+        <div>${items.map(item => `<span class="info-pill">${item}</span>`).join('')}</div>
       </div>
-      <div class="system-section"><strong>Mecânicas Relacionadas:</strong> ${mechanicsList}</div>
-      <div class="system-section"><strong>Resumo técnico (código):</strong> ${sys.codeSummary}</div>
-      <div class="system-section"><strong>Adaptação UE 5.7:</strong> ${sys.ue57Summary}</div>
     `;
-    ueSystemsContainer.appendChild(card);
-  });
-}
+  }
 
-// Initial render
-populateGuideSelect();
-populateRoadmapMechanicFilter();
-renderMechanicsList();
-renderGuide();
-renderRoadmap();
-renderUESystems();
+  function selectMechanic(id) {
+    const m = mechanics.find(x => x.id === id);
+    if (!m) return;
+    mechanicsListEl.querySelectorAll('.list-group-item').forEach(li => li.classList.toggle('active', li.dataset.id === id));
+    mechanicDetailEl.innerHTML = `
+      <div class="d-flex justify-content-between flex-wrap gap-2 align-items-start mb-3">
+        <div>
+          <h3 class="h4 mb-1">${m.name}</h3>
+          <div class="d-flex flex-wrap gap-2">
+            <span class="badge ${typeBadgeClass(m.type)} detail-badge">${m.type}</span>
+            <span class="badge text-bg-secondary detail-badge">ID: ${m.id}</span>
+          </div>
+        </div>
+        <div class="text-muted small">Fluxo de rede e adaptação Unreal</div>
+      </div>
+      <p class="text-muted-80">${m.description}</p>
+      ${renderPillGroup('Arquivos', m.files)}
+      ${renderPillGroup('Classes', m.classes)}
+      ${renderPillGroup('Funções', m.functions)}
+      <div class="mb-3">
+        <div class="text-muted text-uppercase small mb-1">Fluxo</div>
+        <p class="mb-0">${m.flow}</p>
+      </div>
+      <div>
+        <div class="text-muted text-uppercase small mb-1">Rede</div>
+        <p class="mb-0">${m.networkDetails || missingText}</p>
+      </div>
+    `;
+    updateGuideSelection(id);
+  }
+
+  searchInput.addEventListener('input', renderMechanicsList);
+  typeFilter.addEventListener('change', renderMechanicsList);
+
+  // Guides rendering
+  const guideSelect = document.getElementById('guide-mechanic-filter');
+  const guideContent = document.getElementById('guide-content');
+
+  function populateGuideSelect() {
+    guideSelect.innerHTML = '<option value="">Selecione uma mecânica</option>';
+    mechanics.forEach(m => {
+      const opt = document.createElement('option');
+      opt.value = m.id;
+      opt.textContent = m.name;
+      guideSelect.appendChild(opt);
+    });
+  }
+
+  function updateGuideSelection(id) {
+    if (guideSelect.value !== id) {
+      guideSelect.value = id;
+    }
+    renderGuide();
+  }
+
+  function renderGuide() {
+    const id = guideSelect.value;
+    if (!id || !ueGuides[id]) {
+      guideContent.textContent = 'Selecione uma mecânica para ver o guia.';
+      return;
+    }
+    const guide = ueGuides[id];
+    guideContent.innerHTML = `
+      <div class="d-flex justify-content-between align-items-start flex-wrap gap-2 mb-3">
+        <div>
+          <h3 class="h4 mb-1">${guide.title}</h3>
+          <div class="text-muted small">Checklist para Unreal Engine 5.7</div>
+        </div>
+        <span class="badge text-bg-primary">Guia</span>
+      </div>
+      <ol class="list-group list-group-numbered list-group-flush">
+        ${guide.steps.map(step => `<li class="list-group-item">${step}</li>`).join('')}
+      </ol>
+    `;
+  }
+
+  guideSelect.addEventListener('change', renderGuide);
+
+  // Roadmap rendering
+  const roadmapHorizon = document.getElementById('roadmap-horizon-filter');
+  const roadmapPriority = document.getElementById('roadmap-priority-filter');
+  const roadmapMechanic = document.getElementById('roadmap-mechanic-filter');
+  const roadmapGroups = document.getElementById('roadmap-groups');
+
+  function populateRoadmapMechanicFilter() {
+    roadmapMechanic.innerHTML = '<option value="">Todas mecânicas</option>';
+    mechanics.forEach(m => {
+      const opt = document.createElement('option');
+      opt.value = m.id;
+      opt.textContent = m.name;
+      roadmapMechanic.appendChild(opt);
+    });
+  }
+
+  function renderRoadmap() {
+    const horizon = roadmapHorizon.value;
+    const priority = roadmapPriority.value;
+    const mechFilter = roadmapMechanic.value;
+
+    const grouped = {};
+    roadmap
+      .filter(item => (!horizon || item.horizon === horizon))
+      .filter(item => (!priority || item.priority === priority))
+      .filter(item => (!mechFilter || item.mechanicsIds.includes(mechFilter)))
+      .forEach(item => {
+        grouped[item.horizon] = grouped[item.horizon] || [];
+        grouped[item.horizon].push(item);
+      });
+
+    roadmapGroups.innerHTML = '';
+    Object.keys(grouped).forEach(hz => {
+      const column = document.createElement('div');
+      column.className = 'col-lg-6';
+      const card = document.createElement('div');
+      card.className = 'roadmap-card shadow-sm p-3';
+      card.innerHTML = `
+        <div class="d-flex justify-content-between align-items-start mb-3 flex-wrap gap-2">
+          <div>
+            <h3 class="h6 mb-1">${hz}</h3>
+            <div class="text-muted small">Itens priorizados por horizonte</div>
+          </div>
+          <span class="badge text-bg-info">${hz}</span>
+        </div>
+      `;
+
+      grouped[hz].forEach(item => {
+        const mechNames = item.mechanicsIds
+          .map(id => {
+            const mech = mechanics.find(m => m.id === id);
+            return mech ? mech.name : id;
+          })
+          .join(', ');
+        const note = item.notes || '';
+        const priorityClass = item.priority === 'Alta'
+          ? 'text-bg-danger'
+          : item.priority === 'Média'
+          ? 'text-bg-warning'
+          : 'text-bg-secondary';
+
+        card.innerHTML += `
+          <div class="p-3 mb-2 border rounded-3">
+            <div class="d-flex justify-content-between align-items-start flex-wrap gap-2">
+              <div class="fw-semibold">${item.description}</div>
+              <span class="badge ${priorityClass}">${item.priority}</span>
+            </div>
+            <div class="text-muted mt-1">Mecânicas: ${mechNames}</div>
+            <div class="text-muted small">${note}</div>
+          </div>
+        `;
+      });
+
+      column.appendChild(card);
+      roadmapGroups.appendChild(column);
+    });
+
+    if (!Object.keys(grouped).length) {
+      roadmapGroups.innerHTML = '<div class="col-12 text-center text-muted">Nenhum item encontrado com os filtros atuais.</div>';
+    }
+  }
+
+  roadmapHorizon.addEventListener('change', renderRoadmap);
+  roadmapPriority.addEventListener('change', renderRoadmap);
+  roadmapMechanic.addEventListener('change', renderRoadmap);
+
+  // UE Systems rendering
+  function renderUESystems() {
+    if (!ueSystemsContainer) return;
+    const mechanicsMap = new Map(mechanics.map(m => [m.id, m.name]));
+    ueSystemsContainer.innerHTML = '';
+    ueSystems.forEach(sys => {
+      const column = document.createElement('div');
+      column.className = 'col';
+      const card = document.createElement('div');
+      card.className = 'system-card shadow-sm';
+      const statusClass = sys.status === 'Encontrado' ? 'text-bg-success' : 'text-bg-secondary';
+      const mechanicsList = sys.mechanicsIds && sys.mechanicsIds.length
+        ? sys.mechanicsIds.map(id => mechanicsMap.get(id) || id).join(', ')
+        : missingText;
+      card.innerHTML = `
+        <div class="d-flex justify-content-between align-items-start flex-wrap gap-2">
+          <h3 class="h5 mb-0">${sys.name}</h3>
+          <span class="badge ${statusClass} status-tag">${sys.status === 'Encontrado' ? 'Encontrado no código' : 'Não encontrado'}</span>
+        </div>
+        <div><strong>Mecânicas Relacionadas:</strong> ${mechanicsList}</div>
+        <div class="text-muted"><strong>Resumo técnico (código):</strong> ${sys.codeSummary}</div>
+        <div class="text-muted"><strong>Adaptação UE 5.7:</strong> ${sys.ue57Summary}</div>
+      `;
+      column.appendChild(card);
+      ueSystemsContainer.appendChild(column);
+    });
+  }
+
+  // Initial render
+  populateGuideSelect();
+  populateRoadmapMechanicFilter();
+  renderMechanicsList();
+  renderGuide();
+  renderRoadmap();
+  renderUESystems();
+});
