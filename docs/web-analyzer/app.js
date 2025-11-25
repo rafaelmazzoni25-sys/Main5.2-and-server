@@ -408,6 +408,63 @@ const mechanics = [
     networkDetails: "Sistema de packets original: interpreta listas completas (C4:F3:10) em PRECEIVE_INVENTORY, confirma exclusão (C1:28), coleta (C3:22), drop (C1:23) e lotes de trade/loja/mix (C1:31) além de criação/remoção de itens no viewport.",
     flow: "ReceiveInventory zera equipamentos/malas/loja, remove pets (DeleteBug/DeletePet), percorre Value entradas e distribui itens entre equipamentos, mochila e loja pessoal; ReceiveDeleteInventory remove slots específicos e desabilita uso quando Value !=0. ReceiveGetItem trata resultados NOT_GET_ITEM/GET_ITEM_ZEN/GET_ITEM_MULTI, atualiza Gold, insere item ou toca sons específicos, e envia mensagens de chat com nome do item; ReceiveDropItem aplica remoção no slot equipamento/mochila conforme KeyH e faz backup do item selecionado. ReceiveTradeInventory interpreta SubCode (3/5 mix falho/sucesso) tocando sons e reiniciando MixInventory ou popula Shop/Storage com PRECEIVE_INVENTORY recebido. ReceiveCreateItemViewport instancia itens no mapa com coordenadas escaladas e remove via ReceiveDeleteItemViewport quando necessário.",
     description: "Camada cliente que sincroniza inventário, trade/mix/storage e itens no mundo usando os packets do protocolo original, removendo/atualizando slots e sons conforme respostas do servidor."
+  },
+  {
+    id: "server-item-require-checks",
+    name: "Validação de requisitos e movimentação para slots",
+    type: "Servidor",
+    files: ["ItemManager.cpp", "ItemManager.h"],
+    classes: ["CItemManager"],
+    functions: [
+      "CheckItemRequireLevel",
+      "CheckItemRequireStrength",
+      "CheckItemRequireDexterity",
+      "CheckItemRequireVitality",
+      "CheckItemRequireEnergy",
+      "CheckItemRequireLeadership",
+      "CheckItemRequireClass",
+      "CheckItemMoveToInventory",
+      "CheckItemMoveToTrade",
+      "CheckItemMoveToVault",
+      "CheckItemMoveToChaos",
+      "CheckItemMoveToBlock"
+    ],
+    networkDetails: "Usado por handlers de item (C1:22-26/32-34) antes de aceitar movimentação, trade, vault ou chaos; não envia pacotes diretamente, mas determina respostas de sucesso/erro nos fluxos de item do protocolo original.",
+    flow: "CheckItemRequire* compara nível/força/destreza/vitalidade/energia/liderança e classe contra campos m_Require* e RequireClass; CheckItemMoveToInventory exige item válido, valida range de slot equipável, requisitos, combinações de mão (slots 0/1 e 10/11), bloqueia montaria em Atlans e rings duplicados. CheckItemMoveToTrade/Vault/Chaos verificam periodicidade, itens Lucky/Pentagram, filtros gItemMove e bloqueios (TradeDuel, Lock, gServerInfo TradeItemBlock). CheckItemMoveToBlock rejeita trocas de itens Exc/Set/Harmony conforme limites de gServerInfo.",
+    description: "Camada de regras que determina se um item pode ser equipado, trocado, armazenado ou enviado para caos, incluindo restrições por mapa, mão dupla e flags de servidor; influência direta no resultado dos packets de movimentação."
+  },
+  {
+    id: "server-item-move-allowlist",
+    name: "Lista de permissões de drop/venda/troca/vault por item",
+    type: "Servidor",
+    files: ["ItemMove.h"],
+    classes: ["CItemMove"],
+    functions: ["Load", "CheckItemMoveAllowDrop", "CheckItemMoveAllowSell", "CheckItemMoveAllowTrade", "CheckItemMoveAllowVault"],
+    networkDetails: "Consultado pelos handlers de movimento e trade antes de aceitar ações nos pacotes C1:23/C1:24/C1:32-34 para decidir se um item específico pode ser dropado, vendido, trocado ou enviado ao vault.",
+    flow: "ITEM_MOVE_INFO contém flags AllowDrop/AllowSell/AllowTrade/AllowVault carregadas via Load em m_ItemMoveInfo; métodos CheckItemMoveAllow* consultam o map por Index e retornam permissão binária usada por CItemManager ao processar os comandos de item.",
+    description: "Tabela de permissão granular para ações de drop/venda/troca/vault por código de item, influenciando respostas de pacotes de movimentação e comércio."
+  },
+  {
+    id: "server-item-stack-config",
+    name: "Configuração de stack e item criado a partir de stack",
+    type: "Servidor",
+    files: ["ItemStack.h"],
+    classes: ["CItemStack"],
+    functions: ["Load", "GetItemMaxStack", "GetCreateItemIndex"],
+    networkDetails: "Sem envio direto; fornece limites usados quando handlers de item e inventário avaliam empilhamento em respostas de pacotes.",
+    flow: "ITEM_STACK_INFO armazena Index, MaxStack e CreateItemIndex; Load popula m_ItemStackInfo, e GetItemMaxStack/GetCreateItemIndex retornam o limite de pilha e item resultante quando a stack é consumida ou convertida.",
+    description: "Define quantidades máximas por item empilhável e qual item pode ser criado, permitindo ao servidor validar e resolver pilhas durante operações de inventário e drops."
+  },
+  {
+    id: "server-item-drop-config",
+    name: "Tabela de drop configurado por monstro/mapa",
+    type: "Servidor",
+    files: ["ItemDrop.h"],
+    classes: ["CItemDrop"],
+    functions: ["Load", "DropItem", "GetItemDropRate"],
+    networkDetails: "Orientado a servidor: decide qual item é criado antes de enviar packets de drop/mundo aos clientes.",
+    flow: "ITEM_DROP_INFO guarda Index, Level, Grade, opções 0-6, duração, mapa, monstro e faixa de nível, além de DropRate; Load preenche m_ItemDropInfo e DropItem seleciona itens considerando GetItemDropRate com parâmetros do monstro/target.",
+    description: "Camada de configuração que determina quais itens podem cair de monstros específicos em mapas e níveis definidos, alimentando a criação de itens no mundo."
   }
 
 ];
@@ -794,7 +851,48 @@ const ueGuides = {
       "3. Para selecionar o item, percorra `InventoryComp->InventorySlots` priorizando slots 0-11 (equipamentos) e depois mochila, respeitando filtros de exclusão (ex.: se Index corresponde a itens bloqueados). Caso não haja item elegível, finalize sem drop.",
       "4. Construa um `FItemData` com o slot escolhido, remova-o do inventário e chame função server `SpawnWorldItem` (do guia de itens) para criar `AWorldItem` na posição do personagem morto; chame `MulticastPlayDropFX` para mostrar efeito.",
       "5. Notifique o jogador via `UFUNCTION(Client, Reliable)` `void ClientPkDropLog(const FString& ItemName);` para espelhar os logs `LogAdd` do servidor original; atualize UI de inventário através de OnRep/Widgets.",
-      "6. Em testes PIE, force PKLevel alto e provoque morte para validar que apenas um item cai e que regras de bloqueio são respeitadas; registre em comentários quando detalhes de exclusão não puderem ser inferidos." 
+      "6. Em testes PIE, force PKLevel alto e provoque morte para validar que apenas um item cai e que regras de bloqueio são respeitadas; registre em comentários quando detalhes de exclusão não puderem ser inferidos."
+    ]
+  },
+  "server-item-require-checks": {
+    title: "Validar requisitos de item e slots no servidor UE",
+    steps: [
+      "1. No componente `UInventoryComponent` (replicado), implemente helpers C++ `bool CheckRequirements(const FItemData& Item) const` verificando Level/Strength/Dexterity/Vitality/Energy/Leadership replicados do Character/PlayerState antes de equipar. Inclua classe/personagem com DataTable equivalente a RequireClass; se os requisitos de classe não puderem ser mapeados, registre a frase padrão.",
+      "2. Adicione `bool CanMoveToSlot(const FItemData& Item, int32 TargetSlot, int32 CurrentSlot)` que replica as regras de mão dupla (slots 0/1 e 10/11), bloqueio de montarias em mapas específicos e duplicidade de rings; defina tabelas `TSet<int32>` para índices proibidos em mapas (ex.: Atlans) e verifique pares de slot.",
+      "3. Em RPCs `ServerMoveItem`/`ServerEquipItem`, chame `CheckRequirements` e `CanMoveToSlot` antes de alterar arrays replicados; se falhar, retorne via `ClientItemError` (Client, Reliable) sem modificar estado.",
+      "4. Para bloqueios de trade/vault/chaos, crie enums `EItemMoveContext { Inventory, Trade, Vault, Chaos }` e função `bool CanMoveInContext(const FItemData&, EItemMoveContext)` que checa flags de periodicidade, Lucky/Pentagram e bloqueios de segurança (`bLock`, `bInTrade`). Mantenha arrays de configuração no GameMode ou DataTable para replicar gServerInfo/gItemMove filtros; caso algum filtro não esteja no código, documente como sugestão genérica.",
+      "5. Exponha `CheckRequirements` e `CanMoveToSlot` para Blueprints (`BlueprintCallable`) para que widgets validem antes de chamar RPCs, evitando enviar comandos inválidos.",
+      "6. Teste em PIE equipando itens incompatíveis e movendo-os entre contêineres; confirme que o servidor rejeita e envia mensagens de erro replicadas ao cliente sem alterar o inventário." 
+    ]
+  },
+  "server-item-move-allowlist": {
+    title: "Permissões de drop/venda/troca/vault por item na UE",
+    steps: [
+      "1. Crie um DataTable `FItemMoveRule` com campos `ItemIndex`, `bAllowDrop`, `bAllowSell`, `bAllowTrade`, `bAllowVault` correspondentes a ITEM_MOVE_INFO. Carregue-o no GameMode em BeginPlay.",
+      "2. No `UInventoryComponent`, mantenha um ponteiro para essas regras e implemente `bool IsActionAllowed(const FItemData&, EItemMoveAction Action)` com switch para Drop/Sell/Trade/Vault, retornando falso se o índice não existir ou se o flag for 0.",
+      "3. Antes de executar RPCs `ServerDropItem`, `ServerSellItem`, `ServerTradeItem`, `ServerStoreVault`, chame `IsActionAllowed`; se negar, retorne via `ClientItemError` e não altere estado.",
+      "4. Para venda, exponha os flags ao UI (BlueprintCallable) para desabilitar botões quando `bAllowSell` for falso. Para drop, faça o mesmo em widgets de confirmação de drop.",
+      "5. Documente em comentários que isso substitui gItemMove.CheckItemMoveAllow* e que qualquer regra ausente deve ser marcada com 'NÃO DÁ PARA INFERIR COM SEGURANÇA COM BASE NO CÓDIGO-FONTE C++'."
+    ]
+  },
+  "server-item-stack-config": {
+    title: "Regras de empilhamento e criação de item na UE",
+    steps: [
+      "1. Defina um `USTRUCT` `FItemStackRule` com `int32 ItemIndex`, `int32 MaxStack`, `int32 CreateItemIndex`. Carregue um DataTable no GameMode para popular um `TMap<int32, FItemStackRule>`.",
+      "2. No `UInventoryComponent`, implemente `int32 GetMaxStack(int32 ItemIndex)` e `int32 GetCreateItemIndex(int32 ItemIndex)` lendo o mapa; exponha como BlueprintCallable para UI.",
+      "3. Em `ServerAddItem`/`ServerMoveItem`, antes de adicionar ao slot, chame um helper `bool TryStackItem(int32 TargetSlot, const FItemData& Incoming)` que soma `Quantity` até `MaxStack` e, se exceder, gera novo item baseado em `CreateItemIndex` quando aplicável; se não houver regra, mantenha comportamento original e marque a lacuna com a frase padrão.",
+      "4. Replicação: marque `InventorySlots` como `UPROPERTY(ReplicatedUsing=OnRep_Inventory)` e, no OnRep, atualize widgets de quantidade. Use RPC Client `ClientStackMerged` para feedback visual quando pilhas são fundidas.",
+      "5. Teste em PIE adicionando itens repetidos e verificando que a UI soma quantidades e cria itens derivados quando MaxStack é atingido." 
+    ]
+  },
+  "server-item-drop-config": {
+    title: "Tabela de drop configurado em UE",
+    steps: [
+      "1. Crie um DataTable `FDropRow` com campos `ItemIndex`, `Level`, `Grade`, `Option0..Option6`, `DurationSeconds`, `MapNumber`, `MonsterClass`, `MonsterLevelMin`, `MonsterLevelMax`, `DropRate`. Carregue-o no GameMode ou em um Subsystem.",
+      "2. Implemente um serviço `UItemDropService` com função `FItemData RollDrop(int32 MapNumber, int32 MonsterClass, int32 MonsterLevel)` que filtra as linhas por mapa/monstro/nivel e sorteia usando `FMath::RandRange(1,1000000)` comparando com DropRate; se nenhuma linha corresponder, retorne vazio.",
+      "3. No `AMonster` C++ (derivado de ACharacter), ao morrer no servidor, chame `RollDrop` e, se obtiver item, invoque `SpawnWorldItem` (do guia de mapa de drop) passando `DurationSeconds` e opções/melhorias de Option0..Option6 preenchidas na struct `FItemData`.",
+      "4. Adicione `UFUNCTION(NetMulticast, Unreliable)` `void MulticastDropFX()` no monstro ou no `AWorldItem` para mostrar animação/sons; marque como sugestão genérica quando não existir no código original.",
+      "5. Em testes PIE, configure linhas simples no DataTable e verifique que apenas monstros elegíveis geram itens, respeitando DropRate e DurationSeconds replicados no `AWorldItem`." 
     ]
   }
 
@@ -805,7 +903,7 @@ const ueSystems = [
     id: "items-system",
     name: "Sistema de Items",
     status: "Encontrado",
-    mechanicsIds: ["server-protocolcore-dispatch", "server-item-structs", "server-item-packet-structs", "server-item-handlers", "server-item-move-matrix", "server-item-shop-handlers", "server-mapitem-drop-lifecycle", "server-pk-drop-system", "client-item-structs", "client-inventory-handling"],
+    mechanicsIds: ["server-protocolcore-dispatch", "server-item-structs", "server-item-packet-structs", "server-item-handlers", "server-item-move-matrix", "server-item-require-checks", "server-item-move-allowlist", "server-item-stack-config", "server-item-drop-config", "server-item-shop-handlers", "server-mapitem-drop-lifecycle", "server-pk-drop-system", "client-item-structs", "client-inventory-handling"],
     codeSummary: "ProtocolCore (Protocol.cpp) roteia C1:22-26/32-34 para CItemManager (get/drop/move/use/buy/sell/repair) usando structs CItem/ITEM_INFO; o cliente mantém ITEM e PRECEIVE_INVENTORY para refletir o inventário e renderizar itens/viewport.",
     ue57Summary: "Mapear get/drop/move/use/buy/sell/repair para RPCs Server em Character/InventoryComponent, usar `FItemData` replicado, atores `AWorldItem` para drops e Widgets para UI; marcar campos ausentes com 'NÃO DÁ PARA INFERIR COM SEGURANÇA COM BASE NO CÓDIGO-FONTE C++'."
   },
@@ -813,7 +911,7 @@ const ueSystems = [
     id: "inventory-system",
     name: "Sistema de Inventory",
     status: "Encontrado",
-    mechanicsIds: ["server-protocolcore-dispatch", "server-character-list", "server-item-structs", "server-item-packet-structs", "server-item-handlers", "server-item-move-matrix", "server-item-shop-handlers", "server-mapitem-drop-lifecycle", "client-inventory-handling", "client-item-structs"],
+    mechanicsIds: ["server-protocolcore-dispatch", "server-character-list", "server-item-structs", "server-item-packet-structs", "server-item-handlers", "server-item-move-matrix", "server-item-require-checks", "server-item-move-allowlist", "server-item-stack-config", "server-item-drop-config", "server-item-shop-handlers", "server-mapitem-drop-lifecycle", "client-inventory-handling", "client-item-structs"],
     codeSummary: "DGCharacterListRecv carrega slots iniciais enquanto CItemManager move/usa/compra/vende/repara itens entre inventário/equipamentos/warehouse/chaos; no cliente, ReceiveInventory/ReceiveGetItem/ReceiveDropItem/ReceiveTradeInventory sincronizam g_pMyInventory, MixInventory e lojas.",
     ue57Summary: "Replicar arrays de inventário/equipamento e saldos em componente anexado ao Character/PlayerState, criar RPCs para transferir/loja/reparar itens e usar hooks OnRep para atualizar UI; validar tamanho e contêiner conforme limites de Item.h e registrar 'NÃO DÁ PARA INFERIR COM SEGURANÇA COM BASE NO CÓDIGO-FONTE C++' quando regras faltarem."
   },
