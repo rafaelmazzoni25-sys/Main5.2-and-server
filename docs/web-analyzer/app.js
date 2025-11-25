@@ -478,6 +478,60 @@ const mechanics = [
     description: "Define quantidades máximas por item empilhável e qual item pode ser criado, permitindo ao servidor validar e resolver pilhas durante operações de inventário e drops."
   },
   {
+    id: "server-item-option-rate",
+    name: "Taxas de opção e geração de opções de item",
+    type: "Servidor",
+    files: ["ItemOptionRate.cpp", "ItemOptionRate.h"],
+    classes: ["CItemOptionRate"],
+    functions: [
+      "Load",
+      "GetItemOption0",
+      "GetItemOption1",
+      "GetItemOption2",
+      "GetItemOption3",
+      "GetItemOption4",
+      "GetItemOption5",
+      "GetItemOption6",
+      "MakeNewOption",
+      "MakeSetOption",
+      "MakeSocketOption"
+    ],
+    networkDetails: "Sem envio direto; fornece probabilidades para handlers de criação/drop que mais tarde são serializados nos packets de item do protocolo original.",
+    flow: "Load lê seções 0-6 via CMemScript, preenche mapas m_ItemOption*RateInfo. Métodos GetItemOption* montam CRandomManager com Rate[n] e retornam opção sorteada. MakeNewOption limita quantidade de opções excelentes por item (asas, dinorant, fenrir, etc.), MakeSetOption escolhe índices de set e MakeSocketOption preenche slots com 0xFE respeitando gSocketItemType/pentagram.",
+    description: "Tabela central de probabilidades para níveis/opções exc/seed/set/sockets, usada por ItemBag, MossMerchant e LuckyItem para construir itens com opções coerentes."
+  },
+  {
+    id: "server-lucky-item-options",
+    name: "Aplicação de opções e regeneração de Lucky Items",
+    type: "Servidor",
+    files: ["LuckyItem.cpp", "LuckyItem.h"],
+    classes: ["CLuckyItem"],
+    functions: [
+      "GetLuckyItemOption0",
+      "GetLuckyItemOption1",
+      "GetLuckyItemOption2",
+      "GetLuckyItemOption3",
+      "GetLuckyItemOption4",
+      "GetLuckyItemOption5",
+      "GetLuckyItemOption6",
+      "CharacterUseJewelOfElevation"
+    ],
+    networkDetails: "Sem envio direto; resultados são usados por criação/atualização de itens antes de envio pelos packets de inventário do protocolo original.",
+    flow: "Cada GetLuckyItemOption* busca LUCKY_ITEM_INFO por índice e delega ao gItemOptionRate para sortear nível/opções. CharacterUseJewelOfElevation verifica se o item em TargetSlot é Lucky, restaura durabilidade para 255 e reconverte o item, chamando CharacterMakePreviewCharSet para atualizar aparência.",
+    description: "Especializa regras de sorteio e restauração para Lucky Items, encadeando a tabela de taxas global e reconstruindo o item com Convert para refletir mudanças visuais."
+  },
+  {
+    id: "server-moss-merchant-gamble",
+    name: "Sorteio de item no Moss Merchant",
+    type: "Servidor",
+    files: ["MossMerchant.cpp", "MossMerchant.h"],
+    classes: ["CMossMerchant"],
+    functions: ["RollItem"],
+    networkDetails: "Sem packets diretos; cria item via GDCreateItemSend após sortear opções, que serão sincronizados pelos packets de inventário tradicionais.",
+    flow: "RollItem filtra itens por grupo, usa CRandomManager em GambleRate para escolher MOSS_MERCHANT_ITEM_INFO, consulta gItemOptionRate para Option0-6, aplica MakeNew/Set/Socket e envia GDCreateItemSend com opções sorteadas.",
+    description: "Implementa gacha de loja Moss configurável por grupo, combinando probabilidades de opções com GDCreateItemSend para entregar o item ao jogador."
+  },
+  {
     id: "server-item-attribute-loader",
     name: "Carregamento e cache de atributos de item",
     type: "Servidor",
@@ -987,7 +1041,46 @@ const ueGuides = {
       "2. No `UInventoryComponent`, implemente `int32 GetMaxStack(int32 ItemIndex)` e `int32 GetCreateItemIndex(int32 ItemIndex)` lendo o mapa; exponha como BlueprintCallable para UI.",
       "3. Em `ServerAddItem`/`ServerMoveItem`, antes de adicionar ao slot, chame um helper `bool TryStackItem(int32 TargetSlot, const FItemData& Incoming)` que soma `Quantity` até `MaxStack` e, se exceder, gera novo item baseado em `CreateItemIndex` quando aplicável; se não houver regra, mantenha comportamento original e marque a lacuna com a frase padrão.",
       "4. Replicação: marque `InventorySlots` como `UPROPERTY(ReplicatedUsing=OnRep_Inventory)` e, no OnRep, atualize widgets de quantidade. Use RPC Client `ClientStackMerged` para feedback visual quando pilhas são fundidas.",
-      "5. Teste em PIE adicionando itens repetidos e verificando que a UI soma quantidades e cria itens derivados quando MaxStack é atingido." 
+      "5. Teste em PIE adicionando itens repetidos e verificando que a UI soma quantidades e cria itens derivados quando MaxStack é atingido."
+    ]
+  },
+  "server-item-option-rate": {
+    title: "Importar taxas de opção e gerar opções na UE (ordem cronológica)",
+    steps: [
+      "1. No Content Browser, **Add → New C++ Class → None** e crie `UItemOptionRateService`. Este será carregado antes de qualquer drop/loja para manter a cronologia de dados.",
+      "2. No `.h`, declare `USTRUCT(BlueprintType) FItemOptionRateRow { GENERATED_BODY() int32 Index; TArray<int32> Rates; };` e `UDataTable* OptionTables[7];` (0-6) para espelhar as seções do Load. Adicione `bool LoadTables();`.",
+      "3. No `.cpp`, em `LoadTables`, para cada seção 0-6 carregue o DataTable correspondente (Paths em Config) e preencha `TMap<int32, FItemOptionRateRow>`; se faltar tabela, registre 'NÃO DÁ PARA INFERIR COM SEGURANÇA COM BASE NO CÓDIGO-FONTE C++'.",
+      "4. Implemente helpers `uint8 GetItemOptionN(int32 Section, int32 Index)` que usam um `FRandomStream` e `Rates` como pesos, equivalente a CRandomManager.AddElement/GetRandomElement.",
+      "5. Crie `uint8 MakeNewOption(int32 ItemIndex, int32 Value)` aplicando limites (asas dinorant/fenrir etc.) conforme MakeNewOption; quando um caso não aparecer na tabela, registre a frase padrão antes de retornar Value clampado.",
+      "6. Crie `uint8 MakeSetOption(int32 ItemIndex, int32 Value)` espelhando a combinação de índice e bit 4*value; para itens sem set conhecido, retorne 0 com a frase padrão em log.",
+      "7. Crie `void MakeSocketOption(int32 ItemIndex, int32 Value, TArray<uint8>& OutSockets)` preenchendo 0xFE até o máximo suportado; se MaxSocket não estiver definido, limite a Value e logue a ausência.",
+      "8. No GameMode ou Subsystem de drops, instancie `UItemOptionRateService` em BeginPlay (ordem inicial), chame `LoadTables` e armazene ponteiro em Singleton acessível por serviços de drop/loja/lucky item.",
+      "9. Compile e teste em PIE criando um item de teste chamando `GetItemOptionN` e `MakeNewOption` a partir de um comando de console Blueprint, validando que pesos e limites são aplicados antes de qualquer spawn."
+    ]
+  },
+  "server-lucky-item-options": {
+    title: "Replicar Lucky Items e regeneração na UE (sequência guiada)",
+    steps: [
+      "1. Após configurar `UItemOptionRateService`, crie `USTRUCT(BlueprintType) FLuckyItemInfo` com campos Option0-6 e Decay. Carregue um DataTable em um `ULuckyItemService` inicializado logo após o serviço de opções.",
+      "2. No `.h` de `ULuckyItemService`, exponha `FLuckyItemInfo* FindLuckyInfo(int32 ItemIndex)` e funções BlueprintCallable `uint8 RollLuckyOptionN(int32 ItemIndex, int32 Section)` que delegam para o serviço de taxas.",
+      "3. No `UInventoryComponent`, adicione RPC `UFUNCTION(Server, Reliable)` `void ServerRegenerateLuckyItem(int32 SlotIndex);` para substituir CharacterUseJewelOfElevation. Implemente chamando HasAuthority, validando se o slot contém Lucky e invocando `Regenerate` no serviço, atualizando durabilidade para valor máximo replicado.",
+      "4. Marque o array de itens como `UPROPERTY(ReplicatedUsing=OnRep_Inventory)` e em `OnRep` notifique a UI para atualizar durabilidade/visual do slot.",
+      "5. No Blueprint do inventário, crie um botão 'Regenerar Lucky' que chama `ServerRegenerateLuckyItem` passando o Slot selecionado. Use nós `Branch` para exibir mensagens se não for Lucky (logando a frase padrão se necessário).",
+      "6. Para efeitos visuais, adicione `UFUNCTION(NetMulticast, Reliable)` `void MulticastLuckyRefreshFX(int32 SlotIndex);` no componente e invoque após a regeneração para tocar partículas/sons (marcar como sugestão genérica quando o código não detalhar FX).",
+      "7. Compile e execute dois clientes PIE verificando replicação da durabilidade e atualização visual sem qualquer uso de packets do legado."
+    ]
+  },
+  "server-moss-merchant-gamble": {
+    title: "Implementar Moss Merchant com opções sorteadas na UE (ordem cronológica)",
+    steps: [
+      "1. Após os serviços de dados (ItemOptionRate/Lucky), crie `AUE_MossMerchantNPC` derivado de `AActor` com componente `UStaticMesh` e `UBoxComponent` para interação. Marque `bReplicates`.",
+      "2. Crie `USTRUCT(BlueprintType) FMossMerchantItem` com campos Index, Group, Option0-6, GambleRate. Carregue DataTable no BeginPlay do NPC para popular um `TArray<FMossMerchantItem>`.",
+      "3. No NPC, declare `UFUNCTION(Server, Reliable)` `void ServerRequestGamble(APlayerController* PC, int32 Group);` validando distância e moedas antes de prosseguir (se valores de moeda não estiverem no código, registre a frase padrão).",
+      "4. Em `ServerRequestGamble`, use `FRandomStream` para sortear um item pelo GambleRate dentro do grupo. Para o item escolhido, chame o `UItemOptionRateService` para obter Option0-6 e executar MakeNew/Set/Socket.",
+      "5. Gere `FItemData` preenchido e chame função do `UInventoryComponent` do jogador `bool TryAddItem(const FItemData&);`; se sucesso, emita `ClientReceiveGambleResult` (RPC Client) com dados para UI.",
+      "6. No Widget de Moss Merchant, crie lista de grupos disponíveis. No Event Graph, ao clicar em 'Comprar', chame `ServerRequestGamble` com o grupo selecionado e mostre feedback usando o retorno de `ClientReceiveGambleResult`.",
+      "7. Adicione `NetMulticast` FX opcional para spawn ou highlight do item ganho. Caso efeitos específicos não apareçam no código, marque como 'SUGESTÃO GENÉRICA, NÃO DIRETAMENTE INFERIDA DO CÓDIGO-FONTE C++'.",
+      "8. Teste em duas sessões PIE garantindo que apenas o servidor executa o sorteio e os dados replicados de inventário refletem o item gerado, sem qualquer packet legado."
     ]
   },
   "server-item-drop-config": {
@@ -1008,7 +1101,7 @@ const ueSystems = [
     id: "items-system",
     name: "Sistema de Items",
     status: "Encontrado",
-    mechanicsIds: ["server-protocolcore-dispatch", "server-item-structs", "server-item-packet-structs", "server-item-attribute-loader", "server-item-handlers", "server-item-move-matrix", "server-chaos-event-muun-move", "server-item-require-checks", "server-item-move-allowlist", "server-item-stack-config", "server-itembag-manager", "server-item-drop-config", "server-item-get-drop-conditions", "server-item-shop-handlers", "server-mapitem-drop-lifecycle", "server-pk-drop-system", "client-item-structs", "client-inventory-handling"],
+    mechanicsIds: ["server-protocolcore-dispatch", "server-item-structs", "server-item-packet-structs", "server-item-attribute-loader", "server-item-handlers", "server-item-move-matrix", "server-chaos-event-muun-move", "server-item-require-checks", "server-item-move-allowlist", "server-item-stack-config", "server-item-option-rate", "server-lucky-item-options", "server-moss-merchant-gamble", "server-itembag-manager", "server-item-drop-config", "server-item-get-drop-conditions", "server-item-shop-handlers", "server-mapitem-drop-lifecycle", "server-pk-drop-system", "client-item-structs", "client-inventory-handling"],
     codeSummary: "ProtocolCore (Protocol.cpp) roteia C1:22-26/32-34 para CItemManager (get/drop/move/use/buy/sell/repair) usando structs CItem/ITEM_INFO; o cliente mantém ITEM e PRECEIVE_INVENTORY para refletir o inventário e renderizar itens/viewport.",
     ue57Summary: "Mapear get/drop/move/use/buy/sell/repair para RPCs Server em Character/InventoryComponent, usar `FItemData` replicado, atores `AWorldItem` para drops e Widgets para UI; marcar campos ausentes com 'NÃO DÁ PARA INFERIR COM SEGURANÇA COM BASE NO CÓDIGO-FONTE C++'."
   },
@@ -1016,7 +1109,7 @@ const ueSystems = [
     id: "inventory-system",
     name: "Sistema de Inventory",
     status: "Encontrado",
-    mechanicsIds: ["server-protocolcore-dispatch", "server-character-list", "server-item-structs", "server-item-packet-structs", "server-item-attribute-loader", "server-item-handlers", "server-item-move-matrix", "server-chaos-event-muun-move", "server-item-require-checks", "server-item-move-allowlist", "server-item-stack-config", "server-itembag-manager", "server-item-drop-config", "server-item-get-drop-conditions", "server-item-shop-handlers", "server-mapitem-drop-lifecycle", "client-inventory-handling", "client-item-structs"],
+    mechanicsIds: ["server-protocolcore-dispatch", "server-character-list", "server-item-structs", "server-item-packet-structs", "server-item-attribute-loader", "server-item-handlers", "server-item-move-matrix", "server-chaos-event-muun-move", "server-item-require-checks", "server-item-move-allowlist", "server-item-stack-config", "server-item-option-rate", "server-lucky-item-options", "server-moss-merchant-gamble", "server-itembag-manager", "server-item-drop-config", "server-item-get-drop-conditions", "server-item-shop-handlers", "server-mapitem-drop-lifecycle", "client-inventory-handling", "client-item-structs"],
     codeSummary: "DGCharacterListRecv carrega slots iniciais enquanto CItemManager move/usa/compra/vende/repara itens entre inventário/equipamentos/warehouse/chaos; no cliente, ReceiveInventory/ReceiveGetItem/ReceiveDropItem/ReceiveTradeInventory sincronizam g_pMyInventory, MixInventory e lojas.",
     ue57Summary: "Replicar arrays de inventário/equipamento e saldos em componente anexado ao Character/PlayerState, criar RPCs para transferir/loja/reparar itens e usar hooks OnRep para atualizar UI; validar tamanho e contêiner conforme limites de Item.h e registrar 'NÃO DÁ PARA INFERIR COM SEGURANÇA COM BASE NO CÓDIGO-FONTE C++' quando regras faltarem."
   },
@@ -1145,6 +1238,33 @@ const roadmap = [
     description: "Mapear ItemBagManager (ItemIndex/MonsterClass/SpecialValue) para DataTables UE e garantir carregamento de arquivos EventItemBag/*.",
     basedOnCode: true,
     notes: "Baseado diretamente no código C++ (ItemBagManager.cpp linhas 26-200)."
+  },
+  {
+    id: "roadmap-item-option-rate-tables",
+    horizon: "Curto Prazo",
+    priority: "Alta",
+    mechanicsIds: ["server-item-option-rate"],
+    description: "Carregar tabelas de Rate 0-6 em DataTables UE e validar pesos antes de usá-las em drop/loja, replicando o fluxo de CItemOptionRate::Load/GetItemOption*.",
+    basedOnCode: true,
+    notes: "Baseado diretamente no código C++ (ItemOptionRate.cpp linhas 33-132 e 140-205)."
+  },
+  {
+    id: "roadmap-lucky-item-service",
+    horizon: "Médio Prazo",
+    priority: "Média",
+    mechanicsIds: ["server-lucky-item-options"],
+    description: "Criar serviço UE para Lucky Items que consulta taxas globais, aplica restauração de durabilidade e atualiza CharSet equivalente a CharacterMakePreviewCharSet.",
+    basedOnCode: true,
+    notes: "Baseado diretamente no código C++ (LuckyItem.cpp linhas 166-246 e 344-362)."
+  },
+  {
+    id: "roadmap-moss-merchant-gamble",
+    horizon: "Médio Prazo",
+    priority: "Média",
+    mechanicsIds: ["server-moss-merchant-gamble"],
+    description: "Migrar RollItem do Moss Merchant para RPCs UE, mantendo GambleRate e opções sorteadas via ItemOptionRate e GDCreateItemSend equivalente em inventário replicado.",
+    basedOnCode: true,
+    notes: "Baseado diretamente no código C++ (MossMerchant.cpp linhas 410-448)."
   },
   {
     id: "roadmap-group-iterator-reset",
