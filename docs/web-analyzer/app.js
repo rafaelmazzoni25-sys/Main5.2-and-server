@@ -482,8 +482,30 @@ const mechanics = [
       "CGPentagramJewelUpgradeRecv",
       "GCPentagramJewelInfoSend"
     ],
-    networkDetails: "Sistema de packets original: C1:EC:00 (insert), C1:EC:01 (remove), C1:EC:02 (refine mix), C1:EC:03 (upgrade level/rank) e C1:EE:01 (info) usam structs PMSG_PENTAGRAM_JEWEL_* com slots/alvo/tipo; DataServer interage via C2:23:00/ C1:23:00 para salvar/recuperar info.",
-    flow: "Load/LoadJewel/LoadMixRate leem tabelas de tipo/opções/rates via CMemScript para mapas m_PentagramTypeInfo/m_PentagramOptionInfo/m_PentagramJewelOptionInfo/m_PentagramJewelRemoveInfo/m_PentagramJewelUpgrade*. CGPentagramJewelInsertRecv valida conexão e range, confirma PentagramItem e PentagramJewel, calcula SocketSlot e só permite se slot está 0xFE e atributo combina; AddPentagramJewelInfo registra info, envia PMSG_PENTAGRAM_JEWEL_INSERT_SEND, grava índice na m_SocketOption e remove o item de origem. CGPentagramJewelRemoveRecv checa ranges/validações, consulta GetPentagramJewelInfo e espaço no inventário, avalia taxa MixRate por atributo, cria item de joia (GDCreateItemSend) ou apenas limpa slot para 0xFE, removendo info e enviando resultado. CGPentagramJewelRefineRecv e CGPentagramJewelUpgradeRecv aplicam ChaosLock/PShopOpen, zeram dinheiro/sucesso e delegam para gChaosBox mixes (mithril/elixir/jewel/decomposite/upgrade level/rank). GCPentagramJewelInfoSend varre arrays PentagramJewelInfo_* e envia blocos via 0xEE:01 para cliente.",
+    networkDetails: [
+      "Sistema de packets original: C1:EC:00 (insert), C1:EC:01 (remove),",
+      "C1:EC:02 (refine mix), C1:EC:03 (upgrade level/rank) e C1:EE:01",
+      "(info) usam structs PMSG_PENTAGRAM_JEWEL_* com slots/alvo/tipo;",
+      "DataServer interage via C2:23:00/ C1:23:00 para salvar/recuperar info."
+    ].join(' '),
+    flow: [
+      "Load/LoadJewel/LoadMixRate leem tabelas de tipo/opções/rates via",
+      "CMemScript para mapas m_PentagramTypeInfo/m_PentagramOptionInfo/",
+      "m_PentagramJewelOptionInfo/m_PentagramJewelRemoveInfo/m_Pentagram",
+      "JewelUpgrade*. CGPentagramJewelInsertRecv valida conexão e range,",
+      "confirma PentagramItem e PentagramJewel, calcula SocketSlot e só",
+      "permite se slot está 0xFE e atributo combina; AddPentagramJewelInfo",
+      "registra info, envia PMSG_PENTAGRAM_JEWEL_INSERT_SEND, grava índice",
+      "na m_SocketOption e remove o item de origem. CGPentagramJewelRemove",
+      "Recv checa ranges/validações, consulta GetPentagramJewelInfo e",
+      "espaço no inventário, avalia taxa MixRate por atributo, cria item de",
+      "joia (GDCreateItemSend) ou apenas limpa slot para 0xFE, removendo info",
+      "e enviando resultado. CGPentagramJewelRefineRecv e",
+      "CGPentagramJewelUpgradeRecv aplicam ChaosLock/PShopOpen, zeram",
+      "dinheiro/sucesso e delegam para gChaosBox mixes (mithril/elixir/jewel/",
+      "decomposite/upgrade level/rank). GCPentagramJewelInfoSend varre arrays",
+      "PentagramJewelInfo_* e envia blocos via 0xEE:01 para cliente."
+    ].join(' '),
     description: "Gerencia joias elementais (pentagram) carregando tabelas de tipo/opção/rate e tratando inserção, remoção, refino e upgrade com validações de slots, atributos e espaço, usando mixes de Chaos e sincronização com DataServer/cliente."
   },
   {
@@ -2274,7 +2296,7 @@ const roadmap = [
 // UI Logic
 document.addEventListener('DOMContentLoaded', () => {
   const tabButtons = document.querySelectorAll('.tab-button');
-  const tabContents = document.querySelectorAll('.tab-content');
+  const tabContents = document.querySelectorAll('.tab-pane-section');
   const ueSystemsContainer = document.getElementById('ue-systems-container');
 
   if (!tabButtons.length || !tabContents.length) {
@@ -2294,6 +2316,21 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   });
 
+  const missingText = 'NÃO DÁ PARA INFERIR COM SEGURANÇA COM BASE NO CÓDIGO-FONTE C/C++';
+
+  function typeBadgeClass(type) {
+    switch (type) {
+      case 'Cliente':
+        return 'text-bg-info';
+      case 'Servidor':
+        return 'text-bg-success';
+      case 'Compartilhada':
+        return 'text-bg-warning';
+      default:
+        return 'text-bg-secondary';
+    }
+  }
+
   // Mechanics rendering
   const mechanicsListEl = document.getElementById('mechanics-list');
   const mechanicDetailEl = document.getElementById('mechanic-detail');
@@ -2308,32 +2345,66 @@ document.addEventListener('DOMContentLoaded', () => {
       .filter(m => (!type || m.type === type))
       .filter(m => m.name.toLowerCase().includes(query))
       .forEach(m => {
-        const li = document.createElement('li');
-        li.textContent = `${m.name} (${m.type})`;
-        li.dataset.id = m.id;
-        li.addEventListener('click', () => selectMechanic(m.id));
-        mechanicsListEl.appendChild(li);
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.className = 'list-group-item list-group-item-action d-flex justify-content-between align-items-start';
+        button.dataset.id = m.id;
+        button.innerHTML = `
+          <div class="me-2 text-start">
+            <div class="fw-semibold">${m.name}</div>
+            <div class="small text-muted">${m.files?.[0] || 'C/C++'}</div>
+          </div>
+          <span class="badge rounded-pill ${typeBadgeClass(m.type)} align-self-center">${m.type}</span>
+        `;
+        button.addEventListener('click', () => selectMechanic(m.id));
+        mechanicsListEl.appendChild(button);
       });
   }
 
-  function formatList(label, items) {
-    if (!items || !items.length) return `<div><strong>${label}:</strong> NÃO DÁ PARA INFERIR COM SEGURANÇA COM BASE NO CÓDIGO-FONTE C/C++</div>`;
-    return `<div><strong>${label}:</strong> ${items.join(', ')}</div>`;
+  function renderPillGroup(label, items) {
+    if (!items || !items.length) {
+      return `
+        <div class="mb-3">
+          <div class="text-muted text-uppercase small mb-1">${label}</div>
+          <div class="text-muted-80">${missingText}</div>
+        </div>
+      `;
+    }
+    return `
+      <div class="mb-3">
+        <div class="text-muted text-uppercase small mb-1">${label}</div>
+        <div>${items.map(item => `<span class="info-pill">${item}</span>`).join('')}</div>
+      </div>
+    `;
   }
 
   function selectMechanic(id) {
     const m = mechanics.find(x => x.id === id);
     if (!m) return;
-    mechanicsListEl.querySelectorAll('li').forEach(li => li.classList.toggle('active', li.dataset.id === id));
+    mechanicsListEl.querySelectorAll('.list-group-item').forEach(li => li.classList.toggle('active', li.dataset.id === id));
     mechanicDetailEl.innerHTML = `
-      <h3>${m.name}</h3>
-      <div class="tag ${m.type}">${m.type}</div>
-      <p>${m.description}</p>
-      ${formatList('Arquivos', m.files)}
-      ${formatList('Classes', m.classes)}
-      ${formatList('Funções', m.functions)}
-      <p><strong>Fluxo:</strong> ${m.flow}</p>
-      <p><strong>Rede:</strong> ${m.networkDetails || 'NÃO DÁ PARA INFERIR COM SEGURANÇA COM BASE NO CÓDIGO-FONTE C/C++'}</p>
+      <div class="d-flex justify-content-between flex-wrap gap-2 align-items-start mb-3">
+        <div>
+          <h3 class="h4 mb-1">${m.name}</h3>
+          <div class="d-flex flex-wrap gap-2">
+            <span class="badge ${typeBadgeClass(m.type)} detail-badge">${m.type}</span>
+            <span class="badge text-bg-secondary detail-badge">ID: ${m.id}</span>
+          </div>
+        </div>
+        <div class="text-muted small">Fluxo de rede e adaptação Unreal</div>
+      </div>
+      <p class="text-muted-80">${m.description}</p>
+      ${renderPillGroup('Arquivos', m.files)}
+      ${renderPillGroup('Classes', m.classes)}
+      ${renderPillGroup('Funções', m.functions)}
+      <div class="mb-3">
+        <div class="text-muted text-uppercase small mb-1">Fluxo</div>
+        <p class="mb-0">${m.flow}</p>
+      </div>
+      <div>
+        <div class="text-muted text-uppercase small mb-1">Rede</div>
+        <p class="mb-0">${m.networkDetails || missingText}</p>
+      </div>
     `;
     updateGuideSelection(id);
   }
@@ -2370,8 +2441,16 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     const guide = ueGuides[id];
     guideContent.innerHTML = `
-      <h3>${guide.title}</h3>
-      <ol>${guide.steps.map(step => `<li>${step}</li>`).join('')}</ol>
+      <div class="d-flex justify-content-between align-items-start flex-wrap gap-2 mb-3">
+        <div>
+          <h3 class="h4 mb-1">${guide.title}</h3>
+          <div class="text-muted small">Checklist para Unreal Engine 5.7</div>
+        </div>
+        <span class="badge text-bg-primary">Guia</span>
+      </div>
+      <ol class="list-group list-group-numbered list-group-flush">
+        ${guide.steps.map(step => `<li class="list-group-item">${step}</li>`).join('')}
+      </ol>
     `;
   }
 
@@ -2410,9 +2489,20 @@ document.addEventListener('DOMContentLoaded', () => {
 
     roadmapGroups.innerHTML = '';
     Object.keys(grouped).forEach(hz => {
-      const groupDiv = document.createElement('div');
-      groupDiv.className = 'roadmap-group';
-      groupDiv.innerHTML = `<h3>${hz}</h3>`;
+      const column = document.createElement('div');
+      column.className = 'col-lg-6';
+      const card = document.createElement('div');
+      card.className = 'roadmap-card shadow-sm p-3';
+      card.innerHTML = `
+        <div class="d-flex justify-content-between align-items-start mb-3 flex-wrap gap-2">
+          <div>
+            <h3 class="h6 mb-1">${hz}</h3>
+            <div class="text-muted small">Itens priorizados por horizonte</div>
+          </div>
+          <span class="badge text-bg-info">${hz}</span>
+        </div>
+      `;
+
       grouped[hz].forEach(item => {
         const mechNames = item.mechanicsIds
           .map(id => {
@@ -2421,19 +2511,30 @@ document.addEventListener('DOMContentLoaded', () => {
           })
           .join(', ');
         const note = item.notes || '';
-        groupDiv.innerHTML += `
-          <div class="roadmap-item">
-            <div><span class="priority">[${item.priority}]</span> ${item.description}</div>
-            <div>Mecânicas: ${mechNames}</div>
-            <div class="note">${note}</div>
+        const priorityClass = item.priority === 'Alta'
+          ? 'text-bg-danger'
+          : item.priority === 'Média'
+          ? 'text-bg-warning'
+          : 'text-bg-secondary';
+
+        card.innerHTML += `
+          <div class="p-3 mb-2 border rounded-3">
+            <div class="d-flex justify-content-between align-items-start flex-wrap gap-2">
+              <div class="fw-semibold">${item.description}</div>
+              <span class="badge ${priorityClass}">${item.priority}</span>
+            </div>
+            <div class="text-muted mt-1">Mecânicas: ${mechNames}</div>
+            <div class="text-muted small">${note}</div>
           </div>
         `;
       });
-      roadmapGroups.appendChild(groupDiv);
+
+      column.appendChild(card);
+      roadmapGroups.appendChild(column);
     });
 
     if (!Object.keys(grouped).length) {
-      roadmapGroups.textContent = 'Nenhum item encontrado com os filtros atuais.';
+      roadmapGroups.innerHTML = '<div class="col-12 text-center text-muted">Nenhum item encontrado com os filtros atuais.</div>';
     }
   }
 
@@ -2447,22 +2548,25 @@ document.addEventListener('DOMContentLoaded', () => {
     const mechanicsMap = new Map(mechanics.map(m => [m.id, m.name]));
     ueSystemsContainer.innerHTML = '';
     ueSystems.forEach(sys => {
+      const column = document.createElement('div');
+      column.className = 'col';
       const card = document.createElement('div');
-      card.className = 'system-card';
-      const statusClass = sys.status === 'Encontrado' ? 'status-found' : 'status-missing';
+      card.className = 'system-card shadow-sm';
+      const statusClass = sys.status === 'Encontrado' ? 'text-bg-success' : 'text-bg-secondary';
       const mechanicsList = sys.mechanicsIds && sys.mechanicsIds.length
         ? sys.mechanicsIds.map(id => mechanicsMap.get(id) || id).join(', ')
-        : 'NÃO DÁ PARA INFERIR COM SEGURANÇA COM BASE NO CÓDIGO-FONTE C++';
+        : missingText;
       card.innerHTML = `
-        <div class="system-header">
-          <h3>${sys.name}</h3>
-          <span class="status-tag ${statusClass}">${sys.status === 'Encontrado' ? 'Encontrado no código' : 'NÃO DÁ PARA INFERIR COM SEGURANÇA COM BASE NO CÓDIGO-FONTE C++'}</span>
+        <div class="d-flex justify-content-between align-items-start flex-wrap gap-2">
+          <h3 class="h5 mb-0">${sys.name}</h3>
+          <span class="badge ${statusClass} status-tag">${sys.status === 'Encontrado' ? 'Encontrado no código' : 'Não encontrado'}</span>
         </div>
-        <div class="system-section"><strong>Mecânicas Relacionadas:</strong> ${mechanicsList}</div>
-        <div class="system-section"><strong>Resumo técnico (código):</strong> ${sys.codeSummary}</div>
-        <div class="system-section"><strong>Adaptação UE 5.7:</strong> ${sys.ue57Summary}</div>
+        <div><strong>Mecânicas Relacionadas:</strong> ${mechanicsList}</div>
+        <div class="text-muted"><strong>Resumo técnico (código):</strong> ${sys.codeSummary}</div>
+        <div class="text-muted"><strong>Adaptação UE 5.7:</strong> ${sys.ue57Summary}</div>
       `;
-      ueSystemsContainer.appendChild(card);
+      column.appendChild(card);
+      ueSystemsContainer.appendChild(column);
     });
   }
 
