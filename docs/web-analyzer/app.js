@@ -2384,6 +2384,58 @@ document.addEventListener('DOMContentLoaded', () => {
     return 'text-bg-secondary';
   }
 
+  function ueReviewBadgeClass(status) {
+    if (!status) return 'text-bg-secondary';
+    const normalized = status.toLowerCase();
+    if (normalized.includes('detalh')) return 'text-bg-success';
+    if (normalized.includes('ajuste') || normalized.includes('rever')) return 'text-bg-warning';
+    if (normalized.includes('ausente')) return 'text-bg-danger';
+    return 'text-bg-secondary';
+  }
+
+  function evaluateUeGuideQuality(mechanic) {
+    if (!mechanic) {
+      return {
+        status: 'Guia UE ausente',
+        notes: 'Mecânica não mapeada; inclua checklist com classe C++/Blueprint, replicação e testes PIE.'
+      };
+    }
+
+    const guide = ueGuides[mechanic.id];
+    if (!guide) {
+      return {
+        status: 'Guia UE ausente',
+        notes: 'Faltam instruções UE 5.7 para esta mecânica. Documente criação de classe, RPCs/replicação, assets convertidos e validação PIE.'
+      };
+    }
+
+    const stepsText = guide.steps.join(' ').toLowerCase();
+    const mentionsReplication = stepsText.includes('replic');
+    const mentionsRpc = stepsText.includes('rpc');
+    const mentionsSubsystem = stepsText.includes('subsystem') || stepsText.includes('gamemode');
+    const mentionsTesting = stepsText.includes('teste') || stepsText.includes('pie');
+    const mentionsAssetConversion = stepsText.includes('buxconvert') || stepsText.includes('xor') || stepsText.includes('convert');
+
+    const missing = [];
+    if (!mentionsReplication) missing.push('adicionar instruções explícitas de replicação/Authority.');
+    if (!mentionsRpc) missing.push('incluir chamadas RPC Server/Client ou NetMulticast.');
+    if (mechanic.type?.toLowerCase() === 'servidor' && !mentionsSubsystem) missing.push('detalhar uso de GameMode/Subsystem para lógica server-authoritative.');
+    if (mechanic.type?.toLowerCase() === 'cliente' && !mentionsAssetConversion) missing.push('registrar que assets já estão convertidos (sem BuxConvert/XOR).');
+    if (!mentionsTesting) missing.push('incluir passo de teste em PIE ou sessão multiplayer.');
+
+    if (missing.length) {
+      return {
+        status: 'Guia UE requer ajustes',
+        notes: `Faltam pontos críticos: ${missing.join(' ')}`
+      };
+    }
+
+    return {
+      status: 'Guia UE detalhado',
+      notes: 'Guia cobre replicação, RPCs, assets convertidos e teste em PIE para UE 5.7.'
+    };
+  }
+
   function buildCompatibilityInfo(mechanic) {
     if (!mechanic) {
       return {
@@ -2424,6 +2476,20 @@ document.addEventListener('DOMContentLoaded', () => {
       status: 'Compatibilidade não declarada',
       notes: `${coherenceNotes} Valide replicação (Authority/Remote), uso de NetDriver ou OnlineSubsystem e evite DataSend/DataRecv.`
     };
+  }
+
+  function buildUEReviewBlock(mechanic) {
+    const { status, notes } = evaluateUeGuideQuality(mechanic);
+    const badgeClass = ueReviewBadgeClass(status);
+    return `
+      <div class="mb-3">
+        <div class="text-muted text-uppercase small mb-1">Revisão de guia Unreal Engine</div>
+        <div class="d-flex flex-wrap gap-2 align-items-center">
+          <span class="badge ${badgeClass} detail-badge">${status}</span>
+          <span class="text-muted-80 small">${notes}</span>
+        </div>
+      </div>
+    `;
   }
 
   // Mechanics rendering
@@ -2582,6 +2648,7 @@ document.addEventListener('DOMContentLoaded', () => {
       <p class="text-muted-80">${m.description}</p>
       ${buildCoherenceBlock(m)}
       ${buildCompatibilityBlock(m)}
+      ${buildUEReviewBlock(m)}
       ${buildChronologyBlock(m)}
       ${renderPillGroup('Arquivos', m.files)}
       ${renderPillGroup('Classes', m.classes)}
@@ -2633,6 +2700,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const mechanic = mechanics.find(m => m.id === id);
     const compatibility = buildCompatibilityInfo(mechanic);
     const compatClass = compatibilityBadgeClass(compatibility.status);
+    const ueReview = evaluateUeGuideQuality(mechanic);
+    const ueReviewClass = ueReviewBadgeClass(ueReview.status);
     guideContent.innerHTML = `
       <div class="d-flex justify-content-between align-items-start flex-wrap gap-2 mb-3">
         <div>
@@ -2646,6 +2715,13 @@ document.addEventListener('DOMContentLoaded', () => {
         <div class="d-flex flex-wrap gap-2 align-items-center">
           <span class="badge ${compatClass} detail-badge">${compatibility.status}</span>
           <span class="text-muted-80 small">${compatibility.notes}</span>
+        </div>
+      </div>
+      <div class="mb-3">
+        <div class="text-muted text-uppercase small mb-1">Revisão de guia Unreal Engine</div>
+        <div class="d-flex flex-wrap gap-2 align-items-center">
+          <span class="badge ${ueReviewClass} detail-badge">${ueReview.status}</span>
+          <span class="text-muted-80 small">${ueReview.notes}</span>
         </div>
       </div>
       <ol class="list-group list-group-numbered list-group-flush">
