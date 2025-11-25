@@ -2375,6 +2375,57 @@ document.addEventListener('DOMContentLoaded', () => {
     return 'text-bg-success';
   }
 
+  function compatibilityBadgeClass(status) {
+    if (!status) return 'text-bg-secondary';
+    const normalized = status.toLowerCase();
+    if (normalized.includes('incompat')) return 'text-bg-danger';
+    if (normalized.includes('redesign')) return 'text-bg-warning';
+    if (normalized.includes('legado') || normalized.includes('compat')) return 'text-bg-success';
+    return 'text-bg-secondary';
+  }
+
+  function buildCompatibilityInfo(mechanic) {
+    if (!mechanic) {
+      return {
+        status: 'Não avaliado',
+        notes: 'Mecânica não encontrada; revise manualmente se é viável na UE 5.7.'
+      };
+    }
+
+    const coherenceStatus = mechanic.coherenceStatus || '';
+    const coherenceNotes = mechanic.coherenceNotes || 'Sem notas de coerência; valide replicação, dependências de backend e formatos de asset convertidos para UE 5.7.';
+    const isServer = mechanic.type?.toLowerCase() === 'servidor';
+    const serverHint = isServer
+      ? 'Priorize RPCs e GameMode/Subsystems server-authoritative em vez de DataServer/packets legados.'
+      : 'Use PlayerController/Subsystems e RPCs ou UFunctions replicadas em vez de sockets/packets legados.';
+
+    if (coherenceStatus.toLowerCase().includes('incompat')) {
+      return {
+        status: 'Incompatível na UE 5.7',
+        notes: `${coherenceNotes} ${serverHint}`
+      };
+    }
+
+    if (coherenceStatus.toLowerCase().includes('redesign')) {
+      return {
+        status: 'Requer redesign na UE 5.7',
+        notes: `${coherenceNotes} ${serverHint}`
+      };
+    }
+
+    if (coherenceStatus.toLowerCase().includes('legado')) {
+      return {
+        status: 'Compatível na UE 5.7 (assets convertidos)',
+        notes: `${coherenceNotes} Garanta que não haja chamadas a BuxConvert/XOR ou SimpleModulus nos assets convertidos.`
+      };
+    }
+
+    return {
+      status: 'Compatibilidade não declarada',
+      notes: `${coherenceNotes} Valide replicação (Authority/Remote), uso de NetDriver ou OnlineSubsystem e evite DataSend/DataRecv.`
+    };
+  }
+
   // Mechanics rendering
   const mechanicsListEl = document.getElementById('mechanics-list');
   const mechanicDetailEl = document.getElementById('mechanic-detail');
@@ -2499,6 +2550,20 @@ document.addEventListener('DOMContentLoaded', () => {
     `;
   }
 
+  function buildCompatibilityBlock(mechanic) {
+    const { status, notes } = buildCompatibilityInfo(mechanic);
+    const badgeClass = compatibilityBadgeClass(status);
+    return `
+      <div class="mb-3">
+        <div class="text-muted text-uppercase small mb-1">Compatibilidade UE 5.7</div>
+        <div class="d-flex flex-wrap gap-2 align-items-center">
+          <span class="badge ${badgeClass} detail-badge">${status}</span>
+          <span class="text-muted-80 small">${notes}</span>
+        </div>
+      </div>
+    `;
+  }
+
   function selectMechanic(id) {
     const m = mechanics.find(x => x.id === id);
     if (!m) return;
@@ -2516,6 +2581,7 @@ document.addEventListener('DOMContentLoaded', () => {
       </div>
       <p class="text-muted-80">${m.description}</p>
       ${buildCoherenceBlock(m)}
+      ${buildCompatibilityBlock(m)}
       ${buildChronologyBlock(m)}
       ${renderPillGroup('Arquivos', m.files)}
       ${renderPillGroup('Classes', m.classes)}
@@ -2564,6 +2630,9 @@ document.addEventListener('DOMContentLoaded', () => {
       return;
     }
     const guide = ueGuides[id];
+    const mechanic = mechanics.find(m => m.id === id);
+    const compatibility = buildCompatibilityInfo(mechanic);
+    const compatClass = compatibilityBadgeClass(compatibility.status);
     guideContent.innerHTML = `
       <div class="d-flex justify-content-between align-items-start flex-wrap gap-2 mb-3">
         <div>
@@ -2571,6 +2640,13 @@ document.addEventListener('DOMContentLoaded', () => {
           <div class="text-muted small">Checklist para Unreal Engine 5.7</div>
         </div>
         <span class="badge text-bg-primary">Guia</span>
+      </div>
+      <div class="mb-3">
+        <div class="text-muted text-uppercase small mb-1">Compatibilidade UE 5.7</div>
+        <div class="d-flex flex-wrap gap-2 align-items-center">
+          <span class="badge ${compatClass} detail-badge">${compatibility.status}</span>
+          <span class="text-muted-80 small">${compatibility.notes}</span>
+        </div>
       </div>
       <ol class="list-group list-group-numbered list-group-flush">
         ${guide.steps.map(step => `<li class="list-group-item">${step}</li>`).join('')}
