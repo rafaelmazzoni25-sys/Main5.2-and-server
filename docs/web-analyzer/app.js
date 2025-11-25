@@ -309,6 +309,50 @@ const mechanics = [
     networkDetails: "Sistema de packets do projeto original: define chaves DES_XEX3 quando GAMESERVER_UPDATE>=701 ou tabelas XOR (m_SaveLoadXor, m_XorFilter) para criptografia/descrição de pacotes persistidos; LoadKey lê arquivo com ENCDEC_HEADER e campos Modulus/Key ofuscados.",
     flow: "Init seta chaves DES ou zera m_Encryption/m_Decryption e preenche SaveLoadXor e XorFilter de 32 bytes; LoadEncryptionKey/LoadDecryptionKey chamam LoadKey (header 4370) que abre arquivo, valida header/size, lê tabelas com CreateFile/ReadFile e aplica XOR com SaveLoadXor para preencher Modulus/Key.",
     description: "Prepara os filtros e chaves de criptografia usados pelo servidor para salvar/carregar dados e processar pacotes, sem enviar nada diretamente na rede."
+  },
+  {
+    id: "server-item-structs",
+    name: "Estruturas de item e limites de inventário",
+    type: "Servidor",
+    files: ["Item.h", "ItemManager.h"],
+    classes: ["CItem", "ITEM_INFO", "ITEM_ATTRIBUTE", "CItemManager"],
+    functions: ["CItem::Convert", "CItemManager::Load"],
+    networkDetails: "Definições usadas por packets de item (C1:22-26/32-34); esta seção descreve apenas os structs e macros de faixa sem trafegar dados por si só.",
+    flow: "Item.h define INVENTORY/WAREHOUSE/CHAOS_BOX ranges, arrays como m_SpecialIndex/m_SocketOption, requisitos e flags de validade em CItem; ItemManager.h traz ITEM_INFO/ITEM_ATTRIBUTE com slots, dimensões, requisitos e resistências além de macros INVENTORY_RANGE/TRADE_RANGE.",
+    description: "Base de dados do servidor para calcular espaço, requisitos e opções de itens, incluindo sockets, Harmony, SetOption, validade/período e limites de tamanho usados pelos handlers de rede."
+  },
+  {
+    id: "server-item-handlers",
+    name: "Handlers de packet de item (pegar/soltar/mover/usar)",
+    type: "Servidor",
+    files: ["ItemManager.cpp", "ItemManager.h"],
+    classes: ["CItemManager"],
+    functions: ["CGItemGetRecv", "CGItemDropRecv", "CGItemMoveRecv", "CGItemUseRecv"],
+    networkDetails: "Sistema de packets original: recebe C1:22 (get), 0x23 (drop), 0x24 (move), 0x26 (use) e responde com PMSG_ITEM_GET/DROP/MOVE/DUR/DELETE via DataSend.",
+    flow: "CGItemGetRecv valida estado, bloqueia itens de evento/Muun, trata zen (0xFE) e insere itens via InventoryInsertItem/ItemByteConvert antes de retornar PMSG_ITEM_GET_SEND. CGItemDropRecv impede drops quando lock/DieRegen/Interface e chama gMap.ItemDrop; se êxito, InventoryDelItem e PMSG_ITEM_DROP_SEND. CGItemMoveRecv constrói resposta 0x24, checa interfaces (Trade/Warehouse/Chaos/PersonalShop/Trainer) e chama MoveItemTo* para trocar entre inventário, trade, warehouse, chaos, personal shop, event e muun, convertendo ItemInfo e notificando durabilidade/período. CGItemUseRecv filtra índices (scrolls, bless bundle, fruit) e, ao consumir, envia GCItemDeleteSend/GCItemModifySend conforme o alvo.",
+    description: "Fluxo servidor que manipula todos os comandos de item do cliente, aplicando regras de bloqueio e contêineres antes de atualizar inventário e responder pelos packets do protocolo original."
+  },
+  {
+    id: "client-item-structs",
+    name: "Struct ITEM do cliente e atributos carregados",
+    type: "Cliente",
+    files: ["_struct.h"],
+    classes: ["ITEM", "ITEM_ATTRIBUTE"],
+    functions: [],
+    networkDetails: "Estruturas locais usadas para armazenar dados vindos dos packets de inventário/equipamentos; não enviam dados diretamente.",
+    flow: "ITEM inclui campos Type, Level, requisitos, opções especiais, sockets, posição (x/y) e flags de período/opção 380; ITEM_ATTRIBUTE guarda nome, TwoHand, SkillIndex, requisitos e resistências carregadas dos scripts.",
+    description: "Modelo de item usado pelo cliente para renderização e validação, mantendo informações de sockets e posição em grid compatíveis com o layout do inventário."
+  },
+  {
+    id: "client-inventory-handling",
+    name: "Recebimento de inventário e interação de itens no cliente",
+    type: "Cliente",
+    files: ["WSclient.cpp"],
+    classes: [],
+    functions: ["ReceiveInventory", "ReceiveGetItem", "ReceiveDropItem", "ReceiveCreateItemViewport"],
+    networkDetails: "Sistema de packets original: trata C4:F3:10 (lista de itens), C3:22 (coleta), C1:23 (drop) e criação/remoção de itens no viewport, atualizando g_pMyInventory e tocando efeitos sonoros.",
+    flow: "ReceiveInventory limpa equipamentos/inventário/loja e, para cada PRECEIVE_INVENTORY, decide se equipa ou insere em mochila/loja. ReceiveGetItem interpreta Result 0xFF/0xFE/0xFD, atualiza Gold ou insere item e mensagens. ReceiveDropItem remove item de equipamento/mochila conforme KeyH/KeyL e lida com itens selecionados na UI. ReceiveCreateItemViewport instancia itens em mapa a partir de PCREATE_ITEM posicionando-os com TERRAIN_SCALE.",
+    description: "Camada cliente que aplica os packets de inventário, sincroniza slots e sons de coleta/drop, além de criar/remover representações de itens no mundo."
   }
 
 ];
@@ -619,6 +663,25 @@ const ueGuides = {
       "5. No GameMode inicial (por exemplo `AUEProtocolRouter`), chame `GetGameInstance()->GetSubsystem<UPacketSecuritySubsystem>()->InitializeKeys();` no BeginPlay para garantir que a sessão configure as chaves antes de qualquer RPC.",
       "6. Se precisar registrar telemetria, crie `UFUNCTION(BlueprintCallable)` `FString DescribeKeysForDebug();` que retorna apenas tamanhos ou hashes, nunca o conteúdo; compile e teste conexão em PIE para confirmar que os RPCs continuam funcionando sem serialização manual."
     ]
+  },
+
+  "server-item-handlers": {
+    title: "Plano UE 5.7 para sistema de itens (dados, inventário, drop e uso)",
+    globalOrderStep: 4,
+    steps: [
+      "1. No Content Browser, crie um **Blueprint Struct** `FItemData` (Add → Blueprints → Structure) contendo campos equivalentes ao CItem/ITEM_INFO: `int32 Index`, `int32 Level`, `float Durability`, `int32 Slot`, `bool bIsTwoHand`, `TArray<uint8> Special`, `TArray<uint8> SocketOptions`, `int32 RequireStrength/Dexterity/Energy/Vitality/Leadership`, `int32 SellPrice`, `bool bIsPeriodic`, `int32 PeriodicSeconds`, `int32 SerialLow` (se precisar). Para quaisquer campos não documentados no código, registre "NÃO DÁ PARA INFERIR COM SEGURANÇA COM BASE NO CÓDIGO-FONTE C++" em comentários do struct.",
+      "2. Adicione um **C++ Class** derivado de `UActorComponent` chamado `UInventoryComponent` (Add → New C++ Class → Actor Component). No `.h`, declare `UPROPERTY(ReplicatedUsing=OnRep_Items)` `TArray<FItemData> InventorySlots` com tamanho inicial conforme INVENTORY_SIZE (Item.h) e `TArray<FItemData> EquipmentSlots` com INVENTORY_WEAR_SIZE. Implemente `GetLifetimeReplicatedProps` com `DOREPLIFETIME` para ambos.",
+      "3. No `.cpp` de `UInventoryComponent`, implemente `void InitializeSlots(int32 InventorySize, int32 EquipSize)` para preencher arrays com entradas vazias e funções helpers `bool SetItemAt(int32 Slot, const FItemData&)`, `bool MoveItem(int32 From, int32 To)` que validem índices usando constantes copiadas de Item.h; se alguma regra de colisão não puder ser deduzida, logue a frase padrão antes de retornar falso.",
+      "4. No Character C++ derivado de `ACharacter`, adicione `UPROPERTY(VisibleAnywhere)` `UInventoryComponent* InventoryComp;` inicializado no construtor com `CreateDefaultSubobject`. Marque o Character como `bReplicates=true` e ative **Replicate Movement** em Class Defaults.",
+      "5. Declare no Character `UFUNCTION(Server, Reliable)` `void ServerRequestGetItem(int32 WorldItemId);`, `void ServerRequestDropItem(int32 Slot, const FVector& DropPos);`, `void ServerRequestMoveItem(int32 FromSlot, int32 ToSlot);`, `void ServerRequestUseItem(int32 Slot, int32 TargetSlot, uint8 UseType);` correspondendo aos packets C1:22/23/24/26. Cada função deve validar `InventoryComp` e os limites de slot antes de chamar lógica interna.",
+      "6. Crie um **C++ Class** derivado de `AActor` chamado `AWorldItem` com `UPROPERTY(Replicated)` `FItemData ItemData` e `UStaticMeshComponent* Mesh`. Em Class Defaults, marque **Replicates**. Adicione `void InitializeFromData(const FItemData&)` e RPC `UFUNCTION(NetMulticast, Reliable)` `void MulticastPlayDropFX()` para efeitos de drop; se animações específicas não existirem no código, documente como 'SUGESTÃO GENÉRICA, NÃO DIRETAMENTE INFERIDA DO CÓDIGO-FONTE C++'.",
+      "7. No GameMode ou em um `UItemWorldSubsystem`, implemente funções server-only `bool SpawnWorldItem(const FItemData&, const FVector& Pos)` que chamam `GetWorld()->SpawnActor<AWorldItem>` e armazenam um mapa `WorldItemId → Actor`. Vincule `ServerRequestGetItem` para procurar o ID, aplicar validações equivalentes a CGItemGetRecv (estado vivo, interfaces) e, em sucesso, preencher `InventoryComp->InventorySlots` e destruir o `AWorldItem` com `Destroy()`.",
+      "8. Em `ServerRequestDropItem`, leia `InventoryComp->InventorySlots[Slot]`, valide locks semelhantes a CGItemDropRecv (ex.: estado morto/lock flag replicada), e se permitido chame `SpawnWorldItem` com os campos do item e limpe o slot. Chame `MulticastPlayDropFX` no item criado para reproduzir efeitos visuais.",
+      "9. Em `ServerRequestMoveItem`, espelhe a lógica de CGItemMoveRecv chamando helpers `MoveItem` para Inventário→Equipamento e outros contêineres. Se o projeto precisar de outros inventários (warehouse/chaos), crie componentes adicionais e registre em comentários quando regras não forem dedutíveis.",
+      "10. Em `ServerRequestUseItem`, aplique casos específicos vistos em CGItemUseRecv: para pergaminhos ou frutas use Branch/Switch em Blueprint ou `switch` no C++ para chamar funções `ApplyScrollEffect`, `ApplyFruitStats`, consumindo o item (`SetItemAt` com vazio) e chamando RPC `ClientItemRemoved` (Client, Reliable) para atualizar UI. Sempre que a mecânica exata não estiver clara, chame `UE_LOG` com a frase padrão antes de abortar.",
+      "11. Crie um Widget Blueprint `WBP_Inventory` (Add → User Interface → Widget Blueprint). No Event Construct, obtenha o Pawn → `GetComponentByClass` (InventoryComponent) e armazene como variável. Use `ForEachLoop` sobre `InventorySlots` para popular botões de slot; no OnClicked de cada botão, chame funções BlueprintCallable que invocam `ServerRequestMoveItem` ou `ServerRequestUseItem` conforme contexto. Vincule um botão \"Drop\" que chama `ServerRequestDropItem` com `GetHitResultUnderCursor` para posição.",
+      "12. Para integração visual de equipamentos, no Character Blueprint, anexe SkeletalMesh/StaticMesh a sockets (ex.: `hand_r`, `spine`) usando `AttachToComponent` quando `InventoryComp` emitir um evento `OnRep_Items` indicando novo item com Slot < INVENTORY_WEAR_SIZE. Se faltar mapeamento exato de sockets, documente em comentários como 'NÃO DÁ PARA INFERIR COM SEGURANÇA COM BASE NO CÓDIGO-FONTE C++' e escolha sockets padrão de Character."
+    ]
   }
 
 };
@@ -628,17 +691,17 @@ const ueSystems = [
     id: "items-system",
     name: "Sistema de Items",
     status: "Encontrado",
-    mechanicsIds: ["server-protocolcore-dispatch"],
-    codeSummary: "ProtocolCore (Protocol.cpp) trata subcódigos 0x22-0x26 para pegar, soltar, mover e usar itens, enviando respostas via PacketSend/DataSend conforme o protocolo de rede original.",
-    ue57Summary: "Substituir os comandos 0x22-0x26 por RPCs Server (ex.: ServerHandleItemPick/Drop/Move) em GameMode/PlayerController e replicar o inventário em um componente ou APlayerState; quando detalhes de slots não estiverem claros, marcar 'NÃO DÁ PARA INFERIR COM SEGURANÇA COM BASE NO CÓDIGO-FONTE C++'."
+    mechanicsIds: ["server-protocolcore-dispatch", "server-item-structs", "server-item-handlers", "client-item-structs", "client-inventory-handling"],
+    codeSummary: "ProtocolCore (Protocol.cpp) roteia C1:22-26 para CItemManager (get/drop/move/use) usando structs CItem/ITEM_INFO; o cliente mantém ITEM e PRECEIVE_INVENTORY para refletir o inventário e renderizar itens/viewport.",
+    ue57Summary: "Mapear get/drop/move/use para RPCs Server em Character/InventoryComponent, usar `FItemData` replicado, atores `AWorldItem` para drops e Widgets para UI; marcar campos ausentes com 'NÃO DÁ PARA INFERIR COM SEGURANÇA COM BASE NO CÓDIGO-FONTE C++'."
   },
   {
     id: "inventory-system",
     name: "Sistema de Inventory",
     status: "Encontrado",
-    mechanicsIds: ["server-protocolcore-dispatch", "server-character-list"],
-    codeSummary: "A resposta DGCharacterListRecv (DSProtocol.cpp) monta slots de personagem e ProtocolCore inclui operações de item (0x22-0x26), indicando manipulação de inventário ligada ao login/listagem de personagens.",
-    ue57Summary: "Persistir o inventário em USTRUCT replicado dentro de APlayerState ou componente de personagem e expor RPCs para mover/usar itens; para campos não descritos, usar 'NÃO DÁ PARA INFERIR COM SEGURANÇA COM BASE NO CÓDIGO-FONTE C++' e tratar como dados configuráveis."
+    mechanicsIds: ["server-protocolcore-dispatch", "server-character-list", "server-item-handlers", "client-inventory-handling", "client-item-structs"],
+    codeSummary: "DGCharacterListRecv carrega slots iniciais enquanto CItemManager move/usa itens entre inventário/equipamentos/warehouse/chaos; no cliente, ReceiveInventory/ReceiveGetItem/ReceiveDropItem sincronizam g_pMyInventory e HUD.",
+    ue57Summary: "Replicar arrays de inventário/equipamento em componente anexado ao Character, criar RPCs para transferir itens e usar hooks OnRep para atualizar UI; validar tamanho e contêiner conforme limites de Item.h e registrar 'NÃO DÁ PARA INFERIR COM SEGURANÇA COM BASE NO CÓDIGO-FONTE C++' quando regras faltarem."
   },
   {
     id: "character-system",
