@@ -99,6 +99,42 @@ main { padding: 24px; }
 .priority { font-weight: 700; }
 .note { color: var(--muted); font-size: 13px; }
 
+.systems-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 16px;
+}
+
+.system-card {
+  background: rgba(17, 24, 39, 0.85);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.system-card h3 { margin: 0; }
+
+.status-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  font-size: 12px;
+}
+
+.status-found { background: rgba(34, 197, 94, 0.2); color: var(--success); }
+.status-missing { background: rgba(148, 163, 184, 0.2); color: var(--muted); }
+
+.system-section {
+  color: var(--muted);
+  font-size: 14px;
+}
+
 @media (max-width: 900px) {
   .layout-columns { grid-template-columns: 1fr; }
 }
