@@ -899,7 +899,7 @@ const ueGuides = {
       "1. Abra o Unreal Engine 5.7, carregue o projeto e no Content Browser clique em **Add → New C++ Class**.",
       "2. Escolha **None** como base e crie uma classe `UObject` chamada `UServerListManagerUE` para substituir a leitura local feita por CServerListManager.",
       "3. No arquivo `.h`, declare um método `UFUNCTION(BlueprintCallable)` `bool LoadServerListScript(const FString& FilePath)` e um `TMap<int32, FServerGroupInfo>` (defina `USTRUCT` espelhando SERVER_GROUP_INFO: nome, pos, sequence, NonPVP).",
-      "4. No arquivo `.cpp`, em `LoadServerListScript`, use `FFileHelper::LoadFileToArray` e aplique o XOR rotativo (0xfc, 0xcf, 0xab) byte a byte antes de copiar para o struct; retorne false quando falhar, replicando o comportamento do código original.",
+      "4. No arquivo `.cpp`, em `LoadServerListScript`, apenas carregue os dados com `FFileHelper::LoadFileToArray` e copie para o struct sem aplicar XOR/BuxConvert, pois os assets já estarão em formato aceito pela UE 5.7; se receber um arquivo legado, registre log orientando a substituição pelo asset convertido.",
       "5. Compile pelo Editor (botão **Compile**). Depois, crie um Blueprint baseado em `UServerListManagerUE`, abra em **Class Defaults** e deixe sem replicação (somente cliente), pois é leitura local.",
       "6. No Blueprint de UI que lista servidores, chame `LoadServerListScript` via BlueprintCallable e armazene o TMap para preencher widgets de lista, sem qualquer socket ou packet do sistema original."
     ]
@@ -960,7 +960,7 @@ const ueGuides = {
     steps: [
       "1. No Editor, clique em **Add → New C++ Class** e escolha **None** para criar `USocketOptionScript` derivada de `UObject`.",
       "2. No arquivo `.h`, declare `UFUNCTION(BlueprintCallable)` `bool LoadSocketOptions(const FString& FilePath);` e defina um `USTRUCT` `FSocketOptionInfo` com os mesmos campos usados em SOCKET_OPTION_INFO (OptionIndex, Type, Value, Text).",
-      "3. No `.cpp`, em `LoadSocketOptions`, use `FFileHelper::LoadFileToArray` para ler o binário e aplique o XOR rotativo (0xfc, 0xcf, 0xab) byte a byte antes de preencher cada `FSocketOptionInfo`; retorne false se fread falhar, conforme o código original.",
+      "3. No `.cpp`, em `LoadSocketOptions`, use `FFileHelper::LoadFileToArray` para ler o binário já convertido e preencher cada `FSocketOptionInfo` diretamente, sem aplicar XOR/BuxConvert; se um arquivo legado criptografado for detectado, registre aviso para substituição antes de retornar false.",
       "4. Adicione `UFUNCTION(BlueprintPure)` `const TArray<FSocketOptionInfo>& GetOptions() const;` para fornecer dados à UI e funções auxiliares que somem `m_iNumEquitSetBonusOptions` e calculem valores usando lógica de `CalcSocketOptionValue/Text`.",
       "5. Compile e, em um Blueprint de inventário, chame `LoadSocketOptions` no BeginPlay para preencher as tabelas; mantenha sem replicação (dados locais).",
       "6. Documente em comentário que o sistema de packets do projeto original não é usado na UE; todos os fluxos de rede devem usar RPCs e propriedades replicadas."
@@ -1066,7 +1066,7 @@ const ueGuides = {
     steps: [
       "1. No Editor, clique em **Add → New C++ Class → None** e crie `UBuffScriptLoaderUE` derivada de `UObject`.",
       "2. No `.h`, declare `UFUNCTION(BlueprintCallable)` `bool LoadBuffScript(const FString& Path);` e defina `USTRUCT` para `_BUFFINFO` com campos equivalentes aos do código (s_BuffIndex, s_BuffEffectType, s_ItemType, s_ItemIndex, s_BuffName, s_BuffClassType, s_NoticeType, s_ClearType, s_BuffDescript).",
-      "3. No `.cpp`, use `FFileHelper::LoadFileToArray` para ler BuffEffect_<ML>.bmd, aplique XOR rotativo (0xfc, 0xcf, 0xab) antes de copiar para o struct e retorne false se o tamanho não bater.",
+      "3. No `.cpp`, use `FFileHelper::LoadFileToArray` para ler BuffEffect_<ML>.bmd e copie diretamente os dados para o struct, sem XOR/BuxConvert, já que os arquivos foram convertidos para formato compatível com a UE 5.7; retorne false se o tamanho não bater e registre aviso se identificar um arquivo legado criptografado.",
       "4. Implemente verificação de checksum equivalente a GenerateCheckSum2; se faltar referência, escreva 'NÃO DÁ PARA INFERIR COM SEGURANÇA COM BASE NO CÓDIGO-FONTE C++' e substitua por um log/abort manual.",
       "5. Após carregar, divida s_BuffDescript por '/' em `TArray<FString>` e armazene em `TMap<eBuffState, FBuffInfo>` acessível a Blueprints.",
       "6. Compile e crie um Blueprint baseado em `UBuffScriptLoaderUE`; em **Class Defaults**, mantenha sem replicação (processo local)."
@@ -1853,7 +1853,7 @@ const roadmap = [
     horizon: "Curto Prazo",
     priority: "Alta",
     mechanicsIds: ["serverlist-script-load"],
-    description: "Adicionar verificação de tamanho e logs antes de aplicar BuxConvert e fread para evitar leituras parciais.",
+    description: "Adicionar verificação de tamanho e logs ao carregar os arquivos já convertidos (sem BuxConvert/XOR), registrando aviso caso algum binário legado ainda criptografado seja encontrado.",
     basedOnCode: true,
     notes: "Baseado diretamente no código C++ (ServerListManager.cpp linha 79-94)."
   },
