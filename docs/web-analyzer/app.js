@@ -544,6 +544,17 @@ const mechanics = [
     description: "Define quantidades máximas por item empilhável e qual item pode ser criado, permitindo ao servidor validar e resolver pilhas durante operações de inventário e drops."
   },
   {
+    id: "server-inventory-equipment-effects",
+    name: "Efeitos de itens equipados por durabilidade especial",
+    type: "Servidor",
+    files: ["InventoryEquipment.cpp", "InventoryEquipment.h", "EffectManager.h", "ItemManager.h"],
+    classes: ["CInventoryEquipment"],
+    functions: ["MainProc", "CheckInventoryEquipment", "InsertInventoryEquipment", "CGInventoryEquipmentRecv"],
+    networkDetails: "Sistema de packets original: handler C1:BF:20 (PMSG_INVENTORY_EQUIPMENT_RECV/SEND) recebe slot e result (254 ativa, 255 desativa) para alternar efeitos de itens 13,128-13,134 com durabilidade especial (254/255).",
+    flow: "MainProc percorre jogadores conectados e seus efeitos; quando encontra efeitos Hawk/Goat/Oak/Maple figurine/charm/horseshoe, consulta CheckInventoryEquipment para ver se item índice e durabilidade 254 ainda estão presentes em slots INVENTORY_WEAR_SIZE..INVENTORY_EXT4_SIZE, removendo efeito se não estiver. CheckInventoryEquipment confirma existência do item com durability 254. InsertInventoryEquipment varre o inventário estendido e, para itens 13,128-13,134 com durabilidade 254, busca EFFECT_INFO via GetInfoByItem e, se o grupo não estiver ativo, adiciona efeito. CGInventoryEquipmentRecv valida conexão, ranges de slot (exclui equipamentos), checa item válido/durabilidade, troca 255→254 adicionando efeito ou 254→255 removendo efeito e responde via DataSend com result -2 (ativado) ou -1 (desativado/erro).",
+    description: "Controla ativação/desativação de efeitos de itens especiais em slots de inventário estendido através de flags de durabilidade e aplica/retira buffs via EffectManager conforme comandos do cliente."
+  },
+  {
     id: "server-socket-item-type",
     name: "Tipos de item com limite de sockets",
     type: "Servidor",
@@ -1271,6 +1282,19 @@ const ueGuides = {
       "5. Teste em PIE adicionando itens repetidos e verificando que a UI soma quantidades e cria itens derivados quando MaxStack é atingido."
     ]
   },
+  "server-inventory-equipment-effects": {
+    title: "Ativar/desativar efeitos de inventário estendido na UE 5.7 sem packets",
+    globalOrderStep: 9,
+    steps: [
+      "1. Depois de implementar inventário/equipamentos replicados, crie um `USTRUCT(BlueprintType)` `FEquipmentEffectItem` com `int32 ItemIndex` e `bool bActive`. Mantenha um `TArray<FEquipmentEffectItem>` em um componente `UInventoryComponent` marcado como `UPROPERTY(ReplicatedUsing=OnRep_EquipmentEffects)`.",
+      "2. No componente, adicione `UFUNCTION(Server, Reliable)` `void ServerToggleEquipmentEffect(int32 SlotIndex, bool bActivate);` substituindo o packet C1:BF:20. No corpo, valide `HasAuthority()`, range de slot (ignorar INVENTORY_WEAR_RANGE) e confirme que o item pertence ao intervalo GET_ITEM(13,128-134). Quando regras específicas não existirem, registre 'NÃO DÁ PARA INFERIR COM SEGURANÇA COM BASE NO CÓDIGO-FONTE C++'.",
+      "3. Se `bActivate` for true, verifique que o item não está com durabilidade zero e marque bActive no array replicado; chame função `ApplyEquipmentEffect` que consulta um DataTable de efeitos (Index→EffectId/StatDelta) e aplica atributos ou buffs via AbilitySystem ou variáveis replicadas. Caso o DataTable não tenha definição, insira comentários com a frase padrão.",
+      "4. Se `bActivate` for false, chame `RemoveEquipmentEffect` para remover buffs/atributos e marque bActive como false. Em ambos os casos, chame `OnRep_EquipmentEffects` para clientes atualizar UI e efeitos visuais (ex.: desativar partículas anexadas ao personagem) via Blueprint.",
+      "5. No `BeginPlay` do componente (server), percorra slots INVENTORY_WEAR_SIZE..INVENTORY_EXT4_SIZE verificando itens 13,128-13,134 para popular o array e reaplicar efeitos em sessões restauradas, espelhando InsertInventoryEquipment. Use Timer periódico (ex.: 5s) para revisar itens ativos e remover efeitos se o item sumir, replicando a lógica de MainProc/CheckInventoryEquipment.",
+      "6. No Widget de inventário, adicione um botão ou toggle por slot desses itens. No Event Graph, ao clicar, chame `ServerToggleEquipmentEffect` com SlotIndex e estado desejado; use Branch para bloquear quando o item não corresponder ao intervalo permitido. Registre mensagens na UI usando nós de texto quando o servidor retornar erro.",
+      "7. Ordem cronológica recomendada: (a) finalizar inventário replicado e DataTables de efeitos, (b) criar struct/array `FEquipmentEffectItem`, (c) implementar RPC Server/OnRep e funções Apply/Remove, (d) adicionar Timer de revisão, (e) conectar UI. Se alguma etapa depender de regra não dedutível, inclua a frase padrão e marque como 'SUGESTÃO GENÉRICA, NÃO DIRETAMENTE INFERIDA DO CÓDIGO-FONTE C++'."
+    ]
+  },
   "server-socket-item-type": {
     title: "Limites de sockets por item na UE (ordem cronológica)",
     steps: [
@@ -1411,7 +1435,7 @@ const ueSystems = [
     id: "items-system",
     name: "Sistema de Items",
     status: "Encontrado",
-    mechanicsIds: ["server-protocolcore-dispatch", "server-item-structs", "server-item-packet-structs", "server-item-attribute-loader", "server-380-item-type-map", "server-380-item-option", "server-item-handlers", "server-item-move-matrix", "server-chaos-event-muun-move", "server-muun-system", "server-item-require-checks", "server-item-move-allowlist", "server-item-stack-config", "server-socket-item-type", "server-item-option-rate", "server-item-value", "server-item-value-trade", "server-lucky-item-options", "server-harmony-options", "server-moss-merchant-gamble", "server-jewel-mix", "server-itembag-manager", "server-itembag-ex", "server-item-drop-config", "server-item-get-drop-conditions", "server-item-shop-handlers", "server-mapitem-drop-lifecycle", "server-pk-drop-system", "server-pentagram-system", "client-item-structs", "client-inventory-handling", "server-personal-shop"],
+    mechanicsIds: ["server-protocolcore-dispatch", "server-item-structs", "server-item-packet-structs", "server-item-attribute-loader", "server-380-item-type-map", "server-380-item-option", "server-item-handlers", "server-item-move-matrix", "server-chaos-event-muun-move", "server-muun-system", "server-item-require-checks", "server-item-move-allowlist", "server-item-stack-config", "server-inventory-equipment-effects", "server-socket-item-type", "server-item-option-rate", "server-item-value", "server-item-value-trade", "server-lucky-item-options", "server-harmony-options", "server-moss-merchant-gamble", "server-jewel-mix", "server-itembag-manager", "server-itembag-ex", "server-item-drop-config", "server-item-get-drop-conditions", "server-item-shop-handlers", "server-mapitem-drop-lifecycle", "server-pk-drop-system", "server-pentagram-system", "client-item-structs", "client-inventory-handling", "server-personal-shop"],
     codeSummary: "ProtocolCore (Protocol.cpp) roteia C1:22-26/32-34 para CItemManager (get/drop/move/use/buy/sell/repair) usando structs CItem/ITEM_INFO; o cliente mantém ITEM e PRECEIVE_INVENTORY para refletir o inventário e renderizar itens/viewport.",
     ue57Summary: "Mapear get/drop/move/use/buy/sell/repair para RPCs Server em Character/InventoryComponent, usar `FItemData` replicado, atores `AWorldItem` para drops e Widgets para UI; marcar campos ausentes com 'NÃO DÁ PARA INFERIR COM SEGURANÇA COM BASE NO CÓDIGO-FONTE C++'."
   },
@@ -1419,7 +1443,7 @@ const ueSystems = [
     id: "inventory-system",
     name: "Sistema de Inventory",
     status: "Encontrado",
-    mechanicsIds: ["server-protocolcore-dispatch", "server-character-list", "server-item-structs", "server-item-packet-structs", "server-item-attribute-loader", "server-380-item-type-map", "server-380-item-option", "server-item-handlers", "server-item-move-matrix", "server-chaos-event-muun-move", "server-muun-system", "server-item-require-checks", "server-item-move-allowlist", "server-item-stack-config", "server-socket-item-type", "server-item-option-rate", "server-item-value", "server-item-value-trade", "server-lucky-item-options", "server-harmony-options", "server-moss-merchant-gamble", "server-jewel-mix", "server-itembag-manager", "server-itembag-ex", "server-item-drop-config", "server-item-get-drop-conditions", "server-item-shop-handlers", "server-mapitem-drop-lifecycle", "server-pentagram-system", "client-inventory-handling", "client-item-structs", "server-personal-shop"],
+    mechanicsIds: ["server-protocolcore-dispatch", "server-character-list", "server-item-structs", "server-item-packet-structs", "server-item-attribute-loader", "server-380-item-type-map", "server-380-item-option", "server-item-handlers", "server-item-move-matrix", "server-chaos-event-muun-move", "server-muun-system", "server-item-require-checks", "server-item-move-allowlist", "server-item-stack-config", "server-inventory-equipment-effects", "server-socket-item-type", "server-item-option-rate", "server-item-value", "server-item-value-trade", "server-lucky-item-options", "server-harmony-options", "server-moss-merchant-gamble", "server-jewel-mix", "server-itembag-manager", "server-itembag-ex", "server-item-drop-config", "server-item-get-drop-conditions", "server-item-shop-handlers", "server-mapitem-drop-lifecycle", "server-pentagram-system", "client-inventory-handling", "client-item-structs", "server-personal-shop"],
     codeSummary: "DGCharacterListRecv carrega slots iniciais enquanto CItemManager move/usa/compra/vende/repara itens entre inventário/equipamentos/warehouse/chaos; no cliente, ReceiveInventory/ReceiveGetItem/ReceiveDropItem/ReceiveTradeInventory sincronizam g_pMyInventory, MixInventory e lojas.",
     ue57Summary: "Replicar arrays de inventário/equipamento e saldos em componente anexado ao Character/PlayerState, criar RPCs para transferir/loja/reparar itens e usar hooks OnRep para atualizar UI; validar tamanho e contêiner conforme limites de Item.h e registrar 'NÃO DÁ PARA INFERIR COM SEGURANÇA COM BASE NO CÓDIGO-FONTE C++' quando regras faltarem."
   },
@@ -1557,6 +1581,15 @@ const roadmap = [
     description: "Importar tabelas ItemBagEx (seções 3/4/5+) para DataTables UE, implementar seleção por RequireClass/SectionRate e substituição de GCFireworksSend por multicast FX.",
     basedOnCode: true,
     notes: "Baseado diretamente no código C++ (ItemBagEx.cpp linhas 25-196 e 200-310)."
+  },
+  {
+    id: "roadmap-inventory-equipment-effects",
+    horizon: "Médio Prazo",
+    priority: "Média",
+    mechanicsIds: ["server-inventory-equipment-effects"],
+    description: "Migrar o fluxo C1:BF:20 de ativação/desativação de itens 13,128-13,134 para RPCs e componente replicado, incluindo reaplicação periódica de efeitos sem packets legados.",
+    basedOnCode: true,
+    notes: "Baseado diretamente no código C++ (InventoryEquipment.cpp linhas 19-117)."
   },
   {
     id: "roadmap-item-option-rate-tables",
