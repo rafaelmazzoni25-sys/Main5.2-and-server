@@ -554,6 +554,26 @@ const mechanics = [
     description: "Implementa gacha de loja Moss configurável por grupo, combinando probabilidades de opções com GDCreateItemSend para entregar o item ao jogador."
   },
   {
+    id: "server-jewel-mix",
+    name: "Mix e UnMix de Jewels com Chaos Lock",
+    type: "Servidor",
+    files: ["JewelMix.cpp", "JewelMix.h", "Protocol.cpp", "CommandManager.cpp"],
+    classes: ["CJewelMix"],
+    functions: [
+      "GetJewelSimpleIndex",
+      "GetJewelBundleIndex",
+      "CGJewelMixRecv",
+      "CGJewelUnMixRecv",
+      "GCJewelMixResultSend",
+      "GCJewelUnMixResultSend",
+      "CommandJewelMix",
+      "CommandJewelUnMix"
+    ],
+    networkDetails: "Sistema de packets original: ProtocolCore recebe C1:BC:00 (mix) e C1:BC:01 (unmix) e retorna resultados em C1:BC:[00/01] pela GCJewel*ResultSend; comandos /mix e /unmix usam a mesma lógica sem envolver os packets do cliente legado na adaptação UE.",
+    flow: "CGJewelMixRecv verifica conexão/interface comum e ChaosLock, valida type 0-9 e level 0-2, exige quantidade ((level+1)*10) de jewels simples via gItemManager, cobra MixMoney calculado, deleta jewels e cria bundle (GetJewelBundleIndex) via GDCreateItemSend; envia resultado 1 em sucesso e libera ChaosLock. CGJewelUnMixRecv valida range de slot, index/level do bundle, espaço livre para JewelCount, cobra 1.000.000 zen, deleta bundle e gera Jewels simples com GDCreateItemSend em loop antes de enviar resultado. CommandJewelMix/UnMix parseiam texto (bless/soul/life/creation/guardian/gem/harmony/chaos/lowstone/highstone) e quantidades 10/20/30, chamando as mesmas validações e respostas.",
+    description: "Processa empacotamento e desempaquetamento de jewels em bundles com controle de concorrência via ChaosLock, consumo de zen e criação de itens pelo servidor, reportando estados via subcódigos 0xBC sem reusar o sistema de packets na UE 5.7."
+  },
+  {
     id: "server-item-attribute-loader",
     name: "Carregamento e cache de atributos de item",
     type: "Servidor",
@@ -1129,6 +1149,19 @@ const ueGuides = {
       "8. Teste em duas sessões PIE garantindo que apenas o servidor executa o sorteio e os dados replicados de inventário refletem o item gerado, sem qualquer packet legado."
     ]
   },
+  "server-jewel-mix": {
+    title: "Replicar mix/unmix de jewels na UE 5.7 sem packets legados",
+    steps: [
+      "1. Após carregar serviços de ItemOptionRate e dados de itens, crie `USTRUCT(BlueprintType) FJewelMixBundle` com campos `Type` (0-9), `Level` (0-2), `BundleItemIndex`, `SimpleItemIndex`, `RequiredCount`, `Cost`. Preencha um `TArray` constante em código espelhando GetJewelSimpleIndex/GetJewelBundleIndex com RequiredCount = (Level+1)*10 e Cost = (Level+1)*500000 para mix; para unmix, use custo fixo 1.000.000.",
+      "2. Em um componente `UInventoryComponent` já replicado, adicione RPC `UFUNCTION(Server, Reliable)` `void ServerMixJewels(uint8 Type, uint8 Level);` que verifica Authority, consulta a tabela FJewelMixBundle, valida Type/Level, verifica Interface aberta (substituir Interface.type==INTERFACE_COMMON com uma flag boolean replicada de UI de mix) e aplica um lock booleano `bChaosLock` replicado para evitar concorrência.",
+      "3. Dentro de `ServerMixJewels`, conte itens simples no inventário (`CountItemByIndex(SimpleItemIndex)`) e valide espaço/zen (`PlayerState` ou componente de economia). Se faltar, retorne via `ClientShowMixResult` (RPC Client) com códigos de erro equivalentes (0-5 do código) e registre a frase padrão quando algum motivo não puder ser inferido.",
+      "4. Se válido, subtraia moedas, remova RequiredCount de SimpleItemIndex e adicione um item `FItemData` com Index = BundleItemIndex e Level = Level; marque o inventário para replicação (`MarkItemDirty`/OnRep_Inventory) e chame `ClientShowMixResult` com sucesso (1).",
+      "5. Adicione RPC `UFUNCTION(Server, Reliable)` `void ServerUnmixJewels(int32 SlotIndex);` validando Authority, lock e se o slot contém BundleItemIndex com Level correspondente. Verifique espaço livre para RequiredCount jewels e moedas; remova bundle, adicione múltiplos simples e envie `ClientShowUnmixResult` com códigos de erro/sucesso.",
+      "6. No Widget de mix/unmix (UMG), adicione botões 'Mix' e 'Unmix'. No Event Graph, ao clicar, chame `ServerMixJewels` ou `ServerUnmixJewels` passando Type/Level ou Slot selecionado. Use nós `Branch` para checar erros retornados pelos RPCs Client e exibir mensagens equivalentes aos result codes (sucesso, falta de jewels, falta de espaço, etc.).",
+      "7. Opcional: adicionar `NetMulticast` FX para sucesso de mix/unmix. Caso efeitos específicos não estejam no código, marque-os como 'SUGESTÃO GENÉRICA, NÃO DIRETAMENTE INFERIDA DO CÓDIGO-FONTE C++'.",
+      "8. Teste em ordem cronológica após implementar inventário replicado e economia: 1) carregar tabelas de jewels, 2) habilitar UI de mix, 3) validar contagem/custos, 4) replicar resultados entre dois clientes PIE sem qualquer packet legado." 
+    ]
+  },
   "server-item-drop-config": {
     title: "Tabela de drop configurado em UE",
     steps: [
@@ -1147,7 +1180,7 @@ const ueSystems = [
     id: "items-system",
     name: "Sistema de Items",
     status: "Encontrado",
-    mechanicsIds: ["server-protocolcore-dispatch", "server-item-structs", "server-item-packet-structs", "server-item-attribute-loader", "server-380-item-type-map", "server-380-item-option", "server-item-handlers", "server-item-move-matrix", "server-chaos-event-muun-move", "server-item-require-checks", "server-item-move-allowlist", "server-item-stack-config", "server-item-option-rate", "server-lucky-item-options", "server-moss-merchant-gamble", "server-itembag-manager", "server-item-drop-config", "server-item-get-drop-conditions", "server-item-shop-handlers", "server-mapitem-drop-lifecycle", "server-pk-drop-system", "client-item-structs", "client-inventory-handling"],
+    mechanicsIds: ["server-protocolcore-dispatch", "server-item-structs", "server-item-packet-structs", "server-item-attribute-loader", "server-380-item-type-map", "server-380-item-option", "server-item-handlers", "server-item-move-matrix", "server-chaos-event-muun-move", "server-item-require-checks", "server-item-move-allowlist", "server-item-stack-config", "server-item-option-rate", "server-lucky-item-options", "server-moss-merchant-gamble", "server-jewel-mix", "server-itembag-manager", "server-item-drop-config", "server-item-get-drop-conditions", "server-item-shop-handlers", "server-mapitem-drop-lifecycle", "server-pk-drop-system", "client-item-structs", "client-inventory-handling"],
     codeSummary: "ProtocolCore (Protocol.cpp) roteia C1:22-26/32-34 para CItemManager (get/drop/move/use/buy/sell/repair) usando structs CItem/ITEM_INFO; o cliente mantém ITEM e PRECEIVE_INVENTORY para refletir o inventário e renderizar itens/viewport.",
     ue57Summary: "Mapear get/drop/move/use/buy/sell/repair para RPCs Server em Character/InventoryComponent, usar `FItemData` replicado, atores `AWorldItem` para drops e Widgets para UI; marcar campos ausentes com 'NÃO DÁ PARA INFERIR COM SEGURANÇA COM BASE NO CÓDIGO-FONTE C++'."
   },
@@ -1155,7 +1188,7 @@ const ueSystems = [
     id: "inventory-system",
     name: "Sistema de Inventory",
     status: "Encontrado",
-    mechanicsIds: ["server-protocolcore-dispatch", "server-character-list", "server-item-structs", "server-item-packet-structs", "server-item-attribute-loader", "server-380-item-type-map", "server-380-item-option", "server-item-handlers", "server-item-move-matrix", "server-chaos-event-muun-move", "server-item-require-checks", "server-item-move-allowlist", "server-item-stack-config", "server-item-option-rate", "server-lucky-item-options", "server-moss-merchant-gamble", "server-itembag-manager", "server-item-drop-config", "server-item-get-drop-conditions", "server-item-shop-handlers", "server-mapitem-drop-lifecycle", "client-inventory-handling", "client-item-structs"],
+    mechanicsIds: ["server-protocolcore-dispatch", "server-character-list", "server-item-structs", "server-item-packet-structs", "server-item-attribute-loader", "server-380-item-type-map", "server-380-item-option", "server-item-handlers", "server-item-move-matrix", "server-chaos-event-muun-move", "server-item-require-checks", "server-item-move-allowlist", "server-item-stack-config", "server-item-option-rate", "server-lucky-item-options", "server-moss-merchant-gamble", "server-jewel-mix", "server-itembag-manager", "server-item-drop-config", "server-item-get-drop-conditions", "server-item-shop-handlers", "server-mapitem-drop-lifecycle", "client-inventory-handling", "client-item-structs"],
     codeSummary: "DGCharacterListRecv carrega slots iniciais enquanto CItemManager move/usa/compra/vende/repara itens entre inventário/equipamentos/warehouse/chaos; no cliente, ReceiveInventory/ReceiveGetItem/ReceiveDropItem/ReceiveTradeInventory sincronizam g_pMyInventory, MixInventory e lojas.",
     ue57Summary: "Replicar arrays de inventário/equipamento e saldos em componente anexado ao Character/PlayerState, criar RPCs para transferir/loja/reparar itens e usar hooks OnRep para atualizar UI; validar tamanho e contêiner conforme limites de Item.h e registrar 'NÃO DÁ PARA INFERIR COM SEGURANÇA COM BASE NO CÓDIGO-FONTE C++' quando regras faltarem."
   },
@@ -1293,6 +1326,15 @@ const roadmap = [
     description: "Carregar tabelas de Rate 0-6 em DataTables UE e validar pesos antes de usá-las em drop/loja, replicando o fluxo de CItemOptionRate::Load/GetItemOption*.",
     basedOnCode: true,
     notes: "Baseado diretamente no código C++ (ItemOptionRate.cpp linhas 33-132 e 140-205)."
+  },
+  {
+    id: "roadmap-jewel-mix-flow",
+    horizon: "Curto Prazo",
+    priority: "Alta",
+    mechanicsIds: ["server-jewel-mix"],
+    description: "Migrar mix/unmix de jewels para RPCs UE validando ChaosLock, contagem de jewels, custos e slots livres antes de criar bundles ou dividir stacks.",
+    basedOnCode: true,
+    notes: "Baseado diretamente no código C++ (JewelMix.cpp linhas 31-210 e 253-401; JewelMix.h linhas 8-47; Protocol.cpp linhas 523-536)."
   },
   {
     id: "roadmap-380-type-mapping",
