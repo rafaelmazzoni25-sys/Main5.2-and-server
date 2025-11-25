@@ -1598,6 +1598,45 @@ const ueGuides = {
       "9. Integre persistência chamando `ServerSaveMuunInventory` ao salvar personagem ou desconectar; a implementação pode escrever em SaveGame ou serviço backend em vez de DataServer. Se não houver detalhes de persistência no código além das mensagens C2:27, anote como 'SUGESTÃO GENÉRICA, NÃO DIRETAMENTE INFERIDA DO CÓDIGO-FONTE C++'.",
       "10. Ordem cronológica sugerida: (a) criar DataTables e structs, (b) adicionar arrays replicados e constantes de tamanho, (c) implementar RPCs pickup/use/sell, (d) adicionar tick de aplicação de opções e multicast visual, (e) integrar UI UMG, (f) adicionar salvamento/restore. Quando alguma ordem não puder ser deduzida, documente com a frase padrão."
     ]
+  },
+
+  "client-inventory-handling": {
+    title: "Sincronizar inventário no cliente usando replicação UE 5.7 (ordem cronológica)",
+    steps: [
+      "1. Após criar `UInventoryComponent` replicado, adicione `UPROPERTY(ReplicatedUsing=OnRep_Inventory)` `TArray<FItemData> InventorySlots` do tamanho de INVENTORY_FULL_RANGE e implemente `OnRep_Inventory` para reconstruir widgets sem usar buffers C1/C3/C4.",
+      "2. No PlayerController `ANetworkPC`, crie RPC `UFUNCTION(Client, Reliable)` `void ClientReceiveInventory(const TArray<FItemData>& Slots);` chamado pelo servidor após login/respawn para substituir PRECEIVE_INVENTORY (C4:F3:10). Atualize `InventorySlots` e invoque `OnRep_Inventory`.",
+      "3. Para remoção de item (equivalente a ReceiveDeleteInventory), declare RPC `UFUNCTION(Client, Reliable)` `void ClientDeleteInventorySlot(int32 Slot, uint8 Reason);` e, no componente, zere o slot e dispare UI/sons com base no Reason. Use enums em vez de cabeçalhos C1:28.",
+      "4. Para coleta/drop (ReceiveGetItem/ReceiveDropItem), reutilize os RPCs de item do guia `server-item-get-drop-conditions` e, no lado do cliente, aplique o delta em `InventorySlots` antes de tocar sons ou mensagens. Documente mensagens desconhecidas com a frase padrão.",
+      "5. Para inventário de trade/loja/mix, declare RPCs dedicados (ClientReliable) que entregam arrays já descriptografados, eliminando toda a lógica de SimpleModulus do WSclient. Preencha `TradeSlots`, `ShopSlots`, `MixSlots` replicados e chame `OnRep` em cada um.",
+      "6. No Widget de inventário (UMG), conecte `OnRep_Inventory` para reconstruir listas e meshes; para efeitos visuais no mapa (ReceiveCreateItemViewport), responda a `MulticastSpawnWorldItem` do servidor em vez de manipular buffers manualmente.",
+      "7. Teste em ordem: (a) login chama `ClientReceiveInventory`, (b) dropar item e receber `ClientDeleteInventorySlot`, (c) coletar item e receber atualização, (d) abrir trade/loja e verificar arrays específicos, (e) garantir que nenhum trecho dependa do sistema de packets legado."
+    ]
+  },
+
+  "server-harmony-options": {
+    title: "Aplicar Jewel of Harmony/Smelt/Elevation na UE 5.7 sem packets",
+    steps: [
+      "1. Após carregar serviços de item e sockets, crie DataTable `FHarmonyOptionRow` com campos de JEWEL_OF_HARMONY_OPTION_INFO (Section, Rate, ValueTable[7], MoneyTable[7]) e mapeie índices 0/1/2 para arma/staff/armadura. Carregue no GameInstance em BeginPlay.",
+      "2. No `UInventoryComponent`, declare RPC `UFUNCTION(Server, Reliable)` `void ServerApplyHarmony(int32 SourceSlot, int32 TargetSlot, uint8 Action);` onde Action=0 aplica Harmony, 1 aplica SmeltStone, 2 aplica Jewel of Elevation. Valide Authority, item em ambos slots e bloqueie Set/Lucky/Socket como no código; registre a frase padrão quando algum filtro não estiver claro.",
+      "3. Em ação 0 (AddJewelOfHarmonyOption), sorteie opção/tier usando `FHarmonyOptionRow` e `FRandomStream`, limite nível conforme m_HarmonySuccessRate[AccountLevel] e reconverta o item chamando helper `RebuildItemStats`. Atualize arrays replicados e envie `ClientHarmonyResult` (RPC Client) com sucesso/erro.",
+      "4. Em ação 1 (AddSmeltStoneOption), incremente nível até 13 conforme taxas configuráveis (m_SmeltStoneSuccessRate1/2) e zere para nível base em falha; sempre marque OnRep no inventário e reavalie atributos do personagem. Documente taxas desconhecidas com a frase padrão.",
+      "5. Em ação 2 (AddJewelOfElevationOption), aplique Harmony em Lucky Items limitando nível a 13, reaproveitando o fluxo de sucesso/erro e a recalculação de CharSet/preview.",
+      "6. No Widget UMG de Harmony, crie botões 'Aplicar Harmony', 'Smelt' e 'Elevation'. No Event Graph, chame `ServerApplyHarmony` com Action apropriada e mostre feedback com base no retorno de `ClientHarmonyResult`. Garanta ordem cronológica: carregar DataTable → habilitar RPC → conectar UI.",
+      "7. Remova qualquer referência a DataSend/DataRecv/ProtocolCore; toda comunicação ocorre via RPCs e variáveis replicadas." 
+    ]
+  },
+
+  "server-item-stack-operations": {
+    title: "Empilhar/fundir itens replicados na UE (sequência passo a passo)",
+    steps: [
+      "1. Depois de definir `InventorySlots` replicados, adicione helpers `int32 GetMaxStack(int32 ItemIndex)` e `int32 GetCreateItemIndex(int32 ItemIndex)` consumindo DataTable equivalente a ItemStack.txt; retorne -1 e registre a frase padrão quando faltarem dados.",
+      "2. Crie RPC `UFUNCTION(Server, Reliable)` `void ServerStackItem(int32 SourceSlot, int32 TargetSlot);` validando Authority, existência de itens e compatibilidade de Index/Level/SocketBonus. Rejeite se Target estiver equipado ou se MaxStack<=0.",
+      "3. Ao empilhar, some `Quantity` (ou Durability para compatibilidade) até MaxStack; se exceder e `CreateItemIndex` estiver definido, gere um novo item com esse índice e remova a pilha original, replicando ambos os slots. Caso contrário, atualize a quantidade e, se zerar o Source, limpe o slot.",
+      "4. Para fusão em coleta (equivalente a InventoryInsertItemStack), reutilize o helper em `ServerRequestGetWorldItem` antes de inserir em slot vazio, respeitando MaxStack e criando item bônus quando aplicável.",
+      "5. Ao consumir itens por contagem (equivalente a DeleteInventoryItemCount), implemente função `bool ConsumeStackItem(int32 ItemIndex, int32 Count)` que percorre o inventário server-side, decrementa quantidades e replica alterações; retorne false quando faltar item e registre em log se alguma regra de exclusão não puder ser inferida.",
+      "6. Exponha BlueprintCallable `bool CanStackItem(const FItemData& A, const FItemData& B)` para UIs decidirem quando permitir arrastar sobre outro slot. Em widgets, use Branch para bloquear quando `CanStackItem` for falso ou quando MaxStack já estiver atingido.",
+      "7. Teste cronologicamente: (a) carregar DataTable de stack, (b) empilhar manualmente via UI, (c) coletar itens que autoempilham, (d) consumir pilhas para crafting/compras, (e) verificar criação automática de item bônus, sempre sem packets legados." 
+    ]
   }
 
 };
