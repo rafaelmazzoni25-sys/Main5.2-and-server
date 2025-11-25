@@ -178,6 +178,17 @@ const mechanics = [
     description: "Gerencia reconexão para map server diferente após login, persistindo dados de servidor e ID do herói, disponibilizando getters e reinicializando estado local antes de enviar a troca."
   },
   {
+    id: "client-quest-reception",
+    name: "Recepção e aplicação de estados de Quest",
+    type: "Cliente",
+    files: ["WSclient.cpp", "CSQuest.h", "QuestMng.h"],
+    classes: ["CQuestMng"],
+    functions: ["ReceiveQuestHistory", "ReceiveQuestState", "ReceiveQuestResult", "ReceiveQuestPrize", "ReceiveEventCount"],
+    networkDetails: "Sistema de packets do projeto original: funções chamadas pelo dispatcher tratam buffers com estados/conclusões de quest, recompensas e contagem de evento.",
+    flow: "ReceiveQuestHistory lê m_byQuest/m_byCount e chama g_csQuest.setQuestLists usando a classe do herói; ReceiveQuestState atualiza uma quest individual e força exibição da interface NPCQUEST; ReceiveQuestResult atualiza estado quando m_byResult==0; ReceiveQuestPrize trata recompensas (level up points ou mudança de classe) disparando efeitos/sons e valida classe via ChangeServerClassTypeToClientClassType; ReceiveEventCount apenas encaminha m_wEventType/m_wLeftEnterCount para g_csQuest.SetEventCount.",
+    description: "Atualiza listas/estados de quest e recompensa o jogador com pontos ou mudança de classe, disparando UI e efeitos locais; na adaptação UE 5.7, esses fluxos devem ser convertidos para RPCs/replicação em vez de buffers C1/C3/C4."
+  },
+  {
     id: "buff-script-load",
     name: "Carga e descriptografia de BuffEffect_*.bmd",
     type: "Cliente",
@@ -1725,6 +1736,14 @@ const ueSystems = [
     ue57Summary: "NÃO DÁ PARA INFERIR COM SEGURANÇA COM BASE NO CÓDIGO-FONTE C++"
   },
   {
+    id: "quest-system",
+    name: "Sistema de Quests",
+    status: "Encontrado",
+    mechanicsIds: ["client-quest-reception"],
+    codeSummary: "WSclient.cpp recebe histórico, estado, resultado e recompensa de quest, atualiza g_csQuest e dispara UI/efeitos locais para pontos e mudança de classe.",
+    ue57Summary: "Replicar arrays de quest em componente de PlayerState, expor RPCs Server/Client para atualizar estados e recompensas e abrir widgets UMG; substituir mensagens C1/C3/C4 por replicação e Multicast para efeitos visuais."
+  },
+  {
     id: "appearance-by-items",
     name: "Mudanças de Aparência por Items nos Slots",
     status: "NaoEncontrado",
@@ -1896,6 +1915,24 @@ const roadmap = [
     description: "Migrar fusão/consumo de pilhas e criação de item bônus para RPCs UE, substituindo GCItemDurSend/GCItemDeleteSend/GDCreateItemSend por replicação e factories locais.",
     basedOnCode: true,
     notes: "Baseado diretamente no código C++ (ItemManager.cpp linhas 1188-1305 e 1916-1945; ItemStack.cpp linhas 26-103)."
+  },
+  {
+    id: "roadmap-quest-rpc-migration",
+    horizon: "Curto Prazo",
+    priority: "Alta",
+    mechanicsIds: ["client-quest-reception"],
+    description: "Transformar ReceiveQuestHistory/State/Result/Prize/EventCount em RPCs UE 5.7, replicando arrays de quest e recompensas sem usar buffers C1/C3/C4.",
+    basedOnCode: true,
+    notes: "Baseado diretamente no código C++ (WSclient.cpp linhas 9529-9606)."
+  },
+  {
+    id: "roadmap-quest-ui-sync",
+    horizon: "Médio Prazo",
+    priority: "Média",
+    mechanicsIds: ["client-quest-reception"],
+    description: "Recriar interface NPCQUEST em UMG com sequências cronológicas: replicar estados, abrir a tela ao receber RPC de quest, aplicar recompensas (pontos/classe) e efeitos com Multicast.",
+    basedOnCode: true,
+    notes: "Baseado diretamente no código C++ (WSclient.cpp linhas 9529-9606)."
   },
   {
     id: "roadmap-pentagram-rpc-migration",
