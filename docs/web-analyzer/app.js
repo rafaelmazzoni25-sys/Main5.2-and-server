@@ -1831,6 +1831,48 @@ const pipelines = [
     scope: "Reescrita completa em C++/Blueprint com servidor SQL dedicado",
     summary: "Passo a passo exaustivo com nomes de funções, variáveis e nós de Blueprint para guiar a migração do código C++ legado para o pipeline UE5 com SQL, cobrindo UI/UX, cliente, servidor e observabilidade.",
     tags: ["Trilha UE5 SQL", "Blueprint", "C++", "Servidor", "Cliente"],
+    drilldowns: [
+      {
+        title: "Autenticação e sessão (C++)",
+        badge: "Servidor/C++",
+        steps: [
+          "Substitua `SendCheckOnline`/`CLIENT_LIVE_CLIENT` por `UFUNCTION(Server, Reliable) void ServerPingAuth(const FString& RequestId);` no `ANetworkPC`. No `AGameModeBase`, chame `Subsystem->ExecuteLogin(Login, PasswordHash, OutAccount)` e valide retorno antes de `ClientReceiveCharacterList`.",
+          "Implemente `bool UBackendPersistenceSubsystem::ExecuteLogin(const FString& Login, const FString& PasswordHash, FAccountRow& OutAccount)` usando `StatementCatalog.FindChecked(\"LoginAccount\")` + `ExecutePrepared`. Defina variáveis locais `FSQLNamedParam LoginParam{TEXT(\"Login\"), Login}; FSQLNamedParam PasswordParam{TEXT(\"PasswordHash\"), PasswordHash};`.",
+          "No PlayerController, mantenha `UPROPERTY(ReplicatedUsing=OnRep_PersistenceState) EPersistenceState PersistenceState` e `FString PendingLogin`. `ServerSubmitAccount` define `PendingLogin=Login; bAuthPending=true;` e loga `UE_LOG(LogUXTrace, Log, TEXT(\"ServerSubmitAccount|%s\"), *Login);`.",
+          "Ao concluir login, `ClientAuthFailed(int32 ErrorCode)` deve chamar `ResetSyncStates()` (BlueprintCallable) e usar `LastErrorCode = ErrorCode; OnRep_PersistenceState();` para atualizar HUD."
+        ]
+      },
+      {
+        title: "Lista de personagens e spawn (C++)",
+        badge: "Servidor/C++",
+        steps: [
+          "Crie `UFUNCTION(Server, Reliable)` `void ServerRequestCharacterList(const FGuid& AccountId);` em `ANetworkPC`. Em `ServerRequestCharacterList`, obtenha subsystem: `auto* Persistence = GetGameInstance()->GetSubsystem<UBackendPersistenceSubsystem>();` e chame `ExecuteCharacterList(AccountId, OutRows)`.",
+          "Mapeie structs: `USTRUCT(BlueprintType) FCharacterSummary { GENERATED_BODY() UPROPERTY() FGuid AccountId; UPROPERTY() int32 Slot; UPROPERTY() FString Name; UPROPERTY() uint8 Class; UPROPERTY() uint16 Level; };` Use `OutRows` para preencher `TArray<FCharacterSummary> Summaries` e chame `ClientReceiveCharacterList(Summaries)` apenas após `Commit`.",
+          "No `AGameModeBase`, exponha `HandleCharacterSelected(ANetworkPC* PC, const FCharacterSummary& Summary)` que instancia `APawn` com `SpawnTransform` vindo de `Summary` ou fallback configurado. Atualize `PlayerState` replicado (`SelectedSlot`, `SelectedName`).",
+          "Instrumente caminho feliz/falha: `UE_LOG(LogSQL, Display, TEXT(\"FetchCharacterList|Account=%s|Count=%d\"), *AccountId.ToString(), OutRows.Num());` e `UE_LOG(LogSQL, Warning, TEXT(\"FetchCharacterListFailed|Account=%s|Code=%d\"), *AccountId.ToString(), ErrorCode);`."
+        ]
+      },
+      {
+        title: "Snapshot, inventário e quests (C++)",
+        badge: "Servidor/C++",
+        steps: [
+          "Declare `UFUNCTION(Server, Reliable)` `void ServerSaveSnapshot(const FSnapshotPersist& Snapshot);` e `UFUNCTION(Client, Reliable)` `void ClientSaveResult(bool bSuccess, int32 ErrorCode);`. `FSnapshotPersist` inclui `FGuid AccountId; TArray<FItemData> Inventory; TArray<uint8> QuestStates; int64 Gold;`.",
+          "No subsystem, implemente `bool ExecuteSaveSnapshot(const FSnapshotPersist& Snapshot)` chamando `BeginTransaction()`, `ExecutePrepared(\"SaveSnapshot\", Params, Rows)`, `Commit()`; se falhar, `Rollback()` e retorne falso. Defina `Params` com `FSQLNamedParam(TEXT(\"Inventory\"), Snapshot.Inventory)` etc.",
+          "Em caso de erro, `ClientSaveResult(false, ErrorCode)` deve manter `bSavePending=false; PersistenceState=EPersistenceState::Error; CachedSnapshot=Snapshot;` para permitir reenvio. Em sucesso, `PersistenceState=Synced; LastErrorCode=0;` e `OnRep_PersistenceState()` atualiza UI.",
+          "Adicione teste de regressão em C++: `IMPLEMENT_SIMPLE_AUTOMATION_TEST(FSqlSnapshotRoundtrip, \"SQL.Snapshot.Roundtrip\", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)` que cria Snapshot fake, chama `ExecuteSaveSnapshot`, depois `ExecuteLoadSnapshot` (se existir) e verifica contagem de itens/quests." 
+        ]
+      },
+      {
+        title: "Blueprints UMG detalhados",
+        badge: "Blueprint/UI",
+        steps: [
+          "`WBP_Login`: adicionar TextBox `TxtLogin`, `TxtPassword`, variável `RequestId (Guid)` e botão `Login`. No Event Graph: `Sequence` → `Set Visibility` (esconde erro) → `Set bAuthPending=true` (PlayerController) → `ServerSubmitAccount(TxtLogin.Text, Hash(TxtPassword.Text))`. Use `Branch` para bloquear se `TxtLogin` vazio.",
+          "`WBP_CharacterList`: variável `Characters (Array of FCharacterSummary)` e `ListView` com Entry `WBP_CharacterEntry`. `OnCharacterListReceived` (Custom Event) → `ForEachLoop` preenchendo entries. Clique no entry chama `ServerRequestMapMove(Summary.Slot)` ou evento `OnCharacterChosen` para GameMode.",
+          "`WBP_Snapshot`: variáveis `CachedSnapshot`, `bSavePending`. Botão Salvar → `DoOnce` → `Gate` controlado por `bSavePending` → chama `ServerSaveSnapshot(CachedSnapshot)`. Resposta `ClientSaveResult` chama `Open Gate`, `Reset DoOnce`, `Set bSavePending=false`, `Set Visibility` do status.",
+          "HUD `WBP_StatusHud`: Binding para `PersistenceState` (`Select` → cores) e para métricas `PoolHealthy`, `PendingJobs`. Use nós `Set Brush From Texture`, `Format Text`, `Switch on EPersistenceState`, e `Set Timer by Event` para atualizar texto a cada 1s."
+        ]
+      }
+    ],
     procedures: [
       {
         title: "Leitura rápida antes de codar",
@@ -2907,6 +2949,37 @@ document.addEventListener('DOMContentLoaded', () => {
     `;
   }
 
+  function renderDrilldowns(drilldowns = []) {
+    if (!drilldowns.length) return '';
+    const cards = drilldowns
+      .map(drill => {
+        const steps = drill.steps.map(step => `<li>${step}</li>`).join('');
+        return `
+          <div class="drilldown-card">
+            <div class="d-flex justify-content-between align-items-center mb-2">
+              <div>
+                <div class="text-uppercase small text-muted">${drill.badge || 'Detalhamento'}</div>
+                <h4 class="h6 mb-0">${drill.title}</h4>
+              </div>
+              <span class="badge text-bg-primary">Código/Blueprint</span>
+            </div>
+            <ol class="step-list small mb-0">${steps}</ol>
+          </div>
+        `;
+      })
+      .join('');
+
+    return `
+      <div class="drilldown-grid">
+        <div class="d-flex align-items-center gap-2 mb-2">
+          <span class="badge text-bg-secondary">Passo a passo por arquivo</span>
+          <span class="text-muted small">Funções, variáveis e nós de Blueprint listados em ordem de execução.</span>
+        </div>
+        ${cards}
+      </div>
+    `;
+  }
+
   function renderProcedures(procedures = []) {
     if (!procedures.length) return '';
     const cards = procedures
@@ -3001,6 +3074,7 @@ document.addEventListener('DOMContentLoaded', () => {
         <span class="badge text-bg-dark">Trilha SQL/UE5</span>
       </div>
       <p class="text-muted">${pipeline.summary}</p>
+      ${renderDrilldowns(pipeline.drilldowns)}
       ${renderProcedures(pipeline.procedures)}
       <div class="section-divider d-flex flex-wrap align-items-center gap-2">
         <span class="legend-pill"><span class="dot bg-primary"></span> UI/UX</span>
