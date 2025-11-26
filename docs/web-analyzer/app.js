@@ -1852,7 +1852,7 @@ const pipelines = [
     ],
     server: [
       "Criar `UBackendPersistenceSubsystem` no Dedicated Server com pool SQL configurável (string de conexão, tamanho do pool, timeout). Validar DDL/versionamento ao inicializar e registrar falha antes de aceitar players.",
-      "Implementar `ValidateCredentialsAsync`, `FetchCharacterListAsync` e `SaveSnapshotAsync` usando prepared statements e transações (`BEGIN/COMMIT/ROLLBACK`), executadas em `Async(EAsyncExecution::ThreadPool, ...)`.
+      "Implementar `ValidateCredentialsAsync`, `FetchCharacterListAsync` e `SaveSnapshotAsync` usando prepared statements e transações (`BEGIN/COMMIT/ROLLBACK`), executadas em `Async(EAsyncExecution::ThreadPool, ...)`.",
       "Só replicar `PlayerState`/inventário após `COMMIT`; em erro, retornar RPC Client com código e manter o estado local intacto. Bloquear qualquer chamada ao DataServer legado e remover dependências de DSProtocol.",
       "Instrumentar health check do pool (ping, contagem de conexões ativas) e logs de auditoria (quem gravou, tempo de query, resultado) para cada chamada do pipeline."
     ],
