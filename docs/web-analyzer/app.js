@@ -2393,6 +2393,15 @@ document.addEventListener('DOMContentLoaded', () => {
     return 'text-bg-secondary';
   }
 
+  function blueprintBadgeClass(status) {
+    if (!status) return 'text-bg-secondary';
+    const normalized = status.toLowerCase();
+    if (normalized.includes('coberto')) return 'text-bg-success';
+    if (normalized.includes('ajuste')) return 'text-bg-warning';
+    if (normalized.includes('sem blueprint')) return 'text-bg-danger';
+    return 'text-bg-secondary';
+  }
+
   function evaluateUeGuideQuality(mechanic) {
     if (!mechanic) {
       return {
@@ -2433,6 +2442,48 @@ document.addEventListener('DOMContentLoaded', () => {
     return {
       status: 'Guia UE detalhado',
       notes: 'Guia cobre replicação, RPCs, assets convertidos e teste em PIE para UE 5.7.'
+    };
+  }
+
+  function evaluateBlueprintAdaptation(mechanic) {
+    if (!mechanic) {
+      return {
+        status: 'Blueprint não avaliado',
+        notes: 'Selecione uma mecânica para inspecionar a cobertura de Blueprints e exposição de funções.'
+      };
+    }
+
+    const guide = ueGuides[mechanic.id];
+    if (!guide) {
+      return {
+        status: 'Guia UE sem Blueprint',
+        notes: 'Inclua passos com UFUNCTION BlueprintCallable/BlueprintPure, criação de Blueprints e ligação em UMG/Event Graph.'
+      };
+    }
+
+    const stepsText = guide.steps.join(' ').toLowerCase();
+    const mentionsBlueprint = stepsText.includes('blueprint');
+    const mentionsCallable = stepsText.includes('blueprintcallable') || stepsText.includes('blueprintpure');
+    const mentionsUmg = stepsText.includes('umg') || stepsText.includes('widget') || stepsText.includes('event graph');
+    const mentionsReplication = stepsText.includes('replic');
+    const mentionsRpc = stepsText.includes('rpc');
+
+    const missing = [];
+    if (!mentionsBlueprint) missing.push('Adicionar passos claros de criação/uso de Blueprints.');
+    if (!mentionsCallable) missing.push('Expor funções como BlueprintCallable/BlueprintPure.');
+    if (!mentionsUmg) missing.push('Documentar ligação em UMG/Event Graph.');
+    if (!mentionsReplication || !mentionsRpc) missing.push('Garantir que RPCs e flags de replicação estejam descritos para o uso em Blueprints.');
+
+    if (missing.length) {
+      return {
+        status: 'Blueprints requerem ajustes',
+        notes: `Faltam detalhes de adaptação: ${missing.join(' ')}`
+      };
+    }
+
+    return {
+      status: 'Blueprints cobertos',
+      notes: 'Guia descreve criação de Blueprints, exposição de funções, ligação em UMG/Event Graph e uso de RPCs/replicação.'
     };
   }
 
@@ -2484,6 +2535,20 @@ document.addEventListener('DOMContentLoaded', () => {
     return `
       <div class="mb-3">
         <div class="text-muted text-uppercase small mb-1">Revisão de guia Unreal Engine</div>
+        <div class="d-flex flex-wrap gap-2 align-items-center">
+          <span class="badge ${badgeClass} detail-badge">${status}</span>
+          <span class="text-muted-80 small">${notes}</span>
+        </div>
+      </div>
+    `;
+  }
+
+  function buildBlueprintBlock(mechanic) {
+    const { status, notes } = evaluateBlueprintAdaptation(mechanic);
+    const badgeClass = blueprintBadgeClass(status);
+    return `
+      <div class="mb-3">
+        <div class="text-muted text-uppercase small mb-1">Adaptação para Blueprints</div>
         <div class="d-flex flex-wrap gap-2 align-items-center">
           <span class="badge ${badgeClass} detail-badge">${status}</span>
           <span class="text-muted-80 small">${notes}</span>
@@ -2725,6 +2790,7 @@ document.addEventListener('DOMContentLoaded', () => {
       ${buildCoherenceBlock(m)}
       ${buildCompatibilityBlock(m)}
       ${buildUEReviewBlock(m)}
+      ${buildBlueprintBlock(m)}
       ${buildChronologyBlock(m)}
       ${buildFullPathBlock(m)}
       ${renderPillGroup('Arquivos', m.files)}
@@ -2779,6 +2845,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const compatClass = compatibilityBadgeClass(compatibility.status);
     const ueReview = evaluateUeGuideQuality(mechanic);
     const ueReviewClass = ueReviewBadgeClass(ueReview.status);
+    const blueprintReview = evaluateBlueprintAdaptation(mechanic);
+    const blueprintClass = blueprintBadgeClass(blueprintReview.status);
     guideContent.innerHTML = `
       <div class="d-flex justify-content-between align-items-start flex-wrap gap-2 mb-3">
         <div>
@@ -2799,6 +2867,13 @@ document.addEventListener('DOMContentLoaded', () => {
         <div class="d-flex flex-wrap gap-2 align-items-center">
           <span class="badge ${ueReviewClass} detail-badge">${ueReview.status}</span>
           <span class="text-muted-80 small">${ueReview.notes}</span>
+        </div>
+      </div>
+      <div class="mb-3">
+        <div class="text-muted text-uppercase small mb-1">Adaptação para Blueprints</div>
+        <div class="d-flex flex-wrap gap-2 align-items-center">
+          <span class="badge ${blueprintClass} detail-badge">${blueprintReview.status}</span>
+          <span class="text-muted-80 small">${blueprintReview.notes}</span>
         </div>
       </div>
       <ol class="list-group list-group-numbered list-group-flush">
