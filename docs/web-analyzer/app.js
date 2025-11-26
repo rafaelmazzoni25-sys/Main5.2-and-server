@@ -2393,6 +2393,15 @@ document.addEventListener('DOMContentLoaded', () => {
     return 'text-bg-secondary';
   }
 
+  function blueprintBadgeClass(status) {
+    if (!status) return 'text-bg-secondary';
+    const normalized = status.toLowerCase();
+    if (normalized.includes('coberto')) return 'text-bg-success';
+    if (normalized.includes('ajuste')) return 'text-bg-warning';
+    if (normalized.includes('sem blueprint')) return 'text-bg-danger';
+    return 'text-bg-secondary';
+  }
+
   function evaluateUeGuideQuality(mechanic) {
     if (!mechanic) {
       return {
@@ -2433,6 +2442,48 @@ document.addEventListener('DOMContentLoaded', () => {
     return {
       status: 'Guia UE detalhado',
       notes: 'Guia cobre replicação, RPCs, assets convertidos e teste em PIE para UE 5.7.'
+    };
+  }
+
+  function evaluateBlueprintAdaptation(mechanic) {
+    if (!mechanic) {
+      return {
+        status: 'Blueprint não avaliado',
+        notes: 'Selecione uma mecânica para inspecionar a cobertura de Blueprints e exposição de funções.'
+      };
+    }
+
+    const guide = ueGuides[mechanic.id];
+    if (!guide) {
+      return {
+        status: 'Guia UE sem Blueprint',
+        notes: 'Inclua passos com UFUNCTION BlueprintCallable/BlueprintPure, criação de Blueprints e ligação em UMG/Event Graph.'
+      };
+    }
+
+    const stepsText = guide.steps.join(' ').toLowerCase();
+    const mentionsBlueprint = stepsText.includes('blueprint');
+    const mentionsCallable = stepsText.includes('blueprintcallable') || stepsText.includes('blueprintpure');
+    const mentionsUmg = stepsText.includes('umg') || stepsText.includes('widget') || stepsText.includes('event graph');
+    const mentionsReplication = stepsText.includes('replic');
+    const mentionsRpc = stepsText.includes('rpc');
+
+    const missing = [];
+    if (!mentionsBlueprint) missing.push('Adicionar passos claros de criação/uso de Blueprints.');
+    if (!mentionsCallable) missing.push('Expor funções como BlueprintCallable/BlueprintPure.');
+    if (!mentionsUmg) missing.push('Documentar ligação em UMG/Event Graph.');
+    if (!mentionsReplication || !mentionsRpc) missing.push('Garantir que RPCs e flags de replicação estejam descritos para o uso em Blueprints.');
+
+    if (missing.length) {
+      return {
+        status: 'Blueprints requerem ajustes',
+        notes: `Faltam detalhes de adaptação: ${missing.join(' ')}`
+      };
+    }
+
+    return {
+      status: 'Blueprints cobertos',
+      notes: 'Guia descreve criação de Blueprints, exposição de funções, ligação em UMG/Event Graph e uso de RPCs/replicação.'
     };
   }
 
@@ -2484,6 +2535,20 @@ document.addEventListener('DOMContentLoaded', () => {
     return `
       <div class="mb-3">
         <div class="text-muted text-uppercase small mb-1">Revisão de guia Unreal Engine</div>
+        <div class="d-flex flex-wrap gap-2 align-items-center">
+          <span class="badge ${badgeClass} detail-badge">${status}</span>
+          <span class="text-muted-80 small">${notes}</span>
+        </div>
+      </div>
+    `;
+  }
+
+  function buildBlueprintBlock(mechanic) {
+    const { status, notes } = evaluateBlueprintAdaptation(mechanic);
+    const badgeClass = blueprintBadgeClass(status);
+    return `
+      <div class="mb-3">
+        <div class="text-muted text-uppercase small mb-1">Adaptação para Blueprints</div>
         <div class="d-flex flex-wrap gap-2 align-items-center">
           <span class="badge ${badgeClass} detail-badge">${status}</span>
           <span class="text-muted-80 small">${notes}</span>
@@ -2558,6 +2623,82 @@ document.addEventListener('DOMContentLoaded', () => {
   function resolveMechanicName(id) {
     const mech = mechanics.find(x => x.id === id);
     return mech ? mech.name : id;
+  }
+
+  function collectPrerequisites(mechanicId, visited = new Set()) {
+    if (visited.has(mechanicId)) return [];
+    visited.add(mechanicId);
+
+    const mech = mechanics.find(x => x.id === mechanicId);
+    if (!mech || !Array.isArray(mech.dependsOn)) return [];
+
+    return mech.dependsOn.flatMap(depId => {
+      const dep = mechanics.find(x => x.id === depId);
+      const ancestors = collectPrerequisites(depId, visited);
+      return dep ? [...ancestors, dep] : ancestors;
+    });
+  }
+
+  function collectDependents(mechanicId, visited = new Set()) {
+    if (visited.has(mechanicId)) return [];
+    visited.add(mechanicId);
+
+    const direct = mechanics.filter(
+      other => Array.isArray(other.dependsOn) && other.dependsOn.includes(mechanicId)
+    );
+
+    return direct.flatMap(dep => {
+      const children = collectDependents(dep.id, visited);
+      return [dep, ...children];
+    });
+  }
+
+  function sortByOrderThenName(a, b) {
+    const orderA = Number.isFinite(a.implementationOrder) ? a.implementationOrder : Number.MAX_SAFE_INTEGER;
+    const orderB = Number.isFinite(b.implementationOrder) ? b.implementationOrder : Number.MAX_SAFE_INTEGER;
+    if (orderA !== orderB) return orderA - orderB;
+    return a.name.localeCompare(b.name, 'pt');
+  }
+
+  function buildFullPathBlock(mechanic) {
+    const prerequisites = collectPrerequisites(mechanic.id);
+    const unlocks = collectDependents(mechanic.id);
+    const fullPath = [...prerequisites, mechanic, ...unlocks].filter(Boolean);
+
+    const unique = [];
+    const seen = new Set();
+    fullPath.forEach(entry => {
+      if (!seen.has(entry.id)) {
+        unique.push(entry);
+        seen.add(entry.id);
+      }
+    });
+
+    const ordered = unique.sort(sortByOrderThenName);
+
+    const listItems = ordered
+      .map((item, idx) => {
+        const orderLabel = Number.isFinite(item.implementationOrder)
+          ? `Etapa #${item.implementationOrder}`
+          : 'Sem ordem definida';
+        const positionLabel = `Posição ${idx + 1}/${ordered.length}`;
+        return `<li class="list-group-item d-flex justify-content-between align-items-start">
+          <div>
+            <div class="fw-semibold">${item.name}</div>
+            <div class="text-muted-80 small">${orderLabel}</div>
+          </div>
+          <span class="badge text-bg-secondary">${positionLabel}</span>
+        </li>`;
+      })
+      .join('');
+
+    return `
+      <div class="mb-3">
+        <div class="text-muted text-uppercase small mb-1">Caminho completo</div>
+        <p class="text-muted-80 small mb-2">Sequência consolidada de pré-requisitos e desbloqueios para seguir a implementação de ponta a ponta.</p>
+        <ol class="list-group list-group-numbered">${listItems || '<li class="list-group-item">Sem conexões registradas.</li>'}</ol>
+      </div>
+    `;
   }
 
   function buildChronologyBlock(mechanic) {
@@ -2649,7 +2790,9 @@ document.addEventListener('DOMContentLoaded', () => {
       ${buildCoherenceBlock(m)}
       ${buildCompatibilityBlock(m)}
       ${buildUEReviewBlock(m)}
+      ${buildBlueprintBlock(m)}
       ${buildChronologyBlock(m)}
+      ${buildFullPathBlock(m)}
       ${renderPillGroup('Arquivos', m.files)}
       ${renderPillGroup('Classes', m.classes)}
       ${renderPillGroup('Funções', m.functions)}
@@ -2702,6 +2845,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const compatClass = compatibilityBadgeClass(compatibility.status);
     const ueReview = evaluateUeGuideQuality(mechanic);
     const ueReviewClass = ueReviewBadgeClass(ueReview.status);
+    const blueprintReview = evaluateBlueprintAdaptation(mechanic);
+    const blueprintClass = blueprintBadgeClass(blueprintReview.status);
     guideContent.innerHTML = `
       <div class="d-flex justify-content-between align-items-start flex-wrap gap-2 mb-3">
         <div>
@@ -2722,6 +2867,13 @@ document.addEventListener('DOMContentLoaded', () => {
         <div class="d-flex flex-wrap gap-2 align-items-center">
           <span class="badge ${ueReviewClass} detail-badge">${ueReview.status}</span>
           <span class="text-muted-80 small">${ueReview.notes}</span>
+        </div>
+      </div>
+      <div class="mb-3">
+        <div class="text-muted text-uppercase small mb-1">Adaptação para Blueprints</div>
+        <div class="d-flex flex-wrap gap-2 align-items-center">
+          <span class="badge ${blueprintClass} detail-badge">${blueprintReview.status}</span>
+          <span class="text-muted-80 small">${blueprintReview.notes}</span>
         </div>
       </div>
       <ol class="list-group list-group-numbered list-group-flush">
