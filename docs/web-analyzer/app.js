@@ -281,6 +281,32 @@ const mechanics = [
     description: "Orquestra a camada de transporte moderna do servidor, encaminhando cada ProtocolHead para a lógica de jogo depois de validar e reconstruir o buffer recebido."
   },
   {
+    id: "server-database-integration",
+    name: "Integração e persistência em banco de dados (UE 5)",
+    type: "Servidor",
+    coherenceStatus: "Requer recriação completa do servidor na UE com banco SQL",
+    coherenceNotes: "Substitui DataServer/DSProtocol por um servidor interno Unreal conectado diretamente a um banco SQL (ex.: PostgreSQL/MySQL/SQL Server) via plugin/ODBC; usa subsistemas UE para orquestrar conexões, pool e jobs assíncronos sem bloquear a Game Thread.",
+    files: ["DSProtocol.cpp", "Protocol.cpp"],
+    classes: ["ProtocolCore"],
+    functions: ["DGCharacterListRecv", "DGWarehouseItemRecv", "DGMapServerMoveRecv", "GDSave..."],
+    networkDetails: "No código legado, DataServer trafega listas de personagem, warehouse, Muun, quests, moedas e save completo. Na UE 5, a persistência passa a usar acesso direto a banco SQL a partir do servidor Unreal (sem DataServer), com prepared statements e transações para cada domínio (login, inventário, quest, warehouse).",
+    flow: "Hoje, ProtocolCore recebe respostas do DataServer (DGCharacterListRecv/DGWarehouseItemRecv) após CGCharacterListRecv/CGWarehouseMoneyRecv e handlers de save (GDSaveWarehouseItemSend, GDSavePlayerInventory). Para UE 5, o servidor deve ser refeito nativamente: (1) inicializar pool de conexões SQL em um Subsystem na startup do Dedicated Server, (2) coletar snapshots de PlayerState/Inventory/Quest em structs serializáveis, (3) disparar queries parametrizadas em tarefas `Async(EAsyncExecution::ThreadPool, ...)` usando o pool, (4) consolidar resultados no Game Thread via callback, aplicando no GameMode/PlayerState e replicando somente após `Commit`, (5) remover totalmente DataSend/DataRecv/DSProtocol e operar apenas com RPCs Unreal entre servidor e clientes após o sucesso das transações SQL.",
+    description: "Mapa dos pontos que dependem de banco de dados (lista de personagens, warehouse, inventário, Muun, quests, moedas, saves) e orientação para reconstruir o servidor na UE com acesso SQL direto (prepared statements, transações e pool), evitando qualquer camada DataServer e garantindo que nada bloqueie a Game Thread."
+  },
+  {
+    id: "ue-end-to-end-sql-flow",
+    name: "Caminho UE5: UI/UX → Cliente → Servidor SQL",
+    type: "Guia UE5",
+    coherenceStatus: "Recomendado",
+    coherenceNotes: "Define uma trilha única para times: prototipar UI/UX em UMG/Blueprints, chamar RPCs do cliente, processar no servidor dedicado com SQL e devolver estados replicados, eliminando qualquer tráfego DataSend/DataRecv/DSProtocol.",
+    implementationOrder: 27,
+    files: ["docs/web-analyzer/app.js"],
+    classes: ["UBackendPersistenceSubsystem", "ANetworkPC", "AUEProtocolRouter"],
+    functions: ["ServerSubmitAccount", "ClientReceiveCharacterList", "QueueSaveJob"],
+    networkDetails: "Cliente UE 5.7 usa RPCs Reliable/Unreliable para interagir com o servidor dedicado; o servidor executa queries SQL preparadas antes de replicar estados (PlayerState/Inventory). Nenhuma chamada DataSend/DataRecv aparece nesse fluxo.",
+    flow: "(1) Designer cria widgets UMG com estados de carregamento/erro e binds em Blueprint para eventos `OnCharacterListReceived` e `OnSaveCompleted`; (2) PlayerController chama `ServerSubmitAccount`/`ServerRequestCharacterList`; (3) GameMode encaminha para `UBackendPersistenceSubsystem`, que abre conexão do pool e roda SELECT/UPDATE em `Async(EAsyncExecution::ThreadPool)`; (4) ao concluir, callbacks voltam à Game Thread, atualizam componentes replicados e disparam `ClientReceiveCharacterList`/`ClientSaveResult`; (5) OnRep no cliente atualiza UI com feedback de sucesso/falha e animações; (6) métricas/erros são logados e exibidos em um painel UMG de status do servidor."
+  },
+  {
     id: "server-login-auth",
     name: "Handshake de conexão e autenticação do servidor",
     type: "Servidor",
@@ -1209,7 +1235,45 @@ const ueGuides = {
       "3. No `.cpp`, registre um mapa `TMap<uint8, TFunction<void(const TArray<uint8>&)>>` que associa cada head/subcódigo a um delegate forte; em `Initialize`, preencha os delegates chamando funções tipadas em vez de parsing manual de bytes.",
       "4. Para notificações ao cliente, declare `UFUNCTION(Client, Reliable)` como `void ClientReceiveWarehouseItems(const FWarehousePayload& Data);` ou `ClientReceiveQuestKill(const FQuestKillData& Data);` e chame-as nos handlers, substituindo o envio de buffers gWarehouse/DGQuestKillCountRecv.",
       "5. Se alguma estrutura de retorno não puder ser inferida do código original, inclua na implementação um `UE_LOG` com a mensagem 'NÃO DÁ PARA INFERIR COM SEGURANÇA COM BASE NO CÓDIGO-FONTE C++' e bloqueie a chamada até obter especificação.",
-      "6. Em **Edit → Project Settings → Maps & Modes**, marque o GameMode para usar este subsistema (via `GetGameInstance()->GetSubsystem<UDataBackendRouter>()`) ao iniciar a sessão e teste em PIE chamando manualmente os handlers para ver as notificações Client." 
+      "6. Em **Edit → Project Settings → Maps & Modes**, marque o GameMode para usar este subsistema (via `GetGameInstance()->GetSubsystem<UDataBackendRouter>()`) ao iniciar a sessão e teste em PIE chamando manualmente os handlers para ver as notificações Client."
+    ]
+  },
+  "server-database-integration": {
+    title: "Persistir dados com servidor UE 5 dedicado conectado a banco SQL",
+    steps: [
+      "1. Crie um **GameInstance Subsystem** `UBackendPersistenceSubsystem` no Dedicated Server UE 5.7 exclusivamente para banco SQL; declare `UPROPERTY()` para string de conexão, tamanho do pool e tempo de timeout. Inicialize o pool de conexões (ODBC/plug-in específico) em `Initialize(FSubsystemCollectionBase&)` e registre logs caso a conexão falhe.",
+      "2. Modele `USTRUCT(BlueprintType)` para cada payload que antes vinha do DataServer (ex.: `FCharacterListPayload`, `FWarehouseSnapshot`, `FQuestStatePayload`, `FMuunInventoryPayload`, `FWalletSnapshot`) incluindo campos de versão/revisão e hashes para detecção de conflito. Cada payload deve ser convertido para parâmetros de query SQL (prepared statements).",
+      "3. Documente o **schema SQL** dentro do projeto (SQL DDL) para tabelas de conta, personagens, inventário, warehouse, quest, moedas e Muun, incluindo índices e constraints de FK; carregue esse arquivo no subsistema e rode um sanity check para validar versão de schema na inicialização (ex.: `SchemaVersion=2024.10`).",
+      "4. Para leitura (login/map move), exponha `UFUNCTION(Server, Reliable)` como `void ServerRequestCharacterList(ANetworkPC* PC);` que chama `UBackendPersistenceSubsystem::FetchCharacterListAsync(AccountId, Callback)`. No subsistema, abra conexão do pool e execute SELECT parametrizado em `Async(EAsyncExecution::ThreadPool, ...)`; volte ao Game Thread via `AsyncTask(ENamedThreads::GameThread, ...)` antes de tocar no `PC`.",
+      "5. Para salvamento, implemente `QueueSaveJob(const FPlayerSnapshot& Snapshot)` com `TQueue<FSaveJob>` contendo SQL parametrizado (BEGIN/COMMIT). Dispare jobs em timer dedicado ou em logout/map move; se `Execute()` retornar erro, registre `NÃO DÁ PARA INFERIR COM SEGURANÇA COM BASE NO CÓDIGO-FONTE C++` e devolva RPC de falha ao cliente.",
+      "6. No GameMode/PlayerState, injete o subsistema (`GetGameInstance()->GetSubsystem<UBackendPersistenceSubsystem>()`) e só envie RPCs ao cliente (ex.: `ClientReceiveWarehouse`) depois que a transação SQL confirmar. Em falha, reverta alterações locais e comunique o cliente com código de erro replicado.",
+      "7. Para transações críticas (reset, mix, loja, trade), agregue tudo em `FPlayerSnapshot`, abra transação SQL com lock otimista/pessimista conforme o banco e mantenha estado travado na memória até `Commit`. Em `Rollback`, restaure valores replicados e registre motivo.",
+      "8. Construa **consultas preparadas** para cada domínio (login, personagem, inventário, quest, warehouse) evitando concatenação de strings; valide tipos/limites antes do bind e garanta que nenhum RPC seja respondido antes de `Commit`.",
+      "9. Adicione **saúde de pool**: ping periódico ou `SELECT 1` em cada conexão, timeout configurável e fallback de reabertura; logue e marque o servidor como `Degraded` se o pool estiver indisponível e bloqueie logins até recuperar.",
+      "10. Registre auditoria de erros e acessos sensíveis (reset, mix, trade) em tabela específica com timestamp/AccountId/IP; em casos de dados faltantes, escreva a frase padrão de não inferência e interrompa o fluxo.",
+      "11. Remova qualquer chamada direta a DataSend/DataRecv/DSProtocol: toda persistência passa pelo subsistema SQL e só replica para os clientes quando a transação for confirmada. Documente scripts de criação de tabela/índices no subsistema e carregue-os na inicialização para garantir compatibilidade do schema.",
+      "12. Cubra toda a estrutura SQL com DDL versionada: tabelas de Account, Personagem, Inventário, Warehouse, Quest, Guild/Party, Wallet e Logs devem declarar PK/FK, `CHECK` para limites (ex.: Zen >=0), índices únicos para AccountId/CharName, e `ON DELETE/UPDATE` explícitos. Mantenha os arquivos `.sql` dentro de `/Content/Database/Schema` e valide hash/versão em runtime.",
+      "13. Adicione pipeline de migração/semente: scripts `VXXXXXX__*.sql` aplicados sequencialmente, com seeding mínimo (ex.: itens iniciais, classes habilitadas, níveis de acesso). Falhando qualquer migração, o subsistema deve marcar o servidor como `Degraded` e impedir logins até regularização.",
+      "14. Para integridade referencial, habilite transações que atualizam múltiplos domínios (ex.: remover personagem → limpar inventário/quests/warehouse) usando `FOREIGN KEY ... ON DELETE CASCADE` ou jobs agrupados; valide contagens após `Commit` e, em divergência, execute rollback com log detalhado.",
+      "15. Inclua hardening operacional: crie usuário de banco exclusivo com permissões mínimas (`SELECT/INSERT/UPDATE/DELETE` nas tabelas do jogo), force TLS na conexão, habilite retry/backoff para timeouts e exponha métricas (latência de query, filas de jobs, falhas de pool) via `UBackendPersistenceSubsystem` para monitoramento.",
+      "16. Varra todo o código C++ do projeto legado (`Source MuServer Update 15/GameServer/*.cpp` e `DataServer/*.cpp`) onde há `gDataServerConnection.DataSend`, `DataServerProtocolCore`, `DataServerConnect/MsgProc/Reconnect` e substitua cada chamada por métodos do `UBackendPersistenceSubsystem`. Mapeie os domínios citados (LuckyItem.cpp, Warehouse.cpp, QuestWorld.cpp, PcPoint.cpp, CommandManager.cpp, MuRummy.cpp, GuildMatching.cpp, CastleSiege.cpp, GensSystem.cpp, Helper.cpp, LuckyCoin.cpp, ReiDoMU.cpp e demais) para funções explícitas do subsistema, registrando em comentário a remoção definitiva de DSProtocol/DataSend.",
+      "17. Para cada struct de packet declarada em `ESProtocol.h`, `Helper.h`, `GensSystem.h`, `PcPoint.h`, `PartyMatching.h` e equivalentes no DataServer (`EventInventory.h`, `LuckyItem.h`, `MasterSkillTree.h`, `PersonalShop.h`, `Quest.h`, `Warehouse.h`), crie USTRUCTs equivalentes no servidor UE e converta as rotinas C++ em chamadas SQL parametrizadas. Os handlers devem logar a frase padrão se faltarem campos e nunca trafegar bytes crus entre servidores.",
+      "18. Remova qualquer dependência do projeto DataServer legado (vcxproj, includes e binários). Em seu lugar, registre um manifesto de inicialização no `UBackendPersistenceSubsystem` listando todas as tabelas/consultas obrigatórias por domínio (character list, warehouse, Muun, quests, guild, eventos como Castle Siege/Gens/ReiDoMU), e bloqueie o GameMode se algum domínio não estiver registrado ou se faltar DDL correspondente.",
+      "19. Adicione testes manuais/automáticos em PIE que cubram cada chamada migrada (ex.: salvar warehouse, quests, PcPoint, LuckyItem, CommandManager reset/ban, MuRummy, GuildMatching, CastleSiege, GensSystem, PartyMatching). Cada teste deve simular a operação, verificar `COMMIT`/rollback no log do subsistema e confirmar que nenhum `DataSend/DataRecv` é executado durante o fluxo.",
+      "20. Se algum handler original depender de lógica de negócio não reproduzida no código (por exemplo, cálculos internos do DataServer), registre `NÃO DÁ PARA INFERIR COM SEGURANÇA COM BASE NO CÓDIGO-FONTE C++` e impeça a execução até que a especificação seja obtida, mantendo a consistência transacional e de integridade dos dados."
+    ]
+  },
+  "ue-end-to-end-sql-flow": {
+    title: "UI/UX clara e integração Cliente ↔ Servidor SQL na UE 5.7",
+    steps: [
+      "1. No Editor, crie um **Widget Blueprint** `WBP_LoginAndState` com telas de Loading, Erro e Sucesso; adicione eventos `OnAccountSubmitted`, `OnCharacterListReceived`, `OnSaveCompleted` expostos via `BlueprintAssignable` no PlayerController para que designers conectem animações/sons sem tocar em C++.",
+      "2. No PlayerController `ANetworkPC`, declare `UFUNCTION(Server, Reliable)` `void ServerSubmitAccount(const FString& Account, const FString& Password);` e `UFUNCTION(Server, Reliable)` `void ServerRequestCharacterList();`. No Event Graph do widget, chame essas funções e troque o estado visual para Loading enquanto aguarda resposta.",
+      "3. No GameMode `AUEProtocolRouter`, injete `UBackendPersistenceSubsystem` e, ao receber `ServerSubmitAccount`, execute `ValidateCredentialsAsync` no pool de conexões. Em caso de erro, use `ClientAuthFailed` (RPC Client) para atualizar a UI com motivo; em sucesso, avance para `ServerRequestCharacterList`.",
+      "4. Em `UBackendPersistenceSubsystem`, exponha BlueprintCallable `void FetchCharacterListAsync(const FString& Account);` e `void SavePlayerSnapshotAsync(const FPlayerSnapshot& Snapshot);` que retornam via delegates `FOnCharactersFetched` e `FOnSaveFinished`. Garanta que a thread pool sempre retorne ao Game Thread antes de disparar delegates.",
+      "5. No PlayerController, implemente `UFUNCTION(Client, Reliable)` `void ClientReceiveCharacterList(const TArray<FCharacterSummary>& Characters);` e `void ClientSaveResult(bool bSuccess, const FString& Error);` chamando eventos `OnCharacterListReceived` e `OnSaveCompleted` do widget para habilitar/desabilitar botões, mostrar grid de personagens e mensagens de sucesso/erro.",
+      "6. No Character/Inventory components, coloque flags visuais replicadas (por exemplo, `UPROPERTY(ReplicatedUsing=OnRep_PersistenceState) EPersistenceState PersistenceState`) para dirigir feedback de UI (ícones de sincronização, tooltips de erro). `OnRep` deve chamar widgets para atualizar ícones de Sync/Erro.",
+      "7. Para integração cliente-servidor, defina uma ordem de testes: (a) iniciar servidor dedicado com pool SQL ativo; (b) abrir dois clientes PIE, submeter conta, verificar tela de loading/erro; (c) receber lista de personagens e atualizar UI; (d) executar uma ação que salva snapshot e confirmar que o estado retorna ao cliente com `ClientSaveResult` antes de qualquer alteração replicada.",
+      "8. Documente no README interno do time de UI a lista de RPCs disponíveis (SubmitAccount, RequestCharacterList, SaveSnapshot) e os eventos de Blueprint a serem usados, reforçando que toda comunicação passa por RPC e transações SQL confirmadas, sem uso de DataSend/DataRecv/DSProtocol."
     ]
   },
   "server-joinserver-auth-move": {
@@ -1760,6 +1824,363 @@ const ueGuides = {
 
 };
 
+const pipelines = [
+  {
+    id: "ue5-sql-detailed",
+    title: "Trilha UE5 SQL (procedimentos detalhados por domínio)",
+    scope: "Reescrita completa em C++/Blueprint com servidor SQL dedicado",
+    summary: "Passo a passo exaustivo com nomes de funções, variáveis e nós de Blueprint para guiar a migração do código C++ legado para o pipeline UE5 com SQL, cobrindo UI/UX, cliente, servidor e observabilidade. Inclui um caderno de Blueprints com fluxos completos e nodes explícitos.",
+    tags: ["Trilha UE5 SQL", "Blueprint", "C++", "Servidor", "Cliente"],
+    drilldowns: [
+      {
+        title: "Autenticação e sessão (C++)",
+        badge: "Servidor/C++",
+        steps: [
+          "Substitua `SendCheckOnline`/`CLIENT_LIVE_CLIENT` por `UFUNCTION(Server, Reliable) void ServerPingAuth(const FString& RequestId);` no `ANetworkPC`. No `AGameModeBase`, chame `Subsystem->ExecuteLogin(Login, PasswordHash, OutAccount)` e valide retorno antes de `ClientReceiveCharacterList`.",
+          "Implemente `bool UBackendPersistenceSubsystem::ExecuteLogin(const FString& Login, const FString& PasswordHash, FAccountRow& OutAccount)` usando `StatementCatalog.FindChecked(\"LoginAccount\")` + `ExecutePrepared`. Defina variáveis locais `FSQLNamedParam LoginParam{TEXT(\"Login\"), Login}; FSQLNamedParam PasswordParam{TEXT(\"PasswordHash\"), PasswordHash};`.",
+          "No PlayerController, mantenha `UPROPERTY(ReplicatedUsing=OnRep_PersistenceState) EPersistenceState PersistenceState` e `FString PendingLogin`. `ServerSubmitAccount` define `PendingLogin=Login; bAuthPending=true;` e loga `UE_LOG(LogUXTrace, Log, TEXT(\"ServerSubmitAccount|%s\"), *Login);`.",
+          "Ao concluir login, `ClientAuthFailed(int32 ErrorCode)` deve chamar `ResetSyncStates()` (BlueprintCallable) e usar `LastErrorCode = ErrorCode; OnRep_PersistenceState();` para atualizar HUD."
+        ]
+      },
+      {
+        title: "Lista de personagens e spawn (C++)",
+        badge: "Servidor/C++",
+        steps: [
+          "Crie `UFUNCTION(Server, Reliable)` `void ServerRequestCharacterList(const FGuid& AccountId);` em `ANetworkPC`. Em `ServerRequestCharacterList`, obtenha subsystem: `auto* Persistence = GetGameInstance()->GetSubsystem<UBackendPersistenceSubsystem>();` e chame `ExecuteCharacterList(AccountId, OutRows)`.",
+          "Mapeie structs: `USTRUCT(BlueprintType) FCharacterSummary { GENERATED_BODY() UPROPERTY() FGuid AccountId; UPROPERTY() int32 Slot; UPROPERTY() FString Name; UPROPERTY() uint8 Class; UPROPERTY() uint16 Level; };` Use `OutRows` para preencher `TArray<FCharacterSummary> Summaries` e chame `ClientReceiveCharacterList(Summaries)` apenas após `Commit`.",
+          "No `AGameModeBase`, exponha `HandleCharacterSelected(ANetworkPC* PC, const FCharacterSummary& Summary)` que instancia `APawn` com `SpawnTransform` vindo de `Summary` ou fallback configurado. Atualize `PlayerState` replicado (`SelectedSlot`, `SelectedName`).",
+          "Instrumente caminho feliz/falha: `UE_LOG(LogSQL, Display, TEXT(\"FetchCharacterList|Account=%s|Count=%d\"), *AccountId.ToString(), OutRows.Num());` e `UE_LOG(LogSQL, Warning, TEXT(\"FetchCharacterListFailed|Account=%s|Code=%d\"), *AccountId.ToString(), ErrorCode);`."
+        ]
+      },
+      {
+        title: "Troca de mapa e warp (C++)",
+        badge: "Servidor/C++",
+        steps: [
+          "Troque `SendChangeMapServer`/`RecvChangeMapServer` por `UFUNCTION(Server, Reliable) void ServerRequestMapMove(int32 TargetMap, const FVector& TargetPos);` no `ANetworkPC` e valide `HasAuthority()` e distâncias permitidas.",
+          "Defina `USTRUCT(BlueprintType) FMapMoveRequest { GENERATED_BODY() UPROPERTY(EditAnywhere) int32 TargetMap; UPROPERTY(EditAnywhere) FVector TargetPos; UPROPERTY(EditAnywhere) FGuid RequestId; };` e converta handlers legados `DGMapServerMoveRecv`/`CGMapServerMoveSend` para usar este struct.",
+          "Implemente no subsystem `bool ExecuteMapMove(const FMapMoveRequest& Req)` com query preparada `PersistMapChange` (campos: AccountId, CharacterId, TargetMap, PosX, PosY, RequestId) e `Commit` antes de chamar `ClientAcknowledgeMapMove`.",
+          "Em falha de transação/validação, retorne `ClientMapMoveFailed(int32 ErrorCode, FGuid RequestId)` e mantenha `APawn` no mapa atual. Logue `UE_LOG(LogSQL, Warning, TEXT(\"MapMoveFail|%s|Code=%d\"), *Req.RequestId.ToString(), ErrorCode);`.",
+        ]
+      },
+      {
+        title: "Warehouse e moedas (C++)",
+        badge: "Servidor/C++",
+        steps: [
+          "Migre `DGWarehouseItemRecv` e `GDSaveWarehouseItemSend` para `UFUNCTION(Server, Reliable) void ServerRequestWarehouse(const FGuid& AccountId);` e `void ServerSaveWarehouse(const FWarehousePersist& Data);` no PlayerController.",
+          "Mapeie struct `USTRUCT(BlueprintType) FWarehousePersist { GENERATED_BODY() UPROPERTY() FGuid AccountId; UPROPERTY() TArray<FItemData> Slots; UPROPERTY() int64 Ruud; UPROPERTY() int64 Zen; };` e use query preparada `SaveWarehouse` para persistir itens e moedas em transação única.",
+          "No subsystem, implemente `bool ExecuteLoadWarehouse(const FGuid& AccountId, FWarehousePersist& OutData)` lendo tabelas `WarehouseSlots` e `Currencies`. Normalize para arrays replicados antes de chamar `ClientReceiveWarehouse`.",
+          "Crie teste automatizado `IMPLEMENT_SIMPLE_AUTOMATION_TEST(FSqlWarehouseRoundtrip, \"SQL.Warehouse.Roundtrip\", ...)` que grava slots, simula rollback e garante que OnRep de warehouse não dispara em falha."
+        ]
+      },
+      {
+        title: "Snapshot, inventário e quests (C++)",
+        badge: "Servidor/C++",
+        steps: [
+          "Declare `UFUNCTION(Server, Reliable)` `void ServerSaveSnapshot(const FSnapshotPersist& Snapshot);` e `UFUNCTION(Client, Reliable)` `void ClientSaveResult(bool bSuccess, int32 ErrorCode);`. `FSnapshotPersist` inclui `FGuid AccountId; TArray<FItemData> Inventory; TArray<uint8> QuestStates; int64 Gold;`.",
+          "No subsystem, implemente `bool ExecuteSaveSnapshot(const FSnapshotPersist& Snapshot)` chamando `BeginTransaction()`, `ExecutePrepared(\"SaveSnapshot\", Params, Rows)`, `Commit()`; se falhar, `Rollback()` e retorne falso. Defina `Params` com `FSQLNamedParam(TEXT(\"Inventory\"), Snapshot.Inventory)` etc.",
+          "Em caso de erro, `ClientSaveResult(false, ErrorCode)` deve manter `bSavePending=false; PersistenceState=EPersistenceState::Error; CachedSnapshot=Snapshot;` para permitir reenvio. Em sucesso, `PersistenceState=Synced; LastErrorCode=0;` e `OnRep_PersistenceState()` atualiza UI.",
+          "Adicione teste de regressão em C++: `IMPLEMENT_SIMPLE_AUTOMATION_TEST(FSqlSnapshotRoundtrip, \"SQL.Snapshot.Roundtrip\", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)` que cria Snapshot fake, chama `ExecuteSaveSnapshot`, depois `ExecuteLoadSnapshot` (se existir) e verifica contagem de itens/quests." 
+        ]
+      },
+      {
+        title: "Blueprints UMG detalhados",
+        badge: "Blueprint/UI",
+        steps: [
+          "`WBP_Login`: adicionar TextBox `TxtLogin`, `TxtPassword`, variável `RequestId (Guid)` e botão `Login`. No Event Graph: `Sequence` → `Set Visibility` (esconde erro) → `Set bAuthPending=true` (PlayerController) → `ServerSubmitAccount(TxtLogin.Text, Hash(TxtPassword.Text))`. Use `Branch` para bloquear se `TxtLogin` vazio.",
+          "`WBP_CharacterList`: variável `Characters (Array of FCharacterSummary)` e `ListView` com Entry `WBP_CharacterEntry`. `OnCharacterListReceived` (Custom Event) → `ForEachLoop` preenchendo entries. Clique no entry chama `ServerRequestMapMove(Summary.Slot)` ou evento `OnCharacterChosen` para GameMode.",
+          "`WBP_Snapshot`: variáveis `CachedSnapshot`, `bSavePending`. Botão Salvar → `DoOnce` → `Gate` controlado por `bSavePending` → chama `ServerSaveSnapshot(CachedSnapshot)`. Resposta `ClientSaveResult` chama `Open Gate`, `Reset DoOnce`, `Set bSavePending=false`, `Set Visibility` do status.",
+          "HUD `WBP_StatusHud`: Binding para `PersistenceState` (`Select` → cores) e para métricas `PoolHealthy`, `PendingJobs`. Use nós `Set Brush From Texture`, `Format Text`, `Switch on EPersistenceState`, e `Set Timer by Event` para atualizar texto a cada 1s."
+        ]
+      }
+    ],
+    blueprintCookbook: [
+      {
+        title: "Login e autenticação (Blueprint)",
+        badge: "UMG",
+        steps: [
+          "Widget `WBP_Login`: variáveis `TxtLogin (Editable TextBox)`, `TxtPassword (Editable TextBox)`, `ErrorText (TextBlock)`, `RequestId (Guid)`. Event Graph do botão Login: `Sequence` → (0) `Set Visibility(ErrorText Hidden)` → (1) `Set bAuthPending=true` (PlayerController) → (2) `Set RequestId = NewGuid` → (3) nó `ServerSubmitAccount` com `TxtLogin.Text` e `Hash(TxtPassword.Text)`.",
+          "Adicione `Branch` antes do RPC para bloquear quando `TxtLogin.Text IsEmpty` ou `bAuthPending` for true (Get Player Controller → Cast → Get bAuthPending). Em falha (evento `ClientAuthFailed`), use `ResetSyncStates` e `Set Visibility(ErrorText Visible)` com texto formatado `Format Text (Erro {ErrorCode})`.",
+          "Telemetry: crie `Custom Event UXTraceLogin` com params (Screen, Action, RequestId) chamando função C++ `LogUxEvent`. No botão Login, execute `UXTraceLogin` após o RPC para gravar evento com `Action='LoginSubmit'`.",
+          "Acessibilidade: configure `Accessible Behavior → Auto` nos TextBox e adicione `Set Keyboard Focus` no `TxtLogin` após `ClientAuthFailed`.",
+        ]
+      },
+      {
+        title: "Lista de personagens (Blueprint)",
+        badge: "UMG",
+        steps: [
+          "Widget `WBP_CharacterList`: variável `Characters (Array of FCharacterSummary)`, `ListViewCharacters`, `BtnSelect`. Custom Event `OnCharacterListReceived(Summaries)` conectado a `Set Characters` → `Clear List Items` → `ForEachLoop` adicionando entradas `WBP_CharacterEntry`.",
+          "No `WBP_CharacterEntry`, exponha variáveis `Slot`, `Name`, `Level`, `Class`. Evento `OnClicked` envia `ServerRequestMapMove(Slot)` ou chama `OnCharacterChosen` (BlueprintAssignable) que o HUD ou GameMode escuta.",
+          "Skeleton/loading: coloque `Overlay` com `Skeleton` animado. No `OnRep_bAuthPending` do PlayerController (via binding), use `Switch on Bool` para `Set Visibility` do Skeleton/Lista, mantendo feedback enquanto aguarda RPC.",
+          "Navegação: após seleção, chame `Open Level (by Name)` somente quando `PersistenceState` for `Synced`. Use `DoOnce` para impedir múltiplos cliques em `BtnSelect` enquanto `bAuthPending` ou `bSavePending` estiverem ativos.",
+        ]
+      },
+      {
+        title: "Snapshot/Inventário (Blueprint)",
+        badge: "UMG",
+        steps: [
+          "Widget `WBP_Snapshot`: variáveis `CachedSnapshot (FSnapshotPersist)`, `bSavePending (bool)`, `ProgressBarSave`. Botão Salvar: `DoOnce` → `Gate` controlado por `bSavePending` → `Set bSavePending=true` → `ServerSaveSnapshot(CachedSnapshot)` → `Timeline` para animar progresso.",
+          "Evento `ClientSaveResult(bSuccess, ErrorCode)`: `Open Gate`, `Reset DoOnce`, `Set bSavePending=false`, `Set PersistenceState` conforme retorno. Em caso de erro, `SaveGameToSlot` (opcional) e abrir modal `WBP_ErrorModal`.",
+          "Nós usados: `Branch` (verifica se `CachedSnapshot.Inventory` possui itens antes de salvar), `Format Text` para status, `Switch on EPersistenceState` para trocar cor do `ProgressBarSave`, `Delay` para permitir animação de sucesso antes de fechar modal.",
+          "Expose `BlueprintImplementableEvent OnSnapshotQueued` no PlayerController para UI mostrar badge `Fila` quando múltiplos salvamentos forem enfileirados."
+        ]
+      },
+      {
+        title: "HUD, métricas e reconexão (Blueprint)",
+        badge: "UMG",
+        steps: [
+          "Widget `WBP_StatusHud`: bindings para `PersistenceState`, `PoolHealthy`, `PendingJobs`, `LastErrorCode`. Use nós `Select` para trocar cor de chips (`Synced`=Verde, `Saving`=Amarelo, `Error`=Vermelho) e `Format Text` para exibir `RequestId` atual.",
+          "Evento `OnPersistenceStateChanged` (BlueprintAssignable no PlayerController) conecta em `WBP_StatusHud` via `Bind Event to OnPersistenceStateChanged`. No handler, use `Sequence` para (0) atualizar ícones, (1) iniciar `Timer by Event` para auto-refresh de métricas a cada 1s.",
+          "Reconexão: crie `Custom Event HandlePoolDegraded` chamado quando `PoolHealthy` for false. O evento desabilita botões (`Set IsEnabled false`), exibe aviso e agenda `K2_Timer` com backoff (0.5s, 1s, 2s) para tentar `ServerSaveSnapshot` novamente quando o pool voltar.",
+          "Logs visuais: botão `Copiar Log` chama função BlueprintCallable `GetLastSqlErrorCode` e usa nó `Copy String to Clipboard` (Editor Utility) para permitir debugging rápido pelas equipes de QA/UI.",
+        ]
+      }
+    ],
+    procedures: [
+      {
+        title: "Leitura rápida antes de codar",
+        badge: "Pré-check",
+        steps: [
+          "Confirme que todos os arquivos C++ com DataSend/DataRecv estão mapeados (ProtocolSend.cpp, WSclient.cpp, Connection.cpp, DataServerProtocol.cpp). Marque com comentário `// MIGRATION_SQL:<handler>` para rastrear.",
+          "Abra `Config/SQL/Queries.ini` e valide que as entradas `LoginAccount`, `FetchCharacterList`, `SaveSnapshot`, `LoadWarehouse`, `LoadInventory`, `UpdateQuestState` existem com placeholders nomeados.",
+          "No Editor UE5, habilite `UBackendPersistenceSubsystem` em Project Settings → Plugins/Subsystems e configure `ConnectionString`, `PoolSize`, `QueryTimeoutSeconds`, `UseTLS`."
+        ]
+      },
+      {
+        title: "Servidor C++ com SQL (linha a linha)",
+        badge: "Servidor",
+        steps: [
+          "Em `UBackendPersistenceSubsystem`, declare `UPROPERTY(Config) FSQLPoolConfig PoolConfig; UPROPERTY(Config) TMap<FName, FSQLStatement> StatementCatalog;` e inicialize em `Initialize(FSubsystemCollectionBase&)` chamando `InitializePool(PoolConfig)`.",
+          "Implemente funções concretas: `bool ExecuteLogin(const FString& Login, const FString& PasswordHash, FAccountRow& OutAccount)`, `bool ExecuteCharacterList(const FGuid& AccountId, TArray<FCharacterRow>& OutRows)`, `bool ExecuteSaveSnapshot(const FSnapshotPersist& Snapshot)`.",
+          "Em `AGameModeBase` dedicado, crie métodos `HandleLoginRequest(ANetworkPC* PC, const FString& Login, const FString& PasswordHash)` e `HandleSaveRequest(ANetworkPC* PC, const FSnapshotPersist& Snapshot)` chamando o subsystem via `GetGameInstance()->GetSubsystem<UBackendPersistenceSubsystem>()`.",
+          "Use transações: dentro de `HandleSaveRequest`, chame `BeginTransaction` → `ExecutePrepared(\"SaveSnapshot\", Params, Rows)` → `Commit` ou `Rollback`. Propague códigos de erro numerados (ex.: 1001 credencial inválida, 2001 falha de transação) e só depois invoque RPC Client.",
+          "Exponha eventos para Blueprints: `DECLARE_DYNAMIC_MULTICAST_DELEGATE_ThreeParams(FOnSqlEvent, FName, EventId, FString, RequestId, bool, bSuccess);` com `UPROPERTY(BlueprintAssignable)` em `UBackendPersistenceSubsystem` para designers ligarem feedback visual sem tocar em rede.",
+          "Implemente watchdog de pool no `Tick`: `if (!Pool->IsHealthy()) { SetServerDegraded(true); OnSqlEvent.Broadcast(\"PoolDegraded\", TEXT(\"health\"), false); }` e bloqueie novas gravações setando `bWriteLocked = true` replicado via `GameState`.",
+          "Registre auditoria estruturada: `UE_LOG(LogSQL, Display, TEXT(\"SaveSnapshot|Account=%s|Char=%d|Rows=%d|Ms=%d\"), *AccountId.ToString(), Snapshot.CharacterSlot, Rows.Num(), ExecMs);` e grave o mesmo texto em tabela `AuditLog` usando `ExecutePrepared(\"InsertAudit\", ...)`.",
+          "Adicione teste automatizado `IMPLEMENT_SIMPLE_AUTOMATION_TEST(FSqlPoolHealthTest, \"SQL.Pool.Health\", ...)` chamando `Subsystem->InjectPoolFaultForTest()` (função utilitária) e verificando que `SetServerDegraded(true)` é disparado antes de qualquer replicação."
+        ]
+      },
+      {
+        title: "Cliente C++ (PlayerController)",
+        badge: "Cliente",
+        steps: [
+          "Em `ANetworkPC` declare `UPROPERTY(Replicated) bool bAuthPending; UPROPERTY(Replicated) bool bSavePending; UPROPERTY(ReplicatedUsing=OnRep_PersistenceState) EPersistenceState PersistenceState; UPROPERTY() FString PendingLogin; UPROPERTY() FGuid PendingAccountId;`.",
+          "Implemente RPCs Server: `UFUNCTION(Server, Reliable)` `void ServerSubmitAccount(const FString& Login, const FString& PasswordHash);`, `void ServerRequestCharacterList(const FGuid& AccountId);`, `void ServerSaveSnapshot(const FSnapshotPersist& Snapshot);`. RPCs Client: `ClientAuthFailed(int32 ErrorCode)`, `ClientReceiveCharacterList(const TArray<FCharacterSummary>& Summaries)`, `ClientSaveResult(bool bSuccess, int32 ErrorCode)`.",
+          "Dentro de `ServerSubmitAccount`, chame `HandleLoginRequest(this, Login, PasswordHash)` no GameMode e marque `bAuthPending = true;` antes de sair. Em `ClientAuthFailed`, defina `bAuthPending = false; PersistenceState = EPersistenceState::Error; OnRep_PersistenceState();`.",
+          "Implemente `OnRep_PersistenceState()` para disparar `FOnPersistenceStateChanged.Broadcast(PersistenceState);` e atualizar Widgets. Adicione método BlueprintCallable `void ResetSyncStates()` que zera flags e pode ser usado após erro ou logout.",
+          "Log estruturado: `void LogUxEvent(const FString& EventName, const FString& RequestId) { UE_LOG(LogUXTrace, Log, TEXT(\"%s|%s|%s\"), *EventName, *RequestId, *GetName()); }` chamando em cada RPC Client/Server para correlacionar round-trip SQL.",
+          "No tick do PlayerController, opcionalmente valide timeouts: se `bSavePending` true por mais de `SaveTimeoutSeconds`, dispare `ClientSaveResult(false, 9001)` para destravar UI."
+        ]
+      },
+      {
+        title: "UI/UX Blueprint (UMG)",
+        badge: "UI/UX",
+        steps: [
+          "No `WBP_Login`, adicione variáveis `LoginText` (Bind do TextBox), `PasswordHash` e `RequestId`. Botão Login → nós `Sequence` → etapa 0 `Set Visibility` (erro oculto), etapa 1 `Set bAuthPending true` (PlayerController), etapa 2 `ServerSubmitAccount(LoginText, PasswordHash)`.",
+          "Em `WBP_CharacterList`, crie `Custom Event OnCharacterListReceived` com `Input Summaries (TArray<FCharacterSummary>)`. Use `ForEachLoop` preenchendo `ListView`. Adicione `Skeleton` animado com `Set Visibility` + `Play Animation` enquanto `bAuthPending` for true.",
+          "No `WBP_Snapshot`, botões `Salvar` → `DoOnce` → `Gate` controlado por `bSavePending`. Dentro do Gate: `Set PersistenceState = Saving`, `QueueSnapshotSave()` (BlueprintCallable), `Timeline` anima barra de progresso. Ao receber `ClientSaveResult`, chame `Open Gate` e `Reset DoOnce`.",
+          "Crie Widget de estado global `WBP_StatusHud` com `Bind` para `PersistenceState` (via `OnRep`). Use `Select` para trocar ícone (Loading, Check, Error) e `Set Brush from Texture` conforme enum. Adicione `Screen Reader` via `Accessible Behavior` com descrição textual do estado.",
+          "Em fluxos de erro, exiba modal `WBP_ErrorModal` com texto formatado `Format Text` combinando código de erro e dica. Botões do modal chamam `ResetSyncStates` no PlayerController e reabrem o Gate.",
+          "Instrumentação: crie `Custom Event UXTrace` com params (Screen, Action, RequestId) chamando função C++ `LogUxEvent`. Dispare em cada botão (Login, Selecionar, Salvar)."
+        ]
+      },
+      {
+        title: "Integração, QA e Operação",
+        badge: "Integração",
+        steps: [
+          "Roteiro de integração: (1) UI chama `ServerSubmitAccount`, (2) GameMode chama subsystem `ExecuteLogin`, (3) retorna `ClientAuthFailed` ou `ClientReceiveCharacterList`, (4) após selecionar personagem, `ServerSaveSnapshot` roda transação `SaveSnapshot` e retorna `ClientSaveResult`.",
+          "Teste em PIE: crie `AutomationSpec` que injeta falha de banco (`InjectPoolFaultForTest`) e valida que `ClientSaveResult(false, 2001)` é recebido e que `PersistenceState` vira `Error` sem alterar `InventoryComponent` replicado.",
+          "Observabilidade: habilite `stats sql` e logs `LogSQL`/`LogUXTrace`. Gere painel simples em `WBP_StatusHud` mostrando `PoolHealthy`, `PendingJobs`, `LastErrorCode` (variáveis replicadas do subsystem via GameState).",
+          "Operação: mantenha scripts `VXXXX__*.sql` com migrations e seeds. Adicione `Functional Test` que chama `ValidateMigrations()` e falha se faltar alguma query do catálogo. Registre runbook: `Desligar gravações → Restaurar backup → Reaplicar migrations → Reativar pool`."
+        ]
+      }
+    ],
+    cppCoverage: [
+      "Mapeie funções legadas exatas: `DGCharacterListRecv`, `GDSavePlayerInventory`, `DGWarehouseItemRecv`, `GDSaveWarehouseItemSend`, `DGMapServerMoveRecv`, `CGActionRecv`, `CGItemGetRequest` e associe cada uma a queries preparadas equivalentes no subsystem.",
+      "Crie USTRUCTs correspondentes (`FCharacterSummary`, `FInventorySlot`, `FWarehouseSlot`, `FMapMoveRequest`) refletindo os campos dos structs C++ originais. Use `UPROPERTY` com metadata `DisplayName` para designers encontrarem os campos no Blueprint.",
+      "Substitua `DataSend`/`DataRecv` em `ProtocolSend.cpp`, `WSclient.cpp`, `CSMapServer.cpp` por funções `Server*` no PlayerController, mantendo nome de intenção: `SendCheckOnline` → `ServerPingAuth`, `SendChangeMapServer` → `ServerRequestMapMove`.",
+      "No servidor, converta manipuladores `ProtocolCore` específicos para chamadas ao subsystem: `CGPositionRecv` → `SavePositionAsync`, `CGItemGetRequest` → `PickupItemAsync`, `CGPartyRequestRecv` → `CreatePartyAsync` (com queries `InsertParty`, `InsertPartyMember`).",
+      "Garanta que cada domínio (Party, Guild, Quest, Warehouse, Trade) tenha tabela/índices listados em `Docs/SQL/schema.sql` ou equivalente. Sem tabela obrigatória, marque `NÃO DÁ PARA INFERIR COM SEGURANÇA COM BASE NO CÓDIGO-FONTE C++` e bloqueie a feature até schema existir.",
+      "Adicione build check (clang-tidy/script) que falha ao encontrar `DataSend(` ou `DataRecv(` em diretórios do servidor. Em paralelo, teste `AutomationTest` que tenta criar personagem, salvar inventário e trocar de mapa chamando apenas RPCs/queries novas.",
+      "Documente no código o ponto de entrada Blueprint com macro `UFUNCTION(BlueprintCallable)` em `NetworkPC.h` para `QueueSnapshotSave`, `GetPersistenceState`, `GetLastSqlErrorCode`, permitindo que designers consumam sem mexer em sockets."
+    ],
+    uiux: [
+      "Fluxo de telas: `WBP_Login` → `WBP_CharacterList` → `WBP_Snapshot`. Cada tela ouve eventos `OnPersistenceStateChanged` do PlayerController e desabilita botões enquanto `bAuthPending` ou `bSavePending`.",
+      "Nós essenciais: `Sequence`, `Gate`, `DoOnce`, `Branch`, `ForEachLoop`, `Switch on ESlateVisibility`, `Set Brush from Texture`, `Timeline`, `Open Level (by Name)`, `Format Text`, `SaveGameToSlot`, `LoadGameFromSlot`.",
+      "Variáveis recomendadas: `RequestId (Guid)`, `LastErrorCode (int32)`, `CachedSnapshot (FSnapshotPersist)`, `IsOfflineFallback (bool)`, `PoolHealthy (bool)` (replicada via GameState para HUD).",
+      "Padrão de feedback: spinner + texto `Sincronizando...` enquanto `PersistenceState` = Saving; texto de erro colorido (Danger) quando `Error`; badge verde quando `Synced`. Use estilos do `styles.css` ou define `UMG` color theme.",
+      "Telemetry visual: Widget `WBP_StatusHud` exibe chips `Pool`, `Auth`, `Save`, cada um colorido por estado (usando `Set Color and Opacity`) e números de jobs pendentes obtidos via evento BlueprintImplementableEvent `OnSqlMetrics` no GameState."
+    ],
+    client: [
+      "Implementar controle de reentrada: flags `bAuthPending` e `bSavePending` bloqueiam inputs até `ClientAuthFailed`/`ClientSaveResult` limpar. Use `Branch` nos Widgets antes de chamar RPCs.",
+      "Timeout configurável: `float SaveTimeoutSeconds` (Config) lido no PlayerController; se excedido, chamar `ClientSaveResult(false, 9001)` e registrar em `LogUXTrace`.",
+      "Retransmissão limitada: ao receber erro transitório (código 300x), reabrir `Gate` e chamar `ServerSaveSnapshot` com backoff `K2_Delay` crescente (0.5s, 1s, 2s) até 3 tentativas.",
+      "Consistência de versão: variáveis replicadas `ProtocolVersion` (int32) e `RequiredProtocolVersion`; em `BeginPlay`, compare e se divergente, chame `ClientAuthFailed(4001)` e force tela de atualização.",
+      "Eventos expostos: `BlueprintAssignable` `FOnPersistenceStateChanged` e `FOnMetricsUpdate` (PoolHealthy, PendingJobs, LastError). Use `Broadcast` em cada mudança no PlayerController.",
+      "Mapeamento legado → novo: funções antigas `SendPingTest`, `SendCheckOnline`, `SendChangeMapServer` devem chamar novas RPCs `ServerPingAuth`, `ServerCheckOnline`, `ServerRequestMapMove`, preservando nomes de variáveis (`m_iServerIndex`, `m_iConnectIndex`) como parâmetros RPC para facilitar rastreio."
+    ],
+    server: [
+      "Catálogo de queries: `LoginAccount`, `FetchCharacterList`, `SaveSnapshot`, `LoadWarehouse`, `InsertParty`, `InsertGuild`, `UpdateQuest`, `PersistMapChange`. Cada query tem ID, SQL, parâmetros tipados e versão esperada.",
+      "Pool: `FSQLPoolConfig` com `PoolSize`, `MaxQueueDepth`, `HealthCheckInterval`, `UseTLS`. Health check publica evento `OnPoolStatusChanged(bool bHealthy)` replicado via GameState.",
+      "Anti-corrupção: helpers `ToSqlParam(const FCharacterSummary&)`, `ToSqlParam(const FSnapshotPersist&)`, `NormalizeStringForSql(const FString&)` para padronizar encoding/timezone antes de inserir.",
+      "Auditoria: tabela `AuditLog (EventId, AccountId, CharacterId, RequestId, Result, DurationMs, CreatedAt)` preenchida em cada operação. Exponha `ClientReceiveAudit` (RPC Client) opcional para UI mostrar histórico.",
+      "Fallback offline: se `PoolHealthy` = false, bloqueie `ServerSaveSnapshot` com mensagem 503 e grave snapshot local via `SaveGameToSlot` no servidor para reprocessar depois (flag `bNeedsReupload`).",
+      "Limites de payload: valide `Snapshot.Inventory.Num() <= 128` e `Snapshot.QuestStates.Num() <= 256` antes de enviar para SQL; senão retorne erro 413 e peça UI para reduzir carga.",
+      "Logs estruturados: `UE_LOG(LogSQL, Warning, TEXT(\"%s|Request=%s|Error=%d\"), *EventId.ToString(), *RequestId, ErrorCode);` com RequestId vindo do cliente para facilitar tracing."
+    ],
+    integration: [
+      "Ordem de implementação sugerida: (1) habilitar subsystem e queries, (2) substituir RPCs de login/lista, (3) migrar salvamento de snapshot, (4) migrar warehouse/party/guild, (5) remover DataServer do build.",
+      "Checklist de ambiente: string de conexão válida, migrations aplicadas, seeding de contas de teste (`TestAccount01`, `TestCharacter01`), firewall liberado para porta do banco e TLS ativo.",
+      "Teste manual guiado: abrir `WBP_Login`, enviar credenciais válidas, selecionar personagem, mover-se e salvar snapshot; observar `WBP_StatusHud` mudando de Loading para Synced e log SQL exibindo Commit.",
+      "Ciclo de rollback: simular falha `Rollback` no `HandleSaveRequest`, garantir que UI exibe erro, que `InventoryComponent` não muda e que tabela `AuditLog` tem registro com Result=Fail.",
+      "Gatilhos de métricas: enviar `OnSqlMetrics` a cada commit com `PendingJobs`, `AverageMs`, `PoolHealthy`; UI deve exibir chips atualizados e QA registra tempos em relatório.",
+      "Planejamento de remoção legada: após cada domínio migrado, rode lint contra `DataSend`/`DataRecv` e compile build sem módulos DataServer. Documente data e evidência de cada remoção."
+    ],
+    qa: [
+      "AutomationSpec `SQL.Pipeline.Login` valida fluxo de login: credencial inválida → `ClientAuthFailed(1001)`, credencial válida → `ClientReceiveCharacterList` com pelo menos 1 entry, sem DataSend logado.",
+      "AutomationSpec `SQL.Pipeline.SaveSnapshot` força `Rollback` e verifica que `PersistenceState` volta para `Error`, `bSavePending` false e `CachedSnapshot` permanece intocado.",
+      "AutomationSpec `SQL.Pipeline.Versioning` compara `SchemaVersion` carregado do banco com `RequiredSchemaVersion` em config; se menor, bloqueia login e mostra mensagem amigável na UI.",
+      "Teste de carga leve: `NetDriver` com 4 clientes PIE enviando `ServerSaveSnapshot` simultaneamente; métrica `AverageMs` deve ficar abaixo de 50ms e sem saturar `MaxQueueDepth`.",
+      "Teste de reconexão: desconectar banco (simular pool unhealthy), assegurar que `ServerSaveSnapshot` retorna erro 503, UI cai para modo offline (`IsOfflineFallback=true`) e reprocessa ao reconectar.",
+      "Validação visual: capturar screenshot de `WBP_Login`, `WBP_CharacterList`, `WBP_Snapshot` e comparar com baseline usando ferramenta de regressão visual."
+    ],
+    operations: [
+      "Backups e retenção: cron diário para tabelas Account/Character/Inventory; retenção de 30 dias para logs de auditoria; restauração testada semanalmente em staging.",
+      "Segurança: usuário SQL dedicado com permissões de CRUD apenas; TLS obrigatório (`UseTLS=true`), rotação de senha mensal, secrets armazenados em `DefaultEngine.ini` criptografado ou provider seguro.",
+      "Observabilidade: exportar métricas de pool para Prometheus/Stats (PendingJobs, ActiveConnections, ErrorRate) e alertar se `ErrorRate > 5%` ou `PoolHealthy=false` por mais de 60s.",
+      "Runbook de incidentes: (1) marcar `bWriteLocked=true`, (2) drenar fila, (3) restaurar backup, (4) reexecutar migrations, (5) reativar pool, (6) comunicar jogadores via mensagem no HUD.",
+      "Checklist de release: confirmar que lint contra DataSend/DataRecv passou, migrations aplicadas, seeds atualizados, testes Automation verde, UI captura visual aprovada.",
+      "Pós-release: revisar planos de execução (`EXPLAIN ANALYZE`) das queries principais e ajustar índices. Documentar em changelog SQL e atualizar `StatementCatalog` com novas versões."
+    ]
+  },
+  {
+    id: "ue5-uiux-sql-handoff",
+    title: "UI/UX → Cliente → Servidor SQL (UE 5.7)",
+    scope: "Login, lista de personagens e salvamento de snapshot",
+    summary: "Trilha única para designers e engenheiros entregarem UI/UX UMG acoplada a RPCs do cliente e transações SQL no servidor dedicado, sem DataSend/DataRecv. Agora inclui operação, auditoria e validação cruzada com o código C++.",
+    tags: ["UMG", "Blueprint", "RPC", "SQL", "DevOps", "QA"],
+    procedures: [
+      {
+        title: "Passo a passo do Servidor C++ (SQL)",
+        badge: "Servidor",
+        steps: [
+          "Defina `UBackendPersistenceSubsystem` com `void InitializePool(const FSQLPoolConfig& InConfig)` e `bool ExecutePrepared(FName QueryId, const TArray<FSQLNamedParam>& Params, FSQLRowSet& OutRows)`. Armazene `TMap<FName, FSQLStatement>` em `StatementCatalog` e inicialize na `GameInstance::Init`.",
+          "Implemente consultas nomeadas: `LoginAccount`, `FetchCharacterList`, `SaveSnapshot`, `LoadWarehouse`, `LoadInventory`, cada uma com SQL preparado (`?login`, `?accountId`, `?characterId`). Versione em `Config/SQL/Queries.ini` para comparação com migrações.",
+          "No `AGameModeBase` dedicado, exponha `UFUNCTION(Server, Reliable)` wrappers `ServerLoginAccount`, `ServerRequestCharacterList`, `ServerSaveSnapshot`. Use guardas `ensure(HasAuthority())` e variável `bool bIsMigrationOk` sinalizada após `ValidateMigrations()` dentro do subsystem.",
+          "Crie structs replicados `USTRUCT(BlueprintType) FCharacterSummary { GENERATED_BODY() FGuid AccountId; int32 CharacterSlot; FString Name; uint8 Class; uint16 Level; FItemData Equipped[12]; }` e `USTRUCT(BlueprintType) FSnapshotPersist { FGuid AccountId; TArray<FItemData> Inventory; TArray<uint8> QuestStates; int64 Gold; }` para substituir pacotes DSProtocol.",
+          "Conecte cada RPC Server a transações SQL transacionais: `BeginTransaction` → `ExecutePrepared` → `Commit`/`Rollback`. Só chame RPC Client (`ClientAuthFailed`, `ClientReceiveCharacterList`, `ClientSaveResult`) após `Commit` bem-sucedido e registro de auditoria.",
+          "No `AGameState` ou `UPlayerState`, mantenha flags replicadas `bool bAuthPending`, `bool bSavePending`, `EPersistenceState PersistenceState`. Zere-as em `OnRep` após resposta do servidor para sincronizar com UI.",
+          "Implemente health-check de pool em `Tick` do subsystem: `if (!Pool->IsHealthy()) { SetServerDegraded(true); }` e exponha evento `OnPoolDegraded` para desligar temporariamente RPCs de escrita.",
+          "Mapeie cada handler do legado para query SQL correspondente com comentários `// MIGRATION_SQL: <nome handler>`: `DGCharacterListRecv` → `FetchCharacterList`, `GDSavePlayerInventory` → `SaveSnapshot`, `DGWarehouseItemRecv` → `LoadWarehouse`, `DGMapServerMoveRecv` → `PersistMapChange`.",
+          "Prepare testes C++ `IMPLEMENT_SIMPLE_AUTOMATION_TEST(FSQLPipelineTest, \"SQL.Pipeline.Core\", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)` que abrem `UBackendPersistenceSubsystem`, simulam falha de transação e verificam rollback sem replicar estado parcial.",
+          "Guarde strings de conexão em `DefaultEngine.ini` (seção `[Persistence]`): `ConnectionString`, `PoolSize`, `QueryTimeoutSeconds`, `UseTLS=true`. Exponha via `UDeveloperSettings` para ajuste em editor sem recompilar."
+        ]
+      },
+      {
+        title: "Passo a passo de Blueprints (UI/UX)",
+        badge: "UI/UX",
+        steps: [
+          "Crie Widget `WBP_Login` com eventos `OnLoginClicked` → nós `Sequence` (etapa 0: limpar erros; etapa 1: chamar `ServerLoginAccount`). Use nós `Branch` para impedir reentrada quando `bAuthPending` replicado for true.",
+          "Em `WBP_CharacterList`, use `Event OnCharacterListReceived` (Custom Event) e nós `ForEachLoop` para popular `ListView` com `FCharacterSummary`. Adicione `Skeleton`/`Placeholder` visuais usando `Set Visibility` e `Switch on ESlateVisibility`.",
+          "No Widget de salvamento `WBP_Snapshot`, conecte botões `Salvar` a `ServerSaveSnapshot` com nós `DoOnce` + `Gate` controlados por `bSavePending`. Use `Timeline` para animar barra de progresso enquanto `EPersistenceState` == `Saving`.",
+          "Configure bind de estados: em `WBP_Header`, faça `Bind` de `OnRep_PersistenceState` para trocar ícone (Text/Icon) usando `Select` node com valores `Sincronizando`, `Erro`, `Ok`.",
+          "Adicione métricas em Blueprint: `Custom Event LogUXSync` chamando `RPC UXTrace` com payload { ScreenName, Action, RequestId }. Use `Format Text` para strings padronizadas.",
+          "Implemente fallback offline: no `GameInstance` Blueprint, crie var `CachedSnapshot` (tipo `FSnapshotPersist`). Se `ClientSaveResult` retornar erro, use `SaveGameToSlot` e exiba aviso via `WidgetSwitcher`.",
+          "Nos fluxos de navegação, use nós `Open Level (by Name)` somente após `ClientAuthFailed`/sucesso; antes disso, mantenha no mesmo mapa para evitar invalidar conexões dedicadas."
+        ]
+      },
+      {
+        title: "Passo a passo do Cliente (C++ + Blueprint)",
+        badge: "Cliente",
+        steps: [
+          "Em `ANetworkPC`, declare variáveis `bool bAuthPending`, `bool bSavePending`, `FString PendingLogin`, `FGuid PendingAccountId` com `UPROPERTY(Replicated)`. Faça `OnRep` atualizar Widgets via `Broadcast` de `FOnPersistenceStateChanged`.",
+          "Implemente RPCs: `UFUNCTION(Server, Reliable)` `void ServerLoginAccount(const FString& Login, const FString& PasswordHash);`, `void ServerRequestCharacterList(const FGuid& AccountId);`, `void ServerSaveSnapshot(const FSnapshotPersist& Snapshot);` e RPCs Client correspondentes.",
+          "Dentro de `ServerLoginAccount`, chame `GetGameMode()->HandleLoginRequest(this, Login, PasswordHash)`. Ao receber resposta, envie `ClientAuthFailed` ou `ClientReceiveCharacterList` com struct replicada.",
+          "Adicione helper BlueprintCallable `void QueueSnapshotSave()` que seta `bSavePending = true`, gera `RequestId` (via `FGuid::NewGuid`) e chama RPC server. Use `Branch` + `IsLocallyControlled` para evitar múltiplas chamadas.",
+          "Implemente log estruturado: função `void LogUXEvent(const FString& Event, const FString& RequestId, const FString& Extra)` escrevendo em `UE_LOG(LogUXTrace, Log, TEXT(\"%s|%s|%s\"), *Event, *RequestId, *Extra);`.",
+          "Teste PIE com Blueprint `LevelSequence`: crie fluxo `CustomEvent SimulateTimeout` que aciona `ClientAuthFailed` com erro e verifica UI; depois acione `ClientSaveResult` com sucesso e confirme fechamento do `Gate`.",
+          "Remova referências a `DataSend`, `DataRecv`, `DSProtocol` do cliente ao migrar: substitua chamadas em `ProtocolSend.cpp`, `WSclient.cpp`, `CSMapServer.cpp` por wrappers RPC no PlayerController com nomenclatura idêntica (`SendCheckOnline` → `ServerPingAuth`)."
+        ]
+      }
+    ],
+    cppCoverage: [
+      "Varra todo o código-fonte C++ por DataSend/DataRecv/DSProtocol (ex.: Protocol.cpp, Connection.cpp, DataServerProtocol.cpp, PartyMatching.h, Quest.h, Warehouse.h) e registre cada chamada que precisa migrar para o subsistema SQL antes da remoção do DataServer.",
+      "Para cada struct de packet/handler encontrada (CGCharacterListRecv, GDSaveWarehouseItemSend, GDSavePlayerInventory, DGMapServerMoveRecv), crie USTRUCTs equivalentes e converta a lógica para queries preparadas do `UBackendPersistenceSubsystem`, garantindo que a transação SQL finalize antes de qualquer OnRep/RPC Client.",
+      "Substitua integrações de sistema (Party, Guild, Gens, EventInventory, PersonalShop, MasterSkillTree) por chamadas do subsistema SQL, mantendo nomes e validações do C++ original e anotando regras desconhecidas com 'NÃO DÁ PARA INFERIR COM SEGURANÇA COM BASE NO CÓDIGO-FONTE C++'.",
+      "Confirme que toda rota de salvamento/consulta (login, lista de personagens, warehouse, inventário, moedas, Muun, quests) usa prepared statements com parâmetros tipados e rollback em falha, refletindo os campos dos headers/structs do código C++ legado.",
+      "Execute uma passagem final cruzando o schema SQL versionado com os arquivos C++ (ESProtocol.h, Helper.h, DataServer headers) para garantir que todos os domínios possuem tabelas/índices correspondentes e que nenhuma referência ao DataServer permaneça no servidor dedicado UE 5.7.",
+      "Incorpore testes automatizados de migração em C++ usando `AutomationTest`/`Spec` para confirmar que cada query obrigatória existe no catálogo do subsistema e que migrações não aplicadas bloqueiam a inicialização do servidor.",
+      "Implemente verificadores estáticos (clang-tidy ou scripts de lint) que falham o build quando `DataSend`/`DataRecv` ainda aparecem em arquivos C++ do servidor, garantindo que a migração para SQL está completa.",
+      "Exponha no editor um painel de configuração do `UBackendPersistenceSubsystem` (via `UDeveloperSettings`) permitindo ajustar string de conexão, pool e toggles de auditoria direto no Project Settings sem recompilar.",
+      "Defina testes de integração C++ que simulam falha de conexão, timeouts e deadlocks no banco, certificando-se de que o subsistema retorna códigos de erro reproduzíveis e de que a UI/UX recebe estados consistentes sem travar a Game Thread.",
+      "Padronize comentários de migração nos headers C++ usando um marcador (ex.: `// MIGRATION_SQL:`) para localizar rapidamente o que já foi convertido e o que ainda depende do DataServer antes de remover os módulos legados."
+    ],
+    uiux: [
+      "Montar um Widget UMG unificado (login/lista/salvar) com estados de Loading, Erro e Sucesso; cada estado deve estar conectado a eventos `OnAccountSubmitted`, `OnCharacterListReceived` e `OnSaveCompleted` expostos pelo PlayerController.",
+      "Aplicar feedback imediato: desabilitar botões enquanto RPC Server está em voo, exibir trilha de progresso (spinner + texto) e mensagens específicas por código de erro replicado.",
+      "Documentar no Blueprint a ordem de navegação: Login → Lista de personagens → Ações de persistência. Cada tela deve chamar funções BlueprintCallable do PlayerController com fail-safe de reentrada bloqueada.",
+      "Adicionar indicadores de sincronização (ícone de banco) que mudam via `OnRep_PersistenceState` no cliente; animar transições com Sequencer/Timeline para reforçar quando o servidor confirma commit SQL.",
+      "Preparar estados de falha offline: exibir opção de reconectar ou reprocessar request, mantendo o snapshot local sem sobrescrever dados quando o servidor recusar o commit.",
+      "Publicar um mini \"style guide\" dentro do projeto (Widget Blueprint ou documento) descrevendo layout, hierarquia de cores/estados e strings de erro/sucesso para padronizar toda UI ligada ao pipeline SQL.",
+      "Instrumentar os Widgets com eventos de telemetria (ex.: `OnSyncStarted`, `OnSyncEnded`, `OnSyncFailed`) para enviar logs estruturados ao servidor via RPC dedicado de UX, sem bloquear a thread de renderização.",
+      "Incluir boas práticas de acessibilidade: foco visível, navegação por teclado, leitura de estados (Loading/Erro/Sucesso) por Screen Reader e contraste mínimo para botões relacionados ao fluxo SQL.",
+      "Adicionar placeholders e skeleton loading para listas de personagens e inventário, evitando telas vazias enquanto o commit SQL está em andamento e registrando o tempo total de round-trip para benchmarking de UX."
+    ],
+    client: [
+      "No `ANetworkPC`, declarar RPCs Server `ServerSubmitAccount`, `ServerRequestCharacterList` e `ServerSaveSnapshot` (Reliable) e RPCs Client `ClientAuthFailed`, `ClientReceiveCharacterList`, `ClientSaveResult`.",
+      "Encadear os RPCs com guards de Authority/HasAuthority e bloquear repetição enquanto flags locais `bAuthPending` ou `bSavePending` estiverem ativas; limpar as flags apenas nos callbacks Client.",
+      "Replicar componentes de estado (`InventoryComponent`, `QuestComponent`) e publicar eventos `BlueprintAssignable` para que a UI atualize listas sem acessar C++ diretamente.",
+      "Substituir qualquer uso de DataSend/DataRecv/DSProtocol por RPCs nativos; logs devem registrar a frase padrão de não inferência quando regras legadas faltarem antes de enviar algo ao servidor.",
+      "Incluir um guardião de versão: compare `ClientProtocolVersion` replicada com a versão exigida pelo servidor antes de disparar RPCs e notifique a UI se houver divergência (evita requests inválidos).",
+      "Adicionar um canal de log estruturado (ex.: `UXTrace`) no cliente para correlacionar ações de UI com RPCs enviados/recebidos; inclua IDs de requisição e timestamps replicados para depuração de round-trip SQL.",
+      "Documentar em C++ os pontos de entrada para Blueprints (`BlueprintCallable/BlueprintImplementableEvent`) em um header dedicado, garantindo que designers encontrem rapidamente como acionar o pipeline SQL sem tocar em rede bruta.",
+      "Habilitar retentativas limitadas e backoff exponencial para RPCs críticos de salvamento quando a UI detectar falha transitória de conexão, sempre respeitando locks locais para não duplicar commits.",
+      "Expose `Config`/`ConsoleVariables` para tempos de timeout e comportamento de retry, permitindo ajuste rápido em builds QA sem recompilar o cliente."
+    ],
+    server: [
+      "Criar `UBackendPersistenceSubsystem` no Dedicated Server com pool SQL configurável (string de conexão, tamanho do pool, timeout). Validar DDL/versionamento ao inicializar e registrar falha antes de aceitar players.",
+      "Implementar `ValidateCredentialsAsync`, `FetchCharacterListAsync` e `SaveSnapshotAsync` usando prepared statements e transações (`BEGIN/COMMIT/ROLLBACK`), executadas em `Async(EAsyncExecution::ThreadPool, ...)`.",
+      "Só replicar `PlayerState`/inventário após `COMMIT`; em erro, retornar RPC Client com código e manter o estado local intacto. Bloquear qualquer chamada ao DataServer legado e remover dependências de DSProtocol.",
+      "Instrumentar health check do pool (ping, contagem de conexões ativas) e logs de auditoria (quem gravou, tempo de query, resultado) para cada chamada do pipeline.",
+      "Formalizar uma camada de anti-corrupção: use funções helper para mapear structs C++ para parâmetros SQL (ex.: `FAccountRow`, `FCharacterRow`), padronizando conversões, timezone e normalização de strings antes do commit.",
+      "Criar scripts de seeding/fixtures para contas/personagens de teste e carregá-los via `UBackendPersistenceSubsystem` ao iniciar ambientes de desenvolvimento, permitindo reproduzir casos de UI/UX rapidamente.",
+      "Registrar contratos de versionamento (ex.: cabeçalho `SchemaVersion`, revisões de query) e recusar conexões de clientes quando o servidor detectar mismatch de versão, protegendo integridade das transações SQL.",
+      "Especificar mapeamentos claros entre domínios e queries obrigatórias (login, personagens, warehouse, party/guild), armazenando-as em um catálogo JSON/ini consumido pelo subsistema para prevenir queries montadas via string concat.",
+      "Adicionar coleta de métricas de fila interna do subsistema (jobs pendentes, tempo médio de espera, taxa de erro por query) e publicar via `stats`/logs para orientar ajustes de pool e otimizações.",
+      "Implementar caminhos de degradação controlada: se o banco ficar indisponível, recusar novas sessões com mensagem amigável, esvaziar filas e emitir alerta de operação, evitando replicar estado parcial."
+    ],
+    integration: [
+      "Fluxo integrado: UI chama RPC Server → GameMode roteia para `UBackendPersistenceSubsystem` → tarefa SQL roda no pool → callback volta ao Game Thread → RPC Client atualiza UI/estado replicado.",
+      "Adicionar testes PIE em ordem: (1) enviar login inválido e validar mensagem na UI; (2) login válido retorna lista; (3) salvar snapshot com rollback forçado (simular falha de transação) e conferir UI em estado de erro; (4) salvar com sucesso e ver ícone de sync finalizar.",
+      "Mapear dependências entre domínios (conta, personagens, inventário) usando `TMap<FName, FString>` para queries obrigatórias; se faltar regra, registrar a frase padrão e impedir commit.",
+      "Publicar um mini-painel de status no servidor (log ou widget editor) mostrando pool saudável, queries em andamento e número de callbacks pendentes para diagnosticar gargalos UI/UX.",
+      "Criar pacotes de experimentos manuais para QA (ex.: mudança rápida de personagem, spam de salvamento, desconexão forçada) e documentar expectativa de UI/servidor para cada caso antes de liberar build.",
+      "Listar no guia de integração as portas, credenciais temporárias e parâmetros de conexão usados em ambientes locais/CI para que novos membros configurem a trilha SQL em menos de 30 minutos.",
+      "Validar jornada completa em network PIE/standalone: confirme que os RPCs respeitam ordem de autoridade, que OnRep dispara após commit SQL e que rollback não replica estado parcial.",
+      "Registrar um checklist de preparação de ambiente (strings de conexão, firewall/localhost, seeds carregados) a ser executado antes de cada rodada de QA para evitar testes inconclusivos por configuração incorreta.",
+      "Calibrar limites de payload (tamanho máximo de inventário/quests) e validar na integração que compressão/serialização do snapshot não ultrapassa MTU nem os limites de replicação do NetDriver."
+    ],
+    qa: [
+      "Adotar testes de Automation (`AutomationSpec`) cobrindo: (a) bloqueio de RPC com versão inválida, (b) commit SQL bem-sucedido e replicação, (c) rollback com UI em estado de erro sem alterar PlayerState.",
+      "Rodar testes de carga leve (ex.: `NetDriver` com múltiplos clientes PIE) para garantir que o pool de conexões suporta bursts de login/lista/salvar sem enfileirar na Game Thread.",
+      "Incluir no CI um passo de lint sobre arquivos `.sql` para validar DDL (FK/PK/índices) e sincronizar hash/versão esperada pelo `UBackendPersistenceSubsystem`.",
+      "Automatizar screenshot/regressão visual dos Widgets UMG chave (login/lista/salvar) usando `Functional Testing` ou ferramentas de captura, garantindo consistência de layout nas builds UE.",
+      "Documentar um playbook de rollback operacional: como desativar rota de salvamento, restaurar backup e reabilitar o pipeline SQL após incidentes, incluindo comandos SQL e passos de verificação.",
+      "Executar testes de falha parcial (desconectar banco no meio do commit, simular lock prolongado) e validar que o servidor retorna códigos previsíveis, libera recursos do pool e que a UI exibe caminhos de recuperação.",
+      "Marcar cenários QA com etiquetas (ex.: `SQL_CRITICAL`, `UX_BLOCKER`) e gerar relatórios que liguem cada falha a um domínio C++ ou query específica, facilitando priorização na sprint."
+    ],
+    operations: [
+      "Ative métricas para cada chamada SQL (tempo, tamanho de payload, contagem de conexões). Gere alertas se o pool ficar saturado ou se houver mais de N rollbacks por minuto.",
+      "Mantenha backups versionados do schema e dados críticos (Account/Character/Inventory). Teste restauração em ambiente de staging e automatize verificação de integridade.",
+      "Habilite TLS/SSL na conexão com o banco e use usuário de banco com privilégios mínimos para a aplicação Unreal; rotacione credenciais periodicamente e armazene-as em config seguro.",
+      "Mantenha um runbook de incidentes com passos para isolar falhas de banco (desativar rota de salvamento, limpar fila de jobs, restaurar backup) e comunicar jogadores/operadores.",
+      "Inclua scripts de migração reversível (down migrations) para voltar uma versão de schema caso um deploy falhe e documente quando um rollback exige derrubar conexões do pool para reaplicar.",
+      "Documente a topologia de ambientes (dev/staging/prod), apontando strings de conexão, tamanhos de pool e frequência de backup para cada um, garantindo que testes não usem dados de produção.",
+      "Implemente retenção e anonimização para logs e snapshots persistidos em ambientes de QA, evitando vazamento de dados sensíveis quando os dumps forem compartilhados entre equipes.",
+      "Estabeleça um passo de revisão de desempenho pós-release: analisar planos de execução das queries principais (login/lista/salvar) e ajustar índices/estatísticas antes da próxima entrega."
+    ]
+  }
+];
+
 const ueSystems = [
   {
     id: "items-system",
@@ -1776,6 +2197,14 @@ const ueSystems = [
     mechanicsIds: ["server-protocolcore-dispatch", "server-character-list", "server-item-structs", "server-item-packet-structs", "server-item-attribute-loader", "server-380-item-type-map", "server-380-item-option", "server-excellent-option-rate", "server-set-item-option", "server-custom-quest-rewards", "server-item-handlers", "server-item-move-matrix", "server-chaos-event-muun-move", "server-muun-system", "server-item-require-checks", "server-item-move-allowlist", "server-item-stack-config", "server-item-stack-operations", "server-inventory-equipment-effects", "server-socket-item-type", "server-item-option-rate", "server-item-value", "server-item-value-trade", "server-lucky-item-options", "server-lucky-item-decay-sync", "server-harmony-options", "server-custom-jewel", "server-moss-merchant-gamble", "server-jewel-mix", "server-itembag-manager", "server-itembag-ex", "server-item-drop-config", "server-item-get-drop-conditions", "server-item-shop-handlers", "server-mapitem-drop-lifecycle", "server-pentagram-system", "client-inventory-handling", "client-item-structs", "server-personal-shop"],
     codeSummary: "DGCharacterListRecv carrega slots iniciais enquanto CItemManager move/usa/compra/vende/repara itens entre inventário/equipamentos/warehouse/chaos; no cliente, ReceiveInventory/ReceiveGetItem/ReceiveDropItem/ReceiveTradeInventory sincronizam g_pMyInventory, MixInventory e lojas.",
     ue57Summary: "Replicar arrays de inventário/equipamento e saldos em componente anexado ao Character/PlayerState, criar RPCs para transferir/loja/reparar itens e usar hooks OnRep para atualizar UI; validar tamanho e contêiner conforme limites de Item.h e registrar 'NÃO DÁ PARA INFERIR COM SEGURANÇA COM BASE NO CÓDIGO-FONTE C++' quando regras faltarem."
+  },
+  {
+    id: "database-system",
+    name: "Backend/Banco de Dados",
+    status: "Novo",
+    mechanicsIds: ["server-database-integration", "server-dataserver-dispatch", "ue-end-to-end-sql-flow"],
+    codeSummary: "O legado usa DataServer/DSProtocol para carregar lista de personagens, warehouse, quests, Muun, moedas e saves (DGCharacterListRecv, DGWarehouseItemRecv, DGMapServerMoveRecv, GDSave...).",
+    ue57Summary: "Recriar o servidor dedicado na UE 5.7 com acesso direto a banco SQL usando `UBackendPersistenceSubsystem`, pool de conexões e queries preparadas para todos os domínios (login, warehouse, inventário, quests). Eliminar DataSend/DataRecv/DSProtocol e replicar dados somente após transações `COMMIT`."
   },
   {
     id: "character-system",
@@ -2557,6 +2986,239 @@ document.addEventListener('DOMContentLoaded', () => {
     `;
   }
 
+  // Pipeline rendering (UI/UX → Cliente → Servidor SQL)
+  const pipelineListEl = document.getElementById('pipeline-list');
+  const pipelineDetailEl = document.getElementById('pipeline-detail');
+
+  function renderPipelineTags(pipeline) {
+    return pipeline.tags
+      .map(tag => `<span class="pipeline-chip"><span class="badge text-bg-secondary">${tag}</span></span>`)
+      .join('');
+  }
+
+  function renderStepColumn(title, steps, badgeClass) {
+    const items = steps
+      .map(step => `<li>${step}</li>`)
+      .join('');
+    return `
+      <div class="pipeline-step h-100">
+        <div class="d-flex align-items-center justify-content-between gap-2 mb-2">
+          <h4 class="h6 mb-0">${title}</h4>
+          <span class="badge ${badgeClass}">${title.startsWith('UI/UX') ? 'UI/UX' : title.startsWith('Cliente') ? 'Cliente' : 'Servidor SQL'}</span>
+        </div>
+        <ol class="step-list">${items}</ol>
+      </div>
+    `;
+  }
+
+  function renderDrilldowns(drilldowns = []) {
+    if (!drilldowns.length) return '';
+    const cards = drilldowns
+      .map(drill => {
+        const steps = drill.steps.map(step => `<li>${step}</li>`).join('');
+        return `
+          <div class="drilldown-card">
+            <div class="d-flex justify-content-between align-items-center mb-2">
+              <div>
+                <div class="text-uppercase small text-muted">${drill.badge || 'Detalhamento'}</div>
+                <h4 class="h6 mb-0">${drill.title}</h4>
+              </div>
+              <span class="badge text-bg-primary">Código/Blueprint</span>
+            </div>
+            <ol class="step-list small mb-0">${steps}</ol>
+          </div>
+        `;
+      })
+      .join('');
+
+    return `
+      <div class="drilldown-grid">
+        <div class="d-flex align-items-center gap-2 mb-2">
+          <span class="badge text-bg-secondary">Passo a passo por arquivo</span>
+          <span class="text-muted small">Funções, variáveis e nós de Blueprint listados em ordem de execução.</span>
+        </div>
+        ${cards}
+      </div>
+    `;
+  }
+
+  function renderProcedures(procedures = []) {
+    if (!procedures.length) return '';
+    const cards = procedures
+      .map(proc => {
+        const steps = proc.steps.map(step => `<li>${step}</li>`).join('');
+        return `
+          <div class="procedure-card">
+            <div class="d-flex justify-content-between align-items-center mb-2">
+              <div>
+                <div class="text-muted text-uppercase small">${proc.badge || 'Procedimento'}</div>
+                <h4 class="h6 mb-0">${proc.title}</h4>
+              </div>
+              <span class="badge text-bg-dark">Passo a passo</span>
+            </div>
+            <ol class="step-list small mb-0">${steps}</ol>
+          </div>
+        `;
+      })
+      .join('');
+
+    return `
+      <div class="procedure-grid">${cards}</div>
+    `;
+  }
+
+  function renderBlueprintCookbook(recipes = []) {
+    if (!recipes.length) return '';
+    const cards = recipes
+      .map(recipe => {
+        const steps = (recipe.steps || []).map(step => `<li>${step}</li>`).join('');
+        return `
+          <div class="procedure-card blueprint-card">
+            <div class="d-flex justify-content-between align-items-center mb-1">
+              <div>
+                <div class="text-uppercase small text-primary fw-semibold">${recipe.badge || 'Blueprint'}</div>
+                <h4 class="h6 mb-0">${recipe.title}</h4>
+              </div>
+              <span class="badge text-bg-primary">Nós e variáveis</span>
+            </div>
+            <ol class="step-list mb-0">${steps}</ol>
+          </div>
+        `;
+      })
+      .join('');
+
+    return `
+      <div class="section-divider d-flex align-items-center gap-2">
+        <span class="legend-pill"><span class="dot bg-primary"></span> Blueprint cookbook</span>
+        <span class="text-muted small">Caminhos prontos com nomes de funções, variáveis e nós.</span>
+      </div>
+      <div class="procedure-grid blueprint-grid">${cards}</div>
+    `;
+  }
+
+  function selectPipeline(id) {
+    if (!pipelineListEl || !pipelineDetailEl) return;
+    const pipeline = pipelines.find(p => p.id === id);
+    if (!pipeline) return;
+
+    pipelineListEl.querySelectorAll('.list-group-item').forEach(item => {
+      item.classList.toggle('active', item.dataset.id === id);
+    });
+
+    const uiuxColumn = renderStepColumn('UI/UX (UMG/Blueprint)', pipeline.uiux, 'text-bg-primary');
+    const clientColumn = renderStepColumn('Cliente (RPC/Replicação)', pipeline.client, 'text-bg-info');
+    const serverColumn = renderStepColumn('Servidor SQL (Dedicated)', pipeline.server, 'text-bg-success');
+    const blueprintCookbookSection = renderBlueprintCookbook(pipeline.blueprintCookbook);
+
+    const cppCoverageItems = (pipeline.cppCoverage || [])
+      .map(step => `<li>${step}</li>`)
+      .join('');
+    const cppCoverageSection = cppCoverageItems
+      ? `
+      <div class="pipeline-step">
+        <div class="d-flex align-items-center justify-content-between gap-2 mb-2">
+          <h4 class="h6 mb-0">Cobertura do código-fonte C++</h4>
+          <span class="badge text-bg-secondary">C++</span>
+        </div>
+        <ol class="step-list">${cppCoverageItems}</ol>
+      </div>`
+      : '';
+
+    const integrationItems = pipeline.integration
+      .map(step => `<li>${step}</li>`)
+      .join('');
+
+    const qaItems = (pipeline.qa || [])
+      .map(step => `<li>${step}</li>`)
+      .join('');
+    const qaSection = qaItems
+      ? `
+      <div class="pipeline-step">
+        <div class="d-flex align-items-center justify-content-between gap-2 mb-2">
+          <h4 class="h6 mb-0">QA, testes e observabilidade</h4>
+          <span class="badge text-bg-info">QA</span>
+        </div>
+        <ol class="step-list">${qaItems}</ol>
+      </div>`
+      : '';
+
+    const operationsItems = (pipeline.operations || [])
+      .map(step => `<li>${step}</li>`)
+      .join('');
+    const operationsSection = operationsItems
+      ? `
+      <div class="pipeline-step">
+        <div class="d-flex align-items-center justify-content-between gap-2 mb-2">
+          <h4 class="h6 mb-0">Operação, segurança e dados</h4>
+          <span class="badge text-bg-success">SQL/Ops</span>
+        </div>
+        <ol class="step-list">${operationsItems}</ol>
+      </div>`
+      : '';
+
+    pipelineDetailEl.innerHTML = `
+      <div class="d-flex justify-content-between align-items-start flex-wrap gap-2 mb-2">
+        <div>
+          <h3 class="h5 mb-1">${pipeline.title}</h3>
+          <div class="text-muted">${pipeline.scope}</div>
+          <div class="d-flex flex-wrap gap-2 mt-2">${renderPipelineTags(pipeline)}</div>
+        </div>
+        <span class="badge text-bg-dark">Trilha SQL/UE5</span>
+      </div>
+      <p class="text-muted">${pipeline.summary}</p>
+      ${renderDrilldowns(pipeline.drilldowns)}
+      ${renderProcedures(pipeline.procedures)}
+      ${blueprintCookbookSection}
+      <div class="section-divider d-flex flex-wrap align-items-center gap-2">
+        <span class="legend-pill"><span class="dot bg-primary"></span> UI/UX</span>
+        <span class="legend-pill"><span class="dot bg-info"></span> Cliente</span>
+        <span class="legend-pill"><span class="dot bg-success"></span> Servidor SQL</span>
+        <span class="legend-pill"><span class="dot bg-secondary"></span> C++ / QA / Ops</span>
+      </div>
+      <div class="pipeline-columns mb-3">
+        ${uiuxColumn}
+        ${clientColumn}
+        ${serverColumn}
+      </div>
+      ${cppCoverageSection}
+      <div class="pipeline-step">
+        <div class="d-flex align-items-center justify-content-between gap-2 mb-2">
+          <h4 class="h6 mb-0">Integração e testes</h4>
+          <span class="badge text-bg-warning">Ordem recomendada</span>
+        </div>
+        <ol class="step-list">${integrationItems}</ol>
+      </div>
+      ${qaSection}
+      ${operationsSection}
+    `;
+  }
+
+  function renderPipelineList() {
+    if (!pipelineListEl || !pipelineDetailEl) return;
+    pipelineListEl.innerHTML = '';
+
+    pipelines.forEach((pipeline, index) => {
+      const item = document.createElement('button');
+      item.type = 'button';
+      item.className = 'list-group-item list-group-item-action d-flex justify-content-between align-items-start';
+      item.dataset.id = pipeline.id;
+      item.innerHTML = `
+        <div>
+          <div class="fw-semibold">${pipeline.title}</div>
+          <div class="text-muted small">${pipeline.scope}</div>
+          <div class="mt-1 d-flex flex-wrap gap-1">${renderPipelineTags(pipeline)}</div>
+        </div>
+        <span class="badge text-bg-light text-muted">${index + 1}/${pipelines.length}</span>
+      `;
+      item.addEventListener('click', () => selectPipeline(pipeline.id));
+      pipelineListEl.appendChild(item);
+    });
+
+    if (pipelines.length) {
+      selectPipeline(pipelines[0].id);
+    }
+  }
+
   // Mechanics rendering
   const mechanicsListEl = document.getElementById('mechanics-list');
   const mechanicDetailEl = document.getElementById('mechanic-detail');
@@ -3001,6 +3663,7 @@ document.addEventListener('DOMContentLoaded', () => {
   // Initial render
   populateGuideSelect();
   populateRoadmapMechanicFilter();
+  renderPipelineList();
   renderMechanicsList();
   renderGuide();
   renderRoadmap();
