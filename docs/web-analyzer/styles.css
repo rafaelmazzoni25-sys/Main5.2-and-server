@@ -17,6 +17,35 @@ body {
   overflow-y: auto;
 }
 
+.pipeline-list {
+  max-height: 55vh;
+  overflow-y: auto;
+}
+
+.pipeline-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.35rem 0.6rem;
+  border-radius: 999px;
+  background: var(--bs-light-bg-subtle);
+  border: 1px solid var(--bs-border-color);
+  font-size: 0.85rem;
+}
+
+.pipeline-columns {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 1rem;
+}
+
+.pipeline-step {
+  border: 1px solid var(--bs-border-color);
+  border-radius: 0.75rem;
+  padding: 1rem;
+  background: #f8fafc;
+}
+
 .mechanics-list .list-group-item {
   border: 1px solid var(--bs-border-color-translucent);
 }
