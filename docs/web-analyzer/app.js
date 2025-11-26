@@ -1829,38 +1829,50 @@ const pipelines = [
     id: "ue5-uiux-sql-handoff",
     title: "UI/UX → Cliente → Servidor SQL (UE 5.7)",
     scope: "Login, lista de personagens e salvamento de snapshot",
-    summary: "Trilha única para designers e engenheiros entregarem UI/UX UMG acoplada a RPCs do cliente e transações SQL no servidor dedicado, sem DataSend/DataRecv.",
-    tags: ["UMG", "Blueprint", "RPC", "SQL"],
+    summary: "Trilha única para designers e engenheiros entregarem UI/UX UMG acoplada a RPCs do cliente e transações SQL no servidor dedicado, sem DataSend/DataRecv. Agora inclui operação, auditoria e validação cruzada com o código C++.",
+    tags: ["UMG", "Blueprint", "RPC", "SQL", "DevOps"],
     cppCoverage: [
       "Varra todo o código-fonte C++ por DataSend/DataRecv/DSProtocol (ex.: Protocol.cpp, Connection.cpp, DataServerProtocol.cpp, PartyMatching.h, Quest.h, Warehouse.h) e registre cada chamada que precisa migrar para o subsistema SQL antes da remoção do DataServer.",
       "Para cada struct de packet/handler encontrada (CGCharacterListRecv, GDSaveWarehouseItemSend, GDSavePlayerInventory, DGMapServerMoveRecv), crie USTRUCTs equivalentes e converta a lógica para queries preparadas do `UBackendPersistenceSubsystem`, garantindo que a transação SQL finalize antes de qualquer OnRep/RPC Client.",
       "Substitua integrações de sistema (Party, Guild, Gens, EventInventory, PersonalShop, MasterSkillTree) por chamadas do subsistema SQL, mantendo nomes e validações do C++ original e anotando regras desconhecidas com 'NÃO DÁ PARA INFERIR COM SEGURANÇA COM BASE NO CÓDIGO-FONTE C++'.",
       "Confirme que toda rota de salvamento/consulta (login, lista de personagens, warehouse, inventário, moedas, Muun, quests) usa prepared statements com parâmetros tipados e rollback em falha, refletindo os campos dos headers/structs do código C++ legado.",
-      "Execute uma passagem final cruzando o schema SQL versionado com os arquivos C++ (ESProtocol.h, Helper.h, DataServer headers) para garantir que todos os domínios possuem tabelas/índices correspondentes e que nenhuma referência ao DataServer permaneça no servidor dedicado UE 5.7."
+      "Execute uma passagem final cruzando o schema SQL versionado com os arquivos C++ (ESProtocol.h, Helper.h, DataServer headers) para garantir que todos os domínios possuem tabelas/índices correspondentes e que nenhuma referência ao DataServer permaneça no servidor dedicado UE 5.7.",
+      "Incorpore testes automatizados de migração em C++ usando `AutomationTest`/`Spec` para confirmar que cada query obrigatória existe no catálogo do subsistema e que migrações não aplicadas bloqueiam a inicialização do servidor." 
     ],
     uiux: [
       "Montar um Widget UMG unificado (login/lista/salvar) com estados de Loading, Erro e Sucesso; cada estado deve estar conectado a eventos `OnAccountSubmitted`, `OnCharacterListReceived` e `OnSaveCompleted` expostos pelo PlayerController.",
       "Aplicar feedback imediato: desabilitar botões enquanto RPC Server está em voo, exibir trilha de progresso (spinner + texto) e mensagens específicas por código de erro replicado.",
+      "Documentar no Blueprint a ordem de navegação: Login → Lista de personagens → Ações de persistência. Cada tela deve chamar funções BlueprintCallable do PlayerController com fail-safe de reentrada bloqueada.",
       "Adicionar indicadores de sincronização (ícone de banco) que mudam via `OnRep_PersistenceState` no cliente; animar transições com Sequencer/Timeline para reforçar quando o servidor confirma commit SQL.",
-      "Documentar no Blueprint a ordem de navegação: Login → Lista de personagens → Ações de persistência. Cada tela deve chamar funções BlueprintCallable do PlayerController com fail-safe de reentrada bloqueada."
+      "Preparar estados de falha offline: exibir opção de reconectar ou reprocessar request, mantendo o snapshot local sem sobrescrever dados quando o servidor recusar o commit."
     ],
     client: [
       "No `ANetworkPC`, declarar RPCs Server `ServerSubmitAccount`, `ServerRequestCharacterList` e `ServerSaveSnapshot` (Reliable) e RPCs Client `ClientAuthFailed`, `ClientReceiveCharacterList`, `ClientSaveResult`.",
       "Encadear os RPCs com guards de Authority/HasAuthority e bloquear repetição enquanto flags locais `bAuthPending` ou `bSavePending` estiverem ativas; limpar as flags apenas nos callbacks Client.",
       "Replicar componentes de estado (`InventoryComponent`, `QuestComponent`) e publicar eventos `BlueprintAssignable` para que a UI atualize listas sem acessar C++ diretamente.",
-      "Substituir qualquer uso de DataSend/DataRecv/DSProtocol por RPCs nativos; logs devem registrar a frase padrão de não inferência quando regras legadas faltarem antes de enviar algo ao servidor."
+      "Substituir qualquer uso de DataSend/DataRecv/DSProtocol por RPCs nativos; logs devem registrar a frase padrão de não inferência quando regras legadas faltarem antes de enviar algo ao servidor.",
+      "Incluir um guardião de versão: compare `ClientProtocolVersion` replicada com a versão exigida pelo servidor antes de disparar RPCs e notifique a UI se houver divergência (evita requests inválidos)."
     ],
     server: [
       "Criar `UBackendPersistenceSubsystem` no Dedicated Server com pool SQL configurável (string de conexão, tamanho do pool, timeout). Validar DDL/versionamento ao inicializar e registrar falha antes de aceitar players.",
       "Implementar `ValidateCredentialsAsync`, `FetchCharacterListAsync` e `SaveSnapshotAsync` usando prepared statements e transações (`BEGIN/COMMIT/ROLLBACK`), executadas em `Async(EAsyncExecution::ThreadPool, ...)`.",
       "Só replicar `PlayerState`/inventário após `COMMIT`; em erro, retornar RPC Client com código e manter o estado local intacto. Bloquear qualquer chamada ao DataServer legado e remover dependências de DSProtocol.",
-      "Instrumentar health check do pool (ping, contagem de conexões ativas) e logs de auditoria (quem gravou, tempo de query, resultado) para cada chamada do pipeline."
+      "Instrumentar health check do pool (ping, contagem de conexões ativas) e logs de auditoria (quem gravou, tempo de query, resultado) para cada chamada do pipeline.",
+      "Formalizar uma camada de anti-corrupção: use funções helper para mapear structs C++ para parâmetros SQL (ex.: `FAccountRow`, `FCharacterRow`), padronizando conversões, timezone e normalização de strings antes do commit."
     ],
     integration: [
       "Fluxo integrado: UI chama RPC Server → GameMode roteia para `UBackendPersistenceSubsystem` → tarefa SQL roda no pool → callback volta ao Game Thread → RPC Client atualiza UI/estado replicado.",
       "Adicionar testes PIE em ordem: (1) enviar login inválido e validar mensagem na UI; (2) login válido retorna lista; (3) salvar snapshot com rollback forçado (simular falha de transação) e conferir UI em estado de erro; (4) salvar com sucesso e ver ícone de sync finalizar.",
       "Mapear dependências entre domínios (conta, personagens, inventário) usando `TMap<FName, FString>` para queries obrigatórias; se faltar regra, registrar a frase padrão e impedir commit.",
-      "Publicar um mini-painel de status no servidor (log ou widget editor) mostrando pool saudável, queries em andamento e número de callbacks pendentes para diagnosticar gargalos UI/UX."
+      "Publicar um mini-painel de status no servidor (log ou widget editor) mostrando pool saudável, queries em andamento e número de callbacks pendentes para diagnosticar gargalos UI/UX.",
+      "Validar jornada completa em network PIE/standalone: confirme que os RPCs respeitam ordem de autoridade, que OnRep dispara após commit SQL e que rollback não replica estado parcial."
+    ],
+    operations: [
+      "Configurar migrações versionadas (ex.: `V0001__CreateAccounts.sql`) e seeding inicial; bloquear boot do servidor caso algum script obrigatório não seja aplicado ou falhe.",
+      "Habilitar métricas e alarmes: latência média das queries, taxa de erro por domínio, número de rollbacks por minuto e uso do pool; exportar para logs ou endpoint HTTP de saúde.",
+      "Política de backup e restore: snapshot diário das tabelas de personagens/itens e teste mensal de restauração em ambiente de staging antes de promover migrações.",
+      "Segurança: TLS obrigatório na conexão SQL, usuário de banco com mínimo de privilégios e rotação periódica de credenciais armazenadas no config seguro do servidor dedicado.",
+      "Prontidão para incidentes: runbook com passos de isolamento (desligar filas de RPC/entradas), validação de integridade (`CHECKSUM`/`COUNT`) e limpeza de registros órfãos detectados nas verificações do pool."
     ]
   }
 ];
@@ -2726,6 +2738,20 @@ document.addEventListener('DOMContentLoaded', () => {
       .map(step => `<li class="mb-2">${step}</li>`)
       .join('');
 
+    const operationsItems = (pipeline.operations || [])
+      .map(step => `<li class="mb-2">${step}</li>`)
+      .join('');
+    const operationsSection = operationsItems
+      ? `
+      <div class="pipeline-step">
+        <div class="d-flex align-items-center justify-content-between gap-2 mb-2">
+          <h4 class="h6 mb-0">Operação, segurança e dados</h4>
+          <span class="badge text-bg-success">SQL/Ops</span>
+        </div>
+        <ul class="ps-3 mb-0">${operationsItems}</ul>
+      </div>`
+      : '';
+
     pipelineDetailEl.innerHTML = `
       <div class="d-flex justify-content-between align-items-start flex-wrap gap-2 mb-2">
         <div>
@@ -2749,6 +2775,7 @@ document.addEventListener('DOMContentLoaded', () => {
         </div>
         <ul class="ps-3 mb-0">${integrationItems}</ul>
       </div>
+      ${operationsSection}
     `;
   }
 
