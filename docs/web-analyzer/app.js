@@ -281,6 +281,19 @@ const mechanics = [
     description: "Orquestra a camada de transporte moderna do servidor, encaminhando cada ProtocolHead para a lógica de jogo depois de validar e reconstruir o buffer recebido."
   },
   {
+    id: "server-database-integration",
+    name: "Integração e persistência em banco de dados (UE 5)",
+    type: "Servidor",
+    coherenceStatus: "Requer recriação completa do servidor na UE com banco SQL",
+    coherenceNotes: "Substitui DataServer/DSProtocol por um servidor interno Unreal conectado diretamente a um banco SQL (ex.: PostgreSQL/MySQL/SQL Server) via plugin/ODBC; usa subsistemas UE para orquestrar conexões, pool e jobs assíncronos sem bloquear a Game Thread.",
+    files: ["DSProtocol.cpp", "Protocol.cpp"],
+    classes: ["ProtocolCore"],
+    functions: ["DGCharacterListRecv", "DGWarehouseItemRecv", "DGMapServerMoveRecv", "GDSave..."],
+    networkDetails: "No código legado, DataServer trafega listas de personagem, warehouse, Muun, quests, moedas e save completo. Na UE 5, a persistência passa a usar acesso direto a banco SQL a partir do servidor Unreal (sem DataServer), com prepared statements e transações para cada domínio (login, inventário, quest, warehouse).",
+    flow: "Hoje, ProtocolCore recebe respostas do DataServer (DGCharacterListRecv/DGWarehouseItemRecv) após CGCharacterListRecv/CGWarehouseMoneyRecv e handlers de save (GDSaveWarehouseItemSend, GDSavePlayerInventory). Para UE 5, o servidor deve ser refeito nativamente: (1) inicializar pool de conexões SQL em um Subsystem na startup do Dedicated Server, (2) coletar snapshots de PlayerState/Inventory/Quest em structs serializáveis, (3) disparar queries parametrizadas em tarefas `Async(EAsyncExecution::ThreadPool, ...)` usando o pool, (4) consolidar resultados no Game Thread via callback, aplicando no GameMode/PlayerState e replicando somente após `Commit`, (5) remover totalmente DataSend/DataRecv/DSProtocol e operar apenas com RPCs Unreal entre servidor e clientes após o sucesso das transações SQL.",
+    description: "Mapa dos pontos que dependem de banco de dados (lista de personagens, warehouse, inventário, Muun, quests, moedas, saves) e orientação para reconstruir o servidor na UE com acesso SQL direto (prepared statements, transações e pool), evitando qualquer camada DataServer e garantindo que nada bloqueie a Game Thread."
+  },
+  {
     id: "server-login-auth",
     name: "Handshake de conexão e autenticação do servidor",
     type: "Servidor",
@@ -1209,7 +1222,19 @@ const ueGuides = {
       "3. No `.cpp`, registre um mapa `TMap<uint8, TFunction<void(const TArray<uint8>&)>>` que associa cada head/subcódigo a um delegate forte; em `Initialize`, preencha os delegates chamando funções tipadas em vez de parsing manual de bytes.",
       "4. Para notificações ao cliente, declare `UFUNCTION(Client, Reliable)` como `void ClientReceiveWarehouseItems(const FWarehousePayload& Data);` ou `ClientReceiveQuestKill(const FQuestKillData& Data);` e chame-as nos handlers, substituindo o envio de buffers gWarehouse/DGQuestKillCountRecv.",
       "5. Se alguma estrutura de retorno não puder ser inferida do código original, inclua na implementação um `UE_LOG` com a mensagem 'NÃO DÁ PARA INFERIR COM SEGURANÇA COM BASE NO CÓDIGO-FONTE C++' e bloqueie a chamada até obter especificação.",
-      "6. Em **Edit → Project Settings → Maps & Modes**, marque o GameMode para usar este subsistema (via `GetGameInstance()->GetSubsystem<UDataBackendRouter>()`) ao iniciar a sessão e teste em PIE chamando manualmente os handlers para ver as notificações Client." 
+      "6. Em **Edit → Project Settings → Maps & Modes**, marque o GameMode para usar este subsistema (via `GetGameInstance()->GetSubsystem<UDataBackendRouter>()`) ao iniciar a sessão e teste em PIE chamando manualmente os handlers para ver as notificações Client."
+    ]
+  },
+  "server-database-integration": {
+    title: "Persistir dados com servidor UE 5 dedicado conectado a banco SQL",
+    steps: [
+      "1. Crie um **GameInstance Subsystem** `UBackendPersistenceSubsystem` no Dedicated Server UE 5.7 exclusivamente para banco SQL; declare `UPROPERTY()` para string de conexão, tamanho do pool e tempo de timeout. Inicialize o pool de conexões (ODBC/plug-in específico) em `Initialize(FSubsystemCollectionBase&)` e registre logs caso a conexão falhe.",
+      "2. Modele `USTRUCT(BlueprintType)` para cada payload que antes vinha do DataServer (ex.: `FCharacterListPayload`, `FWarehouseSnapshot`, `FQuestStatePayload`, `FMuunInventoryPayload`, `FWalletSnapshot`) incluindo campos de versão/revisão e hashes para detecção de conflito. Cada payload deve ser convertido para parâmetros de query SQL (prepared statements).",
+      "3. Para leitura (login/map move), exponha `UFUNCTION(Server, Reliable)` como `void ServerRequestCharacterList(ANetworkPC* PC);` que chama `UBackendPersistenceSubsystem::FetchCharacterListAsync(AccountId, Callback)`. No subsistema, abra conexão do pool e execute SELECT parametrizado em `Async(EAsyncExecution::ThreadPool, ...)`; volte ao Game Thread via `AsyncTask(ENamedThreads::GameThread, ...)` antes de tocar no `PC`.",
+      "4. Para salvamento, implemente `QueueSaveJob(const FPlayerSnapshot& Snapshot)` com `TQueue<FSaveJob>` contendo SQL parametrizado (BEGIN/COMMIT). Dispare jobs em timer dedicado ou em logout/map move; se `Execute()` retornar erro, registre `NÃO DÁ PARA INFERIR COM SEGURANÇA COM BASE NO CÓDIGO-FONTE C++` e devolva RPC de falha ao cliente.",
+      "5. No GameMode/PlayerState, injete o subsistema (`GetGameInstance()->GetSubsystem<UBackendPersistenceSubsystem>()`) e só envie RPCs ao cliente (ex.: `ClientReceiveWarehouse`) depois que a transação SQL confirmar. Em falha, reverta alterações locais e comunique o cliente com código de erro replicado.",
+      "6. Para transações críticas (reset, mix, loja, trade), agregue tudo em `FPlayerSnapshot`, abra transação SQL com lock otimista/pessimista conforme o banco e mantenha estado travado na memória até `Commit`. Em `Rollback`, restaure valores replicados e registre motivo.",
+      "7. Remova qualquer chamada direta a DataSend/DataRecv/DSProtocol: toda persistência passa pelo subsistema SQL e só replica para os clientes quando a transação for confirmada. Documente scripts de criação de tabela/índices no subsistema e carregue-os na inicialização para garantir compatibilidade do schema."
     ]
   },
   "server-joinserver-auth-move": {
@@ -1776,6 +1801,14 @@ const ueSystems = [
     mechanicsIds: ["server-protocolcore-dispatch", "server-character-list", "server-item-structs", "server-item-packet-structs", "server-item-attribute-loader", "server-380-item-type-map", "server-380-item-option", "server-excellent-option-rate", "server-set-item-option", "server-custom-quest-rewards", "server-item-handlers", "server-item-move-matrix", "server-chaos-event-muun-move", "server-muun-system", "server-item-require-checks", "server-item-move-allowlist", "server-item-stack-config", "server-item-stack-operations", "server-inventory-equipment-effects", "server-socket-item-type", "server-item-option-rate", "server-item-value", "server-item-value-trade", "server-lucky-item-options", "server-lucky-item-decay-sync", "server-harmony-options", "server-custom-jewel", "server-moss-merchant-gamble", "server-jewel-mix", "server-itembag-manager", "server-itembag-ex", "server-item-drop-config", "server-item-get-drop-conditions", "server-item-shop-handlers", "server-mapitem-drop-lifecycle", "server-pentagram-system", "client-inventory-handling", "client-item-structs", "server-personal-shop"],
     codeSummary: "DGCharacterListRecv carrega slots iniciais enquanto CItemManager move/usa/compra/vende/repara itens entre inventário/equipamentos/warehouse/chaos; no cliente, ReceiveInventory/ReceiveGetItem/ReceiveDropItem/ReceiveTradeInventory sincronizam g_pMyInventory, MixInventory e lojas.",
     ue57Summary: "Replicar arrays de inventário/equipamento e saldos em componente anexado ao Character/PlayerState, criar RPCs para transferir/loja/reparar itens e usar hooks OnRep para atualizar UI; validar tamanho e contêiner conforme limites de Item.h e registrar 'NÃO DÁ PARA INFERIR COM SEGURANÇA COM BASE NO CÓDIGO-FONTE C++' quando regras faltarem."
+  },
+  {
+    id: "database-system",
+    name: "Backend/Banco de Dados",
+    status: "Novo",
+    mechanicsIds: ["server-database-integration", "server-dataserver-dispatch"],
+    codeSummary: "O legado usa DataServer/DSProtocol para carregar lista de personagens, warehouse, quests, Muun, moedas e saves (DGCharacterListRecv, DGWarehouseItemRecv, DGMapServerMoveRecv, GDSave...).",
+    ue57Summary: "Recriar o servidor dedicado na UE 5.7 com acesso direto a banco SQL usando `UBackendPersistenceSubsystem`, pool de conexões e queries preparadas para todos os domínios (login, warehouse, inventário, quests). Eliminar DataSend/DataRecv/DSProtocol e replicar dados somente após transações `COMMIT`."
   },
   {
     id: "character-system",
