@@ -5,17 +5,22 @@ const mechanics = [
     id: "serverlist-script-load",
     name: "Leitura e descriptografia de ServerList.bmd",
     type: "Cliente",
+    implementationOrder: 1,
+    coherenceStatus: "Legado (não necessário na UE 5.7)",
+    coherenceNotes: "Na UE 5.7 os assets de ServerList já chegam descriptografados; o BuxConvert só deve ser mantido como fallback para detectar arquivos legados e registrar aviso.",
     files: ["ServerListManager.cpp", "ServerListManager.h"],
     classes: ["CServerListManager"],
     functions: ["LoadServerListScript", "BuxConvert"],
     networkDetails: "Nenhum envio de rede: leitura local do arquivo Data\\\\Local\\\\ServerList.bmd e armazenamento em m_mapServerListScript.",
-    flow: "LoadServerListScript abre ServerList.bmd, verifica erro, descriptografa campos com BuxConvert e insere SERVER_GROUP_INFO decodificados em m_mapServerListScript, retornando false se o arquivo não for encontrado.",
-    description: "Mantém um cache de grupos de servidor a partir do arquivo binário local, aplicando XOR rotativo (0xfc,0xcf,0xab) em cada byte lido antes de copiar para SServerGroupInfo e checando falha de fopen."
+    flow: "LoadServerListScript abre ServerList.bmd, verifica erro e insere SERVER_GROUP_INFO em m_mapServerListScript; na UE 5.7 o arquivo já está convertido e não precisa de BuxConvert, mas o fallback pode registrar aviso se detectar bytes ofuscados.",
+    description: "Mantém um cache de grupos de servidor a partir do arquivo binário local. No client legado aplicava XOR rotativo (0xfc,0xcf,0xab); na UE 5.7 lê direto e apenas alerta quando encontra um asset antigo criptografado."
   },
   {
     id: "servergroup-creation",
     name: "Criação/reutilização de grupos de servidor",
     type: "Cliente",
+    implementationOrder: 2,
+    dependsOn: ["serverlist-script-load"],
     files: ["ServerListManager.cpp", "ServerListManager.h", "ServerGroup.cpp", "ServerGroup.h"],
     classes: ["CServerListManager", "CServerGroup"],
     functions: ["InsertServerGroup", "MakeServerGroup", "Release"],
@@ -27,6 +32,8 @@ const mechanics = [
     id: "serverentry-population",
     name: "Construção de entradas de servidor e rotulagem de carga",
     type: "Cliente",
+    implementationOrder: 3,
+    dependsOn: ["servergroup-creation"],
     files: ["ServerListManager.cpp", "ServerInfo.h"],
     classes: ["CServerListManager", "CServerInfo"],
     functions: ["InsertServer"],
@@ -38,6 +45,8 @@ const mechanics = [
     id: "server-iteration",
     name: "Iteração sobre grupos e servidores",
     type: "Cliente",
+    implementationOrder: 4,
+    dependsOn: ["servergroup-creation"],
     files: ["ServerListManager.cpp", "ServerGroup.cpp"],
     classes: ["CServerListManager", "CServerGroup"],
     functions: ["SetFirst", "GetNext"],
@@ -49,6 +58,8 @@ const mechanics = [
     id: "server-selection-state",
     name: "Registro de seleção de servidor e flags",
     type: "Cliente",
+    implementationOrder: 5,
+    dependsOn: ["serverentry-population", "server-iteration"],
     files: ["ServerListManager.cpp", "ServerListManager.h"],
     classes: ["CServerListManager"],
     functions: ["SetSelectServerInfo", "GetSelectServerName", "GetSelectServerIndex", "GetCensorshipIndex", "IsNonPvP", "IsTestServer"],
@@ -60,6 +71,10 @@ const mechanics = [
     id: "protocol-connection",
     name: "Conexão e desconexão via CustomClient",
     type: "Cliente",
+    implementationOrder: 6,
+    dependsOn: ["server-selection-state"],
+    coherenceStatus: "Requer redesign na UE 5.7",
+    coherenceNotes: "Fluxo depende de CustomClient/olc::net e flags globais; na UE deve virar RPCs/replicação ou sockets cross-platform, sem DataSend bruto.",
     files: ["ProtocolSend.cpp", "ProtocolSend.h"],
     classes: ["CProtocolSend", "CustomClient"],
     functions: ["ConnectServer", "DisconnectServer", "CheckConnected", "SendPingTest", "SendCheckOnline", "SendPacket", "SendPacketClassic"],
@@ -71,6 +86,10 @@ const mechanics = [
     id: "protocol-recv-dispatch",
     name: "Fila de recebimento e despacho de mensagens",
     type: "Cliente",
+    implementationOrder: 7,
+    dependsOn: ["protocol-connection"],
+    coherenceStatus: "Requer redesign na UE 5.7",
+    coherenceNotes: "Parsing de C1/C2/C3/C4 e SimpleModulus só faz sentido no protocolo legado; na UE 5.7 trocar por mensagens replicadas/NetDriver, mantendo apenas como referência de regras de negócio.",
     files: ["ProtocolSend.cpp", "WSclient.cpp"],
     classes: ["CProtocolSend"],
     functions: ["RecvMessage"],
@@ -82,6 +101,10 @@ const mechanics = [
     id: "protocol-login-send",
     name: "Envio de login com codificação Bux",
     type: "Cliente",
+    implementationOrder: 8,
+    dependsOn: ["protocol-connection"],
+    coherenceStatus: "Requer redesign na UE 5.7",
+    coherenceNotes: "O fluxo com BuxConvert e CustomClient não se aplica à UE; substituir por autenticação HTTP/backend ou OnlineSubsystem, eliminando criptografia legado.",
     files: ["ProtocolSend.cpp", "ProtocolSend.h"],
     classes: ["CProtocolSend"],
     functions: ["SendRequestLogInNew"],
@@ -93,12 +116,14 @@ const mechanics = [
     id: "socket-option-script",
     name: "Leitura de opções de socket e descriptografia",
     type: "Cliente",
+    coherenceStatus: "Legado (não necessário na UE 5.7)",
+    coherenceNotes: "Os binários de opções já devem estar convertidos para a UE 5.7; remover XOR/BuxConvert e só manter log caso um arquivo antigo criptografado seja carregado.",
     files: ["SocketSystem.cpp", "SocketSystem.h"],
     classes: ["CSocketItemMgr"],
     functions: ["OpenSocketItemScript", "BuxConvert", "CalcSocketOptionValue", "CalcSocketOptionValueText", "CreateSocketOptionText"],
     networkDetails: "Sem rede; o sistema de packets do projeto original não participa desta carga de dados local.",
-    flow: "OpenSocketItemScript abre arquivo binário de opções, faz fread de SOCKET_OPTION_INFO em duplo loop por tipo e índice, aplica BuxConvert (XOR 0xfc/0xcf/0xab) para descriptografar, fecha o arquivo e calcula m_iNumEquitSetBonusOptions até encontrar entrada vazia.",
-    description: "Processa script de opções de socket em binário local, aplicando XOR por byte, montando valores numéricos e texto de bônus (CalcSocketOptionValue/CalcSocketOptionValueText) para uso por ferramentas de tooltip e cálculo de status."
+    flow: "OpenSocketItemScript abre arquivo binário de opções e percorre tipos/índices preenchendo SOCKET_OPTION_INFO; no cliente legado aplicava BuxConvert (XOR 0xfc/0xcf/0xab), mas na UE 5.7 o caminho esperado é carregar dados já convertidos e apenas avisar se um arquivo criptografado for detectado.",
+    description: "Processa script de opções de socket em binário local. A versão original descriptografava byte a byte; na UE 5.7 usa leitura direta e só loga quando encontra um asset legado."
   },
   {
     id: "socket-tooltip-bonus",
@@ -148,6 +173,8 @@ const mechanics = [
     id: "wsclient-socket-decode",
     name: "Criação de socket assíncrono e descriptografia de pacotes (WSclient)",
     type: "Cliente",
+    coherenceStatus: "Incompatível com alvo UE 5.7",
+    coherenceNotes: "Depende de WinSock/WM_ASYNCSELECTMSG e SimpleModulus; na UE 5.7 deve ser substituído por sockets cross-platform ou RPCs, mantendo só como documentação do protocolo legado.",
     files: ["WSclient.cpp", "wsclientinline.h"],
     classes: ["CWsctlc"],
     functions: ["CreateSocket", "DeleteSocket", "ProtocolCompiler", "AddDebugText", "ReceiveCheckSumRequest"],
@@ -192,17 +219,22 @@ const mechanics = [
     id: "buff-script-load",
     name: "Carga e descriptografia de BuffEffect_*.bmd",
     type: "Cliente",
+    implementationOrder: 20,
+    coherenceStatus: "Legado (não necessário na UE 5.7)",
+    coherenceNotes: "BuffEffect_<ML>.bmd já deve estar convertido sem XOR; use leitura direta e somente alerte quando um arquivo criptografado antigo for detectado.",
     files: ["w_BuffScriptLoader.cpp", "w_BuffScriptLoader.h"],
     classes: ["BuffScriptLoader", "BuffInfo"],
     functions: ["BuffScriptLoader::Load", "BuxConvert", "BuxConvertW", "CutTokenString", "GetBuffinfo", "IsBuffClass", "GetBuffIndex", "GetBuffType"],
     networkDetails: "Nenhuma comunicação de rede; leitura local de arquivo data/local/<ML>/BuffEffect_<ML>.bmd com checagem de checksum e xor BuxConvert.",
-    flow: "Construtor forma nome do arquivo, chama Load; Load abre BIN, lê listsize e buffer criptografado, aplica BuxConvert/BuxConvertW, valida checksum com GenerateCheckSum2, monta BuffInfo com nomes/descrições tokenizadas e insere em m_Info; opcionalmente resolve índices/tipos por item code.",
-    description: "Deserializa tabelas de buffs de arquivo BMD, aplica xor rotativo, valida checksum e tokeniza descrições em lista para uso posterior, abortando com MessageBox/SendMessage em corrupção ou ausência de arquivo."
+    flow: "Construtor forma nome do arquivo, chama Load; no código legado o BIN era lido, descriptografado com BuxConvert/BuxConvertW e validado por checksum; na UE 5.7 espera-se leitura direta do arquivo já convertido e apenas um aviso se bytes ofuscados forem detectados.",
+    description: "Deserializa tabelas de buffs a partir do BMD. A etapa de XOR/checksum era necessária no cliente antigo; com assets convertidos para UE 5.7, a leitura é direta e a criptografia vira apenas detecção de legado."
   },
   {
     id: "buff-time-control",
     name: "Registro e temporização de buffs ativos",
     type: "Cliente",
+    implementationOrder: 21,
+    dependsOn: ["buff-script-load"],
     files: ["w_BuffTimeControl.cpp", "w_BuffTimeControl.h"],
     classes: ["BuffTimeControl"],
     functions: ["RegisterBuffTime", "UnRegisterBuffTime", "CheckBuffTimeType", "GetBuffMaxTime", "HandleWindowMessage", "GetBuffStringTime", "GetBuffTime", "IsBuffTime", "GetBuffEventTime", "GetStringTime"],
@@ -214,6 +246,8 @@ const mechanics = [
     id: "buff-value-control",
     name: "Consulta de valores numéricos de buffs",
     type: "Cliente",
+    implementationOrder: 22,
+    dependsOn: ["buff-script-load"],
     files: ["w_BuffStateValueControl.cpp", "w_BuffStateValueControl.h"],
     classes: ["BuffStateValueControl"],
     functions: ["CheckValue", "SetValue", "GetValue", "GetBuffInfoString", "GetBuffValueString", "Initialize"],
@@ -225,6 +259,8 @@ const mechanics = [
     id: "buff-system-dispatch",
     name: "Agregação de sistema de buff e encaminhamento de mensagens de janela",
     type: "Cliente",
+    implementationOrder: 23,
+    dependsOn: ["buff-script-load", "buff-time-control", "buff-value-control"],
     files: ["w_BuffStateSystem.cpp", "w_BuffStateSystem.h", "_GlobalFunctions.cpp", "_GlobalFunctions.h"],
     classes: ["BuffStateSystem"],
     functions: ["BuffStateSystem::Make", "Initialize", "Destroy", "HandleWindowMessage", "TheBuffStateSystem"],
@@ -899,7 +935,7 @@ const ueGuides = {
       "1. Abra o Unreal Engine 5.7, carregue o projeto e no Content Browser clique em **Add → New C++ Class**.",
       "2. Escolha **None** como base e crie uma classe `UObject` chamada `UServerListManagerUE` para substituir a leitura local feita por CServerListManager.",
       "3. No arquivo `.h`, declare um método `UFUNCTION(BlueprintCallable)` `bool LoadServerListScript(const FString& FilePath)` e um `TMap<int32, FServerGroupInfo>` (defina `USTRUCT` espelhando SERVER_GROUP_INFO: nome, pos, sequence, NonPVP).",
-      "4. No arquivo `.cpp`, em `LoadServerListScript`, use `FFileHelper::LoadFileToArray` e aplique o XOR rotativo (0xfc, 0xcf, 0xab) byte a byte antes de copiar para o struct; retorne false quando falhar, replicando o comportamento do código original.",
+      "4. No arquivo `.cpp`, em `LoadServerListScript`, apenas carregue os dados com `FFileHelper::LoadFileToArray` e copie para o struct sem aplicar XOR/BuxConvert, pois os assets já estarão em formato aceito pela UE 5.7; se receber um arquivo legado, registre log orientando a substituição pelo asset convertido.",
       "5. Compile pelo Editor (botão **Compile**). Depois, crie um Blueprint baseado em `UServerListManagerUE`, abra em **Class Defaults** e deixe sem replicação (somente cliente), pois é leitura local.",
       "6. No Blueprint de UI que lista servidores, chame `LoadServerListScript` via BlueprintCallable e armazene o TMap para preencher widgets de lista, sem qualquer socket ou packet do sistema original."
     ]
@@ -960,7 +996,7 @@ const ueGuides = {
     steps: [
       "1. No Editor, clique em **Add → New C++ Class** e escolha **None** para criar `USocketOptionScript` derivada de `UObject`.",
       "2. No arquivo `.h`, declare `UFUNCTION(BlueprintCallable)` `bool LoadSocketOptions(const FString& FilePath);` e defina um `USTRUCT` `FSocketOptionInfo` com os mesmos campos usados em SOCKET_OPTION_INFO (OptionIndex, Type, Value, Text).",
-      "3. No `.cpp`, em `LoadSocketOptions`, use `FFileHelper::LoadFileToArray` para ler o binário e aplique o XOR rotativo (0xfc, 0xcf, 0xab) byte a byte antes de preencher cada `FSocketOptionInfo`; retorne false se fread falhar, conforme o código original.",
+      "3. No `.cpp`, em `LoadSocketOptions`, use `FFileHelper::LoadFileToArray` para ler o binário já convertido e preencher cada `FSocketOptionInfo` diretamente, sem aplicar XOR/BuxConvert; se um arquivo legado criptografado for detectado, registre aviso para substituição antes de retornar false.",
       "4. Adicione `UFUNCTION(BlueprintPure)` `const TArray<FSocketOptionInfo>& GetOptions() const;` para fornecer dados à UI e funções auxiliares que somem `m_iNumEquitSetBonusOptions` e calculem valores usando lógica de `CalcSocketOptionValue/Text`.",
       "5. Compile e, em um Blueprint de inventário, chame `LoadSocketOptions` no BeginPlay para preencher as tabelas; mantenha sem replicação (dados locais).",
       "6. Documente em comentário que o sistema de packets do projeto original não é usado na UE; todos os fluxos de rede devem usar RPCs e propriedades replicadas."
@@ -1066,7 +1102,7 @@ const ueGuides = {
     steps: [
       "1. No Editor, clique em **Add → New C++ Class → None** e crie `UBuffScriptLoaderUE` derivada de `UObject`.",
       "2. No `.h`, declare `UFUNCTION(BlueprintCallable)` `bool LoadBuffScript(const FString& Path);` e defina `USTRUCT` para `_BUFFINFO` com campos equivalentes aos do código (s_BuffIndex, s_BuffEffectType, s_ItemType, s_ItemIndex, s_BuffName, s_BuffClassType, s_NoticeType, s_ClearType, s_BuffDescript).",
-      "3. No `.cpp`, use `FFileHelper::LoadFileToArray` para ler BuffEffect_<ML>.bmd, aplique XOR rotativo (0xfc, 0xcf, 0xab) antes de copiar para o struct e retorne false se o tamanho não bater.",
+      "3. No `.cpp`, use `FFileHelper::LoadFileToArray` para ler BuffEffect_<ML>.bmd e copie diretamente os dados para o struct, sem XOR/BuxConvert, já que os arquivos foram convertidos para formato compatível com a UE 5.7; retorne false se o tamanho não bater e registre aviso se identificar um arquivo legado criptografado.",
       "4. Implemente verificação de checksum equivalente a GenerateCheckSum2; se faltar referência, escreva 'NÃO DÁ PARA INFERIR COM SEGURANÇA COM BASE NO CÓDIGO-FONTE C++' e substitua por um log/abort manual.",
       "5. Após carregar, divida s_BuffDescript por '/' em `TArray<FString>` e armazene em `TMap<eBuffState, FBuffInfo>` acessível a Blueprints.",
       "6. Compile e crie um Blueprint baseado em `UBuffScriptLoaderUE`; em **Class Defaults**, mantenha sem replicação (processo local)."
@@ -1853,7 +1889,7 @@ const roadmap = [
     horizon: "Curto Prazo",
     priority: "Alta",
     mechanicsIds: ["serverlist-script-load"],
-    description: "Adicionar verificação de tamanho e logs antes de aplicar BuxConvert e fread para evitar leituras parciais.",
+    description: "Adicionar verificação de tamanho e logs ao carregar os arquivos já convertidos (sem BuxConvert/XOR), registrando aviso caso algum binário legado ainda criptografado seja encontrado.",
     basedOnCode: true,
     notes: "Baseado diretamente no código C++ (ServerListManager.cpp linha 79-94)."
   },
@@ -2331,20 +2367,160 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
 
+  function coherenceBadgeClass(status) {
+    if (!status) return 'text-bg-secondary';
+    if (status.toLowerCase().includes('incompat')) return 'text-bg-danger';
+    if (status.toLowerCase().includes('legado')) return 'text-bg-warning';
+    if (status.toLowerCase().includes('redesign')) return 'text-bg-warning';
+    return 'text-bg-success';
+  }
+
+  function compatibilityBadgeClass(status) {
+    if (!status) return 'text-bg-secondary';
+    const normalized = status.toLowerCase();
+    if (normalized.includes('incompat')) return 'text-bg-danger';
+    if (normalized.includes('redesign')) return 'text-bg-warning';
+    if (normalized.includes('legado') || normalized.includes('compat')) return 'text-bg-success';
+    return 'text-bg-secondary';
+  }
+
+  function ueReviewBadgeClass(status) {
+    if (!status) return 'text-bg-secondary';
+    const normalized = status.toLowerCase();
+    if (normalized.includes('detalh')) return 'text-bg-success';
+    if (normalized.includes('ajuste') || normalized.includes('rever')) return 'text-bg-warning';
+    if (normalized.includes('ausente')) return 'text-bg-danger';
+    return 'text-bg-secondary';
+  }
+
+  function evaluateUeGuideQuality(mechanic) {
+    if (!mechanic) {
+      return {
+        status: 'Guia UE ausente',
+        notes: 'Mecânica não mapeada; inclua checklist com classe C++/Blueprint, replicação e testes PIE.'
+      };
+    }
+
+    const guide = ueGuides[mechanic.id];
+    if (!guide) {
+      return {
+        status: 'Guia UE ausente',
+        notes: 'Faltam instruções UE 5.7 para esta mecânica. Documente criação de classe, RPCs/replicação, assets convertidos e validação PIE.'
+      };
+    }
+
+    const stepsText = guide.steps.join(' ').toLowerCase();
+    const mentionsReplication = stepsText.includes('replic');
+    const mentionsRpc = stepsText.includes('rpc');
+    const mentionsSubsystem = stepsText.includes('subsystem') || stepsText.includes('gamemode');
+    const mentionsTesting = stepsText.includes('teste') || stepsText.includes('pie');
+    const mentionsAssetConversion = stepsText.includes('buxconvert') || stepsText.includes('xor') || stepsText.includes('convert');
+
+    const missing = [];
+    if (!mentionsReplication) missing.push('adicionar instruções explícitas de replicação/Authority.');
+    if (!mentionsRpc) missing.push('incluir chamadas RPC Server/Client ou NetMulticast.');
+    if (mechanic.type?.toLowerCase() === 'servidor' && !mentionsSubsystem) missing.push('detalhar uso de GameMode/Subsystem para lógica server-authoritative.');
+    if (mechanic.type?.toLowerCase() === 'cliente' && !mentionsAssetConversion) missing.push('registrar que assets já estão convertidos (sem BuxConvert/XOR).');
+    if (!mentionsTesting) missing.push('incluir passo de teste em PIE ou sessão multiplayer.');
+
+    if (missing.length) {
+      return {
+        status: 'Guia UE requer ajustes',
+        notes: `Faltam pontos críticos: ${missing.join(' ')}`
+      };
+    }
+
+    return {
+      status: 'Guia UE detalhado',
+      notes: 'Guia cobre replicação, RPCs, assets convertidos e teste em PIE para UE 5.7.'
+    };
+  }
+
+  function buildCompatibilityInfo(mechanic) {
+    if (!mechanic) {
+      return {
+        status: 'Não avaliado',
+        notes: 'Mecânica não encontrada; revise manualmente se é viável na UE 5.7.'
+      };
+    }
+
+    const coherenceStatus = mechanic.coherenceStatus || '';
+    const coherenceNotes = mechanic.coherenceNotes || 'Sem notas de coerência; valide replicação, dependências de backend e formatos de asset convertidos para UE 5.7.';
+    const isServer = mechanic.type?.toLowerCase() === 'servidor';
+    const serverHint = isServer
+      ? 'Priorize RPCs e GameMode/Subsystems server-authoritative em vez de DataServer/packets legados.'
+      : 'Use PlayerController/Subsystems e RPCs ou UFunctions replicadas em vez de sockets/packets legados.';
+
+    if (coherenceStatus.toLowerCase().includes('incompat')) {
+      return {
+        status: 'Incompatível na UE 5.7',
+        notes: `${coherenceNotes} ${serverHint}`
+      };
+    }
+
+    if (coherenceStatus.toLowerCase().includes('redesign')) {
+      return {
+        status: 'Requer redesign na UE 5.7',
+        notes: `${coherenceNotes} ${serverHint}`
+      };
+    }
+
+    if (coherenceStatus.toLowerCase().includes('legado')) {
+      return {
+        status: 'Compatível na UE 5.7 (assets convertidos)',
+        notes: `${coherenceNotes} Garanta que não haja chamadas a BuxConvert/XOR ou SimpleModulus nos assets convertidos.`
+      };
+    }
+
+    return {
+      status: 'Compatibilidade não declarada',
+      notes: `${coherenceNotes} Valide replicação (Authority/Remote), uso de NetDriver ou OnlineSubsystem e evite DataSend/DataRecv.`
+    };
+  }
+
+  function buildUEReviewBlock(mechanic) {
+    const { status, notes } = evaluateUeGuideQuality(mechanic);
+    const badgeClass = ueReviewBadgeClass(status);
+    return `
+      <div class="mb-3">
+        <div class="text-muted text-uppercase small mb-1">Revisão de guia Unreal Engine</div>
+        <div class="d-flex flex-wrap gap-2 align-items-center">
+          <span class="badge ${badgeClass} detail-badge">${status}</span>
+          <span class="text-muted-80 small">${notes}</span>
+        </div>
+      </div>
+    `;
+  }
+
   // Mechanics rendering
   const mechanicsListEl = document.getElementById('mechanics-list');
   const mechanicDetailEl = document.getElementById('mechanic-detail');
   const searchInput = document.getElementById('mechanics-search');
   const typeFilter = document.getElementById('mechanics-type-filter');
+  const orderFilter = document.getElementById('mechanics-order-filter');
 
   function renderMechanicsList() {
     const query = searchInput.value.toLowerCase();
     const type = typeFilter.value;
+    const order = orderFilter.value;
     mechanicsListEl.innerHTML = '';
-    mechanics
+    const sorted = mechanics
       .filter(m => (!type || m.type === type))
-      .filter(m => m.name.toLowerCase().includes(query))
-      .forEach(m => {
+      .filter(m => m.name.toLowerCase().includes(query));
+
+    sorted.sort((a, b) => {
+      if (order === 'order') {
+        const orderA = Number.isFinite(a.implementationOrder) ? a.implementationOrder : Number.MAX_SAFE_INTEGER;
+        const orderB = Number.isFinite(b.implementationOrder) ? b.implementationOrder : Number.MAX_SAFE_INTEGER;
+        if (orderA !== orderB) return orderA - orderB;
+      }
+      return a.name.localeCompare(b.name, 'pt');
+    });
+
+    sorted.forEach(m => {
+        const orderLabel = Number.isFinite(m.implementationOrder)
+          ? `Etapa #${m.implementationOrder}`
+          : 'Sem ordem definida';
         const button = document.createElement('button');
         button.type = 'button';
         button.className = 'list-group-item list-group-item-action d-flex justify-content-between align-items-start';
@@ -2353,6 +2529,7 @@ document.addEventListener('DOMContentLoaded', () => {
           <div class="me-2 text-start">
             <div class="fw-semibold">${m.name}</div>
             <div class="small text-muted">${m.files?.[0] || 'C/C++'}</div>
+            <div class="small text-muted">${orderLabel}</div>
           </div>
           <span class="badge rounded-pill ${typeBadgeClass(m.type)} align-self-center">${m.type}</span>
         `;
@@ -2378,6 +2555,157 @@ document.addEventListener('DOMContentLoaded', () => {
     `;
   }
 
+  function resolveMechanicName(id) {
+    const mech = mechanics.find(x => x.id === id);
+    return mech ? mech.name : id;
+  }
+
+  function collectPrerequisites(mechanicId, visited = new Set()) {
+    if (visited.has(mechanicId)) return [];
+    visited.add(mechanicId);
+
+    const mech = mechanics.find(x => x.id === mechanicId);
+    if (!mech || !Array.isArray(mech.dependsOn)) return [];
+
+    return mech.dependsOn.flatMap(depId => {
+      const dep = mechanics.find(x => x.id === depId);
+      const ancestors = collectPrerequisites(depId, visited);
+      return dep ? [...ancestors, dep] : ancestors;
+    });
+  }
+
+  function collectDependents(mechanicId, visited = new Set()) {
+    if (visited.has(mechanicId)) return [];
+    visited.add(mechanicId);
+
+    const direct = mechanics.filter(
+      other => Array.isArray(other.dependsOn) && other.dependsOn.includes(mechanicId)
+    );
+
+    return direct.flatMap(dep => {
+      const children = collectDependents(dep.id, visited);
+      return [dep, ...children];
+    });
+  }
+
+  function sortByOrderThenName(a, b) {
+    const orderA = Number.isFinite(a.implementationOrder) ? a.implementationOrder : Number.MAX_SAFE_INTEGER;
+    const orderB = Number.isFinite(b.implementationOrder) ? b.implementationOrder : Number.MAX_SAFE_INTEGER;
+    if (orderA !== orderB) return orderA - orderB;
+    return a.name.localeCompare(b.name, 'pt');
+  }
+
+  function buildFullPathBlock(mechanic) {
+    const prerequisites = collectPrerequisites(mechanic.id);
+    const unlocks = collectDependents(mechanic.id);
+    const fullPath = [...prerequisites, mechanic, ...unlocks].filter(Boolean);
+
+    const unique = [];
+    const seen = new Set();
+    fullPath.forEach(entry => {
+      if (!seen.has(entry.id)) {
+        unique.push(entry);
+        seen.add(entry.id);
+      }
+    });
+
+    const ordered = unique.sort(sortByOrderThenName);
+
+    const listItems = ordered
+      .map((item, idx) => {
+        const orderLabel = Number.isFinite(item.implementationOrder)
+          ? `Etapa #${item.implementationOrder}`
+          : 'Sem ordem definida';
+        const positionLabel = `Posição ${idx + 1}/${ordered.length}`;
+        return `<li class="list-group-item d-flex justify-content-between align-items-start">
+          <div>
+            <div class="fw-semibold">${item.name}</div>
+            <div class="text-muted-80 small">${orderLabel}</div>
+          </div>
+          <span class="badge text-bg-secondary">${positionLabel}</span>
+        </li>`;
+      })
+      .join('');
+
+    return `
+      <div class="mb-3">
+        <div class="text-muted text-uppercase small mb-1">Caminho completo</div>
+        <p class="text-muted-80 small mb-2">Sequência consolidada de pré-requisitos e desbloqueios para seguir a implementação de ponta a ponta.</p>
+        <ol class="list-group list-group-numbered">${listItems || '<li class="list-group-item">Sem conexões registradas.</li>'}</ol>
+      </div>
+    `;
+  }
+
+  function buildChronologyBlock(mechanic) {
+    const orderLabel = Number.isFinite(mechanic.implementationOrder)
+      ? `Etapa #${mechanic.implementationOrder}`
+      : 'Sem ordem definida';
+
+    const prerequisites = mechanic.dependsOn?.map(resolveMechanicName) || [];
+    const unlocks = mechanics
+      .filter(other => Array.isArray(other.dependsOn) && other.dependsOn.includes(mechanic.id))
+      .sort((a, b) => {
+        const orderA = Number.isFinite(a.implementationOrder) ? a.implementationOrder : Number.MAX_SAFE_INTEGER;
+        const orderB = Number.isFinite(b.implementationOrder) ? b.implementationOrder : Number.MAX_SAFE_INTEGER;
+        if (orderA !== orderB) return orderA - orderB;
+        return a.name.localeCompare(b.name, 'pt');
+      })
+      .map(m => m.name);
+
+    const prerequisitesText = prerequisites.length
+      ? `Depende de: ${prerequisites.join(', ')}`
+      : 'Não possui pré-requisitos cronológicos registrados.';
+
+    const unlocksText = unlocks.length
+      ? `Desbloqueia: ${unlocks.join(', ')}`
+      : 'Nenhuma ligação posterior registrada.';
+
+    return `
+      <div class="row g-3 mb-3 align-items-start">
+        <div class="col-md-6">
+          <div class="text-muted text-uppercase small mb-1">Ordem de implementação</div>
+          <div class="d-flex flex-wrap gap-2 align-items-center">
+            <span class="badge text-bg-dark detail-badge">${orderLabel}</span>
+            <span class="text-muted small">${prerequisitesText}</span>
+          </div>
+        </div>
+        <div class="col-md-6">
+          <div class="text-muted text-uppercase small mb-1">Conexões cronológicas</div>
+          <div class="text-muted-80 small">${unlocksText}</div>
+        </div>
+      </div>
+    `;
+  }
+
+  function buildCoherenceBlock(mechanic) {
+    const status = mechanic.coherenceStatus || 'Não avaliado';
+    const notes = mechanic.coherenceNotes || missingText;
+    const badgeClass = coherenceBadgeClass(mechanic.coherenceStatus);
+    return `
+      <div class="mb-3">
+        <div class="text-muted text-uppercase small mb-1">Coerência / Viabilidade</div>
+        <div class="d-flex flex-wrap gap-2 align-items-center">
+          <span class="badge ${badgeClass} detail-badge">${status}</span>
+          <span class="text-muted-80 small">${notes}</span>
+        </div>
+      </div>
+    `;
+  }
+
+  function buildCompatibilityBlock(mechanic) {
+    const { status, notes } = buildCompatibilityInfo(mechanic);
+    const badgeClass = compatibilityBadgeClass(status);
+    return `
+      <div class="mb-3">
+        <div class="text-muted text-uppercase small mb-1">Compatibilidade UE 5.7</div>
+        <div class="d-flex flex-wrap gap-2 align-items-center">
+          <span class="badge ${badgeClass} detail-badge">${status}</span>
+          <span class="text-muted-80 small">${notes}</span>
+        </div>
+      </div>
+    `;
+  }
+
   function selectMechanic(id) {
     const m = mechanics.find(x => x.id === id);
     if (!m) return;
@@ -2394,6 +2722,11 @@ document.addEventListener('DOMContentLoaded', () => {
         <div class="text-muted small">Fluxo de rede e adaptação Unreal</div>
       </div>
       <p class="text-muted-80">${m.description}</p>
+      ${buildCoherenceBlock(m)}
+      ${buildCompatibilityBlock(m)}
+      ${buildUEReviewBlock(m)}
+      ${buildChronologyBlock(m)}
+      ${buildFullPathBlock(m)}
       ${renderPillGroup('Arquivos', m.files)}
       ${renderPillGroup('Classes', m.classes)}
       ${renderPillGroup('Funções', m.functions)}
@@ -2411,6 +2744,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   searchInput.addEventListener('input', renderMechanicsList);
   typeFilter.addEventListener('change', renderMechanicsList);
+  orderFilter.addEventListener('change', renderMechanicsList);
 
   // Guides rendering
   const guideSelect = document.getElementById('guide-mechanic-filter');
@@ -2440,6 +2774,11 @@ document.addEventListener('DOMContentLoaded', () => {
       return;
     }
     const guide = ueGuides[id];
+    const mechanic = mechanics.find(m => m.id === id);
+    const compatibility = buildCompatibilityInfo(mechanic);
+    const compatClass = compatibilityBadgeClass(compatibility.status);
+    const ueReview = evaluateUeGuideQuality(mechanic);
+    const ueReviewClass = ueReviewBadgeClass(ueReview.status);
     guideContent.innerHTML = `
       <div class="d-flex justify-content-between align-items-start flex-wrap gap-2 mb-3">
         <div>
@@ -2447,6 +2786,20 @@ document.addEventListener('DOMContentLoaded', () => {
           <div class="text-muted small">Checklist para Unreal Engine 5.7</div>
         </div>
         <span class="badge text-bg-primary">Guia</span>
+      </div>
+      <div class="mb-3">
+        <div class="text-muted text-uppercase small mb-1">Compatibilidade UE 5.7</div>
+        <div class="d-flex flex-wrap gap-2 align-items-center">
+          <span class="badge ${compatClass} detail-badge">${compatibility.status}</span>
+          <span class="text-muted-80 small">${compatibility.notes}</span>
+        </div>
+      </div>
+      <div class="mb-3">
+        <div class="text-muted text-uppercase small mb-1">Revisão de guia Unreal Engine</div>
+        <div class="d-flex flex-wrap gap-2 align-items-center">
+          <span class="badge ${ueReviewClass} detail-badge">${ueReview.status}</span>
+          <span class="text-muted-80 small">${ueReview.notes}</span>
+        </div>
       </div>
       <ol class="list-group list-group-numbered list-group-flush">
         ${guide.steps.map(step => `<li class="list-group-item">${step}</li>`).join('')}
