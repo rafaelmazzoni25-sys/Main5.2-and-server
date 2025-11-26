@@ -1831,6 +1831,13 @@ const pipelines = [
     scope: "Login, lista de personagens e salvamento de snapshot",
     summary: "Trilha única para designers e engenheiros entregarem UI/UX UMG acoplada a RPCs do cliente e transações SQL no servidor dedicado, sem DataSend/DataRecv.",
     tags: ["UMG", "Blueprint", "RPC", "SQL"],
+    cppCoverage: [
+      "Varra todo o código-fonte C++ por DataSend/DataRecv/DSProtocol (ex.: Protocol.cpp, Connection.cpp, DataServerProtocol.cpp, PartyMatching.h, Quest.h, Warehouse.h) e registre cada chamada que precisa migrar para o subsistema SQL antes da remoção do DataServer.",
+      "Para cada struct de packet/handler encontrada (CGCharacterListRecv, GDSaveWarehouseItemSend, GDSavePlayerInventory, DGMapServerMoveRecv), crie USTRUCTs equivalentes e converta a lógica para queries preparadas do `UBackendPersistenceSubsystem`, garantindo que a transação SQL finalize antes de qualquer OnRep/RPC Client.",
+      "Substitua integrações de sistema (Party, Guild, Gens, EventInventory, PersonalShop, MasterSkillTree) por chamadas do subsistema SQL, mantendo nomes e validações do C++ original e anotando regras desconhecidas com 'NÃO DÁ PARA INFERIR COM SEGURANÇA COM BASE NO CÓDIGO-FONTE C++'.",
+      "Confirme que toda rota de salvamento/consulta (login, lista de personagens, warehouse, inventário, moedas, Muun, quests) usa prepared statements com parâmetros tipados e rollback em falha, refletindo os campos dos headers/structs do código C++ legado.",
+      "Execute uma passagem final cruzando o schema SQL versionado com os arquivos C++ (ESProtocol.h, Helper.h, DataServer headers) para garantir que todos os domínios possuem tabelas/índices correspondentes e que nenhuma referência ao DataServer permaneça no servidor dedicado UE 5.7."
+    ],
     uiux: [
       "Montar um Widget UMG unificado (login/lista/salvar) com estados de Loading, Erro e Sucesso; cada estado deve estar conectado a eventos `OnAccountSubmitted`, `OnCharacterListReceived` e `OnSaveCompleted` expostos pelo PlayerController.",
       "Aplicar feedback imediato: desabilitar botões enquanto RPC Server está em voo, exibir trilha de progresso (spinner + texto) e mensagens específicas por código de erro replicado.",
@@ -1845,7 +1852,7 @@ const pipelines = [
     ],
     server: [
       "Criar `UBackendPersistenceSubsystem` no Dedicated Server com pool SQL configurável (string de conexão, tamanho do pool, timeout). Validar DDL/versionamento ao inicializar e registrar falha antes de aceitar players.",
-      "Implementar `ValidateCredentialsAsync`, `FetchCharacterListAsync` e `SaveSnapshotAsync` usando prepared statements e transações (`BEGIN/COMMIT/ROLLBACK`), executadas em `Async(EAsyncExecution::ThreadPool, ...)`.
+      "Implementar `ValidateCredentialsAsync`, `FetchCharacterListAsync` e `SaveSnapshotAsync` usando prepared statements e transações (`BEGIN/COMMIT/ROLLBACK`), executadas em `Async(EAsyncExecution::ThreadPool, ...)`.",
       "Só replicar `PlayerState`/inventário após `COMMIT`; em erro, retornar RPC Client com código e manter o estado local intacto. Bloquear qualquer chamada ao DataServer legado e remover dependências de DSProtocol.",
       "Instrumentar health check do pool (ping, contagem de conexões ativas) e logs de auditoria (quem gravou, tempo de query, resultado) para cada chamada do pipeline."
     ],
@@ -2701,6 +2708,20 @@ document.addEventListener('DOMContentLoaded', () => {
     const clientColumn = renderStepColumn('Cliente (RPC/Replicação)', pipeline.client, 'text-bg-info');
     const serverColumn = renderStepColumn('Servidor SQL (Dedicated)', pipeline.server, 'text-bg-success');
 
+    const cppCoverageItems = (pipeline.cppCoverage || [])
+      .map(step => `<li class="mb-2">${step}</li>`)
+      .join('');
+    const cppCoverageSection = cppCoverageItems
+      ? `
+      <div class="pipeline-step">
+        <div class="d-flex align-items-center justify-content-between gap-2 mb-2">
+          <h4 class="h6 mb-0">Cobertura do código-fonte C++</h4>
+          <span class="badge text-bg-secondary">C++</span>
+        </div>
+        <ul class="ps-3 mb-0">${cppCoverageItems}</ul>
+      </div>`
+      : '';
+
     const integrationItems = pipeline.integration
       .map(step => `<li class="mb-2">${step}</li>`)
       .join('');
@@ -2720,6 +2741,7 @@ document.addEventListener('DOMContentLoaded', () => {
         ${clientColumn}
         ${serverColumn}
       </div>
+      ${cppCoverageSection}
       <div class="pipeline-step">
         <div class="d-flex align-items-center justify-content-between gap-2 mb-2">
           <h4 class="h6 mb-0">Integração e testes</h4>
