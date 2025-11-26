@@ -1839,7 +1839,9 @@ const pipelines = [
       "Execute uma passagem final cruzando o schema SQL versionado com os arquivos C++ (ESProtocol.h, Helper.h, DataServer headers) para garantir que todos os domínios possuem tabelas/índices correspondentes e que nenhuma referência ao DataServer permaneça no servidor dedicado UE 5.7.",
       "Incorpore testes automatizados de migração em C++ usando `AutomationTest`/`Spec` para confirmar que cada query obrigatória existe no catálogo do subsistema e que migrações não aplicadas bloqueiam a inicialização do servidor.",
       "Implemente verificadores estáticos (clang-tidy ou scripts de lint) que falham o build quando `DataSend`/`DataRecv` ainda aparecem em arquivos C++ do servidor, garantindo que a migração para SQL está completa.",
-      "Exponha no editor um painel de configuração do `UBackendPersistenceSubsystem` (via `UDeveloperSettings`) permitindo ajustar string de conexão, pool e toggles de auditoria direto no Project Settings sem recompilar."
+      "Exponha no editor um painel de configuração do `UBackendPersistenceSubsystem` (via `UDeveloperSettings`) permitindo ajustar string de conexão, pool e toggles de auditoria direto no Project Settings sem recompilar.",
+      "Defina testes de integração C++ que simulam falha de conexão, timeouts e deadlocks no banco, certificando-se de que o subsistema retorna códigos de erro reproduzíveis e de que a UI/UX recebe estados consistentes sem travar a Game Thread.",
+      "Padronize comentários de migração nos headers C++ usando um marcador (ex.: `// MIGRATION_SQL:`) para localizar rapidamente o que já foi convertido e o que ainda depende do DataServer antes de remover os módulos legados."
     ],
     uiux: [
       "Montar um Widget UMG unificado (login/lista/salvar) com estados de Loading, Erro e Sucesso; cada estado deve estar conectado a eventos `OnAccountSubmitted`, `OnCharacterListReceived` e `OnSaveCompleted` expostos pelo PlayerController.",
@@ -1848,7 +1850,9 @@ const pipelines = [
       "Adicionar indicadores de sincronização (ícone de banco) que mudam via `OnRep_PersistenceState` no cliente; animar transições com Sequencer/Timeline para reforçar quando o servidor confirma commit SQL.",
       "Preparar estados de falha offline: exibir opção de reconectar ou reprocessar request, mantendo o snapshot local sem sobrescrever dados quando o servidor recusar o commit.",
       "Publicar um mini \"style guide\" dentro do projeto (Widget Blueprint ou documento) descrevendo layout, hierarquia de cores/estados e strings de erro/sucesso para padronizar toda UI ligada ao pipeline SQL.",
-      "Instrumentar os Widgets com eventos de telemetria (ex.: `OnSyncStarted`, `OnSyncEnded`, `OnSyncFailed`) para enviar logs estruturados ao servidor via RPC dedicado de UX, sem bloquear a thread de renderização."
+      "Instrumentar os Widgets com eventos de telemetria (ex.: `OnSyncStarted`, `OnSyncEnded`, `OnSyncFailed`) para enviar logs estruturados ao servidor via RPC dedicado de UX, sem bloquear a thread de renderização.",
+      "Incluir boas práticas de acessibilidade: foco visível, navegação por teclado, leitura de estados (Loading/Erro/Sucesso) por Screen Reader e contraste mínimo para botões relacionados ao fluxo SQL.",
+      "Adicionar placeholders e skeleton loading para listas de personagens e inventário, evitando telas vazias enquanto o commit SQL está em andamento e registrando o tempo total de round-trip para benchmarking de UX."
     ],
     client: [
       "No `ANetworkPC`, declarar RPCs Server `ServerSubmitAccount`, `ServerRequestCharacterList` e `ServerSaveSnapshot` (Reliable) e RPCs Client `ClientAuthFailed`, `ClientReceiveCharacterList`, `ClientSaveResult`.",
@@ -1857,7 +1861,9 @@ const pipelines = [
       "Substituir qualquer uso de DataSend/DataRecv/DSProtocol por RPCs nativos; logs devem registrar a frase padrão de não inferência quando regras legadas faltarem antes de enviar algo ao servidor.",
       "Incluir um guardião de versão: compare `ClientProtocolVersion` replicada com a versão exigida pelo servidor antes de disparar RPCs e notifique a UI se houver divergência (evita requests inválidos).",
       "Adicionar um canal de log estruturado (ex.: `UXTrace`) no cliente para correlacionar ações de UI com RPCs enviados/recebidos; inclua IDs de requisição e timestamps replicados para depuração de round-trip SQL.",
-      "Documentar em C++ os pontos de entrada para Blueprints (`BlueprintCallable/BlueprintImplementableEvent`) em um header dedicado, garantindo que designers encontrem rapidamente como acionar o pipeline SQL sem tocar em rede bruta."
+      "Documentar em C++ os pontos de entrada para Blueprints (`BlueprintCallable/BlueprintImplementableEvent`) em um header dedicado, garantindo que designers encontrem rapidamente como acionar o pipeline SQL sem tocar em rede bruta.",
+      "Habilitar retentativas limitadas e backoff exponencial para RPCs críticos de salvamento quando a UI detectar falha transitória de conexão, sempre respeitando locks locais para não duplicar commits.",
+      "Expose `Config`/`ConsoleVariables` para tempos de timeout e comportamento de retry, permitindo ajuste rápido em builds QA sem recompilar o cliente."
     ],
     server: [
       "Criar `UBackendPersistenceSubsystem` no Dedicated Server com pool SQL configurável (string de conexão, tamanho do pool, timeout). Validar DDL/versionamento ao inicializar e registrar falha antes de aceitar players.",
@@ -1866,7 +1872,10 @@ const pipelines = [
       "Instrumentar health check do pool (ping, contagem de conexões ativas) e logs de auditoria (quem gravou, tempo de query, resultado) para cada chamada do pipeline.",
       "Formalizar uma camada de anti-corrupção: use funções helper para mapear structs C++ para parâmetros SQL (ex.: `FAccountRow`, `FCharacterRow`), padronizando conversões, timezone e normalização de strings antes do commit.",
       "Criar scripts de seeding/fixtures para contas/personagens de teste e carregá-los via `UBackendPersistenceSubsystem` ao iniciar ambientes de desenvolvimento, permitindo reproduzir casos de UI/UX rapidamente.",
-      "Registrar contratos de versionamento (ex.: cabeçalho `SchemaVersion`, revisões de query) e recusar conexões de clientes quando o servidor detectar mismatch de versão, protegendo integridade das transações SQL."
+      "Registrar contratos de versionamento (ex.: cabeçalho `SchemaVersion`, revisões de query) e recusar conexões de clientes quando o servidor detectar mismatch de versão, protegendo integridade das transações SQL.",
+      "Especificar mapeamentos claros entre domínios e queries obrigatórias (login, personagens, warehouse, party/guild), armazenando-as em um catálogo JSON/ini consumido pelo subsistema para prevenir queries montadas via string concat.",
+      "Adicionar coleta de métricas de fila interna do subsistema (jobs pendentes, tempo médio de espera, taxa de erro por query) e publicar via `stats`/logs para orientar ajustes de pool e otimizações.",
+      "Implementar caminhos de degradação controlada: se o banco ficar indisponível, recusar novas sessões com mensagem amigável, esvaziar filas e emitir alerta de operação, evitando replicar estado parcial."
     ],
     integration: [
       "Fluxo integrado: UI chama RPC Server → GameMode roteia para `UBackendPersistenceSubsystem` → tarefa SQL roda no pool → callback volta ao Game Thread → RPC Client atualiza UI/estado replicado.",
@@ -1875,14 +1884,18 @@ const pipelines = [
       "Publicar um mini-painel de status no servidor (log ou widget editor) mostrando pool saudável, queries em andamento e número de callbacks pendentes para diagnosticar gargalos UI/UX.",
       "Criar pacotes de experimentos manuais para QA (ex.: mudança rápida de personagem, spam de salvamento, desconexão forçada) e documentar expectativa de UI/servidor para cada caso antes de liberar build.",
       "Listar no guia de integração as portas, credenciais temporárias e parâmetros de conexão usados em ambientes locais/CI para que novos membros configurem a trilha SQL em menos de 30 minutos.",
-      "Validar jornada completa em network PIE/standalone: confirme que os RPCs respeitam ordem de autoridade, que OnRep dispara após commit SQL e que rollback não replica estado parcial."
+      "Validar jornada completa em network PIE/standalone: confirme que os RPCs respeitam ordem de autoridade, que OnRep dispara após commit SQL e que rollback não replica estado parcial.",
+      "Registrar um checklist de preparação de ambiente (strings de conexão, firewall/localhost, seeds carregados) a ser executado antes de cada rodada de QA para evitar testes inconclusivos por configuração incorreta.",
+      "Calibrar limites de payload (tamanho máximo de inventário/quests) e validar na integração que compressão/serialização do snapshot não ultrapassa MTU nem os limites de replicação do NetDriver."
     ],
     qa: [
       "Adotar testes de Automation (`AutomationSpec`) cobrindo: (a) bloqueio de RPC com versão inválida, (b) commit SQL bem-sucedido e replicação, (c) rollback com UI em estado de erro sem alterar PlayerState.",
       "Rodar testes de carga leve (ex.: `NetDriver` com múltiplos clientes PIE) para garantir que o pool de conexões suporta bursts de login/lista/salvar sem enfileirar na Game Thread.",
       "Incluir no CI um passo de lint sobre arquivos `.sql` para validar DDL (FK/PK/índices) e sincronizar hash/versão esperada pelo `UBackendPersistenceSubsystem`.",
       "Automatizar screenshot/regressão visual dos Widgets UMG chave (login/lista/salvar) usando `Functional Testing` ou ferramentas de captura, garantindo consistência de layout nas builds UE.",
-      "Documentar um playbook de rollback operacional: como desativar rota de salvamento, restaurar backup e reabilitar o pipeline SQL após incidentes, incluindo comandos SQL e passos de verificação."
+      "Documentar um playbook de rollback operacional: como desativar rota de salvamento, restaurar backup e reabilitar o pipeline SQL após incidentes, incluindo comandos SQL e passos de verificação.",
+      "Executar testes de falha parcial (desconectar banco no meio do commit, simular lock prolongado) e validar que o servidor retorna códigos previsíveis, libera recursos do pool e que a UI exibe caminhos de recuperação.",
+      "Marcar cenários QA com etiquetas (ex.: `SQL_CRITICAL`, `UX_BLOCKER`) e gerar relatórios que liguem cada falha a um domínio C++ ou query específica, facilitando priorização na sprint."
     ],
     operations: [
       "Ative métricas para cada chamada SQL (tempo, tamanho de payload, contagem de conexões). Gere alertas se o pool ficar saturado ou se houver mais de N rollbacks por minuto.",
@@ -1890,7 +1903,9 @@ const pipelines = [
       "Habilite TLS/SSL na conexão com o banco e use usuário de banco com privilégios mínimos para a aplicação Unreal; rotacione credenciais periodicamente e armazene-as em config seguro.",
       "Mantenha um runbook de incidentes com passos para isolar falhas de banco (desativar rota de salvamento, limpar fila de jobs, restaurar backup) e comunicar jogadores/operadores.",
       "Inclua scripts de migração reversível (down migrations) para voltar uma versão de schema caso um deploy falhe e documente quando um rollback exige derrubar conexões do pool para reaplicar.",
-      "Documente a topologia de ambientes (dev/staging/prod), apontando strings de conexão, tamanhos de pool e frequência de backup para cada um, garantindo que testes não usem dados de produção."
+      "Documente a topologia de ambientes (dev/staging/prod), apontando strings de conexão, tamanhos de pool e frequência de backup para cada um, garantindo que testes não usem dados de produção.",
+      "Implemente retenção e anonimização para logs e snapshots persistidos em ambientes de QA, evitando vazamento de dados sensíveis quando os dumps forem compartilhados entre equipes.",
+      "Estabeleça um passo de revisão de desempenho pós-release: analisar planos de execução das queries principais (login/lista/salvar) e ajustar índices/estatísticas antes da próxima entrega."
     ]
   }
 ];
@@ -2712,7 +2727,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   function renderStepColumn(title, steps, badgeClass) {
     const items = steps
-      .map(step => `<li class="mb-2">${step}</li>`)
+      .map(step => `<li>${step}</li>`)
       .join('');
     return `
       <div class="pipeline-step h-100">
@@ -2720,7 +2735,7 @@ document.addEventListener('DOMContentLoaded', () => {
           <h4 class="h6 mb-0">${title}</h4>
           <span class="badge ${badgeClass}">${title.startsWith('UI/UX') ? 'UI/UX' : title.startsWith('Cliente') ? 'Cliente' : 'Servidor SQL'}</span>
         </div>
-        <ul class="ps-3 mb-0">${items}</ul>
+        <ol class="step-list">${items}</ol>
       </div>
     `;
   }
@@ -2739,7 +2754,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const serverColumn = renderStepColumn('Servidor SQL (Dedicated)', pipeline.server, 'text-bg-success');
 
     const cppCoverageItems = (pipeline.cppCoverage || [])
-      .map(step => `<li class="mb-2">${step}</li>`)
+      .map(step => `<li>${step}</li>`)
       .join('');
     const cppCoverageSection = cppCoverageItems
       ? `
@@ -2748,16 +2763,16 @@ document.addEventListener('DOMContentLoaded', () => {
           <h4 class="h6 mb-0">Cobertura do código-fonte C++</h4>
           <span class="badge text-bg-secondary">C++</span>
         </div>
-        <ul class="ps-3 mb-0">${cppCoverageItems}</ul>
+        <ol class="step-list">${cppCoverageItems}</ol>
       </div>`
       : '';
 
     const integrationItems = pipeline.integration
-      .map(step => `<li class="mb-2">${step}</li>`)
+      .map(step => `<li>${step}</li>`)
       .join('');
 
     const qaItems = (pipeline.qa || [])
-      .map(step => `<li class="mb-2">${step}</li>`)
+      .map(step => `<li>${step}</li>`)
       .join('');
     const qaSection = qaItems
       ? `
@@ -2766,12 +2781,12 @@ document.addEventListener('DOMContentLoaded', () => {
           <h4 class="h6 mb-0">QA, testes e observabilidade</h4>
           <span class="badge text-bg-info">QA</span>
         </div>
-        <ul class="ps-3 mb-0">${qaItems}</ul>
+        <ol class="step-list">${qaItems}</ol>
       </div>`
       : '';
 
     const operationsItems = (pipeline.operations || [])
-      .map(step => `<li class="mb-2">${step}</li>`)
+      .map(step => `<li>${step}</li>`)
       .join('');
     const operationsSection = operationsItems
       ? `
@@ -2780,7 +2795,7 @@ document.addEventListener('DOMContentLoaded', () => {
           <h4 class="h6 mb-0">Operação, segurança e dados</h4>
           <span class="badge text-bg-success">SQL/Ops</span>
         </div>
-        <ul class="ps-3 mb-0">${operationsItems}</ul>
+        <ol class="step-list">${operationsItems}</ol>
       </div>`
       : '';
 
@@ -2794,6 +2809,12 @@ document.addEventListener('DOMContentLoaded', () => {
         <span class="badge text-bg-dark">Trilha SQL/UE5</span>
       </div>
       <p class="text-muted">${pipeline.summary}</p>
+      <div class="section-divider d-flex flex-wrap align-items-center gap-2">
+        <span class="legend-pill"><span class="dot bg-primary"></span> UI/UX</span>
+        <span class="legend-pill"><span class="dot bg-info"></span> Cliente</span>
+        <span class="legend-pill"><span class="dot bg-success"></span> Servidor SQL</span>
+        <span class="legend-pill"><span class="dot bg-secondary"></span> C++ / QA / Ops</span>
+      </div>
       <div class="pipeline-columns mb-3">
         ${uiuxColumn}
         ${clientColumn}
@@ -2805,7 +2826,7 @@ document.addEventListener('DOMContentLoaded', () => {
           <h4 class="h6 mb-0">Integração e testes</h4>
           <span class="badge text-bg-warning">Ordem recomendada</span>
         </div>
-        <ul class="ps-3 mb-0">${integrationItems}</ul>
+        <ol class="step-list">${integrationItems}</ol>
       </div>
       ${qaSection}
       ${operationsSection}
