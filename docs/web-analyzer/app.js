@@ -1893,6 +1893,50 @@ const pipelines = [
         ]
       }
     ],
+    blueprintFlows: [
+      {
+        title: "Nó a nó: Login/Autenticação",
+        badge: "Blueprint",
+        steps: [
+          "Widget `WBP_Login`: Event Graph do botão Login → `Sequence` (0 limpar erro, 1 `Set bAuthPending=true` no `ANetworkPC`, 2 `Set RequestId=NewGuid`) → `Branch` (`TxtLogin.IsEmpty`? abortar) → `ServerSubmitAccount` passando `TxtLogin.Text` e `Hash(TxtPassword.Text)`. Variáveis: `TxtLogin`, `TxtPassword`, `ErrorText`, `RequestId`.",
+          "Evento `ClientAuthFailed` vindo do servidor: `ResetSyncStates` → `Set Visibility(ErrorText Visible)` com `Format Text` exibindo `ErrorCode` → `Set bAuthPending=false`. Nó de acessibilidade: `Set Keyboard Focus` em `TxtLogin`.",
+          "Evento de sucesso `ClientReceiveCharacterList`: `Set bAuthPending=false` → `OnCharacterListReceived` (Custom Event no `WBP_CharacterList`) → `Switch on EPersistenceState` para trocar banner. Nós usados: `Set Visibility`, `Bind Event to OnPersistenceStateChanged`, `Sequence`, `DoOnce` (bloqueia double submit).",
+          "Métrica visual: `Custom Event UXTraceLogin` (params Screen, Action, RequestId) chama `LogUXEvent` (BlueprintCallable C++). No botão, conectar após RPC com `Action='LoginSubmit'`."
+        ]
+      },
+      {
+        title: "Nó a nó: Lista de personagens e entrada no mundo",
+        badge: "Blueprint",
+        steps: [
+          "Widget `WBP_CharacterList`: variáveis `Characters (Array<FCharacterSummary>)`, `ListViewCharacters`, `BtnSelect`. Custom Event `OnCharacterListReceived(Summaries)` → `Set Characters` → `Clear List Items` → `ForEachLoop` adicionando `WBP_CharacterEntry` (define `Slot`, `Name`, `Level`, `Class`).",
+          "No `WBP_CharacterEntry`: evento `OnClicked` → `OnCharacterChosen` (Dispatcher) envia `Slot` e `RequestId`. HUD escuta dispatcher e chama `ServerRequestMapMove(Slot)` no `ANetworkPC`. Nós: `Bind Event to OnCharacterChosen`, `Get Owning Player`, `ServerRequestMapMove`.",
+          "Skeleton/loading: Overlay com `Skeleton` animado controlado por bool `bAuthPending` (replicado). `OnRep_bAuthPending` → `Switch on Bool` → `Set Visibility` do Skeleton e da lista. Adicione `Delay` curto (0.2s) para permitir animação antes de ocultar.",
+          "Transição de mapa: após RPC de sucesso, evento `ClientOpenSelectedMap(FName LevelName)` chama nó `Open Level (by Name)` apenas quando `PersistenceState==Synced`. Proteger com `DoOnce` ligado a `Reset` em `OnLevelRemovedFromWorld` para evitar múltiplos loads.",
+          "Telemetria e logs: `Custom Event UXTraceCharacterSelect` → `LogUXEvent('CharacterSelect', RequestId, Summary.Name)` após `ServerRequestMapMove`."
+        ]
+      },
+      {
+        title: "Nó a nó: Snapshot/Inventário",
+        badge: "Blueprint",
+        steps: [
+          "Widget `WBP_Snapshot`: variáveis `CachedSnapshot (FSnapshotPersist)`, `bSavePending`, `ProgressBarSave`, `TxtStatus`. Botão Salvar → `DoOnce` → `Gate` (abre se `bSavePending` false) → `Set bSavePending=true` → `ServerSaveSnapshot(CachedSnapshot)` → `Timeline` animando `ProgressBarSave`.",
+          "Evento `ClientSaveResult(bSuccess, ErrorCode)`: `Open Gate` → `Reset DoOnce` → `Set bSavePending=false` → `Set PersistenceState` (Select Success/Erro) → `Format Text` no `TxtStatus`. Em erro, `SaveGameToSlot(CachedSnapshot)` e abrir `WBP_ErrorModal`.",
+          "Inventário: `OnRep_InventorySlots` no `UInventoryComponent` (BlueprintImplementableEvent) → `ForEachLoop` preenchendo grid. Nó `Switch on EPersistenceState` altera cor de borda das células (Synced=Verde, Saving=Amarelo, Error=Vermelho).",
+          "Retry/Backoff: evento `HandlePoolDegraded` no HUD → `Set IsEnabled(false)` em botões → `Set Timer by Event` (0.5s → 1s → 2s) chamando `QueueSnapshotSave` quando `PoolHealthy` voltar (bool replicada)."
+        ]
+      },
+      {
+        title: "Nó a nó: Warp/Mapa e Warehouse",
+        badge: "Blueprint",
+        steps: [
+          "Fluxo de warp: `Custom Event OnWarpRequested(FName TargetMap, FVector TargetPos)` → `ServerRequestMapMove(TargetMap, TargetPos)` (RPC Server). Ao receber `ClientMapMoveAck`, use `Open Level (by Name)` e posicione Pawn com `Set Actor Location` no BeginPlay. Variáveis: `TargetMap`, `TargetPos`, `LastWarpResult`.",
+          "Warehouse UI `WBP_Warehouse`: variáveis `WarehouseSlots (Array<FItemData>)`, `BtnDeposit`, `BtnWithdraw`. Botão Deposit → `Branch` (verifica slot válido) → `ServerWarehouseDeposit(Slot)` → trava botões com `Set IsEnabled(false)` até `ClientWarehouseResult`. Use `Select` para cor de feedback.",
+          "Sincronização de warehouse: evento `ClientReceiveWarehouse` → `Set WarehouseSlots` → `ForEachLoop` para preencher grid e chamar `Play Animation` de entrada. OnRep em C++ dispara `BlueprintImplementableEvent RefreshWarehouse`.", 
+          "Logs e auditoria: botão `Copiar SQL Log` → chama `GetLastSqlErrorCode` (BlueprintCallable) → `Copy String to Clipboard`. Se `ClientWarehouseResult` retornar erro, exiba modal `WBP_ErrorModal` com `Format Text('Erro {Code}')` e reabilite botões via `Gate`.",
+          "Failover de sessão: se `OnPoolDegraded` ou `ClientAuthFailed` ocorrer durante interação com warehouse, chame `CloseAllOpenMenus` e `ResetSyncStates` para limpar bindings pendentes."
+        ]
+      }
+    ],
     blueprintCookbook: [
       {
         title: "Login e autenticação (Blueprint)",
@@ -3096,6 +3140,37 @@ document.addEventListener('DOMContentLoaded', () => {
     `;
   }
 
+  function renderBlueprintFlows(flows = []) {
+    if (!flows.length) return '';
+    const cards = flows
+      .map(flow => {
+        const steps = (flow.steps || []).map(step => `<li>${step}</li>`).join('');
+        return `
+          <div class="blueprint-flow-card">
+            <div class="d-flex justify-content-between align-items-center mb-1">
+              <div>
+                <div class="text-uppercase small text-info fw-semibold">${flow.badge || 'Blueprint'}</div>
+                <h4 class="h6 mb-0">${flow.title}</h4>
+              </div>
+              <span class="badge text-bg-info">Nós e variáveis</span>
+            </div>
+            <ol class="step-list small mb-0">${steps}</ol>
+          </div>
+        `;
+      })
+      .join('');
+
+    return `
+      <div class="blueprint-flow-grid">
+        <div class="d-flex align-items-center gap-2 mb-2">
+          <span class="badge text-bg-secondary">Blueprint passo a passo</span>
+          <span class="text-muted small">Fluxos com nomes de funções, variáveis e nós para replicar o pipeline SQL na UI.</span>
+        </div>
+        ${cards}
+      </div>
+    `;
+  }
+
   function selectPipeline(id) {
     if (!pipelineListEl || !pipelineDetailEl) return;
     const pipeline = pipelines.find(p => p.id === id);
@@ -3109,6 +3184,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const clientColumn = renderStepColumn('Cliente (RPC/Replicação)', pipeline.client, 'text-bg-info');
     const serverColumn = renderStepColumn('Servidor SQL (Dedicated)', pipeline.server, 'text-bg-success');
     const blueprintCookbookSection = renderBlueprintCookbook(pipeline.blueprintCookbook);
+    const blueprintFlowsSection = renderBlueprintFlows(pipeline.blueprintFlows);
 
     const cppCoverageItems = (pipeline.cppCoverage || [])
       .map(step => `<li>${step}</li>`)
@@ -3168,6 +3244,7 @@ document.addEventListener('DOMContentLoaded', () => {
       <p class="text-muted">${pipeline.summary}</p>
       ${renderDrilldowns(pipeline.drilldowns)}
       ${renderProcedures(pipeline.procedures)}
+      ${blueprintFlowsSection}
       ${blueprintCookbookSection}
       <div class="section-divider d-flex flex-wrap align-items-center gap-2">
         <span class="legend-pill"><span class="dot bg-primary"></span> UI/UX</span>
