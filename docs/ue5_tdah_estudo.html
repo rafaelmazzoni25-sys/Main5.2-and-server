@@ -457,6 +457,61 @@
     </div>
   </section>
 
+  <section class="card">
+    <div class="section-title">Aulas combinadas (feature labs)</div>
+    <h3>Integre 2–3 módulos em 30–45 minutos</h3>
+    <p>Para consolidar, junte sistemas já vistos. Cada lab segue a dinâmica: objetivo, 3 passos e uma variação mínima.</p>
+    <div class="columns">
+      <div>
+        <h4>Root Motion + Montages + FX</h4>
+        <ul class="list">
+          <li><strong>Objetivo:</strong> Dash com Root Motion que sincroniza FX de impacto.</li>
+          <li><strong>Passos:</strong> (1) Monte um Montage de dash com Root Motion e seção Impact; (2) dispare <em>Niagara</em> na seção via <em>Anim Notify</em>; (3) sincronize câmera com <em>Camera Shake</em> curto.</li>
+          <li class="highlight"><strong>Variação:</strong> Mude o <em>Root Motion Mode</em> para <em>Montages Only</em> e compare deslocamento na rede.</li>
+        </ul>
+
+        <h4>Motion Matching + Snapshot</h4>
+        <ul class="list">
+          <li><strong>Objetivo:</strong> Parar o personagem com Freeze breve antes do turn.</li>
+          <li><strong>Passos:</strong> (1) Capture <em>Save Pose Snapshot</em> ao receber input de turn; (2) reduza custo de clipes laterais no banco de Motion Matching; (3) transicione para o clipe escolhido usando o snapshot como blend de saída.</li>
+          <li class="highlight"><strong>Variação:</strong> Altere peso da trajetória futura de 1.0 → 1.3 e veja troca de clipes no visor.</li>
+        </ul>
+      </div>
+
+      <div>
+        <h4>Materiais + Niagara + Luz</h4>
+        <ul class="list">
+          <li><strong>Objetivo:</strong> Explosão com luz dinâmica, decal parallax e partículas GPU.</li>
+          <li><strong>Passos:</strong> (1) Instancie <em>Spot Light Movable</em> com Timeline curto para flash; (2) aplique decal com <em>Parallax Offset</em> e tempo de vida controlado por Blueprint; (3) use sistema Niagara GPU com colisão por <em>Scene Depth</em>.</li>
+          <li class="highlight"><strong>Variação:</strong> Troque colisão para <em>Distance Field</em> e compare bounce + custo em <em>Stat Niagara</em>.</li>
+        </ul>
+
+        <h4>MetaSounds + Material Parameter Collection</h4>
+        <ul class="list">
+          <li><strong>Objetivo:</strong> Alarme adaptativo que muda cor de cenário e pitch.</li>
+          <li><strong>Passos:</strong> (1) Crie <em>MetaSound</em> com parâmetro User <code>Intensity</code>; (2) crie MPC com <code>AlertColor</code> e atualize via Timeline; (3) ligue ambos a um botão de alerta no <code>GameMode</code>.</li>
+          <li class="highlight"><strong>Variação:</strong> Substitua Timeline por curva em Data Table e aumente o tempo para 12s.</li>
+        </ul>
+      </div>
+
+      <div>
+        <h4>Custom Niagara Module + Spawners</h4>
+        <ul class="list">
+          <li><strong>Objetivo:</strong> Criar chuva que escala com velocidade do jogador.</li>
+          <li><strong>Passos:</strong> (1) Escreva módulo custom de força de vento lendo parâmetro User <code>PlayerSpeed</code>; (2) combine <em>Spawn Rate</em> com <em>Spawn Per Unit</em> para densidade variável; (3) exponha <code>PlayerSpeed</code> via Blueprint do personagem.</li>
+          <li class="highlight"><strong>Variação:</strong> Teste <em>Determinism</em> ligado e desligado para sincronismo em multiplayer.</li>
+        </ul>
+
+        <h4>Blueprint + C++ ponte</h4>
+        <ul class="list">
+          <li><strong>Objetivo:</strong> Função C++ que dispara Niagara e atualiza MPC a partir de BP.</li>
+          <li><strong>Passos:</strong> (1) Crie componente C++ com <code>UFUNCTION(BlueprintCallable)</code> que recebe cor e referência de sistema Niagara; (2) dentro, set MPC global e chame <code>Activate</code> no sistema; (3) chame do BP do personagem com valores diferentes.</li>
+          <li class="highlight"><strong>Variação:</strong> Exponha um <code>Server</code> RPC para garantir consistência em rede e compare com chamada local.</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
   <section class="grid">
     <div class="card">
       <div class="section-title">Começo rápido em Blueprints</div>
