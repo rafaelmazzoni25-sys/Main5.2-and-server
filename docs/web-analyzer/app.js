@@ -1829,7 +1829,7 @@ const pipelines = [
     id: "ue5-sql-detailed",
     title: "Trilha UE5 SQL (procedimentos detalhados por domínio)",
     scope: "Reescrita completa em C++/Blueprint com servidor SQL dedicado",
-    summary: "Passo a passo exaustivo com nomes de funções, variáveis e nós de Blueprint para guiar a migração do código C++ legado para o pipeline UE5 com SQL, cobrindo UI/UX, cliente, servidor e observabilidade. Inclui um caderno de Blueprints com fluxos completos e nodes explícitos.",
+    summary: "Passo a passo exaustivo com nomes de funções, variáveis e nós de Blueprint para guiar a migração do código C++ legado para o pipeline UE5 com SQL, cobrindo UI/UX, cliente, servidor e observabilidade. Inclui um caderno de Blueprints com fluxos completos, nodes explícitos e um mapa de nós detalhado para designers.",
     tags: ["Trilha UE5 SQL", "Blueprint", "C++", "Servidor", "Cliente"],
     drilldowns: [
       {
@@ -1934,6 +1934,50 @@ const pipelines = [
           "Sincronização de warehouse: evento `ClientReceiveWarehouse` → `Set WarehouseSlots` → `ForEachLoop` para preencher grid e chamar `Play Animation` de entrada. OnRep em C++ dispara `BlueprintImplementableEvent RefreshWarehouse`.", 
           "Logs e auditoria: botão `Copiar SQL Log` → chama `GetLastSqlErrorCode` (BlueprintCallable) → `Copy String to Clipboard`. Se `ClientWarehouseResult` retornar erro, exiba modal `WBP_ErrorModal` com `Format Text('Erro {Code}')` e reabilite botões via `Gate`.",
           "Failover de sessão: se `OnPoolDegraded` ou `ClientAuthFailed` ocorrer durante interação com warehouse, chame `CloseAllOpenMenus` e `ResetSyncStates` para limpar bindings pendentes."
+        ]
+      }
+    ],
+    blueprintNodeMaps: [
+      {
+        title: "Mapa de nós: Login e sessão",
+        badge: "Blueprint",
+        steps: [
+          "Event Graph `WBP_Login`: nó `OnClicked(BtnLogin)` → `Sequence` (0: `Set Visibility(ErrorBox Hidden)`, 1: `Set bAuthPending=true` no `ANetworkPC`, 2: `Set RequestId=NewGuid`) → `Branch` (`TxtLogin.Text IsEmpty?`) → `ServerSubmitAccount(TxtLogin.Text, Hash(TxtPassword.Text))`. Variáveis: `TxtLogin`, `TxtPassword`, `ErrorBox`, `RequestId`.",
+          "Resposta `ClientAuthFailed(ErrorCode)`: `ResetSyncStates` → `Set bAuthPending=false` → `Set Visibility(ErrorBox Visible)` com `Format Text('Erro {ErrorCode}')` → `Set Keyboard Focus(TxtLogin)`. Nós auxiliares: `Select Color` para borda de erro.",
+          "Hot-reload visual: `OnRep_PersistenceState` no PlayerController (exposto como `BlueprintImplementableEvent`) → `Switch on EPersistenceState` → `Set Visibility` de `SpinnerAuth` e `BtnLogin`. Adicione `Set Timer by Event (1s)` para retrigger de tooltip quando estado for `Error`.",
+          "Instrumentação: `Custom Event UXTraceLogin(Screen, Action, RequestId)` → chama função C++ `LogUxEvent` → `Print String` em `Development` builds. Conecte após `ServerSubmitAccount` com `Action='LoginSubmit'`."
+        ]
+      },
+      {
+        title: "Mapa de nós: Lista de personagens",
+        badge: "Blueprint",
+        steps: [
+          "Widget `WBP_CharacterList`: `OnCharacterListReceived(Summaries)` → `Set Characters` → `Clear List Items` → `ForEachLoop` criando `WBP_CharacterEntry` (`Set Slot`, `Set Name`, `Set Level`, `Set Class`) → `Add Item` no `ListViewCharacters`. Variáveis: `Characters`, `ListViewCharacters`.",
+          "Entrada `WBP_CharacterEntry`: `OnClicked` → `OnCharacterChosen` (Dispatcher) → `ServerRequestMapMove(Slot)` no PlayerController. Proteja com `Branch` usando bool `bAuthPending` replicada; se true, chame `Play Animation(Blocked)`.",
+          "Loading state: `OverlayLoading` ligado a bool `bAuthPending`. `OnRep_bAuthPending` → `Switch on Bool` → `Set Visibility` (`OverlayLoading` vs `ListView`) → `Play Animation(LoadingLoop)` quando pendente. Adicione `Delay 0.15s` antes de esconder overlay para suavizar transição.",
+          "Telemetria: `Custom Event UXTraceCharacterSelect(RequestId, Slot)` → `LogUxEvent('CharacterSelect', RequestId)` → `Print String` com `Append` de Slot. Executar no HUD logo após `ServerRequestMapMove`.",
+          "Fallback de mapa: se `ClientMapMoveFailed` chegar, `Sequence` → `Set Visibility(ErrorPanel Visible)` → `Set Text(ErrorPanel, FormatText('Falha {ErrorCode}'))` → `DoOnce` fechado por `OnLevelRemovedFromWorld` para evitar múltiplos modais."
+        ]
+      },
+      {
+        title: "Mapa de nós: Snapshot e inventário",
+        badge: "Blueprint",
+        steps: [
+          "Widget `WBP_Snapshot`: `OnClicked(BtnSave)` → `DoOnce` → `Gate` controlado por `bSavePending` → `Set bSavePending=true` (PlayerController) → `QueueSnapshotSave` (BlueprintCallable C++) → `Timeline` animando `ProgressBarSave`. Variáveis: `bSavePending`, `ProgressBarSave`, `CachedSnapshot`.",
+          "Resposta `ClientSaveResult(bSuccess, ErrorCode)`: `Open Gate` → `Reset DoOnce` → `Set bSavePending=false` → `Select` cor do `ProgressBarSave` (`Success` verde, `Erro` vermelho) → `Set Text(TxtStatus, Format Text('Código {ErrorCode}'))` → `Delay 0.4s` → `Set Visibility(SuccessBadge)`.",
+          "Inventário: `OnRep_InventorySlots` (Implementable Event) → `ForEachLoop` sobre `InventorySlots` → `Switch on EPersistenceState` para definir cor de borda (verde/amarelo/vermelho) antes de `Create Widget(WBP_ItemSlot)` → `AddChildToUniformGrid`. Variáveis: `InventorySlots`, `GridInventory`.",
+          "Retry/backoff visual: evento `HandlePoolDegraded` no HUD → `Set IsEnabled(false)` em botões (`BtnSave`, `BtnMove`) → `Set Timer by Event` (0.5s → 1s → 2s) chamando `QueueSnapshotSave` enquanto `PoolHealthy` não retorna."
+        ]
+      },
+      {
+        title: "Mapa de nós: Warp e Warehouse",
+        badge: "Blueprint",
+        steps: [
+          "Warp: `Custom Event OnWarpRequested(TargetMap, TargetPos)` → `Branch` (checa `bAuthPending` e `PoolHealthy`) → `ServerRequestMapMove(TargetMap, TargetPos)` → `Set LastWarpResult='Pending'`. Resposta `ClientMapMoveAck(LevelName)` → `Open Level (by Name)` → `Set Actor Location(TargetPos)` no `BeginPlay` do Pawn.",
+          "HUD warp feedback: `OnPersistenceStateChanged` → `Switch` → se estado `Saving`, `Set Visibility(WarpSpinner Visible)` e `Set Text(WarpStatus,'Salvando antes do warp')`. Limpe no evento `OnLevelRemovedFromWorld`.",
+          "Warehouse UI `WBP_Warehouse`: `OnClicked(BtnDeposit)` → `Branch` (`SelectedSlot IsValid?`) → `ServerWarehouseDeposit(SelectedSlot)` → `Set IsEnabled(false)` em `BtnDeposit` e `BtnWithdraw` até `ClientWarehouseResult`. Variáveis: `WarehouseSlots`, `SelectedSlot`.",
+          "Refresh: `ClientReceiveWarehouse(Slots)` → `Set WarehouseSlots=Slots` → `ForEachLoop` criando `WBP_WarehouseSlot` → `Play Animation(FadeInGrid)`. Adicione `Custom Event OnWarehouseSynced` para HUD registrar log via `LogUxEvent('WarehouseSynced', RequestId)`.",
+          "Auditoria: botão `BtnCopySqlLog` → `GetLastSqlErrorCode` (BlueprintCallable) → `Copy String to Clipboard` → `Print String` confirmando cópia. Em erros, `WBP_ErrorModal` recebe `Format Text('Erro {Code}')` e reabilita botões com `Gate` após `Delay 0.2s`."
         ]
       }
     ],
@@ -3171,6 +3215,37 @@ document.addEventListener('DOMContentLoaded', () => {
     `;
   }
 
+  function renderBlueprintNodeMaps(nodeMaps = []) {
+    if (!nodeMaps.length) return '';
+    const cards = nodeMaps
+      .map(map => {
+        const steps = (map.steps || []).map(step => `<li>${step}</li>`).join('');
+        return `
+          <div class="blueprint-node-card">
+            <div class="d-flex justify-content-between align-items-center mb-1">
+              <div>
+                <div class="text-uppercase small text-warning fw-semibold">${map.badge || 'Blueprint'}</div>
+                <h4 class="h6 mb-0">${map.title}</h4>
+              </div>
+              <span class="badge text-bg-warning">Mapa de nós</span>
+            </div>
+            <ol class="step-list small mb-0">${steps}</ol>
+          </div>
+        `;
+      })
+      .join('');
+
+    return `
+      <div class="blueprint-node-grid">
+        <div class="d-flex align-items-center gap-2 mb-2">
+          <span class="badge text-bg-warning">Blueprint detalhado</span>
+          <span class="text-muted small">Sequência de nós, funções e variáveis para recriar fluxos SQL no UMG.</span>
+        </div>
+        ${cards}
+      </div>
+    `;
+  }
+
   function selectPipeline(id) {
     if (!pipelineListEl || !pipelineDetailEl) return;
     const pipeline = pipelines.find(p => p.id === id);
@@ -3185,6 +3260,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const serverColumn = renderStepColumn('Servidor SQL (Dedicated)', pipeline.server, 'text-bg-success');
     const blueprintCookbookSection = renderBlueprintCookbook(pipeline.blueprintCookbook);
     const blueprintFlowsSection = renderBlueprintFlows(pipeline.blueprintFlows);
+    const blueprintNodeMapsSection = renderBlueprintNodeMaps(pipeline.blueprintNodeMaps);
 
     const cppCoverageItems = (pipeline.cppCoverage || [])
       .map(step => `<li>${step}</li>`)
@@ -3245,6 +3321,7 @@ document.addEventListener('DOMContentLoaded', () => {
       ${renderDrilldowns(pipeline.drilldowns)}
       ${renderProcedures(pipeline.procedures)}
       ${blueprintFlowsSection}
+      ${blueprintNodeMapsSection}
       ${blueprintCookbookSection}
       <div class="section-divider d-flex flex-wrap align-items-center gap-2">
         <span class="legend-pill"><span class="dot bg-primary"></span> UI/UX</span>
