@@ -238,6 +238,82 @@
   </section>
 
   <section class="card">
+    <div class="section-title">Aulas de reforço (10–20 min)</div>
+    <h3>Complementos prontos para módulos já estudados</h3>
+    <p>Use como sessões rápidas de revisão: objetivo claro, 3 passos e 1 variação para fixar. Misture com o filtro no topo para focar no módulo do dia.</p>
+    <div class="columns">
+      <div>
+        <h4>MetaSounds</h4>
+        <ul class="list">
+          <li><strong>Objetivo:</strong> Criar um whoosh responsivo a velocidade de dash.</li>
+          <li><strong>Passos:</strong> (1) Adicione <em>Audio Velocity</em> ou parâmetro User exposto; (2) use LFO rápido para modulação de pitch; (3) conecte em <code>OnDash</code> no BP.</li>
+          <li class="highlight"><strong>Variação:</strong> Troque o LFO por envelope gatilhado por Gameplay Cue e compare curva de ataque.</li>
+        </ul>
+
+        <h4>Material Parameter Collection</h4>
+        <ul class="list">
+          <li><strong>Objetivo:</strong> Sincronizar cor de alerta em todos os materiais.</li>
+          <li><strong>Passos:</strong> (1) Crie MPC com <code>AlertColor</code>; (2) leia no material de personagem e HUD; (3) altere via Timeline no <code>GameMode</code>.</li>
+          <li class="highlight"><strong>Variação:</strong> Substitua Timeline por curva em Data Table para testar diferentes cadências.</li>
+        </ul>
+
+        <h4>Flow Maps</h4>
+        <ul class="list">
+          <li><strong>Objetivo:</strong> Dar vida a um rio curto em 15 minutos.</li>
+          <li><strong>Passos:</strong> (1) Importe flow map e aplique em material com <em>Panner</em>; (2) misture duas direções com <em>Lerp</em> usando máscara pintada; (3) exponha velocidade via parâmetro.</li>
+          <li class="highlight"><strong>Variação:</strong> Controle velocidade por Blueprint com base em volume de chuva (MPC) e veja resposta imediata.</li>
+        </ul>
+      </div>
+
+      <div>
+        <h4>Dynamic Lights</h4>
+        <ul class="list">
+          <li><strong>Objetivo:</strong> Criar luz de alarme móvel sem estourar performance.</li>
+          <li><strong>Passos:</strong> (1) Instancie Spot Light <em>Movable</em> e anime rotação com Timeline; (2) limite <em>Attenuation Radius</em> e habilite IES; (3) habilite VSM ou DF para sombras limpas.</li>
+          <li class="highlight"><strong>Variação:</strong> Troque VSM por sombras tradicionais e compare <em>Stat GPU</em>.</li>
+        </ul>
+
+        <h4>Parallax &amp; Bump Decals</h4>
+        <ul class="list">
+          <li><strong>Objetivo:</strong> Impacto de projétil com decal profundo.</li>
+          <li><strong>Passos:</strong> (1) Crie decal com normal/roughness + máscara de opacidade; (2) habilite Parallax Offset controlado por distância da câmera; (3) instancie via BP no local da colisão.</li>
+          <li class="highlight"><strong>Variação:</strong> Desative Parallax além de 20m e veja fade suave no ângulo raso.</li>
+        </ul>
+
+        <h4>Niagara Collisions</h4>
+        <ul class="list">
+          <li><strong>Objetivo:</strong> Partículas que reagem a chão inclinado.</li>
+          <li><strong>Passos:</strong> (1) Ative colisão por <em>Scene Depth</em> e visualize debug; (2) adicione decal no impacto com atraso; (3) exponha <em>Restitution</em> como parâmetro User.</li>
+          <li class="highlight"><strong>Variação:</strong> Troque para colisão por <em>Distance Field</em> e compare bounce em superfícies curvas.</li>
+        </ul>
+      </div>
+
+      <div>
+        <h4>Motion Matching</h4>
+        <ul class="list">
+          <li><strong>Objetivo:</strong> Refinar curvas de custo para resposta mais ágil.</li>
+          <li><strong>Passos:</strong> (1) Duplique banco de poses e altere pesos de trajetória vs velocidade; (2) ajuste <em>Future Trajectory Samples</em>; (3) valide no visor de debug.</li>
+          <li class="highlight"><strong>Variação:</strong> Adicione tag de “Strafe” e observe clipes escolhidos ao mudar direção brusca.</li>
+        </ul>
+
+        <h4>Custom Niagara Modules</h4>
+        <ul class="list">
+          <li><strong>Objetivo:</strong> Criar módulo de vento direcional reutilizável.</li>
+          <li><strong>Passos:</strong> (1) Crie Module Script com direção/força expostas; (2) normalize vetor e aplique em <em>Update</em>; (3) publique em pasta de biblioteca.</li>
+          <li class="highlight"><strong>Variação:</strong> Adicione ruído perlin no módulo e compare jitter em CPU vs GPU.</li>
+        </ul>
+
+        <h4>Material Functions</h4>
+        <ul class="list">
+          <li><strong>Objetivo:</strong> Centralizar tiling com triplanar simples.</li>
+          <li><strong>Passos:</strong> (1) Crie função triplanar com inputs de escala; (2) exponha normal strength e roughness; (3) aplique em dois materiais diferentes.</li>
+          <li class="highlight"><strong>Variação:</strong> Substitua triplanar por world aligned blend para medir diferença de instruções.</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <section class="card">
     <div class="section-title">Aulas guiadas por módulo</div>
     <h3>Roteiros prontos para blocos de 20–40 minutos</h3>
     <p>Use estes roteiros como “mini-aulas”: cada item indica objetivo, passos e uma variação rápida para fixar. Siga na ordem ou misture conforme o foco do dia.</p>
