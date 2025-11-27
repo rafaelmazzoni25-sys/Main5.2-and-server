@@ -1829,7 +1829,7 @@ const pipelines = [
     id: "ue5-sql-detailed",
     title: "Trilha UE5 SQL (procedimentos detalhados por domínio)",
     scope: "Reescrita completa em C++/Blueprint com servidor SQL dedicado",
-    summary: "Passo a passo exaustivo com nomes de funções, variáveis e nós de Blueprint para guiar a migração do código C++ legado para o pipeline UE5 com SQL, cobrindo UI/UX, cliente, servidor e observabilidade.",
+    summary: "Passo a passo exaustivo com nomes de funções, variáveis e nós de Blueprint para guiar a migração do código C++ legado para o pipeline UE5 com SQL, cobrindo UI/UX, cliente, servidor e observabilidade. Inclui um caderno de Blueprints com fluxos completos e nodes explícitos.",
     tags: ["Trilha UE5 SQL", "Blueprint", "C++", "Servidor", "Cliente"],
     drilldowns: [
       {
@@ -1853,6 +1853,26 @@ const pipelines = [
         ]
       },
       {
+        title: "Troca de mapa e warp (C++)",
+        badge: "Servidor/C++",
+        steps: [
+          "Troque `SendChangeMapServer`/`RecvChangeMapServer` por `UFUNCTION(Server, Reliable) void ServerRequestMapMove(int32 TargetMap, const FVector& TargetPos);` no `ANetworkPC` e valide `HasAuthority()` e distâncias permitidas.",
+          "Defina `USTRUCT(BlueprintType) FMapMoveRequest { GENERATED_BODY() UPROPERTY(EditAnywhere) int32 TargetMap; UPROPERTY(EditAnywhere) FVector TargetPos; UPROPERTY(EditAnywhere) FGuid RequestId; };` e converta handlers legados `DGMapServerMoveRecv`/`CGMapServerMoveSend` para usar este struct.",
+          "Implemente no subsystem `bool ExecuteMapMove(const FMapMoveRequest& Req)` com query preparada `PersistMapChange` (campos: AccountId, CharacterId, TargetMap, PosX, PosY, RequestId) e `Commit` antes de chamar `ClientAcknowledgeMapMove`.",
+          "Em falha de transação/validação, retorne `ClientMapMoveFailed(int32 ErrorCode, FGuid RequestId)` e mantenha `APawn` no mapa atual. Logue `UE_LOG(LogSQL, Warning, TEXT(\"MapMoveFail|%s|Code=%d\"), *Req.RequestId.ToString(), ErrorCode);`.",
+        ]
+      },
+      {
+        title: "Warehouse e moedas (C++)",
+        badge: "Servidor/C++",
+        steps: [
+          "Migre `DGWarehouseItemRecv` e `GDSaveWarehouseItemSend` para `UFUNCTION(Server, Reliable) void ServerRequestWarehouse(const FGuid& AccountId);` e `void ServerSaveWarehouse(const FWarehousePersist& Data);` no PlayerController.",
+          "Mapeie struct `USTRUCT(BlueprintType) FWarehousePersist { GENERATED_BODY() UPROPERTY() FGuid AccountId; UPROPERTY() TArray<FItemData> Slots; UPROPERTY() int64 Ruud; UPROPERTY() int64 Zen; };` e use query preparada `SaveWarehouse` para persistir itens e moedas em transação única.",
+          "No subsystem, implemente `bool ExecuteLoadWarehouse(const FGuid& AccountId, FWarehousePersist& OutData)` lendo tabelas `WarehouseSlots` e `Currencies`. Normalize para arrays replicados antes de chamar `ClientReceiveWarehouse`.",
+          "Crie teste automatizado `IMPLEMENT_SIMPLE_AUTOMATION_TEST(FSqlWarehouseRoundtrip, \"SQL.Warehouse.Roundtrip\", ...)` que grava slots, simula rollback e garante que OnRep de warehouse não dispara em falha."
+        ]
+      },
+      {
         title: "Snapshot, inventário e quests (C++)",
         badge: "Servidor/C++",
         steps: [
@@ -1870,6 +1890,48 @@ const pipelines = [
           "`WBP_CharacterList`: variável `Characters (Array of FCharacterSummary)` e `ListView` com Entry `WBP_CharacterEntry`. `OnCharacterListReceived` (Custom Event) → `ForEachLoop` preenchendo entries. Clique no entry chama `ServerRequestMapMove(Summary.Slot)` ou evento `OnCharacterChosen` para GameMode.",
           "`WBP_Snapshot`: variáveis `CachedSnapshot`, `bSavePending`. Botão Salvar → `DoOnce` → `Gate` controlado por `bSavePending` → chama `ServerSaveSnapshot(CachedSnapshot)`. Resposta `ClientSaveResult` chama `Open Gate`, `Reset DoOnce`, `Set bSavePending=false`, `Set Visibility` do status.",
           "HUD `WBP_StatusHud`: Binding para `PersistenceState` (`Select` → cores) e para métricas `PoolHealthy`, `PendingJobs`. Use nós `Set Brush From Texture`, `Format Text`, `Switch on EPersistenceState`, e `Set Timer by Event` para atualizar texto a cada 1s."
+        ]
+      }
+    ],
+    blueprintCookbook: [
+      {
+        title: "Login e autenticação (Blueprint)",
+        badge: "UMG",
+        steps: [
+          "Widget `WBP_Login`: variáveis `TxtLogin (Editable TextBox)`, `TxtPassword (Editable TextBox)`, `ErrorText (TextBlock)`, `RequestId (Guid)`. Event Graph do botão Login: `Sequence` → (0) `Set Visibility(ErrorText Hidden)` → (1) `Set bAuthPending=true` (PlayerController) → (2) `Set RequestId = NewGuid` → (3) nó `ServerSubmitAccount` com `TxtLogin.Text` e `Hash(TxtPassword.Text)`.",
+          "Adicione `Branch` antes do RPC para bloquear quando `TxtLogin.Text IsEmpty` ou `bAuthPending` for true (Get Player Controller → Cast → Get bAuthPending). Em falha (evento `ClientAuthFailed`), use `ResetSyncStates` e `Set Visibility(ErrorText Visible)` com texto formatado `Format Text (Erro {ErrorCode})`.",
+          "Telemetry: crie `Custom Event UXTraceLogin` com params (Screen, Action, RequestId) chamando função C++ `LogUxEvent`. No botão Login, execute `UXTraceLogin` após o RPC para gravar evento com `Action='LoginSubmit'`.",
+          "Acessibilidade: configure `Accessible Behavior → Auto` nos TextBox e adicione `Set Keyboard Focus` no `TxtLogin` após `ClientAuthFailed`.",
+        ]
+      },
+      {
+        title: "Lista de personagens (Blueprint)",
+        badge: "UMG",
+        steps: [
+          "Widget `WBP_CharacterList`: variável `Characters (Array of FCharacterSummary)`, `ListViewCharacters`, `BtnSelect`. Custom Event `OnCharacterListReceived(Summaries)` conectado a `Set Characters` → `Clear List Items` → `ForEachLoop` adicionando entradas `WBP_CharacterEntry`.",
+          "No `WBP_CharacterEntry`, exponha variáveis `Slot`, `Name`, `Level`, `Class`. Evento `OnClicked` envia `ServerRequestMapMove(Slot)` ou chama `OnCharacterChosen` (BlueprintAssignable) que o HUD ou GameMode escuta.",
+          "Skeleton/loading: coloque `Overlay` com `Skeleton` animado. No `OnRep_bAuthPending` do PlayerController (via binding), use `Switch on Bool` para `Set Visibility` do Skeleton/Lista, mantendo feedback enquanto aguarda RPC.",
+          "Navegação: após seleção, chame `Open Level (by Name)` somente quando `PersistenceState` for `Synced`. Use `DoOnce` para impedir múltiplos cliques em `BtnSelect` enquanto `bAuthPending` ou `bSavePending` estiverem ativos.",
+        ]
+      },
+      {
+        title: "Snapshot/Inventário (Blueprint)",
+        badge: "UMG",
+        steps: [
+          "Widget `WBP_Snapshot`: variáveis `CachedSnapshot (FSnapshotPersist)`, `bSavePending (bool)`, `ProgressBarSave`. Botão Salvar: `DoOnce` → `Gate` controlado por `bSavePending` → `Set bSavePending=true` → `ServerSaveSnapshot(CachedSnapshot)` → `Timeline` para animar progresso.",
+          "Evento `ClientSaveResult(bSuccess, ErrorCode)`: `Open Gate`, `Reset DoOnce`, `Set bSavePending=false`, `Set PersistenceState` conforme retorno. Em caso de erro, `SaveGameToSlot` (opcional) e abrir modal `WBP_ErrorModal`.",
+          "Nós usados: `Branch` (verifica se `CachedSnapshot.Inventory` possui itens antes de salvar), `Format Text` para status, `Switch on EPersistenceState` para trocar cor do `ProgressBarSave`, `Delay` para permitir animação de sucesso antes de fechar modal.",
+          "Expose `BlueprintImplementableEvent OnSnapshotQueued` no PlayerController para UI mostrar badge `Fila` quando múltiplos salvamentos forem enfileirados."
+        ]
+      },
+      {
+        title: "HUD, métricas e reconexão (Blueprint)",
+        badge: "UMG",
+        steps: [
+          "Widget `WBP_StatusHud`: bindings para `PersistenceState`, `PoolHealthy`, `PendingJobs`, `LastErrorCode`. Use nós `Select` para trocar cor de chips (`Synced`=Verde, `Saving`=Amarelo, `Error`=Vermelho) e `Format Text` para exibir `RequestId` atual.",
+          "Evento `OnPersistenceStateChanged` (BlueprintAssignable no PlayerController) conecta em `WBP_StatusHud` via `Bind Event to OnPersistenceStateChanged`. No handler, use `Sequence` para (0) atualizar ícones, (1) iniciar `Timer by Event` para auto-refresh de métricas a cada 1s.",
+          "Reconexão: crie `Custom Event HandlePoolDegraded` chamado quando `PoolHealthy` for false. O evento desabilita botões (`Set IsEnabled false`), exibe aviso e agenda `K2_Timer` com backoff (0.5s, 1s, 2s) para tentar `ServerSaveSnapshot` novamente quando o pool voltar.",
+          "Logs visuais: botão `Copiar Log` chama função BlueprintCallable `GetLastSqlErrorCode` e usa nó `Copy String to Clipboard` (Editor Utility) para permitir debugging rápido pelas equipes de QA/UI.",
         ]
       }
     ],
@@ -3005,6 +3067,35 @@ document.addEventListener('DOMContentLoaded', () => {
     `;
   }
 
+  function renderBlueprintCookbook(recipes = []) {
+    if (!recipes.length) return '';
+    const cards = recipes
+      .map(recipe => {
+        const steps = (recipe.steps || []).map(step => `<li>${step}</li>`).join('');
+        return `
+          <div class="procedure-card blueprint-card">
+            <div class="d-flex justify-content-between align-items-center mb-1">
+              <div>
+                <div class="text-uppercase small text-primary fw-semibold">${recipe.badge || 'Blueprint'}</div>
+                <h4 class="h6 mb-0">${recipe.title}</h4>
+              </div>
+              <span class="badge text-bg-primary">Nós e variáveis</span>
+            </div>
+            <ol class="step-list mb-0">${steps}</ol>
+          </div>
+        `;
+      })
+      .join('');
+
+    return `
+      <div class="section-divider d-flex align-items-center gap-2">
+        <span class="legend-pill"><span class="dot bg-primary"></span> Blueprint cookbook</span>
+        <span class="text-muted small">Caminhos prontos com nomes de funções, variáveis e nós.</span>
+      </div>
+      <div class="procedure-grid blueprint-grid">${cards}</div>
+    `;
+  }
+
   function selectPipeline(id) {
     if (!pipelineListEl || !pipelineDetailEl) return;
     const pipeline = pipelines.find(p => p.id === id);
@@ -3017,6 +3108,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const uiuxColumn = renderStepColumn('UI/UX (UMG/Blueprint)', pipeline.uiux, 'text-bg-primary');
     const clientColumn = renderStepColumn('Cliente (RPC/Replicação)', pipeline.client, 'text-bg-info');
     const serverColumn = renderStepColumn('Servidor SQL (Dedicated)', pipeline.server, 'text-bg-success');
+    const blueprintCookbookSection = renderBlueprintCookbook(pipeline.blueprintCookbook);
 
     const cppCoverageItems = (pipeline.cppCoverage || [])
       .map(step => `<li>${step}</li>`)
@@ -3076,6 +3168,7 @@ document.addEventListener('DOMContentLoaded', () => {
       <p class="text-muted">${pipeline.summary}</p>
       ${renderDrilldowns(pipeline.drilldowns)}
       ${renderProcedures(pipeline.procedures)}
+      ${blueprintCookbookSection}
       <div class="section-divider d-flex flex-wrap align-items-center gap-2">
         <span class="legend-pill"><span class="dot bg-primary"></span> UI/UX</span>
         <span class="legend-pill"><span class="dot bg-info"></span> Cliente</span>
