@@ -1,6 +1,12 @@
 /* styles.css */
 body {
   font-family: "Inter", "Segoe UI", system-ui, -apple-system, sans-serif;
+  background: #f5f6f8;
+  line-height: 1.6;
+}
+
+.container {
+  max-width: 1220px;
 }
 
 .gradient-hero {
@@ -9,12 +15,102 @@ body {
               linear-gradient(135deg, #0f172a, #0b1221);
 }
 
+.helper-card {
+  background: #ffffff;
+  border: 1px solid var(--bs-border-color);
+  border-radius: 0.9rem;
+  padding: 1.25rem;
+  box-shadow: 0 6px 24px rgba(15, 23, 42, 0.06);
+}
+
+.helper-dot {
+  width: 12px;
+  height: 12px;
+  border-radius: 999px;
+  display: inline-block;
+}
+
+.helper-list {
+  padding-left: 1.2rem;
+  color: rgba(15, 23, 42, 0.7);
+}
+
 .tab-pane-section { display: none; }
 .tab-pane-section.active { display: block; }
 
 .mechanics-list {
   max-height: 60vh;
   overflow-y: auto;
+}
+
+.pipeline-list {
+  max-height: 55vh;
+  overflow-y: auto;
+}
+
+.pipeline-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.35rem 0.6rem;
+  border-radius: 999px;
+  background: var(--bs-light-bg-subtle);
+  border: 1px solid var(--bs-border-color);
+  font-size: 0.85rem;
+}
+
+.pipeline-columns {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 1rem;
+}
+
+.pipeline-step {
+  border: 1px solid var(--bs-border-color);
+  border-radius: 0.75rem;
+  padding: 1.2rem;
+  background: #ffffff;
+  box-shadow: 0 10px 30px rgba(15, 23, 42, 0.04);
+}
+
+.procedure-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+
+.procedure-card {
+  border: 1px solid var(--bs-border-color);
+  border-radius: 0.85rem;
+  padding: 1rem;
+  background: #f8fafc;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.8), 0 6px 18px rgba(15, 23, 42, 0.06);
+}
+
+.blueprint-grid {
+  margin-top: 1rem;
+}
+
+.blueprint-card {
+  background: #eef2ff;
+  border-color: #c7d2fe;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.9), 0 8px 20px rgba(79, 70, 229, 0.12);
+}
+
+.blueprint-flow-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  gap: 1rem;
+  margin: 1rem 0;
+}
+
+.blueprint-flow-card {
+  border: 1px solid #cde9ff;
+  border-radius: 0.85rem;
+  padding: 1rem;
+  background: #eef7ff;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.8), 0 10px 24px rgba(14, 165, 233, 0.12);
 }
 
 .mechanics-list .list-group-item {
@@ -81,6 +177,89 @@ body {
 
 .text-muted-80 {
   color: rgba(0, 0, 0, 0.6);
+}
+
+.step-list {
+  list-style: none;
+  padding-left: 0;
+  margin-bottom: 0;
+  counter-reset: pipeline-step;
+}
+
+.step-list li {
+  counter-increment: pipeline-step;
+  position: relative;
+  padding: 0.5rem 0.75rem 0.5rem 2.5rem;
+  margin-bottom: 0.6rem;
+  border: 1px dashed var(--bs-border-color);
+  border-radius: 0.65rem;
+  background: #f8fafc;
+}
+
+.step-list li::before {
+  content: counter(pipeline-step);
+  position: absolute;
+  left: 0.75rem;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, #0ea5e9, #6366f1);
+  color: #fff;
+  font-weight: 700;
+  font-size: 0.9rem;
+  box-shadow: 0 4px 12px rgba(14, 165, 233, 0.35);
+}
+
+.section-divider {
+  border-top: 1px dashed var(--bs-border-color);
+  padding-top: 0.75rem;
+  margin-top: 0.75rem;
+}
+
+.legend-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  background: #0f172a;
+  color: #fff;
+  border-radius: 999px;
+  padding: 0.35rem 0.7rem;
+  font-size: 0.85rem;
+}
+
+.legend-pill .dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 999px;
+  display: inline-block;
+}
+
+.drilldown-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 1rem;
+  padding: 1rem;
+  margin: 1rem 0 1.5rem;
+  border: 1px dashed var(--bs-border-color);
+  border-radius: 1rem;
+  background: #f8fafc;
+}
+
+.drilldown-card {
+  background: #fff;
+  border-radius: 0.9rem;
+  padding: 1rem;
+  box-shadow: 0 10px 25px rgba(15, 23, 42, 0.07);
+  border: 1px solid #e2e8f0;
+}
+
+.drilldown-card .step-list li {
+  background: #f4f7fb;
 }
 
 @media (max-width: 768px) {
