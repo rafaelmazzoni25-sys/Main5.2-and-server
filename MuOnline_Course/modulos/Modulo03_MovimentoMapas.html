@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  <title>Módulo 3 – Personagem e Movimentação</title>
+</head>
+<body class="bg-light">
+  <div class="container py-5">
+    <h1 class="mb-4">Módulo 3 – Personagem e Movimentação</h1>
+    <p class="lead">Sincronização de posição entre cliente e servidor, além de timers que processam movimentação.</p>
+
+    <h3>Pré-requisitos</h3>
+    <ul>
+      <li>Ter lido os módulos 1 e 2.</li>
+      <li>Conhecimento básico de estruturas de personagem.</li>
+    </ul>
+
+    <h2 class="mt-4">Conceitos do Código Original</h2>
+
+    <div class="card mb-3">
+      <div class="card-body">
+        <h5 class="card-title">Cliente – Aplicação de posição recebida (<code>ReceiveMovePosition</code>)</h5>
+
+        <h6>📘 O Que é?</h6>
+        <p>Handler de rede do cliente que atualiza posição/target do personagem ao receber pacote de movimento.</p>
+
+        <h6>🎯 Para Que Serve?</h6>
+        <p>Sincroniza a posição local com o servidor, ajustando movimento, direção e efeitos (como bola com gravidade).</p>
+
+        <h6>💻 Como Funciona?</h6>
+        <p>
+          O buffer é convertido em <code>LPPRECEIVE_MOVE_POSITION</code>. Busca o personagem pelo <code>Key</code>, atualiza campos de posição e, se for bola (<code>MODEL_BALL</code>), aplica física e efeitos sonoros/visuais.<br>
+          <pre><code>void ReceiveMovePosition(BYTE* ReceiveBuffer) {
+    LPPRECEIVE_MOVE_POSITION Data = (LPPRECEIVE_MOVE_POSITION)ReceiveBuffer;
+    int Key = ((int)(Data->KeyH)<<8) + Data->KeyL;
+    CHARACTER* c = &CharactersClient[FindCharacterIndex(Key)];
+    OBJECT* o = &c->Object;
+    if(o->Type == MODEL_BALL) {
+        o->Gravity = 20.f;
+        o->Direction[1] = (Data->PositionX-(c->PositionX))*400.f;
+    }
+    c->PositionX = Data->PositionX;
+    c->PositionY = Data->PositionY;
+    c->TargetX = Data->PositionX;
+    c->TargetY = Data->PositionY;
+}
+</code></pre>
+        </p>
+
+        <h6>📁 Onde Encontrar?</h6>
+        <p><code>Source Main 5.2/source/WSclient.cpp</code></p>
+
+        <h6>⏱️ Quando é Executado?</h6>
+        <p>Chamado pelo roteamento de pacotes do cliente (<code>CProtocolSend::RecvMessage</code>) quando recebe <code>ProtocolHead::BOTH_POSITION</code>.</p>
+      </div>
+    </div>
+
+    <div class="card mb-3">
+      <div class="card-body">
+        <h5 class="card-title">Cliente – Envio de movimento com caminho (<code>SendCharacterMoveNew</code>)</h5>
+
+        <h6>📘 O Que é?</h6>
+        <p>Função que compacta o caminho calculado pelo cliente em um buffer e envia para o servidor.</p>
+
+        <h6>🎯 Para Que Serve?</h6>
+        <p>Comunica ao servidor a intenção de deslocamento, codificando as direções numa sequência de nibbles (<code>path</code>).</p>
+
+        <h6>💻 Como Funciona?</h6>
+        <p>
+          <pre><code>void CProtocolSend::SendCharacterMoveNew(..., unsigned char PathNum, unsigned char* PathX, unsigned char* PathY, ...){
+    if (PathNum < 1) return;
+    PMSG_MOVE_SEND pMsg = { 0 };
+    if (PathNum >= MAX_PATH_FIND) { PathNum = MAX_PATH_FIND - 1; }
+    pMsg.x = PathX[0];
+    pMsg.y = PathY[0];
+    BYTE Path[8]; ZeroMemory(Path, 8);
+    for (int i = 1; i < PathNum; i++) {
+        BYTE Dir = 0;
+        for (int j = 0; j < 8; j++) {
+            if (DirTable[j * 2] == (PathX[i] - PathX[i - 1]) && DirTable[j * 2 + 1] == (PathY[i] - PathY[i - 1])) {
+                Dir = j; break;
+            }
+        }
+        if (i % 2 == 1) Path[(i + 1) / 2] = Dir << 4; else Path[(i + 1) / 2] += Dir;
+    }
+    Path[0] += (BYTE)(PathNum - 1);
+    memcpy(pMsg.path, Path, sizeof(pMsg.path));
+    SendPacket(ProtocolHead::BOTH_MOVE,(uint8_t*)&pMsg,sizeof(pMsg));
+}
+</code></pre>
+        </p>
+
+        <h6>📁 Onde Encontrar?</h6>
+        <p><code>Source Main 5.2/source/ProtocolSend.cpp</code></p>
+
+        <h6>⏱️ Quando é Executado?</h6>
+        <p>Chamado pelo cliente ao decidir um novo caminho (clique do jogador) antes de o servidor autorizar a movimentação.</p>
+      </div>
+    </div>
+
+    <div class="card mb-3">
+      <div class="card-body">
+        <h5 class="card-title">Servidor – Timers de movimentação (<code>QueueTimerCallback</code>)</h5>
+
+        <h6>📘 O Que é?</h6>
+        <p>Callback usado pelos timers do servidor para processar lógica periódica, incluindo movimentação de monstros.</p>
+
+        <h6>🎯 Para Que Serve?</h6>
+        <p>Separa tarefas de processamento (IA, movimento, eventos, viewport) em timers independentes para manter o loop responsivo.</p>
+
+        <h6>💻 Como Funciona?</h6>
+        <p>
+          O callback recebe qual timer disparou via <code>lpParameter</code> e executa funções como <code>gObjectManager.ObjectMoveProc()</code> ou <code>CMonsterAI::MonsterMoveProc()</code>, protegidas por <code>CCriticalSection</code> para evitar condições de corrida.<br>
+          <pre><code>void CALLBACK QueueTimerCallback(PVOID lpParameter,BOOLEAN) {
+    static CCriticalSection critical;
+    critical.lock();
+    switch(((int)lpParameter)) {
+        case QUEUE_TIMER_MONSTER_MOVE:
+            gObjectManager.ObjectMoveProc();
+            break;
+        case QUEUE_TIMER_MONSTER_AI_MOVE:
+            CMonsterAI::MonsterMoveProc();
+            break;
+        case QUEUE_TIMER_VIEWPORT:
+            gObjViewportProc();
+            break;
+    }
+    critical.unlock();
+}
+</code></pre>
+        </p>
+
+        <h6>📁 Onde Encontrar?</h6>
+        <p><code>Source MuServer Update 15/GameServer/GameServer/GameMain.cpp</code></p>
+
+        <h6>⏱️ Quando é Executado?</h6>
+        <p>Timers são criados em <code>GameServer::WinMain</code> logo após <code>GameMainInit</code>; cada intervalo dispara o callback automaticamente.</p>
+      </div>
+    </div>
+
+    <div class="card mb-3">
+      <div class="card-body">
+        <h5 class="card-title">Servidor – Processamento de movimento (<code>ProtocolCore</code> case 0x1C)</h5>
+
+        <h6>📘 O Que é?</h6>
+        <p>Entrada da tabela de protocolos que lida com teleporte/movimento do jogador.</p>
+
+        <h6>🎯 Para Que Serve?</h6>
+        <p>Valida e executa pedidos de teleporte/movimento originados pelo cliente.</p>
+
+        <h6>💻 Como Funciona?</h6>
+        <p>
+          O case <code>0x1C</code> encaminha para <code>gMove.CGTeleportRecv</code>, onde são aplicadas regras de distância, consumo de recursos e atualização de mapa.<br>
+          <pre><code>case 0x1C:
+    gMove.CGTeleportRecv((PMSG_TELEPORT_RECV*)lpMsg,aIndex);
+    break;
+</code></pre>
+        </p>
+
+        <h6>📁 Onde Encontrar?</h6>
+        <p><code>Source MuServer Update 15/GameServer/GameServer/Protocol.cpp</code></p>
+
+        <h6>⏱️ Quando é Executado?</h6>
+        <p>Ao receber um pacote de teleporte do cliente no socket principal.</p>
+      </div>
+    </div>
+
+    <h2 class="mt-5">Implementação em Unreal Engine 5</h2>
+    <ul>
+      <li>Use <code>ACharacter</code> com <code>CharacterMovementComponent</code> para aplicar posições recebidas do servidor.</li>
+      <li>Implemente replicação de posição via <code>ServerMove</code>/<code>ClientAdjustPosition</code> já fornecidos pelo UE5, substituindo <code>ReceiveMovePosition</code>.</li>
+      <li>Timers de servidor podem ser reimplementados como <code>FTimerHandle</code> em <code>AGameModeBase</code> ou <code>UWorld::GetTimerManager()</code>.</li>
+      <li>Teleporte pode ser realizado com RPC confiável em <code>APlayerController</code> chamando <code>SetActorLocation</code> no servidor.</li>
+    </ul>
+    <pre><code>UFUNCTION(Server, Reliable)
+void ServerTeleport(const FVector& Dest);
+
+void AMyCharacter::ServerTeleport_Implementation(const FVector& Dest) {
+    SetActorLocation(Dest);
+    // replicação automática enviará a nova posição
+}
+</code></pre>
+  </div>
+    <h2 class="mt-5">Passo a Passo em Unreal Engine 5</h2>
+    <ol>
+      <li>Configurar <code>ACharacter</code> com replicação de movimento habilitada e ativar <code>bUseControllerRotationYaw</code> conforme o estilo de câmera do cliente original.</li>
+      <li>Criar um componente <code>UMovementSyncComponent</code> que traduz o pacote de posição em um RPC <code>ClientAdjustPosition</code> customizado, aplicando <code>SetActorLocation</code> e <code>SetActorRotation</code>.</li>
+      <li>Implementar timers no <code>AGameModeBase</code> para IA/movimento de NPCs, disparando <code>ServerMove</code> em intervalos equivalentes aos <code>SetTimer</code> do servidor.</li>
+      <li>Criar um <code>UDataAsset</code> que liste mapas válidos e suas restrições (safe zone, arena, eventos), refletindo a validação feita no servidor original antes de teleporte.</li>
+      <li>Implementar teleporte via RPC confiável; validar mapa/destino contra o DataAsset, recarregar <code>UNavigationSystemV1</code> e sincronizar com UI de loading.</li>
+      <li>Usar <code>UNavigationSystemV1</code> e <code>ProjectPointToNavigation</code> para ajustar coordenadas recebidas antes de aplicá-las, evitando atravessar colisores.</li>
+      <li>Integrar eventos de colisão e estados de UI: quando inventário/loja estiver aberta, desabilitar input no <code>CharacterMovementComponent</code> e suspender envio de pacotes de movimento.</li>
+      <li>Serializar o caminho em um array de nibbles (ou um <code>TArray&lt;uint8&gt;</code>) antes de enviar via RPC <code>ServerMove</code>, seguindo a lógica de <code>Path</code> e <code>DirTable</code>; logar o tamanho para depurar.</li>
+      <li>Implementar predição de movimento no cliente e correção ao receber a posição oficial, atualizando o <code>CharacterMovementComponent</code> e interpolando para evitar rubber band.</li>
+      <li>Gravar um histórico circular de posições em <code>TQueue</code> para comparar com a posição oficial e diagnosticar divergências, similar ao uso de <code>RandomTable</code>.</li>
+      <li>Automatizar testes com <code>Functional Testing</code> ou <code>Gauntlet</code>: caminhar entre dois pontos, validar mesma posição no servidor e reproduzir logs de tempos.</li>
+      <li>Adicionar testes de teleporte entre mundos e validação de obstáculos com <code>LineTraceSingle</code>, garantindo que o teleporte é autorizado apenas em locais permitidos.</li>
+      <li>Exibir um painel de debug (Widget) com coordenadas locais e remotas, estado de predição e número de correções aplicadas.</li>
+      <li>Para compatibilizar com VaRest/Node.js, opcionalmente registrar posições em um endpoint HTTP de telemetria para auditoria de trapaça.</li>
+    </ol>
+    <h2 class="mt-4">Checklist Final</h2>
+    <ul>
+      <li>Personagem do cliente se move e sincroniza posição recebida do servidor.</li>
+      <li>NPCs/monstros atualizam movimento em intervalos configurados.</li>
+      <li>Teleporte entre mapas funciona com validação server-side.</li>
+      <li>Logs ou prints confirmam recebimento de pacotes de posição.</li>
+    </ul>
+
+</body>
+</html>
