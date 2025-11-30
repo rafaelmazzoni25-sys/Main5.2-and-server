@@ -104,6 +104,42 @@
         <h6>⏱️ Quando é Executado?</h6>
         <p>Chamado a partir da UI de login (<code>CUIMng::m_LoginWin</code>) após o usuário preencher credenciais; a resposta é tratada em <code>RecvLoginNew</code>.</p>
       </div>
+  </div>
+
+    <div class="card mb-3">
+      <div class="card-body">
+        <h5 class="card-title">Cliente – Tratamento da resposta de login</h5>
+
+        <h6>📘 O Que é?</h6>
+        <p>Handler que interpreta os códigos de retorno e atualiza o estado de protocolo e mensagens de erro.</p>
+
+        <h6>🎯 Para Que Serve?</h6>
+        <p>Define as transições de <code>CurrentProtocolState</code> e aciona janelas de popup específicas para cada motivo de falha.</p>
+
+        <h6>💻 Como Funciona?</h6>
+        <p>
+          <pre><code>void CProtocolSend::RecvLoginNew(PMSG_SIMPLE_RESULT_RECV* pMsg) {
+    switch (pMsg->result) {
+        case 0x20:
+        case 0x01:
+            CurrentProtocolState = RECEIVE_LOG_IN_SUCCESS;
+            LogIn = 2;
+            CheckHack();
+            break;
+        case 0x00: CUIMng::Instance().PopUpMsgWin(RECEIVE_LOG_IN_FAIL_PASSWORD); break;
+        case 0x06: CUIMng::Instance().PopUpMsgWin(RECEIVE_LOG_IN_FAIL_VERSION); break;
+        case 0x09: CUIMng::Instance().PopUpMsgWin(RECEIVE_LOG_IN_FAIL_NO_PAYMENT_INFO); break;
+        default:  CUIMng::Instance().PopUpMsgWin(RECEIVE_LOG_IN_FAIL_CONNECT); break;
+    }
+}</code></pre>
+        </p>
+
+        <h6>📁 Onde Encontrar?</h6>
+        <p><code>Source Main 5.2/source/ProtocolSend.cpp</code></p>
+
+        <h6>⏱️ Quando é Executado?</h6>
+        <p>É chamado pelo switch de <code>RecvMessage</code> ao receber <code>BOTH_CONNECT_LOGIN</code>, imediatamente após <code>SendRequestLogInNew</code>.</p>
+      </div>
     </div>
 
     <h2>Implementação em Unreal Engine 5</h2>
@@ -128,6 +164,10 @@ public:
       <li>Espelhar as structs de pacotes (<code>PMSG_CONNECT_ACCOUNT_SEND</code>) em <code>USTRUCT()</code> para serialização.</li>
       <li>Despachar mensagens recebidas no <code>TickComponent</code>, refletindo o <code>switch(msg.header.id)</code> original.</li>
       <li>Atualizar UI em Blueprints após <code>RecvLoginNew</code> equivalente sinalizar sucesso.</li>
+      <li>Para autenticação via HTTP, criar endpoint Node.js com SQL que responde JSON; usar VaRest no cliente para pegar token antes de abrir socket.</li>
+      <li>Persistir estado de login em <code>UGameInstance</code> e impedir transições de mapa sem <code>CurrentProtocolState</code> válido.</li>
+      <li>Implementar mensagens de erro localizadas em Widgets, mapeando cada código de falha.</li>
+      <li>Criar testes automatizados com <code>AutomationTest</code> que simulam respostas do servidor e verificam troca de telas.</li>
     </ol>
 
     <h2>Checklist Final</h2>

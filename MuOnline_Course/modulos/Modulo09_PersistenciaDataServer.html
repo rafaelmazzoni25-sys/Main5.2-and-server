@@ -233,6 +233,10 @@ app.get('/character/info', async (req,res) => {
       <li>Mapeie o JSON retornado para structs UE (<code>FCharacterSnapshot</code>) e aplique os dados no <code>AGameState</code> ou diretamente no <code>ACharacter</code>.</li>
       <li>Implemente cache local/segurança equivalente aos checks de <code>CheckTextSyntax</code> e bloqueio de slots (<code>GameIDC</code>).</li>
       <li>Garanta que a gravação (reset, inventário) use endpoints POST/PUT que executem procedures equivalentes a <code>WZ_GetResetInfo</code> e atualizações de inventário.</li>
+      <li>Crie migrations ou scripts SQL que gerem as mesmas tabelas usadas no DataServer (Character, Warehouse, Guild) e valide tipos de coluna.</li>
+      <li>Adicionar camadas de retry e backoff no VaRest para erros HTTP/SQL, registrando falhas em um log persistente.</li>
+      <li>Implementar testes automatizados que comparam um binário de inventário salvo pelo servidor original com o JSON retornado pelo serviço Node.js.</li>
+      <li>Documentar o contrato REST (método, rota, parâmetros) em um arquivo incluído no projeto para consulta rápida.</li>
     </ol>
 
     <h2>Checklist Final</h2>

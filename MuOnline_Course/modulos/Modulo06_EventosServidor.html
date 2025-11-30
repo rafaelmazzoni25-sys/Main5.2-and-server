@@ -132,6 +132,10 @@ void AMyGameMode::SendHeartbeat() {
       <li>Implementar envio periódico de status via socket/HTTP em um subsystem.</li>
       <li>Criar listeners para conexões auxiliares (Join/Data) ou mock services.</li>
       <li>Registrar logs de eventos/timers para monitoramento.</li>
+      <li>Separar timers críticos (spawn, limpeza, reset de eventos) em <code>FTimerHandle</code> distintos para facilitar testes.</li>
+      <li>Usar <code>UE_LOG</code> + <code>PerfCounters</code> customizados para acompanhar uso de CPU/memória similar ao console do servidor.</li>
+      <li>Criar comandos de console no servidor (<code>Exec</code>) para pausar/reiniciar eventos como <code>BattleSoccer</code>.</li>
+      <li>Automatizar cenários com testes que simulam 100+ jogadores enviando pacotes para validar estabilidade do loop.</li>
     </ol>
     <h2 class="mt-4">Checklist Final</h2>
     <ul>

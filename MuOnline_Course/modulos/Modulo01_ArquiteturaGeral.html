@@ -123,6 +123,56 @@ void GameMainInit(HWND hwnd);</code></pre>
       </div>
     </div>
 
+    <div class="card mb-3">
+      <div class="card-body">
+        <h5 class="card-title">Loop principal do cliente – WinMain e Scene()</h5>
+
+        <h6>📘 O Que é?</h6>
+        <p>
+          Laço de mensagens do executável Win32 que despacha eventos de janela e roda o rendering <code>Scene</code> quando não há mensagens pendentes.<br>
+          <pre><code>while( 1 )
+{
+    if( PeekMessage( &msg, NULL, 0, 0, PM_NOREMOVE ) )
+    {
+        if( !GetMessage( &msg, NULL, 0, 0 ) ) break;
+        TranslateMessage(&msg);
+        DispatchMessage(&msg);
+    }
+    else
+    {
+        if (g_bUseWindowMode == TRUE || g_bWndActive)
+            Scene(g_hDC);
+        // ... gerenciamento de minimização
+    }
+
+    if(SceneFlag < CHARACTER_SCENE)
+        ProtocolCompiler();
+    g_pChatRoomSocketList->ProtocolCompile();
+    gProtocolSend.RecvMessage();
+}</code></pre>
+        </p>
+
+        <h6>🎯 Para Que Serve?</h6>
+        <p>Controla o ciclo de vida do cliente, intercalando processamento de mensagens, renderização e processamento de pacotes de rede.</p>
+
+        <h6>💻 Como Funciona?</h6>
+        <p>
+          O loop verifica mensagens com <code>PeekMessage</code>; quando não há, chama <code>Scene</code> para desenhar e, em seguida, executa os compiladores de protocolo.<br>
+          <pre><code>// Winmain.cpp
+if(SceneFlag < CHARACTER_SCENE)
+    ProtocolCompiler();
+g_pChatRoomSocketList->ProtocolCompile();
+gProtocolSend.RecvMessage();</code></pre>
+        </p>
+
+        <h6>📁 Onde Encontrar?</h6>
+        <p><code>Source Main 5.2/source/Winmain.cpp</code></p>
+
+        <h6>⏱️ Quando é Executado?</h6>
+        <p>Após toda a inicialização gráfica/áudio e UI, permanece ativo até o encerramento da aplicação, chamando <code>DestroyWindow</code> ao sair.</p>
+      </div>
+    </div>
+
     <h2>Implementação em Unreal Engine 5</h2>
     <p>Em UE5, centralize a inicialização em um <code>UGameInstance</code> customizado para cliente e em um <code>AGameModeBase</code> para o servidor dedicado.</p>
     <ul>
@@ -159,6 +209,9 @@ public:
       <li>Adicionar um <code>AGameModeBase</code> customizado para o servidor dedicado (ou modo listen) que inicializa tabelas e conexões.</li>
       <li>Implementar carga de configurações (equivalente a <code>gServerInfo.ReadInit()</code>) usando Data Assets ou arquivos JSON.</li>
       <li>Configurar um subsystem de áudio para tocar trilhas de fundo, com checagens de estado similares a <code>PlayMp3/StopMp3</code>.</li>
+      <li>Recriar o loop principal com <code>FViewport</code> ou <code>FTickableGameObject</code> para garantir que a renderização e a fila de rede sejam processadas mesmo sem input.</li>
+      <li>Adicionar um <code>UUserWidget</code> de loading que dispara a inicialização de sockets/HTTP antes de entrar no mapa.</li>
+      <li>Para o servidor dedicado, criar um serviço Windows/Linux que inicialize <code>AMuServerMode</code> e valide mutex/porta similar a <code>GameMainInit</code>.</li>
     </ol>
 
     <h2>Checklist Final</h2>

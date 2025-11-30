@@ -109,6 +109,10 @@ public:
       <li>Implementar callbacks de leitura/escrita usando <code>FUdpSocketReceiver</code> ou <code>FTicker</code> para simular o <code>FD_READ</code>.</li>
       <li>Enviar mensagem de identificação ao estabelecer conexão, espelhando <code>GJServerInfoSend/GDServerInfoSend</code>.</li>
       <li>Em caso de <code>FD_CLOSE</code> equivalente, derrubar sessões de jogadores como <code>gObjAllDisconnect()</code>.</li>
+      <li>Persistir o estado das conexões (Join/Data) em um actor de gerenciamento que possa reiniciar sockets sem derrubar o servidor UE5.</li>
+      <li>Adicionar health-check periódico via HTTP para backup da conexão (usando VaRest) quando o socket falhar.</li>
+      <li>Registrar métricas por conexão (latência, bytes) em <code>UAnalyticsProvider</code> customizado.</li>
+      <li>Escrever testes que simulam queda de JoinServer/DataServer e verificam reconexão automática.</li>
     </ol>
 
     <h2>Checklist Final</h2>

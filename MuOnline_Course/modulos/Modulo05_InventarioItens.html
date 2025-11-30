@@ -152,6 +152,10 @@ void ServerMoveItem(int32 From, int32 To);
       <li>Implementar struct replicável para slots e armazená-la em <code>APlayerState</code>.</li>
       <li>Adicionar RPCs para pegar, mover, dropar e usar itens, com validação no servidor.</li>
       <li>Criar UI de inventário em UMG consumindo os arrays replicados.</li>
+      <li>Persistir inventário via chamada HTTP (VaRest) para Node.js/SQL na entrada e saída do jogador.</li>
+      <li>Usar <code>NetSerialize</code> em <code>FItemSlot</code> para otimizar tráfego replicado, semelhante ao layout compacto do cliente original.</li>
+      <li>Implementar filtros de equipabilidade por classe/nível replicados do servidor para o cliente.</li>
+      <li>Adicionar testes automatizados de duplicação para garantir que RPCs rejeitam operações concorrentes.</li>
     </ol>
     <h2 class="mt-4">Checklist Final</h2>
     <ul>

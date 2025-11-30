@@ -146,6 +146,10 @@ void AMyCharacter::ServerTeleport_Implementation(const FVector& Dest) {
       <li>Mapear pacote de posição para um RPC <code>ClientAdjustPosition</code> customizado, aplicando <code>SetActorLocation</code>.</li>
       <li>Implementar timers no <code>AGameModeBase</code> para IA/movimento de NPCs.</li>
       <li>Implementar teleporte via RPC confiável, validando mapa/destino.</li>
+      <li>Criar um <code>UDataAsset</code> que liste mapas válidos e suas restrições, refletindo a validação feita no servidor original.</li>
+      <li>Usar <code>UNavigationSystemV1</code> para recalcular caminhos após teleporte e garantir posicionamento seguro.</li>
+      <li>Integrar eventos de colisão para bloquear movimento quando UI (inventário/loja) estiver aberta, semelhante ao bloqueio de input no cliente Win32.</li>
+      <li>Automatizar testes com <code>Functional Testing</code> para caminhar entre dois pontos e verificar sincronização de posição.</li>
     </ol>
     <h2 class="mt-4">Checklist Final</h2>
     <ul>

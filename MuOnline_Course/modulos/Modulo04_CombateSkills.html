@@ -111,6 +111,10 @@ void AMyCharacter::ServerPerformAttack_Implementation(AActor* Target) {
       <li>Mapear comandos de ataque/skill para RPCs no <code>APlayerController</code> ou <code>AbilitySystemComponent</code>.</li>
       <li>Implementar cancelamento/skills de duração com tarefas do GAS ou timers.</li>
       <li>Replicar resultados (dano, efeitos) para clientes afetados.</li>
+      <li>Modelar tabela de skills em <code>DataTable</code> com custo e animações correspondentes ao <code>gSkillManager</code>.</li>
+      <li>Sincronizar estados de animação usando <code>Montage</code> + notifies para disparar partículas no momento correto.</li>
+      <li>Validar cooldowns no servidor e replicar apenas flags de disponibilidade para o cliente.</li>
+      <li>Adicionar testes de regressão que enviam pacotes de ataque falsos e garantem rejeição conforme regras do servidor original.</li>
     </ol>
     <h2 class="mt-4">Checklist Final</h2>
     <ul>
