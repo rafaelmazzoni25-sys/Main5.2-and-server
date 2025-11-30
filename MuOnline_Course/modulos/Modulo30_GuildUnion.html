@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  <title>Módulo 30 – Guild, União e Guerra</title>
+</head>
+<body class="bg-light">
+  <div class="container py-5">
+    <h1 class="mb-4">Módulo 30 – Guild, União e Guerra</h1>
+    <p class="lead">Explora o fluxo completo de guilds no GameServer original – convite, aceite, listagem, destruição e mensagens de guerra – e mostra como espelhar tudo em Unreal Engine 5.</p>
+
+    <h2>Pré-requisitos</h2>
+    <ul>
+      <li>Módulo 11 – Social/Party.</li>
+      <li>Módulo 18 – Sistema Gens (para lock de guild).</li>
+      <li>Conhecer APlayerState, APlayerController e GameMode em UE5.</li>
+    </ul>
+
+    <h2>Conceitos do Código Original</h2>
+
+    <div class="card mb-3">
+      <div class="card-body">
+        <h5 class="card-title">CGuild::GetMaxGuildUser – Cálculo de vagas</h5>
+
+        <h6>📘 O Que é?</h6>
+        <p>
+          Define quantos membros uma guild pode ter, considerando classe, resets e leadership.<br>
+          <pre><code>int CGuild::GetMaxGuildUser(LPOBJ lpObj) {
+  int MaxGuildUser = 0;
+  if(lpObj-&gt;Class == CLASS_DL) {
+    MaxGuildUser = ((lpObj-&gt;Reset==0)?(((lpObj-&gt;Level+lpObj-&gt;MasterLevel)/10)+(lpObj-&gt;Leadership/10)):gServerInfo.m_GuildInsertMaxUser2);
+    MaxGuildUser = ((MaxGuildUser&gt;gServerInfo.m_GuildInsertMaxUser2)?gServerInfo.m_GuildInsertMaxUser2:MaxGuildUser);
+  } else {
+    MaxGuildUser = ((lpObj-&gt;Reset==0)?((lpObj-&gt;Level+lpObj-&gt;MasterLevel)/10):gServerInfo.m_GuildInsertMaxUser1);
+    MaxGuildUser = ((MaxGuildUser&gt;gServerInfo.m_GuildInsertMaxUser1)?gServerInfo.m_GuildInsertMaxUser1:MaxGuildUser);
+  }
+  return ((MaxGuildUser&gt;MAX_GUILD_USER)?MAX_GUILD_USER:MaxGuildUser);
+}</code></pre>
+        </p>
+
+        <h6>🎯 Para Que Serve?</h6>
+        <p>Limita o tamanho da guild conforme progressão do jogador e classe Dark Lord, prevenindo convites acima do limite configurado.</p>
+
+        <h6>💻 Como Funciona?</h6>
+        <p>
+          Ajusta o limite base por reset; para DL soma leadership/10; faz clamp pelos valores máximos do ServerInfo; retorna o mínimo entre o clamp e <code>MAX_GUILD_USER</code>.<br>
+          <pre><code>// Ajuste por configuração e clamp
+MaxGuildUser = ((MaxGuildUser&gt;gServerInfo.m_GuildInsertMaxUser1)?gServerInfo.m_GuildInsertMaxUser1:MaxGuildUser);
+return ((MaxGuildUser&gt;MAX_GUILD_USER)?MAX_GUILD_USER:MaxGuildUser);
+</code></pre>
+        </p>
+
+        <h6>📁 Onde Encontrar?</h6>
+        <p><code>Source MuServer Update 15/GameServer/GameServer/Guild.cpp</code>, linhas 39-57.</p>
+
+        <h6>⏱️ Quando é Executado?</h6>
+        <p>
+          Chamado durante o convite/aceite para validar capacidade:<br>
+          <pre><code>if(lpTarget-&gt;Guild-&gt;TotalCount &gt;= this-&gt;GetMaxGuildUser(lpTarget)) {
+  this-&gt;GCGuildResultSend(aIndex,2);
+  return;
+}</code></pre>
+          O trecho acima ocorre em <code>CGGuildRequestRecv</code> ao processar um convite (linhas 174-177).
+        </p>
+      </div>
+    </div>
+
+    <div class="card mb-3">
+      <div class="card-body">
+        <h5 class="card-title">CGGuildRequestRecv/ResultRecv – Convite e aceite</h5>
+
+        <h6>📘 O Que é?</h6>
+        <p>Handlers de pacotes 0x50/0x51 que coordenam convite e resposta de guild.</p>
+
+        <h6>🎯 Para Que Serve?</h6>
+        <p>Controla o handshake entre convidar e aceitar, bloqueando interfaces em uso, guerra ativa ou conflito com Gens.</p>
+
+        <h6>💻 Como Funciona?</h6>
+        <p>
+          <pre><code>// Convite (C1:50)
+int bIndex = MAKE_NUMBERW(lpMsg-&gt;index[0],lpMsg-&gt;index[1]);
+if((lpTarget-&gt;Option &amp; 1) == 0 || lpTarget-&gt;GuildNumber == 0) { GCGuildResultSend(aIndex,0/4); return; }
+... // locks e Gens
+lpObj-&gt;Interface.use = 1; lpObj-&gt;Interface.type = INTERFACE_GUILD;
+lpTarget-&gt;Interface.use = 1; lpTarget-&gt;Interface.type = INTERFACE_GUILD;
+PMSG_GUILD_REQUEST_SEND pMsg; pMsg.header.set(0x50,sizeof(pMsg)); DataSend(bIndex,(BYTE*)&pMsg,pMsg.header.size);
+</code></pre>
+          <pre><code>// Aceite (C1:51)
+if(lpMsg-&gt;result == 0) { GCGuildResultSend(bIndex,0); goto CLEAR_JUMP; }
+... // checa liderança, guerra, nível, limite, família Gens
+GDGuildMemberAdd(bIndex,lpObj-&gt;Guild-&gt;Name,lpTarget-&gt;Name);
+CLEAR_JUMP:
+// limpa interfaces
+lpObj-&gt;Interface.use = 0; lpTarget-&gt;Interface.use = 0;
+</code></pre>
+        </p>
+
+        <h6>📁 Onde Encontrar?</h6>
+        <p><code>Source MuServer Update 15/GameServer/GameServer/Guild.cpp</code>, linhas 104-341.</p>
+
+        <h6>⏱️ Quando é Executado?</h6>
+        <p>É acionado quando o cliente envia 0x50 para convidar ou 0x51 para responder. O aceite dispara gravação no DataServer via <code>GDGuildMemberAdd</code> (linha 326) após todas as checagens.</p>
+      </div>
+    </div>
+
+    <div class="card mb-3">
+      <div class="card-body">
+        <h5 class="card-title">CGGuildListRecv – Lista de membros e rival</h5>
+
+        <h6>📘 O Que é?</h6>
+        <p>Envia a lista completa da guild (membros, status, rival) no pacote 0x52.</p>
+
+        <h6>🎯 Para Que Serve?</h6>
+        <p>Atualiza o cliente com presença online, status e rivalidade para exibir UI de guild.</p>
+
+        <h6>💻 Como Funciona?</h6>
+        <p>
+          <pre><code>pMsg.header.set(0x52,0);
+pMsg.TotalScore = lpObj-&gt;Guild-&gt;TotalScore;
+GUILD_INFO_STRUCT* lpRivalGuild = gGuildClass.SearchGuild_Number(lpObj-&gt;Guild-&gt;GuildRival);
+if(lpRivalGuild == 0) { memset(pMsg.RivalGuild,0,...); }
+for(int n=0;n &lt; MAX_GUILD_USER;n++) {
+  if(lpObj-&gt;Guild-&gt;Use[n] == 0) continue;
+  memcpy(info.name,lpObj-&gt;Guild-&gt;Names[n],sizeof(info.name));
+  info.connected = (lpObj-&gt;Guild-&gt;Server[n] &amp; 0x7F) | ((lpObj-&gt;Guild-&gt;Server[n]&gt;=0)?0x80:0);
+  memcpy(&send[size],&info,sizeof(info));
+  pMsg.count++;
+}
+DataSend(aIndex,send,size);
+</code></pre>
+        </p>
+
+        <h6>📁 Onde Encontrar?</h6>
+        <p><code>Source MuServer Update 15/GameServer/GameServer/Guild.cpp</code>, linhas 343-426.</p>
+
+        <h6>⏱️ Quando é Executado?</h6>
+        <p>Chamado quando o cliente abre a janela de guild ou solicita atualização de membros, enviando <code>DataSend</code> ao solicitante.</p>
+      </div>
+    </div>
+
+    <h2>Implementação em Unreal Engine 5</h2>
+    <p>Estruture a lógica de guild em um <strong>GameMode</strong> ou <strong>GameState</strong> com componentes de dados replicados.</p>
+    <ol>
+      <li>Crie um <code>UGuildInfoComponent</code> (UActorComponent) anexado ao <code>APlayerState</code> contendo nome da guild, papel e ponteiros para o líder.</li>
+      <li>Implemente um <code>AGuildManager</code> derivado de <code>AInfo</code> com <code>UFUNCTION(Server)</code> para <code>SendInvite</code> e <code>AcceptInvite</code>, armazenando <code>PendingInvites</code> e limites por classe.</li>
+      <li>Use <code>ENetRole</code> e <code>ReplicatedUsing</code> para sincronizar lista de membros com o time de <code>APlayerState</code>; replique um <code>TArray&lt;FGuildMember&gt;</code> (USTRUCT).</li>
+      <li>Adapte o lock de Gens em um <code>UGameInstanceSubsystem</code> que consulta backend Node.js/SQL via VaRest antes de autorizar o convite.</li>
+      <li>Para guerras, crie um <code>AGuildWarManager</code> que dispara <code>Multicast</code> com placar e rivais, replicando no <code>AGameStateBase</code>.</li>
+    </ol>
+
+    <h2>Passo a Passo em Unreal Engine 5</h2>
+    <ol>
+      <li>Adicionar ao projeto um <code>AGuildManager</code> com método <code>int32 GetMaxMembers(const FGuildStats&amp; Stats)</code> replicando a lógica de level/reset/leadership.</li>
+      <li>Criar endpoints REST em Node.js/SQL (<code>/guild/invite</code>, <code>/guild/accept</code>) para persistência; consumir no cliente com VaRest dentro de <code>UGuildService</code>.</li>
+      <li>No <code>APlayerController</code>, mapear input para abrir UI de guild e chamar <code>ServerSendInvite(TargetPlayer)</code>; exibir diálogos via UMG.</li>
+      <li>Replicar lista de membros: <code>UPROPERTY(ReplicatedUsing=OnRep_GuildMembers) TArray&lt;FGuildMember&gt; GuildMembers;</code>; atualizar UI quando <code>OnRep</code> for chamado.</li>
+      <li>Implementar guerra: <code>ServerDeclareWar(OtherGuildId)</code> registra no backend; <code>MulticastUpdateWarState</code> notifica todos os membros e agenda timers equivalentes aos estados de WarState.</li>
+      <li>Checklist: convite bloqueia quando alvo está em UI/Trade; aceitar dispara gravação; lista de membros mostra online/offline e rival; guerra envia placar replicado.</li>
+    </ol>
+
+    <h2>Checklist Final</h2>
+    <ul>
+      <li>Limite de membros respeita level/reset/leadership como no servidor original.</li>
+      <li>Convite/aceite replica estados de interface e impede conflitos (trade, guerra, Gens).</li>
+      <li>Lista de guild mostra membros, status e rival replicados no cliente UE5.</li>
+      <li>Persistência de guild/uniões integrada a Node.js + SQL via VaRest.</li>
+      <li>Guerra de guild envia notificações e placar para todos os membros.</li>
+    </ul>
+  </div>
+</body>
+</html>

@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  <title>Módulo 16 – Castle Siege (Ciclo e Sincronização)</title>
+</head>
+<body class="bg-light">
+  <div class="container py-5">
+    <h1 class="mb-4">Módulo 16 – Castle Siege (Ciclo e Sincronização)</h1>
+    <p class="lead">Explora a preparação, leitura de configuração e estado do evento Castle Siege, incluindo sincronização com NPCs e minimapa.</p>
+
+    <h2>Pré-requisitos</h2>
+    <ul>
+      <li>Completar módulos 6, 8 e 13 para dominar timers, roteamento de pacotes e minimapa.</li>
+      <li>Conhecimento de replicação e RPCs em UE5.</li>
+      <li>Acesso a um backend SQL/Node.js para persistir estado do evento.</li>
+    </ul>
+
+    <h2>Conceitos do Código Original</h2>
+
+    <div class="card mb-3">
+      <div class="card-body">
+        <h5 class="card-title">Inicialização e limpeza – <code>CCastleSiege::Clear</code></h5>
+
+        <h6>📘 O Que é?</h6>
+        <p>Rotina que zera estado do evento, reseta controles de NPC, guilds, timers e flags de carregamento.</p>
+
+        <h6>🎯 Para Que Serve?</h6>
+        <p>Garante que cada ciclo de Castle Siege começa sem resíduos de dados anteriores, evitando inconsistências.</p>
+
+        <h6>💻 Como Funciona?</h6>
+        <p>
+          <pre><code>void CCastleSiege::Clear() {
+    this->m_bCastleSiegeEnable = TRUE;
+    this->m_bFileDataLoadOK = FALSE;
+    this->m_bDbDataLoadOK = FALSE;
+    this->m_iMapSvrGroup = -1;
+    this->m_iCastleSiegeCycle = 14;
+    this->m_iCastleSiegeState = -1;
+    memset(&this->m_tmFixCastleCycleStartDate,0,sizeof(this->m_tmFixCastleCycleStartDate));
+    this->m_iCastleDataLoadState = 0;
+    this->m_dwDbDataLoadTickCount = 0;
+    this->m_iCS_REMAIN_MSEC = -1;
+    this->m_bCsBasicGuildInfoLoadOK = FALSE;
+    this->m_btIsCastleOccupied = 0;
+    EnterCriticalSection(&this->m_critScheduleData); this->m_vtScheduleData.clear(); LeaveCriticalSection(&this->m_critScheduleData);
+    EnterCriticalSection(&this->m_critNpcData); this->m_vtNpcData.clear(); LeaveCriticalSection(&this->m_critNpcData);
+    this->m_bDbNpcCreated = FALSE;
+}
+</code></pre>
+        </p>
+
+        <h6>📁 Onde Encontrar?</h6>
+        <p><code>Source MuServer Update 15/GameServer/GameServer/CastleSiege.cpp</code>, linhas 66–141.</p>
+
+        <h6>⏱️ Quando é Executado?</h6>
+        <p>Invocado em <code>CCastleSiege::Ready</code> logo após definir o <code>MapSvrGroup</code>, antes do carregamento de dados e início do ciclo.</p>
+      </div>
+    </div>
+
+    <div class="card mb-3">
+      <div class="card-body">
+        <h5 class="card-title">Leitura de configuração – <code>CCastleSiege::LoadPreFixData</code></h5>
+
+        <h6>📘 O Que é?</h6>
+        <p>Carrega parâmetros do evento a partir de arquivo INI (ciclo, datas fixas, estado específico).</p>
+
+        <h6>🎯 Para Que Serve?</h6>
+        <p>Determina quando o Castle Siege deve iniciar, o estado inicial forçado e datas limites, validando contra a data atual.</p>
+
+        <h6>💻 Como Funciona?</h6>
+        <p>
+          <pre><code>int CCastleSiege::LoadPreFixData(char * lpszFileName) {
+    _SYSTEMTIME tmToDay; GetLocalTime(&tmToDay);
+    this->m_bCastleSiegeEnable = GetPrivateProfileInt("GameServerInfo","CastleSiegeEvent",0,lpszFileName);
+    this->m_tmFixCastleCycleStartDate.wYear = GetPrivateProfileInt("GameServerInfo","CastleSiegeCycleStartYear",0,lpszFileName);
+    ...
+    this->m_tmFixCastleStateStartDate.wMinute = GetPrivateProfileInt("GameServerInfo","CastleSiegeStateStartMinute",0,lpszFileName);
+    if(this->m_tmFixCastleCycleStartDate.wYear == 0 || ...)
+        this->m_bFixCastleCycleStartDate = FALSE;
+    else {
+        _SYSTEMTIME tmEndDate = this->m_tmFixCastleCycleStartDate;
+        GetNextDay(&tmEndDate, this->m_iCastleSiegeCycle, 0, 0, 0);
+        if(iEVENT_END_DATE_NUM <= iTODAY_DATE_NUM) { this->m_bFixCastleCycleStartDate = FALSE; ErrorMessageBox(...); }
+    }
+    return true;
+}
+</code></pre>
+        </p>
+
+        <h6>📁 Onde Encontrar?</h6>
+        <p><code>Source MuServer Update 15/GameServer/GameServer/CastleSiege.cpp</code>, linhas 159–200.</p>
+
+        <h6>⏱️ Quando é Executado?</h6>
+        <p>Chamado durante o boot do GameServer com o arquivo de configuração para validar datas antes de subir o evento.</p>
+      </div>
+    </div>
+
+    <div class="card mb-3">
+      <div class="card-body">
+        <h5 class="card-title">Criação/entrada do ciclo – <code>CCastleSiege::Ready</code></h5>
+
+        <h6>📘 O Que é?</h6>
+        <p>Configura o servidor alvo do evento e reseta NPCs antes de carregar dados.</p>
+
+        <h6>🎯 Para Que Serve?</h6>
+        <p>Define o Map Server Group que hospedará o Castle Siege e estabelece que o estado de dados deve ser recarregado.</p>
+
+        <h6>💻 Como Funciona?</h6>
+        <p>
+          <pre><code>int CCastleSiege::Ready(int iMapSvrGroup) {
+    if(iMapSvrGroup < 0) { return false; }
+    this->Clear();
+    this->ClearAllNPC();
+    this->m_iMapSvrGroup = iMapSvrGroup;
+    this->m_iCastleDataLoadState = 1;
+    return true;
+}
+</code></pre>
+        </p>
+
+        <h6>📁 Onde Encontrar?</h6>
+        <p><code>Source MuServer Update 15/GameServer/GameServer/CastleSiege.cpp</code>, linhas 143–157.</p>
+
+        <h6>⏱️ Quando é Executado?</h6>
+        <p>Durante a inicialização do GameServer, antes de qualquer transição de estado do Castle Siege.</p>
+      </div>
+    </div>
+
+    <h2>Implementação em Unreal Engine 5</h2>
+    <ul>
+      <li>Mapear o ciclo do evento para um <code>AGameStateBase</code> específico de Castle Siege com variáveis replicadas de datas e estado.</li>
+      <li>Usar <code>UDataTable</code> ou <code>UDataAsset</code> para carregar configurações (datas, ciclo) no BeginPlay do GameMode.</li>
+      <li>Criar um serviço Node.js que leia/escreva as janelas de evento em SQL; consumir via VaRest no servidor dedicado UE5 para alinhar datas.</li>
+      <li>NPCs e minimapa: spawnar <code>AActors</code> (gates, coroas) registrados em um subsistema de mini-mapa replicado.</li>
+    </ul>
+
+    <h3>Passo a Passo em Unreal Engine 5</h3>
+    <ol>
+      <li>Criar classe <code>ACastleSiegeState</code> derivada de <code>AGameStateBase</code> com enum do estado atual, datas fixas e métodos <code>ResetState()</code> e <code>ApplyConfig()</code>.</li>
+      <li>No GameMode, chamar <code>ResetState()</code> ao iniciar o servidor dedicado, espelhando <code>Clear</code> para limpar arrays e flags replicadas.</li>
+      <li>Implementar um carregador de config que consome JSON/INI via VaRest (chamada HTTP ao Node.js) e preenche <code>ACastleSiegeState</code>; validar datas locais antes de salvar.</li>
+      <li>Adicionar RPC <code>ServerSetMapGroup(int32 MapGroup)</code> no GameMode para definir o servidor-alvo, resetar NPCs e marcar <code>DataLoadState</code> replicado.</li>
+      <li>Agendar timers que avançam estados (REGSIEGE → REGMARK → ... → STARTSIEGE) e notificam UI via <code>OnRep_State</code>.</li>
+      <li>Minimapa: registrar NPCs/gates em um <code>UActorComponent</code> que publica coordenadas para widgets; atualizar a cada mudança de estado.</li>
+    </ol>
+
+    <h3>Checklist Final</h3>
+    <ul>
+      <li>Estado do Castle Siege resetado e replicado para clientes.</li>
+      <li>Configurações carregadas de backend Node.js/SQL e aplicadas.</li>
+      <li>Timers de transição de estado ativos e notificando UI.</li>
+      <li>NPCs/gates spawnados e visíveis no minimapa replicado.</li>
+      <li>Possibilidade de definir Map Server Group via RPC seguro.</li>
+    </ul>
+  </div>
+</body>
+</html>

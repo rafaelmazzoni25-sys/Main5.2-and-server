@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  <title>Módulo 41 – Progressão, Experiência e Reset</title>
+</head>
+<body class="bg-light">
+  <div class="container py-5">
+    <h1 class="mb-4">Módulo 41 – Progressão, Experiência e Reset</h1>
+    <p class="lead">Explora a tabela de experiência/reset do GameServer e como replicar o controle de evolução (normal e master) na Unreal Engine 5 com networking, validação e backend via VaRest + Node.js + SQL.</p>
+
+    <h2>Pré-requisitos</h2>
+    <ul>
+      <li>Módulo 1 – Arquitetura Geral (para entender o ciclo do GameServer).</li>
+      <li>Módulo 2 – Rede/Autenticação (para reaproveitar a sessão do jogador).</li>
+      <li>Módulo 9 – Persistência/DataServer (para salvar progresso em SQL).</li>
+    </ul>
+
+    <h2>Conceitos do Código Original</h2>
+
+    <div class="card mb-3">
+      <div class="card-body">
+        <h5 class="card-title">Tabela de Experiência – <code>CExperienceTable::Load/GetExperienceRate/GetMasterExperienceRate</code></h5>
+
+        <h6>📘 O Que é?</h6>
+        <p>
+          Estrutura que carrega de script os limites de level/reset e define o multiplicador de experiência normal e master.<br>
+          <pre><code>void CExperienceTable::Load(char* path) {
+    ...
+    info.MinLevel = lpMemScript-&gt;GetNumber();
+    info.MaxLevel = lpMemScript-&gt;GetAsNumber();
+    info.MinMasterLevel = lpMemScript-&gt;GetAsNumber();
+    info.MaxMasterLevel = lpMemScript-&gt;GetAsNumber();
+    info.MinReset = lpMemScript-&gt;GetAsNumber();
+    info.MaxReset = lpMemScript-&gt;GetAsNumber();
+    info.MinMasterReset = lpMemScript-&gt;GetAsNumber();
+    info.MaxMasterReset = lpMemScript-&gt;GetAsNumber();
+    info.ExperienceRate = lpMemScript-&gt;GetAsNumber();
+    this-&gt;m_ExperienceTableInfo.push_back(info);
+}</code></pre>
+        </p>
+
+        <h6>🎯 Para Que Serve?</h6>
+        <p>
+          Controla dinamicamente quanto XP cada personagem recebe conforme level, reset e master reset, permitindo regras diferentes por faixa.
+        </p>
+
+        <h6>💻 Como Funciona?</h6>
+        <p>
+          Em <code>GetExperienceRate</code> e <code>GetMasterExperienceRate</code> o servidor percorre a lista carregada e seleciona o primeiro intervalo compatível com <code>Level</code>, <code>Reset</code> e <code>MasterReset</code>, retornando o multiplicador ou 100% por padrão.<br>
+          <pre><code>int CExperienceTable::GetExperienceRate(LPOBJ lpObj) {
+    for(auto it : this-&gt;m_ExperienceTableInfo) {
+        if(it.MinLevel != -1 && it.MinLevel &gt; lpObj-&gt;Level) continue;
+        if(it.MaxLevel != -1 && it.MaxLevel &lt; lpObj-&gt;Level) continue;
+        if(it.MinReset != -1 && it.MinReset &gt; lpObj-&gt;Reset) continue;
+        if(it.MaxReset != -1 && it.MaxReset &lt; lpObj-&gt;Reset) continue;
+        if(it.MinMasterReset != -1 && it.MinMasterReset &gt; lpObj-&gt;MasterReset) continue;
+        if(it.MaxMasterReset != -1 && it.MaxMasterReset &lt; lpObj-&gt;MasterReset) continue;
+        return it.ExperienceRate;
+    }
+    return 100;
+}</code></pre>
+        </p>
+
+        <h6>📁 Onde Encontrar?</h6>
+        <p><code>Source MuServer Update 15/GameServer/GameServer/ExperienceTable.cpp</code></p>
+
+        <h6>⏱️ Quando é Executado?</h6>
+        <p>
+          <code>Load</code> é chamado na inicialização do GameServer (carregamento de scripts). <code>GetExperienceRate</code>/<code>GetMasterExperienceRate</code> são invocados durante o cálculo de XP ao matar monstros ou completar eventos, dentro das rotinas de recompensa que consultam a tabela antes de aplicar experiência ao jogador.<br>
+          <pre><code>// uso típico dentro de rotinas de reward
+int rate = gExperienceTable.GetExperienceRate(lpObj);
+int gain = baseExp * rate / 100;
+</code></pre>
+        </p>
+      </div>
+    </div>
+
+    <h2>Implementação em Unreal Engine 5</h2>
+    <p>Para espelhar a lógica, use um <code>UDataTable</code> com faixas de level/reset/master e um componente de progressão anexado ao <code>APlayerState</code> ou <code>ACharacter</code>.</p>
+
+    <ol>
+      <li>Crie um <code>USTRUCT</code> <code>FExperienceRow</code> com campos <code>MinLevel</code>, <code>MaxLevel</code>, <code>MinReset</code>, <code>MaxReset</code>, <code>MinMasterLevel</code>, <code>MaxMasterLevel</code>, <code>MinMasterReset</code>, <code>MaxMasterReset</code> e <code>ExperienceRate</code>; salve em um DataTable via CSV/JSON.</li>
+      <li>Implemente um <code>UActorComponent</code> <code>UProgressionComponent</code> com funções <code>GetRate()</code> e <code>GetMasterRate()</code> que percorrem o DataTable reproduzindo os mesmos filtros do código original.</li>
+      <li>Ao aplicar XP (em <code>AGameMode</code> ou <code>APlayerState</code>), obtenha o multiplicador do componente e multiplique a recompensa antes de atualizar atributos; use <code>MarkDirtyForReplication</code> para replicar o novo XP.</li>
+      <li>Persistência: exponha endpoint Node.js (<code>/xp/update</code>) que grava XP/reset/master em SQL; consuma via VaRest no cliente ou faça RPC servidor → HTTP.</li>
+      <li>Teste com valores extremos: faixas com <code>-1</code> (ilimitado), resets elevados e master resets para garantir que o iterador encontra o primeiro intervalo válido, como no servidor.</li>
+    </ol>
+
+    <h2>Passo a Passo em Unreal Engine 5</h2>
+    <ol>
+      <li>Gerar DataTable <strong>ExperienceTable</strong> em <code>Content/Data/ExperienceTable.csv</code> replicando colunas do script original.</li>
+      <li>Adicionar <code>UProgressionComponent</code> ao <code>APlayerState</code>, carregando o DataTable em <code>BeginPlay</code> do servidor.</li>
+      <li>Implementar <code>ApplyExperience(int32 BaseExp)</code> no <code>APlayerState</code>: consultar o componente, aplicar multiplicador, atualizar XP/Level/Reset/Master e disparar eventos <code>OnLevelUp</code>.</li>
+      <li>Integrar com UI: criar widget com barras de XP e texto de reset/master, atualizados por bindings do <code>APlayerState</code>.</li>
+      <li>Persistir: no <code>OnLogout</code> do <code>APlayerController</code> servidor, chamar VaRest → Node.js → SQL para salvar <code>Level</code>, <code>Reset</code>, <code>MasterLevel</code>, <code>MasterReset</code>, garantindo idempotência.</li>
+      <li>Automatizar testes: criar comandos de console <code>xp.give</code>, <code>xp.reset</code> e validar faixas com valores de teste equivalentes aos do script.</li>
+    </ol>
+
+    <h2>Checklist Final</h2>
+    <ul>
+      <li>DataTable de experiência carregado e aplicado no servidor UE5.</li>
+      <li>Multiplicadores respeitam level/reset/master exatamente como o GameServer.</li>
+      <li>UI atualiza XP/level/reset/master em tempo real.</li>
+      <li>Persistência via VaRest/Node.js/SQL salva e restaura progression.</li>
+      <li>Comandos de debug garantem que faixas com <code>-1</code> (sem limite) funcionam.</li>
+    </ul>
+  </div>
+</body>
+</html>

@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  <title>Módulo 43 – Itens 380 e Opções Especiais</title>
+</head>
+<body class="bg-light">
+  <div class="container py-5">
+    <h1 class="mb-4">Módulo 43 – Itens 380 e Opções Especiais</h1>
+    <p class="lead">Documenta a configuração e validação dos itens 380, incluindo leitura de opções, checagem de flag <code>0x80</code> e aplicação de valores, com roteiro completo para replicar na UE5.</p>
+
+    <h2>Pré-requisitos</h2>
+    <ul>
+      <li>Módulo 5 – Inventário/Itens.</li>
+      <li>Módulo 17 – Crafting/Chaos Box (para combinar upgrades).</li>
+      <li>Módulo 37 – Segurança (para garantir consistência de dados de item).</li>
+    </ul>
+
+    <h2>Conceitos do Código Original</h2>
+
+    <div class="card mb-3">
+      <div class="card-body">
+        <h5 class="card-title">Leitura de Opções 380 – <code>C380ItemOption::Load/SetInfo</code></h5>
+
+        <h6>📘 O Que é?</h6>
+        <p>
+          Rotina que carrega de script as opções dos itens 380 e as armazena no array <code>m_380ItemOptionInfo</code>.<br>
+          <pre><code>void C380ItemOption::Load(char* path) {
+    CMemScript* lpMemScript = new CMemScript;
+    if(lpMemScript == 0) { ErrorMessageBox(MEM_SCRIPT_ALLOC_ERROR,path); return; }
+    if(lpMemScript-&gt;SetBuffer(path) == 0) { ErrorMessageBox(lpMemScript-&gt;GetLastError()); delete lpMemScript; return; }
+    this-&gt;Init();
+    try {
+        while(true) {
+            if(lpMemScript-&gt;GetToken() == TOKEN_END) break;
+            if(strcmp("end",lpMemScript-&gt;GetString()) == 0) break;
+            ITEM_380_OPTION_INFO info; memset(&info,0,sizeof(info));
+            info.Index = lpMemScript-&gt;GetNumber();
+            strcpy_s(info.Name, lpMemScript-&gt;GetAsString());
+            info.Value = lpMemScript-&gt;GetAsNumber();
+            this-&gt;SetInfo(info);
+        }
+    } catch(...) { ErrorMessageBox(lpMemScript-&gt;GetLastError()); }
+    delete lpMemScript;
+}
+
+void C380ItemOption::SetInfo(ITEM_380_OPTION_INFO info) {
+    if(info.Index < 0 || info.Index >= MAX_380_ITEM_OPTION) return;
+    this-&gt;m_380ItemOptionInfo[info.Index] = info;
+}
+</code></pre>
+        </p>
+
+        <h6>🎯 Para Que Serve?</h6>
+        <p>Habilita opções únicas para itens 380, definindo valores por índice que serão aplicados ao equipar.</p>
+
+        <h6>💻 Como Funciona?</h6>
+        <p>O script define nome/valor por índice. <code>Load</code> preenche o array, e outras rotinas consultam <code>GetInfo</code> para aplicar bônus. Qualquer índice inválido é ignorado.</p>
+
+        <h6>📁 Onde Encontrar?</h6>
+        <p><code>Source MuServer Update 15/GameServer/GameServer/380ItemOption.cpp</code></p>
+
+        <h6>⏱️ Quando é Executado?</h6>
+        <p>Chamado na inicialização do GameServer, antes de qualquer validação de item ou cálculo de atributos.</p>
+      </div>
+    </div>
+
+    <div class="card mb-3">
+      <div class="card-body">
+        <h5 class="card-title">Validação de Itens 380 – <code>C380ItemOption::Is380Item</code></h5>
+
+        <h6>📘 O Que é?</h6>
+        <p>Checagem que confirma se um item possui a flag 380 (<code>m_ItemOptionEx &amp; 0x80</code>).</p>
+
+        <h6>🎯 Para Que Serve?</h6>
+        <p>Impede aplicação indevida de bônus 380 a itens que não possuem o bit de opção estendido.</p>
+
+        <h6>💻 Como Funciona?</h6>
+        <p>
+          Verifica o bit 0x80 em <code>m_ItemOptionEx</code> e retorna <code>false</code> caso não esteja setado.<br>
+          <pre><code>bool C380ItemOption::Is380Item(CItem* lpItem) {
+    if((lpItem-&gt;m_ItemOptionEx & 0x80) == 0) {
+        return 0;
+    }
+    // demais validações seguem ...
+}
+</code></pre>
+        </p>
+
+        <h6>📁 Onde Encontrar?</h6>
+        <p><code>Source MuServer Update 15/GameServer/GameServer/380ItemOption.cpp</code></p>
+
+        <h6>⏱️ Quando é Executado?</h6>
+        <p>Invocado ao equipar itens, calcular atributos ou aplicar bônus vinculados a opções 380.</p>
+      </div>
+    </div>
+
+    <h2>Implementação em Unreal Engine 5</h2>
+    <p>Use um DataTable de opções 380 e um componente de itens que verifica a flag estendida antes de aplicar bônus.</p>
+
+    <ol>
+      <li>Crie <code>USTRUCT</code> <code>FItem380OptionRow</code> com <code>Index</code>, <code>Name</code>, <code>Value</code>; importe do script.</li>
+      <li>Adicione ao <code>UItemDefinition</code> um campo <code>bHas380Flag</code> que corresponde a <code>m_ItemOptionEx &amp; 0x80</code>.</li>
+      <li>No <code>UInventoryComponent</code>, implemente <code>Apply380Options()</code> que percorre os itens equipados, verifica <code>bHas380Flag</code> e consulta o DataTable para aplicar modificadores (ex.: <code>AttributeSet</code> no GAS).</li>
+      <li>Persistência: sincronize o bit e os índices via Node.js/SQL; para segurança, valide no servidor UE5 se o item recebido realmente tem <code>bHas380Flag</code> antes de aplicar bônus.</li>
+      <li>UI: destaque itens 380 com ícone ou cor; inclua tooltip exibindo <code>Name</code> e <code>Value</code> vindos do DataTable.</li>
+      <li>Testes: scripts automatizados que equipam/unequipam itens 380 e verificam aplicação/remoção de atributos replicados.</li>
+    </ol>
+
+    <h2>Passo a Passo em Unreal Engine 5</h2>
+    <ol>
+      <li>Importar o script 380 em <code>Content/Data/Item380.csv</code> para um DataTable de <code>FItem380OptionRow</code>.</li>
+      <li>Adicionar campo <code>bHas380Flag</code> às definições de item (DataAsset/DataTable) e preencher conforme banco legado.</li>
+      <li>No servidor UE5, ao equipar um item, verificar a flag; se verdadeira, consultar o DataTable e aplicar modificadores no <code>AttributeSet</code>.</li>
+      <li>Persistir <code>bHas380Flag</code> e índice da opção em SQL via Node.js, acionado por VaRest quando o inventário é salvo.</li>
+      <li>Criar testes de regressão: troca rápida de equipamentos 380, reconexão (para garantir re-aplicação), e verificação de segurança contra itens sem flag.</li>
+    </ol>
+
+    <h2>Checklist Final</h2>
+    <ul>
+      <li>DataTable de opções 380 carregado no UE5.</li>
+      <li>Itens trazem flag <code>0x80</code> persistida e validada.</li>
+      <li>Bônus 380 aplicados/retirados corretamente em equipar/desequipar.</li>
+      <li>Persistência via VaRest/Node.js/SQL sincroniza flag e opções.</li>
+      <li>UI exibe claramente que o item é 380 e mostra seus valores.</li>
+    </ul>
+  </div>
+</body>
+</html>

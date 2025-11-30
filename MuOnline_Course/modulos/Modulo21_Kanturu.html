@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  <title>Módulo 21 – Kanturu (Maya & Nightmare)</title>
+</head>
+<body class="bg-light">
+  <div class="container py-5">
+    <h1 class="mb-4">Módulo 21 – Kanturu (Maya & Nightmare)</h1>
+    <p class="lead">Recrie o evento Kanturu, cobrindo leitura de script, máquina de estados, entrada de jogadores e transição para a Tower of Refinement.</p>
+
+    <h2>Pré-requisitos</h2>
+    <ul>
+      <li>Módulo 2 – Rede e Autenticação</li>
+      <li>Módulo 6 – Eventos e Timers do Servidor</li>
+      <li>Módulo 12 – IA de Monstros</li>
+      <li>Conhecimentos de UE5: GameMode, GameState, Actor Components, RPCs e timers.</li>
+    </ul>
+
+    <h2>Conceitos do Código Original</h2>
+
+    <div class="card mb-3">
+      <div class="card-body">
+        <h5 class="card-title">CKanturu::Load – Máquina de estados via script</h5>
+
+        <h6>📘 O Que é?</h6>
+        <p>
+          Método que lê <code>Kanturu.dat</code> e popula os estados/condições do evento antes do ciclo principal.<br>
+          Exemplo real:<br>
+          <pre><code>void CKanturu::Load(char* path) {
+    CMemScript* lpMemScript = new CMemScript;
+    ...
+    this->ResetAllData();
+    while(true) {
+        if(lpMemScript-&gt;GetToken() == TOKEN_END) break;
+        int section = lpMemScript-&gt;GetNumber();
+        while(true) {
+            if(section == 0) {
+                if(strcmp("end",lpMemScript-&gt;GetAsString()) == 0) break;
+                int state = lpMemScript-&gt;GetNumber();
+                int condition = lpMemScript-&gt;GetAsNumber();
+                int value = lpMemScript-&gt;GetAsNumber();
+                this-&gt;m_StateInfo[this-&gt;m_StateInfoCount].SetStateInfo(state);
+                this-&gt;m_StateInfo[this-&gt;m_StateInfoCount].SetCondition(condition);
+                this-&gt;m_StateInfo[this-&gt;m_StateInfoCount].SetValue(((condition==1)?(value*1000):value));
+                this-&gt;m_StateInfoCount++;
+            }
+            else if(section == 10) {
+                if(strcmp("end",lpMemScript-&gt;GetAsString()) == 0) break;
+                this-&gt;SetEnableCheckMoonStone(lpMemScript-&gt;GetNumber());
+            }
+            else { if(strcmp("end",lpMemScript-&gt;GetAsString()) == 0) break; }
+        }
+    }
+    this-&gt;m_BattleStanby.Load(path);
+    this-&gt;m_BattleOfMaya.Load(path);
+    this-&gt;m_BattleOfNightmare.Load(path);
+    this-&gt;m_TowerOfRefinement.Load(path);
+}</code></pre>
+        </p>
+
+        <h6>🎯 Para Que Serve?</h6>
+        <p>Carrega a sequência de fases (Standby, Maya, Nightmare, Tower) e configurações adicionais como checagem de MoonStone, preparando os subcontroladores de cada fase.</p>
+
+        <h6>💻 Como Funciona?</h6>
+        <p>Aloca <code>CMemScript</code>, lê tokens do arquivo, identifica seções, preenche <code>m_StateInfo</code> com estado/condição/valor (convertendo segundos em milissegundos quando necessário) e delega <code>Load</code> para os gerentes de subfase.<br>
+        <pre><code>this-&gt;m_BattleStanby.Load(path);
+this-&gt;m_BattleOfMaya.Load(path);
+this-&gt;m_BattleOfNightmare.Load(path);
+this-&gt;m_TowerOfRefinement.Load(path);</code></pre>
+        </p>
+
+        <h6>📁 Onde Encontrar?</h6>
+        <p><code>Source MuServer Update 15/GameServer/GameServer/Kanturu.cpp</code></p>
+
+        <h6>⏱️ Quando é Executado?</h6>
+        <p>Chamado na inicialização do GameServer, durante o carregamento de eventos.<br>
+        <pre><code>// ServerInfo.cpp
+#if(GAMESERVER_UPDATE&gt;=201)
+    gKanturu.Load(gPath.GetFullPath("Event\\Kanturu.dat"));
+#endif</code></pre>
+        </p>
+      </div>
+    </div>
+
+    <div class="card mb-3">
+      <div class="card-body">
+        <h5 class="card-title">CKanturu::MainProc – Ciclo de estados Maya/Nightmare</h5>
+
+        <h6>📘 O Que é?</h6>
+        <p>Loop principal que verifica tempo de estado e chama os processadores de cada fase (Standby, Maya, Nightmare, Tower, End).<br>
+        <pre><code>void CKanturu::MainProc() {
+    if(gServerInfo.m_KanturuEvent == 0) return;
+    this-&gt;CheckStateTime();
+    switch(this-&gt;m_KanturuState) {
+        case KANTURU_STATE_NONE: this-&gt;ProcState_NONE(); break;
+        case KANTURU_STATE_BATTLE_STANTBY: this-&gt;ProcState_BATTLE_STANDBY(); break;
+        case KANTURU_STATE_BATTLE_OF_MAYA: this-&gt;ProcState_BATTLE_OF_MAYA(); break;
+        case KANTURU_STATE_BATTLE_OF_NIGHTMARE: this-&gt;ProcState_BATTLE_OF_NIGHTMARE(); break;
+        case KANTURU_STATE_TOWER_OF_REFINEMENT: this-&gt;ProcState_TOWER_OF_REFINEMENT(); break;
+        case KANTURU_STATE_END: this-&gt;ProcState_END(); break;
+    }
+}</code></pre>
+        </p>
+
+        <h6>🎯 Para Que Serve?</h6>
+        <p>Orquestra a progressão do evento, avaliando o tempo e movendo jogadores/monstros entre subfases até finalizar e liberar a Tower of Refinement.</p>
+
+        <h6>💻 Como Funciona?</h6>
+        <p>Valida se o evento está habilitado, atualiza tempos com <code>CheckStateTime</code> e envia o fluxo para o handler adequado. Por exemplo, ao terminar Standby chama Maya; ao encerrar Maya decide entre END ou Nightmare.<br>
+        <pre><code>void CKanturu::ProcState_BATTLE_OF_MAYA() {
+    if(this-&gt;m_BattleOfMaya.GetBattleOfMayaState() == KANTURU_MAYA_ENDCYCLE) {
+        this-&gt;m_BattleOfMaya.SetState_NONE();
+        this-&gt;SetState(((this-&gt;m_BattleOfMaya.GetSuccessValue()==0)?KANTURU_STATE_END:KANTURU_STATE_BATTLE_OF_NIGHTMARE));
+        return;
+    }
+    this-&gt;m_BattleOfMaya.MainProc();
+}</code></pre>
+        </p>
+
+        <h6>📁 Onde Encontrar?</h6>
+        <p><code>Source MuServer Update 15/GameServer/GameServer/Kanturu.cpp</code></p>
+
+        <h6>⏱️ Quando é Executado?</h6>
+        <p>No loop de eventos chamado a cada tick pelo gerenciador global de objetos.<br>
+        <pre><code>// User.cpp
+void gObjSecondProc() {
+    ...
+    gKanturu.MainProc();
+    ...
+}</code></pre>
+        </p>
+      </div>
+    </div>
+
+    <h2>Implementação em Unreal Engine 5</h2>
+    <p>Use um <code>AGameState</code> dedicado para controlar Kanturu, com componentes para cada subfase. Armazene configurações em Data Assets ou tabelas CSV lidas via <code>UDataTable</code>. Integre VaRest para sincronizar com backend Node.js/SQL se precisar de agenda/estado persistente.</p>
+
+    <h3>Passo a Passo em Unreal Engine 5</h3>
+    <ol>
+      <li>Crie um <code>UDataTable</code> baseado em <code>USTRUCT</code> <code>FKanturuStateRow</code> contendo estado, condição e valor (ms). Importe o CSV equivalente ao <code>Kanturu.dat</code>.</li>
+      <li>Implemente <code>UKanturuPhaseComponent</code> derivado de <code>UActorComponent</code> para Standby, Maya, Nightmare e Tower; cada um possui um <code>FTimerHandle</code> e callbacks para spawn de monstros.</li>
+      <li>No <code>AGameState</code> (ex.: <code>AMUKanturuState</code>), carregue a tabela no <code>BeginPlay</code>, instancie os componentes e armazene um índice de fase atual.</li>
+      <li>Processe o loop via <code>Tick</code> ou <code>FTimerManager</code>, trocando de fase conforme o valor do estado (igual ao <code>CheckStateTime</code>). Atualize UI e envie RPCs multicast para clientes.</li>
+      <li>Para entrada de jogadores, exponha um <code>Server</code> RPC em <code>APlayerController</code> (ex.: <code>Server_RequestEnterKanturu</code>) que valida contagem máxima e mapa, similar a <code>CKanturuBattleUserMng</code>.</li>
+      <li>Crie spawns de monstros via <code>UDataTable</code> de <code>FMonsterSpawnRow</code>; use <code>GetWorld()-&gt;SpawnActor</code> em cada componente de fase. Guarde referências para checar <em>alive count</em> e disparar transições.</li>
+      <li>Se precisar de agenda diária, adicione um serviço Node.js que persiste horários em SQL e exponha endpoints REST. Chame com VaRest no GameInstance ao iniciar a sessão.</li>
+    </ol>
+
+    <h3>Checklist Final</h3>
+    <ul>
+      <li>Estados carregados de um CSV/Tabela reproduzindo <code>Kanturu.dat</code>.</li>
+      <li>Transições automáticas Standby → Maya → Nightmare → Tower/End com timers.</li>
+      <li>RPCs informam o estado atual para todos os jogadores no mapa Kanturu.</li>
+      <li>Spawns e contagem de monstros bloqueiam/desbloqueiam a progressão.</li>
+      <li>Validação de entrada e remoção de jogadores sincronizada entre servidor UE5 e backend REST/SQL, se usado.</li>
+    </ul>
+  </div>
+</body>
+</html>

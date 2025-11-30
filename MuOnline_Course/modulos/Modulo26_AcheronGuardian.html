@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  <title>Módulo 26 – Acheron Guardian / Entrada Elemental</title>
+</head>
+<body class="bg-light">
+  <div class="container py-5">
+    <h1 class="mb-4">Módulo 26 – Acheron Guardian / Entrada Elemental</h1>
+    <p class="lead">Implemente a checagem de item e teleporte para o mapa Acheron, espelhando o handler de entrada original.</p>
+
+    <h2>Pré-requisitos</h2>
+    <ul>
+      <li>Módulo 2 – Rede e Autenticação</li>
+      <li>Módulo 7 – Conexões JoinServer/DataServer</li>
+      <li>Módulo 12 – IA de Monstros</li>
+      <li>Conhecimentos de UE5: PlayerController RPC, Inventário replicado, Travel entre mapas.</li>
+    </ul>
+
+    <h2>Conceitos do Código Original</h2>
+
+    <div class="card mb-3">
+      <div class="card-body">
+        <h5 class="card-title">CGAcheronEnterRecv – Validação de item 13,146 e teleporte</h5>
+
+        <h6>📘 O Que é?</h6>
+        <p>Handler do pacote <code>0xF8 0x21</code> que exige o item 13,146 (entrada Acheron), consome-o e move o jogador para o gate 417.<br>
+        <pre><code>void CGAcheronEnterRecv(int aIndex) {
+    LPOBJ lpObj = &gObj[aIndex];
+    if(gObjIsConnectedGP(aIndex) == 0) { return; }
+    PMSG_ACHERON_ENTER_SEND pMsg; pMsg.header.set(0xF8,0x21,sizeof(pMsg));
+    if(gItemManager.GetInventoryItemCount(lpObj,GET_ITEM(13,146),0) == 0) {
+        pMsg.result = 1; DataSend(aIndex,(BYTE*)&pMsg,pMsg.header.size); return;
+    }
+    gItemManager.DeleteInventoryItemCount(lpObj,GET_ITEM(13,146),0,1);
+    gObjMoveGate(aIndex,417);
+}</code></pre></p>
+
+        <h6>🎯 Para Que Serve?</h6>
+        <p>Garante que somente jogadores com o item de acesso possam entrar em Acheron; em caso de ausência, retorna código de falha para o cliente.</p>
+
+        <h6>💻 Como Funciona?</h6>
+        <p>Confere conexão válida, instancia mensagem de resposta, verifica quantidade do item 13,146; se faltar, envia <code>result=1</code>. Caso contrário, remove uma unidade do inventário e chama <code>gObjMoveGate</code> com o gate 417.</p>
+
+        <h6>📁 Onde Encontrar?</h6>
+        <p><code>Source MuServer Update 15/GameServer/GameServer/Protocol.cpp</code></p>
+
+        <h6>⏱️ Quando é Executado?</h6>
+        <p>Ao receber o pacote de entrada elemental; <code>Protocol.cpp</code> mapeia a mensagem e chama <code>CGAcheronEnterRecv</code> diretamente.</p>
+      </div>
+    </div>
+
+    <h2>Implementação em Unreal Engine 5</h2>
+    <ul>
+      <li>Estruturas equivalentes: <code>APlayerController</code> com RPC <code>ServerRequestEnterAcheron</code>; componente de inventário replicado para contar/remover item; <code>AGameModeBase</code> opcional para validar regras globais.</li>
+      <li>Crie um <code>USTRUCT</code> para representar o item de entrada (ID 13,146) e expose uma função <code>bool ConsumeAcheronTicket()</code> no componente de inventário.</li>
+      <li>Ao receber o pedido no servidor, chame <code>ConsumeAcheronTicket</code>; se falhar, execute <code>ClientNotifyAcheronResult(false)</code>. Se tiver ticket, chame <code>ClientTravel</code> ou <code>ServerTravel</code> para o mapa Acheron e posicione na localização do gate.</li>
+      <li>Registre consumo e teleporte via VaRest em endpoint Node.js/SQL para auditoria e estatísticas.</li>
+    </ul>
+
+    <h2>Passo a Passo em Unreal Engine 5</h2>
+    <ol>
+      <li>Adicionar um enumerador/struct de itens com o código 13,146 no inventário replicado.</li>
+      <li>Implementar <code>ServerRequestEnterAcheron()</code> no PlayerController, chamando o componente de inventário para verificar quantidade.</li>
+      <li>Se houver ticket, remover 1 unidade e chamar <code>ClientTravel</code> para o mapa Acheron (ou <code>TeleportTo</code> se o mapa já estiver carregado).</li>
+      <li>Enviar RPC cliente <code>ClientNotifyAcheronResult(bool bSuccess)</code> para atualizar a UI.</li>
+      <li>Usar VaRest para postar o resultado de entrada (sucesso/falha) no backend Node.js/SQL.</li>
+      <li>Testar cenários: sem item (deve falhar), com item (deve consumir e teleportar), desconexão rápida (não deve consumir).</li>
+    </ol>
+
+    <h2>Checklist Final</h2>
+    <ul>
+      <li>Pedido de entrada verifica conexão e inventário replicado.</li>
+      <li>Item 13,146 é consumido uma vez por tentativa bem-sucedida.</li>
+      <li>Teleporte para o mapa Acheron ocorre na posição equivalente ao gate 417.</li>
+      <li>UI recebe notificação de falha/sucesso e backend Node.js/SQL registra o evento via VaRest.</li>
+    </ul>
+  </div>
+</body>
+</html>
