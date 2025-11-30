@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  <title>Módulo 34 – Moss Merchant (Gamble de Itens)</title>
+</head>
+<body class="bg-light">
+  <div class="container py-5">
+    <h1 class="mb-4">Módulo 34 – Moss Merchant (Gamble de Itens)</h1>
+    <p class="lead">Explica o evento Moss: timers, spawn do NPC 492 em Elbeland, roleta de itens e geração de opções aleatórias. Inclui espelhamento em UE5 com DataTable, loot tables e integração HTTP.</p>
+
+    <h2>Pré-requisitos</h2>
+    <ul>
+      <li>Módulo 6 – Eventos e Timers do Servidor.</li>
+      <li>Módulo 5 – Inventário e Itens (para entender <code>GDCreateItemSend</code>).</li>
+      <li>Noções de DataAssets e Gameplay Tags em UE5.</li>
+    </ul>
+
+    <h2>Conceitos do Código Original</h2>
+
+    <div class="card mb-3">
+      <div class="card-body">
+        <h5 class="card-title">CMossMerchant::Load – Script de horários e loot</h5>
+
+        <h6>📘 O Que é?</h6>
+        <p>
+          Carrega horários de spawn e tabela de itens com grupos e probabilidades.<br>
+          <pre><code>void CMossMerchant::Load(char* path) {
+  CMemScript* lpMemScript = new CMemScript;
+  if(lpMemScript->SetBuffer(path) == 0) { ErrorMessageBox(lpMemScript->GetLastError()); return; }
+  m_MossMerchantStartTime.clear(); m_MossMerchantItemInfo.clear();
+  while(true) {
+    if(lpMemScript->GetToken() == TOKEN_END) break;
+    int section = lpMemScript->GetNumber();
+    while(true) {
+      if(section == 0) { MOSS_MERCHANT_START_TIME info; info.Year = lpMemScript->GetNumber(); info.Month = lpMemScript->GetAsNumber(); info.Day = lpMemScript->GetAsNumber(); info.DayOfWeek = lpMemScript->GetAsNumber(); info.Hour = lpMemScript->GetAsNumber(); info.Minute = lpMemScript->GetAsNumber(); info.Second = lpMemScript->GetAsNumber(); m_MossMerchantStartTime.push_back(info); }
+      else if(section == 1) { MOSS_MERCHANT_ITEM_INFO info; info.Index = lpMemScript->GetNumber(); info.Group = lpMemScript->GetAsNumber(); info.Option0 = lpMemScript->GetAsNumber(); ... info.Option6 = lpMemScript->GetAsNumber(); info.GambleRate = lpMemScript->GetAsNumber(); m_MossMerchantItemInfo.push_back(info); }
+      else { break; }
+    }
+  }
+}</code></pre>
+        </p>
+
+        <h6>🎯 Para Que Serve?</h6>
+        <p>Define quando o NPC aparece e quais itens cada grupo de aposta pode entregar, incluindo opções e sockets.</p>
+
+        <h6>💻 Como Funciona?</h6>
+        <p>Parseia duas seções: (0) agenda de spawn; (1) itens e probabilidades. Guarda em vetores usados pelo timer e pela roleta.</p>
+
+        <h6>📁 Onde Encontrar?</h6>
+        <p><code>Source MuServer Update 15/GameServer/GameServer/MossMerchant.cpp</code>, linhas 25-169.</p>
+
+        <h6>⏱️ Quando é Executado?</h6>
+        <p>Chamado durante o bootstrap do GameServer, antes de iniciar o loop principal do evento.</p>
+      </div>
+    </div>
+
+    <div class="card mb-3">
+      <div class="card-body">
+        <h5 class="card-title">MainProc/SetState – Countdown e avisos 208/209</h5>
+
+        <h6>📘 O Que é?</h6>
+        <p>
+          Timer de 1s que controla o estado (BLANK/EMPTY/START), atualiza painel e dispara avisos globais.<br>
+          <pre><code>void CMossMerchant::MainProc() {
+  DWORD elapsed = GetTickCount()-m_TickCount; if(elapsed < 1000) return; m_TickCount = GetTickCount();
+  m_RemainTime = (int)difftime(m_TargetTime,time(0));
+  if(gServerInfo.m_MossMerchantEvent == 0) { if (gServerDisplayer.EventMoss != -1) gServerDisplayer.EventMoss = -1; }
+  else { if (m_State == MOSS_STATE_EMPTY) gServerDisplayer.EventMoss = m_RemainTime; else if (gServerDisplayer.EventMoss != 0) gServerDisplayer.EventMoss = 0; }
+  switch(m_State) { case MOSS_STATE_EMPTY: ProcState_EMPTY(); break; case MOSS_STATE_START: ProcState_START(); break; }
+}
+void CMossMerchant::ProcState_EMPTY() {
+  if(m_RemainTime <= 0) { gNotice.GCNoticeSendToAll(...,gMessage.GetMessage(208)); SetState(MOSS_STATE_START); }
+}
+void CMossMerchant::ProcState_START() {
+  if(m_RemainTime <= 0) { gNotice.GCNoticeSendToAll(...,gMessage.GetMessage(209)); SetState(MOSS_STATE_EMPTY); }
+}</code></pre>
+        </p>
+
+        <h6>🎯 Para Que Serve?</h6>
+        <p>Envia avisos de abertura/fechamento e mantém o painel de eventos com o tempo restante.</p>
+
+        <h6>💻 Como Funciona?</h6>
+        <p><code>CheckSync</code> calcula o próximo horário; <code>SetState_EMPTY</code> limpa o NPC existente; <code>SetState_START</code> instancia e define <code>RemainTime</code> conforme <code>gServerInfo.m_MossMerchantEventTime</code>.</p>
+
+        <h6>📁 Onde Encontrar?</h6>
+        <p><code>Source MuServer Update 15/GameServer/GameServer/MossMerchant.cpp</code>, linhas 172-343.</p>
+
+        <h6>⏱️ Quando é Executado?</h6>
+        <p>Tick periódico do GameServer, ativo enquanto o switch <code>m_MossMerchantEvent</code> estiver habilitado.</p>
+      </div>
+    </div>
+
+    <div class="card mb-3">
+      <div class="card-body">
+        <h5 class="card-title">SetMossMerchant e GambleItem – Spawn do NPC e roleta de opções</h5>
+
+        <h6>📘 O Que é?</h6>
+        <p>Cria o NPC 492 em Elbeland, registra o índice e executa a roleta de itens ao interagir.</p>
+
+        <h6>🎯 Para Que Serve?</h6>
+        <p>Materializa o Moss Merchant e entrega itens com opções/sockets baseadas nas taxas configuradas.</p>
+
+        <h6>💻 Como Funciona?</h6>
+        <p>
+          <pre><code>void CMossMerchant::SetMossMerchant() {
+  if(OBJECT_RANGE(m_MossMerchantIndex)) return;
+  int index = gObjAddMonster(MAP_ELBELAND); if(OBJECT_RANGE(index)==0) return;
+  LPOBJ lpObj = &gObj[index]; int px=22, py=225; lpObj->X=px; lpObj->Y=py; lpObj->Map=51; if(gObjSetMonster(index,492)==0) { gObjDel(index); return; }
+  m_MossMerchantIndex = index;
+}
+bool CMossMerchant::GambleItem(LPOBJ lpObj,int group) {
+  if(m_State != MOSS_STATE_START) return 0; if(gItemManager.CheckItemInventorySpace(lpObj,2,4)==0) return 0;
+  CRandomManager RandomManager; for(auto it:m_MossMerchantItemInfo) if(it.Group==group) RandomManager.AddElement((int)(&it),it.GambleRate);
+  MOSS_MERCHANT_ITEM_INFO* lpMossMerchantItemInfo = 0; if(RandomManager.GetRandomElement((int*)&lpMossMerchantItemInfo)==0) return 0;
+  WORD ItemIndex = lpMossMerchantItemInfo->Index; BYTE ItemLevel=0; BYTE ItemOption1=0; ... BYTE ItemSocketOption[MAX_SOCKET_OPTION]={0xFF,...};
+  gItemOptionRate.GetItemOption0(lpMossMerchantItemInfo->Option0,&ItemLevel);
+  gItemOptionRate.GetItemOption6(lpMossMerchantItemInfo->Option6,&ItemSocketOption[0]);
+  gItemOptionRate.MakeSocketOption(ItemIndex,ItemSocketOption[0],&ItemSocketOption[0]);
+  GDCreateItemSend(lpObj->Index,0xEB,0,0,ItemIndex,ItemLevel,0,ItemOption1,ItemOption2,ItemOption3,-1,ItemNewOption,ItemSetOption,0,0,ItemSocketOption,0xFF,0);
+  return 1;
+}</code></pre>
+        </p>
+
+        <h6>📁 Onde Encontrar?</h6>
+        <p><code>Source MuServer Update 15/GameServer/GameServer/MossMerchant.cpp</code>, linhas 345-457.</p>
+
+        <h6>⏱️ Quando é Executado?</h6>
+        <p><code>SetMossMerchant</code> é chamado ao entrar em START; <code>GambleItem</code> roda quando o jogador interage com o NPC durante o estado START.</p>
+      </div>
+    </div>
+
+    <h2>Implementação em Unreal Engine 5</h2>
+    <p>Use um <strong>DataTable</strong> de loot e um <strong>AActor</strong> MossMerchant que roda no servidor com RPCs.</p>
+    <ol>
+      <li>Crie uma <code>USTRUCT</code> <code>FMossLootRow</code> com ItemId, Group, Rates e opções; associe a um DataTable.</li>
+      <li>Implemente um <code>AGameState</code> ou <code>UWorldSubsystem</code> que replica o estado (Blank/Empty/Start) e um timer de 1s, semelhante ao <code>MainProc</code>.</li>
+      <li>No estado START, faça <code>SpawnActor&lt;AMossMerchantNPC&gt;</code> em Elbeland ou outro nível; armazene referência replicada.</li>
+      <li>Dentro do NPC, exponha um <code>Server</code> RPC <code>ServerRollLoot(int32 Group)</code> que valida distância e chama uma função de roleta usando os rates do DataTable.</li>
+      <li>Monte as opções usando structs (Level, Option1, Option2, Option3, Sockets) e crie o item via <code>UInventoryComponent::AddItem</code>; para itens premium, poste no Node.js via VaRest (<code>/api/moss/purchase</code>) e registre no SQL.</li>
+      <li>Replicar avisos de abertura/fechamento via <code>Multicast</code> ou <code>UGameplayMessageSubsystem</code>.</li>
+    </ol>
+    <pre><code>USTRUCT(BlueprintType)
+struct FMossLootRow : public FTableRowBase { GENERATED_BODY(); UPROPERTY(EditAnywhere) int32 Group; UPROPERTY(EditAnywhere) int32 ItemId; UPROPERTY(EditAnywhere) int32 GambleRate; UPROPERTY(EditAnywhere) int32 OptionMask; };
+
+UCLASS()
+class AMossMerchantNPC : public AActor {
+  GENERATED_BODY()
+public:
+  UFUNCTION(Server,Reliable) void ServerRollLoot(int32 Group);
+};
+</code></pre>
+
+    <h2>Passo a Passo em Unreal Engine 5</h2>
+    <ol>
+      <li>Adicione um DataTable com linhas de loot (Group, ItemId, Rates e opções) e um asset de horário (array de <code>FDateTime</code>).</li>
+      <li>Implemente um <code>UMossEventSubsystem</code> que calcula o próximo horário, replica <code>RemainTime</code> e estado.</li>
+      <li>No evento START, spawn do NPC Moss em coordenadas fixas e replicadas.</li>
+      <li>No NPC, processe a interação chamando <code>ServerRollLoot</code>; role um item com <code>FRandomStream</code> e crie o item no inventário do player.</li>
+      <li>Envie eventos para HUD (contagem e avisos) e, opcionalmente, para backend HTTP (registro de compras e itens entregues).</li>
+      <li>Teste com clients conectados: verificar countdown, spawn, entrega de item e limpeza ao fim do timer.</li>
+    </ol>
+
+    <h2>Checklist Final</h2>
+    <ul>
+      <li>NPC Moss aparece no horário configurado e some ao fim do período.</li>
+      <li>HUD mostra tempo restante e avisos equivalentes às mensagens 208/209.</li>
+      <li>Roleta entrega itens com opções/sockets conforme tabela.</li>
+      <li>Logs de compra enviados via VaRest/Node.js para o SQL (quando habilitado).</li>
+    </ul>
+  </div>
+</body>
+</html>

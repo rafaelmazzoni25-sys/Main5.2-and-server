@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  <title>Módulo 23 – Imperial Guardian e Double Goer</title>
+</head>
+<body class="bg-light">
+  <div class="container py-5">
+    <h1 class="mb-4">Módulo 23 – Imperial Guardian e Double Goer</h1>
+    <p class="lead">Documente e replique os eventos diários de Imperial Guardian e Double Goer, incluindo horários, gates, IA de monstros e recompensas.</p>
+
+    <h2>Pré-requisitos</h2>
+    <ul>
+      <li>Módulo 2 – Rede e Autenticação</li>
+      <li>Módulo 6 – Eventos e Timers do Servidor</li>
+      <li>Módulo 12 – IA de Monstros</li>
+      <li>Conhecimento de replicação e Authority em UE5.</li>
+    </ul>
+
+    <h2>Conceitos do Código Original</h2>
+
+    <div class="card mb-3">
+      <div class="card-body">
+        <h5 class="card-title">CImperialGuardian::Load – Horários e dificuldade</h5>
+
+        <h6>📘 O Que é?</h6>
+        <p>Lê <code>ImperialGuardian.dat</code> para configurar tempos de notificação/evento/fechamento e parâmetros de IA/dificuldade de monstros.<br>
+        <pre><code>void CImperialGuardian::Load(char* path) {
+    #if(GAMESERVER_UPDATE>=501)
+    CMemScript* lpMemScript = new CMemScript;
+    if(lpMemScript->SetBuffer(path) == 0) { ... }
+    while(true) {
+        if(lpMemScript->GetToken() == TOKEN_END) break;
+        int section = lpMemScript->GetNumber();
+        while(true) {
+            if(section == 0) {
+                if(strcmp("end",lpMemScript->GetAsString()) == 0) break;
+                this->m_NotifyTime = lpMemScript->GetNumber();
+                this->m_EventTime = lpMemScript->GetAsNumber();
+                this->m_CloseTime = lpMemScript->GetAsNumber();
+            }
+            else if(section == 1) {
+                if(strcmp("end",lpMemScript->GetAsString()) == 0) break;
+                this->m_DefaultMonsterAIUnitNumber = lpMemScript->GetNumber();
+                this->m_SupportMonsterAIUnitNumber = lpMemScript->GetAsNumber();
+            }
+            else if(section == 2) {
+                if(strcmp("end",lpMemScript->GetAsString()) == 0) break;
+                IMPERIAL_GUARDIAN_MONSTER_DIFFICULT_INFO info;
+                memset(&info,0,sizeof(info));
+                info.Index = lpMemScript->GetNumber();
+                info.Level = lpMemScript->GetAsNumber();
+                info.Life = lpMemScript->GetAsFloatNumber();
+                info.DamageMin = lpMemScript->GetAsFloatNumber();
+                info.DamageMax = lpMemScript->GetAsFloatNumber();
+                info.Defense = lpMemScript->GetAsFloatNumber();
+                info.AttackSuccessRate = lpMemScript->GetAsFloatNumber();
+                info.DefenseSuccessRate = lpMemScript->GetAsFloatNumber();
+                if(info.Index >= 0 && info.Index < MAX_IG_MONSTER_DIFFICULT) {
+                    this->m_MonsterDifficultInfo[info.Index] = info;
+                }
+            }
+            else { break; }
+        }
+    }
+    #endif
+}</code></pre>
+        </p>
+
+        <h6>🎯 Para Que Serve?</h6>
+        <p>Inicializa cronogramas diários do evento, associa AI default e suporte para mobs e registra a curva de dificuldade usada nas fases subsequentes.</p>
+
+        <h6>💻 Como Funciona?</h6>
+        <p>Processa seções numeradas: (0) tempos de notificação/evento/fecho; (1) unidades de AI para monstros; (2) matriz de dificuldade por índice, preenchendo campos de atributos usados no spawn.</p>
+
+        <h6>📁 Onde Encontrar?</h6>
+        <p><code>Source MuServer Update 15/GameServer/GameServer/ImperialGuardian.cpp</code></p>
+
+        <h6>⏱️ Quando é Executado?</h6>
+        <p>No boot do GameServer, junto aos demais eventos.<br>
+        <pre><code>// ServerInfo.cpp
+#if(GAMESERVER_UPDATE>=501)
+    gImperialGuardian.Load(gPath.GetFullPath("Event\\ImperialGuardian.dat"));
+#endif</code></pre>
+        </p>
+      </div>
+    </div>
+
+    <div class="card mb-3">
+      <div class="card-body">
+        <h5 class="card-title">CImperialGuardian::MainProc – Ciclo diário e gates</h5>
+
+        <h6>📘 O Que é?</h6>
+        <p>Loop que calcula tempo restante, avança estados WAIT/PLAY e controla monstros e gates do evento.<br>
+        <pre><code>void CImperialGuardian::MainProc() {
+    #if(GAMESERVER_UPDATE>=501)
+    DWORD elapsed = GetTickCount()-this->m_TickCount;
+    if(elapsed < 1000) return;
+    this->m_TickCount = GetTickCount();
+    this->m_RemainTime = (int)(difftime(this->m_TargetTime,time(0))*1000);
+    switch(this->m_State) {
+        case IG_STATE_EMPTY: this->ProcState_EMPTY(); break;
+        case IG_STATE_WAIT1: this->ProcState_WAIT1(); break;
+        case IG_STATE_PLAY1: this->ProcState_PLAY1(); break;
+        case IG_STATE_WAIT2: this->ProcState_WAIT2(); break;
+        case IG_STATE_PLAY2: this->ProcState_PLAY2(); break;
+        // ... demais estados até encerramento
+    }
+    #endif
+}</code></pre>
+        </p>
+
+        <h6>🎯 Para Que Serve?</h6>
+        <p>Sincroniza o relógio do evento, alterna períodos de espera e jogo, e garante spawn/limpeza de monstros além do bloqueio/desbloqueio de portões.</p>
+
+        <h6>💻 Como Funciona?</h6>
+        <p>Ignora processamento se menos de 1s passou, atualiza <code>m_RemainTime</code> com base em <code>m_TargetTime</code> e executa handlers de estado que criam monstros e gates. <code>CleanUser/CleanMonster</code> são usados na construção para zerar o mapa antes de iniciar.</p>
+
+        <h6>📁 Onde Encontrar?</h6>
+        <p><code>Source MuServer Update 15/GameServer/GameServer/ImperialGuardian.cpp</code></p>
+
+        <h6>⏱️ Quando é Executado?</h6>
+        <p>Chamado em cada tick do processamento global de eventos.<br>
+        <pre><code>// User.cpp (gObjSecondProc)
+...
+    gImperialGuardian.MainProc();
+...
+}</code></pre>
+        </p>
+      </div>
+    </div>
+
+    <div class="card mb-3">
+      <div class="card-body">
+        <h5 class="card-title">CDoubleGoer::Load – Configuração multi-fase</h5>
+
+        <h6>📘 O Que é?</h6>
+        <p>Lê <code>DoubleGoer.dat</code> para configurar tempos, AI de monstros e matriz de dificuldade para as várias fases de Double Goer.</p>
+
+        <h6>🎯 Para Que Serve?</h6>
+        <p>Define notificações, duração do evento, tempo de fechamento e atributos de monstros (por nível) usados em cada estágio.</p>
+
+        <h6>💻 Como Funciona?</h6>
+        <p>Segue a mesma abordagem de <code>ImperialGuardian</code>: seções 0/1/2 mapeiam tempos, IDs de AI e listas de dificuldade. Exemplo:<br>
+        <pre><code>void CDoubleGoer::Load(char* path) {
+    #if(GAMESERVER_UPDATE>=501)
+    CMemScript* lpMemScript = new CMemScript;
+    ...
+    if(section == 0) { this->m_NotifyTime = lpMemScript->GetNumber(); ... }
+    else if(section == 1) {
+        this->m_MonsterAIUnitNumber[0] = lpMemScript->GetNumber();
+        this->m_MonsterAIUnitNumber[1] = lpMemScript->GetAsNumber();
+        this->m_MonsterAIUnitNumber[2] = lpMemScript->GetAsNumber();
+        this->m_MonsterAIUnitNumber[3] = lpMemScript->GetAsNumber();
+    }
+    else if(section == 2) {
+        DOUBLE_GOER_MONSTER_DIFFICULT_INFO info; memset(&info,0,sizeof(info));
+        info.Index = lpMemScript->GetNumber();
+        info.Level[0] = lpMemScript->GetAsFloatNumber();
+        info.Level[1] = lpMemScript->GetAsFloatNumber();
+        info.Level[2] = lpMemScript->GetAsFloatNumber();
+        info.Level[3] = lpMemScript->GetAsFloatNumber();
+        info.Level[4] = lpMemScript->GetAsFloatNumber();
+        info.Life[0] = lpMemScript->GetAsFloatNumber();
+        info.Life[1] = lpMemScript->GetAsFloatNumber();
+        info.Life[2] = lpMemScript->GetAsFloatNumber();
+        info.Life[3] = lpMemScript->GetAsFloatNumber();
+        info.Life[4] = lpMemScript->GetAsFloatNumber();
+        info.Damage[0] = lpMemScript->GetAsFloatNumber();
+        info.Damage[1] = lpMemScript->GetAsFloatNumber();
+        info.Damage[2] = lpMemScript->GetAsFloatNumber();
+        ...
+    }
+    #endif
+}</code></pre>
+        </p>
+
+        <h6>📁 Onde Encontrar?</h6>
+        <p><code>Source MuServer Update 15/GameServer/GameServer/DoubleGoer.cpp</code></p>
+
+        <h6>⏱️ Quando é Executado?</h6>
+        <p>No boot do GameServer, e o processamento ocorre no mesmo laço que chama <code>gImperialGuardian.MainProc()</code>.</p>
+      </div>
+    </div>
+
+    <h2>Implementação em Unreal Engine 5</h2>
+    <p>Modele cada evento com um <code>AGameState</code> dedicado e componentes de fase. Use <code>UDataTable</code> para horários/dificuldade e RPCs para sincronizar com clientes. Utilize VaRest + Node.js + SQL para armazenar cronogramas e rankings.</p>
+
+    <h3>Passo a Passo em Unreal Engine 5</h3>
+    <ol>
+      <li>Crie <code>UDataTable</code> para <code>FImperialGuardianConfig</code> e <code>FDoubleGoerConfig</code> contendo tempos, IDs de AI e matrizes de atributo por nível.</li>
+      <li>Implemente <code>UImperialPhaseComponent</code> e <code>UDoubleGoerPhaseComponent</code> com timers replicados, callbacks de spawn e referências aos gates/atores do mapa.</li>
+      <li>No <code>AGameMode</code>, valide horário de entrada comparando <code>FDateTime</code> com os tempos carregados; rejeite conexões fora da janela e envie UI de aviso via <code>Client</code> RPC.</li>
+      <li>Use <code>UAbilitySystemComponent</code> ou lógica customizada para aplicar dificuldade de monstros com base em <code>info.Level/Life/Damage</code>. Prefira Data Assets para tabelas de atributos.</li>
+      <li>Para party, mantenha um <code>UPartySessionComponent</code> que guarda <code>PartyId</code> e replicação de membros, utilizado para entrada conjunta no evento.</li>
+      <li>Integre VaRest para consultar um serviço Node.js que agenda o próximo evento e grava resultados em SQL. Em caso de falha, aplique fallback local usando <code>SaveGame</code>.</li>
+      <li>Implemente UI progressiva (barras de tempo/gates) usando UMG; atualize via <code>OnRep</code> do estado atual e eventos multicast.</li>
+    </ol>
+
+    <h3>Checklist Final</h3>
+    <ul>
+      <li>Configurações de horário/AI importadas para tabelas UE5.</li>
+      <li>FSM de Imperial Guardian e Double Goer replicada com timers e gates.</li>
+      <li>Spawns de monstros ajustados pela dificuldade lida do script.</li>
+      <li>UI em clientes exibindo tempo restante, fase atual e status dos portões.</li>
+      <li>Persistência de resultados/agenda integrada a Node.js/SQL via VaRest.</li>
+    </ul>
+  </div>
+</body>
+</html>
