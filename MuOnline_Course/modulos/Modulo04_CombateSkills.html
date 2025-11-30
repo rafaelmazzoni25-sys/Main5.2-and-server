@@ -107,14 +107,18 @@ void AMyCharacter::ServerPerformAttack_Implementation(AActor* Target) {
   </div>
     <h2 class="mt-5">Passo a Passo em Unreal Engine 5</h2>
     <ol>
-      <li>Criar um componente de combate server-only para validar alvos (mapa, PvP) antes de aplicar dano.</li>
-      <li>Mapear comandos de ataque/skill para RPCs no <code>APlayerController</code> ou <code>AbilitySystemComponent</code>.</li>
-      <li>Implementar cancelamento/skills de duração com tarefas do GAS ou timers.</li>
-      <li>Replicar resultados (dano, efeitos) para clientes afetados.</li>
-      <li>Modelar tabela de skills em <code>DataTable</code> com custo e animações correspondentes ao <code>gSkillManager</code>.</li>
-      <li>Sincronizar estados de animação usando <code>Montage</code> + notifies para disparar partículas no momento correto.</li>
-      <li>Validar cooldowns no servidor e replicar apenas flags de disponibilidade para o cliente.</li>
-      <li>Adicionar testes de regressão que enviam pacotes de ataque falsos e garantem rejeição conforme regras do servidor original.</li>
+      <li>Criar um componente de combate server-only (<code>UCombatValidatorComponent</code>) para validar alvos (mapa, PvP, distância) antes de aplicar dano.</li>
+      <li>Mapear comandos de ataque/skill para RPCs no <code>APlayerController</code> ou <code>AbilitySystemComponent</code>, espelhando as mensagens de <code>GCDamageSend</code>.</li>
+      <li>Modelar tabela de skills em <code>DataTable</code> com custo, alcance, animações e efeitos correspondentes ao <code>gSkillManager</code>; carregar no <code>GameMode</code>.</li>
+      <li>Implementar filas de ataque e cancelamento/skills de duração com tarefas do GAS ou timers, replicando flags de <code>SpecialSkill</code> quando apropriado.</li>
+      <li>Validar cooldowns no servidor e replicar apenas flags de disponibilidade para o cliente; recusar spam com logs que indiquem o motivo.</li>
+      <li>Sincronizar estados de animação usando <code>Montage</code> + notifies para disparar partículas no momento correto, disparando eventos de dano no notify para coincidir com o servidor.</li>
+      <li>Replicar resultados (dano, efeitos) para clientes afetados via <code>Multicast</code> ou <code>OnRep</code>, incluindo número de acertos e resistências.</li>
+      <li>Criar feedback em UI (floating text, ícones) que represente <code>AttackDamage</code> e status (stun, slow) retornados pelo servidor.</li>
+      <li>Registrar hooks de auditoria: quando um ataque for rejeitado (alvo incorreto, mapa proibido), gravar o motivo em arquivo/HTTP (VaRest) para análise.</li>
+      <li>Adicionar testes de regressão que enviam pacotes de ataque falsos e garantem rejeição conforme regras do servidor original, incluindo limites de velocidade de ataque.</li>
+      <li>Expor comandos de console para spawnar um dummy e testar DPS, garantindo que os valores batem com a tabela de skills.</li>
+      <li>Documentar a matriz de interação (PvE, PvP, eventos) e validar manualmente em uma sessão multiplayer local.</li>
     </ol>
     <h2 class="mt-4">Checklist Final</h2>
     <ul>

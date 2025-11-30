@@ -105,14 +105,16 @@ public:
 
     <h2>Passo a Passo em Unreal Engine 5</h2>
     <ol>
-      <li>Criar um <code>UGameInstanceSubsystem</code> para manter sockets persistentes.</li>
-      <li>Implementar callbacks de leitura/escrita usando <code>FUdpSocketReceiver</code> ou <code>FTicker</code> para simular o <code>FD_READ</code>.</li>
-      <li>Enviar mensagem de identificação ao estabelecer conexão, espelhando <code>GJServerInfoSend/GDServerInfoSend</code>.</li>
-      <li>Em caso de <code>FD_CLOSE</code> equivalente, derrubar sessões de jogadores como <code>gObjAllDisconnect()</code>.</li>
-      <li>Persistir o estado das conexões (Join/Data) em um actor de gerenciamento que possa reiniciar sockets sem derrubar o servidor UE5.</li>
-      <li>Adicionar health-check periódico via HTTP para backup da conexão (usando VaRest) quando o socket falhar.</li>
-      <li>Registrar métricas por conexão (latência, bytes) em <code>UAnalyticsProvider</code> customizado.</li>
-      <li>Escrever testes que simulam queda de JoinServer/DataServer e verificam reconexão automática.</li>
+      <li>Criar um <code>UGameInstanceSubsystem</code> para manter sockets persistentes de JoinServer/DataServer e armazenar configurações (IP/porta) carregadas de JSON.</li>
+      <li>Implementar callbacks de leitura/escrita usando <code>FUdpSocketReceiver</code> ou <code>FTicker</code> para simular o <code>FD_READ</code> e manter o game thread livre.</li>
+      <li>Enviar mensagem de identificação ao estabelecer conexão, espelhando <code>GJServerInfoSend/GDServerInfoSend</code>, e aguardar ack antes de processar demais pacotes.</li>
+      <li>Em caso de <code>FD_CLOSE</code> equivalente, derrubar sessões de jogadores como <code>gObjAllDisconnect()</code>, replicando a remoção forçada em <code>gObjAllDisconnectCustom()</code> se existir.</li>
+      <li>Persistir o estado das conexões (Join/Data) em um actor de gerenciamento que possa reiniciar sockets sem derrubar o servidor UE5; incluir backoff exponencial para reconexão.</li>
+      <li>Adicionar health-check periódico via HTTP para backup da conexão (usando VaRest) quando o socket falhar, atualizando um painel web Node.js/SQL.</li>
+      <li>Registrar métricas por conexão (latência, bytes, número de pacotes) em <code>UAnalyticsProvider</code> customizado e salvar snapshots em disco.</li>
+      <li>Escrever testes que simulam queda de JoinServer/DataServer e verificam reconexão automática e retomada de envios pendentes.</li>
+      <li>Expor comandos de console para reiniciar manualmente cada canal de conexão e forçar re-handshake com Join/Data.</li>
+      <li>Documentar o fluxo de boot: carregar config, abrir socket, enviar info, esperar ack, sinalizar GameMode para liberar jogadores.</li>
     </ol>
 
     <h2>Checklist Final</h2>

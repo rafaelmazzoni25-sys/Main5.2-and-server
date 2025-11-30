@@ -204,17 +204,20 @@ public:
 
     <h2>Passo a Passo em Unreal Engine 5</h2>
     <ol>
-      <li>Criar um projeto C++ em UE5 e adicionar uma classe derivada de <code>UGameInstance</code> para conter referências globais.</li>
-      <li>Registrar a classe no Project Settings &gt; Maps &amp; Modes.</li>
-      <li>Adicionar um <code>AGameModeBase</code> customizado para o servidor dedicado (ou modo listen) que inicializa tabelas e conexões.</li>
-      <li>Implementar carga de configurações (equivalente a <code>gServerInfo.ReadInit()</code>) usando Data Assets ou arquivos JSON.</li>
-      <li>Configurar um subsystem de áudio para tocar trilhas de fundo, com checagens de estado similares a <code>PlayMp3/StopMp3</code>.</li>
-      <li>Recriar o loop principal com <code>FViewport</code> ou <code>FTickableGameObject</code> para garantir que a renderização e a fila de rede sejam processadas mesmo sem input.</li>
-      <li>Adicionar um <code>UUserWidget</code> de loading que dispara a inicialização de sockets/HTTP antes de entrar no mapa.</li>
-      <li>Para o servidor dedicado, criar um serviço Windows/Linux que inicialize <code>AMuServerMode</code> e valide mutex/porta similar a <code>GameMainInit</code>.</li>
-      <li>Modelar o equivalente ao <code>g_ErrorReport</code> com um logger assíncrono (por exemplo, <code>AsyncTask</code> + gravação em arquivo) que registre versão, GPU e resolução.</li>
+      <li>Criar um projeto C++ em UE5 e adicionar uma classe derivada de <code>UGameInstance</code> para conter referências globais (UI, sockets, timers).</li>
+      <li>Registrar a classe no Project Settings &gt; Maps &amp; Modes e habilitar suporte a Dedicated Server se for compilar o servidor.</li>
+      <li>Adicionar um <code>AGameModeBase</code> customizado para o servidor dedicado (ou modo listen) que inicializa tabelas e conexões, chamando helpers de carga no <code>StartPlay</code>.</li>
+      <li>Implementar carga de configurações (equivalente a <code>gServerInfo.ReadInit()</code>) usando Data Assets ou arquivos JSON lidos por <code>FFileHelper</code>; validar mutex/porta antes de continuar.</li>
+      <li>Configurar um subsystem de áudio para tocar trilhas de fundo, com checagens de estado similares a <code>PlayMp3/StopMp3</code>; expor volumes em <code>UUserSettings</code> para salvar no <code>Shutdown</code>.</li>
+      <li>Recriar o loop principal com <code>FTickableGameObject</code> ou um <code>UActorComponent</code> tickável que processa fila de rede mesmo sem input, chamando renderização e compiladores de protocolo equivalentes.</li>
+      <li>Criar um <code>UUserWidget</code> de splash/loading que dispara a inicialização de sockets/HTTP antes de entrar no mapa, bloqueando input até concluir.</li>
+      <li>Para o servidor dedicado, criar um executável alvo "Server" no Unreal Build Tool e um script de serviço (systemd ou Windows Service) que instancia o mapa inicial e valida exclusividade similar a <code>GameMainInit</code>.</li>
+      <li>Modelar o equivalente ao <code>g_ErrorReport</code> com um logger assíncrono (por exemplo, <code>AsyncTask</code> + gravação em arquivo) que registre versão, GPU e resolução, e que seja inicializado no <code>Init</code> da GameInstance.</li>
       <li>Usar <code>FScopedSlowTask</code> para exibir progresso enquanto dados (tabelas de monstros/mapa) são carregados, correspondendo à leitura de <code>config.ini</code> e <code>Data\\Enc1.dat</code>.</li>
-      <li>Configurar watchdog para minimizar e restaurar janela quando perder foco, replicando as checagens de <code>g_bUseWindowMode</code> e timers de inatividade.</li>
+      <li>Configurar watchdog para minimizar e restaurar janela quando perder foco, replicando checagens de <code>g_bUseWindowMode</code> e timers de inatividade usando eventos de <code>UGameViewportClient</code>.</li>
+      <li>Adicionar testes manuais: iniciar cliente, verificar abertura da janela, áudio de fundo, logs de GPU/resolução e criação de assets em memória sem crash.</li>
+      <li>Configurar um comando de console (ex.: <code>mu.DumpInit</code>) para verificar se todos os subsistemas estão carregados, ajudando a depurar como no <code>g_ErrorReport</code>.</li>
+      <li>Documentar os pontos de extensão (UI Manager, sistema de áudio, loader de mapas) no README do projeto UE5 para corresponder aos globais do WinMain.</li>
     </ol>
 
     <h2>Checklist Final</h2>

@@ -128,18 +128,19 @@ class AMuPlayerController : public APlayerController {
 
     <h2>Passo a Passo em Unreal Engine 5</h2>
     <ol>
-      <li>Criar um <code>UGameInstanceSubsystem</code> que registra todas as telas necessárias (Login, Inventário, Trade) e expõe métodos <code>Open/Close</code>.</li>
-      <li>No <code>AMuPlayerController</code>, configurar <code>UInputComponent</code> com binds equivalentes aos atalhos usados pelo cliente (por exemplo, abrir mapa, inventário).</li>
-      <li>Adicionar Widgets em UMG para cada interface e registrar no subsystem. Use <code>UPROPERTY</code> para manter referências fortes.</li>
-      <li>Implementar um <code>FTickableGameObject</code> ou usar <code>Tick</code> do PlayerController para disparar atualizações da UI a cada frame, similar ao <code>CUIManager::Render</code>.</li>
-      <li>Criar um gerenciador de áudio via <code>USoundClass</code> e <code>USoundMix</code> para replicar <code>VolumeLevel</code>; persistir preferências com <code>UGameUserSettings</code>.</li>
-      <li>Para input de chat, adicionar um <code>UEditableTextBox</code> que captura foco e bloqueia binds de movimento enquanto ativo, espelhando <code>g_pMercenaryInputBox</code>.</li>
-      <li>Encadear inicialização no <code>Init</code> do <code>UGameInstance</code>: carregar Widgets, aplicar áudio, registrar binds, depois entrar no mapa inicial.</li>
-      <li>Testar em janela e fullscreen validando que o loop continua processando input/renderização mesmo em mudanças de foco (equivalente às checagens de <code>g_bUseWindowMode</code>).</li>
-      <li>Criar um overlay de depuração que exibe FPS, estado da fila de rede e foco da janela, similar aos logs de <code>g_ErrorReport</code>.</li>
-      <li>Adicionar um <code>UInputAction</code> dedicado para alternar cursores/lock do mouse, espelhando as chamadas Win32 <code>ShowCursor</code> e <code>SetFocus</code>.</li>
-      <li>Automatizar cenários de UI com testes <code>AutomationDriver</code>, clicando sequencialmente em login, seleção de personagem e inventário para validar fluxo completo.</li>
-      <li>Expor comandos de console (via <code>Exec</code> functions) para reiniciar UI/audio em tempo de execução, facilitando depuração sem reiniciar o jogo.</li>
+      <li>Criar um <code>UGameInstanceSubsystem</code> que registra todas as telas necessárias (Login, Inventário, Trade, Party) e expõe métodos <code>Open/Close</code> com checagem de estado.</li>
+      <li>No <code>AMuPlayerController</code>, configurar <code>UInputComponent</code> com binds equivalentes aos atalhos usados pelo cliente (abrir mapa, inventário, chat, party).</li>
+      <li>Adicionar Widgets em UMG para cada interface e registrar no subsystem. Use <code>UPROPERTY</code> para manter referências fortes e evitar GC.</li>
+      <li>Implementar um <code>FTickableGameObject</code> ou usar <code>Tick</code> do PlayerController para disparar atualizações da UI a cada frame, similar ao <code>CUIManager::Render</code>, incluindo animações de contagem e cooldown.</li>
+      <li>Criar um gerenciador de áudio via <code>USoundClass</code> e <code>USoundMix</code> para replicar <code>VolumeLevel</code>; persistir preferências com <code>UGameUserSettings</code> e salvar no <code>Shutdown</code>.</li>
+      <li>Para input de chat, adicionar um <code>UEditableTextBox</code> que captura foco e bloqueia binds de movimento enquanto ativo, espelhando <code>g_pMercenaryInputBox</code>; habilitar histórico de mensagens.</li>
+      <li>Encadear inicialização no <code>Init</code> do <code>UGameInstance</code>: carregar Widgets, aplicar áudio, registrar binds, inicializar rede e só então entrar no mapa inicial.</li>
+      <li>Testar em janela e fullscreen validando que o loop continua processando input/renderização mesmo em mudanças de foco (equivalente às checagens de <code>g_bUseWindowMode</code>) e que a UI pausa adequadamente quando minimizada.</li>
+      <li>Criar um overlay de depuração que exibe FPS, estado da fila de rede, foco da janela e status de sockets/HTTP.</li>
+      <li>Adicionar um <code>UInputAction</code> dedicado para alternar cursores/lock do mouse, espelhando as chamadas Win32 <code>ShowCursor</code> e <code>SetFocus</code>, e exibir ícone de modo ativo.</li>
+      <li>Automatizar cenários de UI com testes <code>AutomationDriver</code>, clicando sequencialmente em login, seleção de personagem, inventário e janela de trade para validar fluxo completo.</li>
+      <li>Expor comandos de console (via <code>Exec</code> functions) para reiniciar UI/audio em tempo de execução, limpar caches de widgets e recarregar estilos.</li>
+      <li>Publicar um manual de navegação (teclas + ações) dentro do jogo, garantindo paridade com os atalhos do cliente Win32.</li>
     </ol>
 
     <h2>Checklist Final</h2>

@@ -148,14 +148,18 @@ void ServerMoveItem(int32 From, int32 To);
   </div>
     <h2 class="mt-5">Passo a Passo em Unreal Engine 5</h2>
     <ol>
-      <li>Definir um <code>UDataAsset</code> para dados estáticos de item (slot, tamanho, flags).</li>
-      <li>Implementar struct replicável para slots e armazená-la em <code>APlayerState</code>.</li>
-      <li>Adicionar RPCs para pegar, mover, dropar e usar itens, com validação no servidor.</li>
-      <li>Criar UI de inventário em UMG consumindo os arrays replicados.</li>
-      <li>Persistir inventário via chamada HTTP (VaRest) para Node.js/SQL na entrada e saída do jogador.</li>
-      <li>Usar <code>NetSerialize</code> em <code>FItemSlot</code> para otimizar tráfego replicado, semelhante ao layout compacto do cliente original.</li>
-      <li>Implementar filtros de equipabilidade por classe/nível replicados do servidor para o cliente.</li>
-      <li>Adicionar testes automatizados de duplicação para garantir que RPCs rejeitam operações concorrentes.</li>
+      <li>Definir um <code>UDataAsset</code> para dados estáticos de item (slot, tamanho, flags, stack) com IDs iguais aos do protocolo original.</li>
+      <li>Criar struct replicável <code>FItemSlot</code> com <code>NetSerialize</code> e armazená-la em <code>APlayerState</code> para acompanhar o cliente.</li>
+      <li>Adicionar RPCs para pegar, mover, dropar e usar itens com validação server-side (peso, espaço, requisitos de classe), retornando códigos de erro equivalentes aos handlers C++ originais.</li>
+      <li>Criar UI de inventário em UMG consumindo os arrays replicados; implementar drag-and-drop com verificação de destino válida antes de enviar RPC.</li>
+      <li>Persistir inventário via chamada HTTP (VaRest) para Node.js/SQL na entrada e saída do jogador, salvando snapshots de slots e quantidades.</li>
+      <li>Implementar filtros de equipabilidade por classe/nível replicados do servidor para o cliente, exibindo mensagens específicas quando a operação falhar.</li>
+      <li>Logar toda operação de item em um painel de debug (e opcionalmente em HTTP) para detectar duplicação ou rollback.</li>
+      <li>Integrar crafting/combinação simples (se existir no código original) como um RPC adicional, validando componentes antes de gerar o item resultante.</li>
+      <li>Adicionar testes automatizados de duplicação para garantir que RPCs rejeitam operações concorrentes e que slots não ficam negativos.</li>
+      <li>Configurar eventos de UI para destacar itens recém-adquiridos e atualizar tooltips com dados do <code>UDataAsset</code>.</li>
+      <li>Usar <code>FastArraySerializer</code> se o inventário for grande, para otimizar o tráfego replicado mantendo compatibilidade com a estrutura compacta do cliente original.</li>
+      <li>Documentar o fluxo completo: carregamento de tabelas, entrada do jogador, sincronização inicial do inventário, operações em runtime e persistência ao sair.</li>
     </ol>
     <h2 class="mt-4">Checklist Final</h2>
     <ul>

@@ -212,18 +212,19 @@ public:
 
     <h2>Passo a Passo em Unreal Engine 5</h2>
     <ol>
-      <li>Criar um ator de estado (<code>APartyState</code>) replicado no servidor dedicado.</li>
-      <li>Implementar RPC <code>ServerRequestParty</code> disparado por UI (clique em jogador) para enviar convite.</li>
-      <li>No servidor, validar limites (<code>MAX_PARTY_USER</code>) e duplicação antes de aceitar (espelhando <code>IsParty</code>/<code>GetMemberNumber</code>).</li>
-      <li>Ao aprovar, popular <code>Members</code> e marcar o índice 0 como líder (similar ao array <code>Index[0]</code>).</li>
-      <li>Propagar <code>Members</code> via <code>OnRep_Members</code> para atualizar widgets no cliente (equivalente a <code>GCPartyListSend</code>).</li>
-      <li>Adicionar RPC de remoção que, ao excluir o líder, reatribui o slot 0 para o próximo membro, reproduzindo <code>ChangeLeader</code>.</li>
-      <li>Replicar vida/mana (tick ou evento) alimentando barras de party, usando <code>OnAttributeChanged</code> do GAS ou eventos customizados.</li>
-      <li>Criar Widget Blueprint de party que liste <code>Members</code> e permita chutar jogador via botão que chama <code>ServerDelMember</code>.</li>
-      <li>Integrar com minimapa replicado para mostrar a posição <code>Pos</code> dos membros como no pacote original.</li>
-      <li>Registrar logs/telemetria para cada convite e aceite, equivalente ao logging do protocolo <code>0x40</code>–<code>0x43</code>.</li>
-      <li>Se quiser persistência externa, expor endpoints Node.js/SQL para salvar composições de grupo em sessões cooperativas e restaurar automaticamente.</li>
-      <li>Automatizar testes funcionais: criar dois clientes simulados, enviar convite, aceitar e verificar atualização de barras de vida.</li>
+      <li>Criar um ator de estado (<code>APartyState</code>) replicado no servidor dedicado contendo lista de membros, líder e metadados (mapa, posição).</li>
+      <li>Implementar RPC <code>ServerRequestParty</code> disparado por UI (clique em jogador) para enviar convite; incluir tempo de expiração.</li>
+      <li>No servidor, validar limites (<code>MAX_PARTY_USER</code>) e duplicação antes de aceitar (espelhando <code>IsParty</code>/<code>GetMemberNumber</code>) e rejeitar convites cruzados.</li>
+      <li>Ao aprovar, popular <code>Members</code> e marcar o índice 0 como líder (similar ao array <code>Index[0]</code>); replicar imediatamente para os clientes.</li>
+      <li>Propagar <code>Members</code> via <code>OnRep_Members</code> para atualizar widgets no cliente (equivalente a <code>GCPartyListSend</code>) e recalcular barras.</li>
+      <li>Adicionar RPC de remoção que, ao excluir o líder, reatribui o slot 0 para o próximo membro, reproduzindo <code>ChangeLeader</code> e notificando todos via multicast.</li>
+      <li>Replicar vida/mana (tick ou evento) alimentando barras de party, usando <code>OnAttributeChanged</code> do GAS ou eventos customizados; mostrar ícones de buffs se enviados.</li>
+      <li>Criar Widget Blueprint de party que liste <code>Members</code> e permita chutar jogador via botão que chama <code>ServerDelMember</code>; bloquear ações quando não for líder.</li>
+      <li>Integrar com minimapa replicado para mostrar a posição <code>Pos</code> dos membros como no pacote original e destacar o líder.</li>
+      <li>Registrar logs/telemetria para cada convite e aceite, equivalente ao logging do protocolo <code>0x40</code>–<code>0x43</code>, e enviar para backend Node.js/SQL para auditoria.</li>
+      <li>Se quiser persistência externa, expor endpoints Node.js/SQL para salvar composições de grupo em sessões cooperativas e restaurar automaticamente quando os jogadores reconectarem.</li>
+      <li>Automatizar testes funcionais: criar dois clientes simulados, enviar convite, aceitar e verificar atualização de barras de vida; testar remoção do líder e reatribuição automática.</li>
+      <li>Adicionar comandos de console para forçar criação/remoção de party e para depurar replicação (dump em log).</li>
     </ol>
 
     <h2>Checklist Final</h2>

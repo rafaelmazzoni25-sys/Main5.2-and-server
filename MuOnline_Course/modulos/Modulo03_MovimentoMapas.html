@@ -185,18 +185,20 @@ void AMyCharacter::ServerTeleport_Implementation(const FVector& Dest) {
   </div>
     <h2 class="mt-5">Passo a Passo em Unreal Engine 5</h2>
     <ol>
-      <li>Configurar <code>ACharacter</code> com replicação de movimento habilitada.</li>
-      <li>Mapear pacote de posição para um RPC <code>ClientAdjustPosition</code> customizado, aplicando <code>SetActorLocation</code>.</li>
-      <li>Implementar timers no <code>AGameModeBase</code> para IA/movimento de NPCs.</li>
-      <li>Implementar teleporte via RPC confiável, validando mapa/destino.</li>
-      <li>Criar um <code>UDataAsset</code> que liste mapas válidos e suas restrições, refletindo a validação feita no servidor original.</li>
-      <li>Usar <code>UNavigationSystemV1</code> para recalcular caminhos após teleporte e garantir posicionamento seguro.</li>
-      <li>Integrar eventos de colisão para bloquear movimento quando UI (inventário/loja) estiver aberta, semelhante ao bloqueio de input no cliente Win32.</li>
-      <li>Automatizar testes com <code>Functional Testing</code> para caminhar entre dois pontos e verificar sincronização de posição.</li>
-      <li>Serializar o caminho em um array de nibbles (ou um <code>TArray&lt;uint8&gt;</code>) antes de enviar via RPC <code>ServerMove</code>, seguindo a lógica de <code>Path</code> e <code>DirTable</code>.</li>
-      <li>Implementar predição de movimento no cliente e correção ao receber a posição oficial, atualizando o <code>CharacterMovementComponent</code>.</li>
-      <li>Logar e depurar diferenças de posição, armazenando um histórico semelhante ao <code>RandomTable</code> gerado em <code>Winmain.cpp</code> para reprodução de bugs.</li>
-      <li>Adicionar testes de teleporte entre mundos e validação de obstáculos com <code>Trace</code>, garantindo que o teleporte é autorizado apenas em locais permitidos.</li>
+      <li>Configurar <code>ACharacter</code> com replicação de movimento habilitada e ativar <code>bUseControllerRotationYaw</code> conforme o estilo de câmera do cliente original.</li>
+      <li>Criar um componente <code>UMovementSyncComponent</code> que traduz o pacote de posição em um RPC <code>ClientAdjustPosition</code> customizado, aplicando <code>SetActorLocation</code> e <code>SetActorRotation</code>.</li>
+      <li>Implementar timers no <code>AGameModeBase</code> para IA/movimento de NPCs, disparando <code>ServerMove</code> em intervalos equivalentes aos <code>SetTimer</code> do servidor.</li>
+      <li>Criar um <code>UDataAsset</code> que liste mapas válidos e suas restrições (safe zone, arena, eventos), refletindo a validação feita no servidor original antes de teleporte.</li>
+      <li>Implementar teleporte via RPC confiável; validar mapa/destino contra o DataAsset, recarregar <code>UNavigationSystemV1</code> e sincronizar com UI de loading.</li>
+      <li>Usar <code>UNavigationSystemV1</code> e <code>ProjectPointToNavigation</code> para ajustar coordenadas recebidas antes de aplicá-las, evitando atravessar colisores.</li>
+      <li>Integrar eventos de colisão e estados de UI: quando inventário/loja estiver aberta, desabilitar input no <code>CharacterMovementComponent</code> e suspender envio de pacotes de movimento.</li>
+      <li>Serializar o caminho em um array de nibbles (ou um <code>TArray&lt;uint8&gt;</code>) antes de enviar via RPC <code>ServerMove</code>, seguindo a lógica de <code>Path</code> e <code>DirTable</code>; logar o tamanho para depurar.</li>
+      <li>Implementar predição de movimento no cliente e correção ao receber a posição oficial, atualizando o <code>CharacterMovementComponent</code> e interpolando para evitar rubber band.</li>
+      <li>Gravar um histórico circular de posições em <code>TQueue</code> para comparar com a posição oficial e diagnosticar divergências, similar ao uso de <code>RandomTable</code>.</li>
+      <li>Automatizar testes com <code>Functional Testing</code> ou <code>Gauntlet</code>: caminhar entre dois pontos, validar mesma posição no servidor e reproduzir logs de tempos.</li>
+      <li>Adicionar testes de teleporte entre mundos e validação de obstáculos com <code>LineTraceSingle</code>, garantindo que o teleporte é autorizado apenas em locais permitidos.</li>
+      <li>Exibir um painel de debug (Widget) com coordenadas locais e remotas, estado de predição e número de correções aplicadas.</li>
+      <li>Para compatibilizar com VaRest/Node.js, opcionalmente registrar posições em um endpoint HTTP de telemetria para auditoria de trapaça.</li>
     </ol>
     <h2 class="mt-4">Checklist Final</h2>
     <ul>

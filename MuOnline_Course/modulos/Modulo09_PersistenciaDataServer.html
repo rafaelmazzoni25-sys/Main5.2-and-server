@@ -228,17 +228,18 @@ app.get('/character/info', async (req,res) => {
 
     <h2>Passo a Passo em Unreal Engine 5</h2>
     <ol>
-      <li>Configure um serviço Node.js com conexão SQL que exponha endpoints para lista/criação/carga de personagem (espelhando os cabeçalhos 0x01–0x04).</li>
-      <li>No UE5, adicione o plugin VaRest e crie um <code>UActorComponent</code> (servidor dedicado ou cliente) responsável por fazer as requisições HTTP.</li>
-      <li>Mapeie o JSON retornado para structs UE (<code>FCharacterSnapshot</code>) e aplique os dados no <code>AGameState</code> ou diretamente no <code>ACharacter</code>.</li>
-      <li>Implemente cache local/segurança equivalente aos checks de <code>CheckTextSyntax</code> e bloqueio de slots (<code>GameIDC</code>).</li>
-      <li>Garanta que a gravação (reset, inventário) use endpoints POST/PUT que executem procedures equivalentes a <code>WZ_GetResetInfo</code> e atualizações de inventário.</li>
-      <li>Crie migrations ou scripts SQL que gerem as mesmas tabelas usadas no DataServer (Character, Warehouse, Guild) e valide tipos de coluna.</li>
-      <li>Adicionar camadas de retry e backoff no VaRest para erros HTTP/SQL, registrando falhas em um log persistente.</li>
-      <li>Implementar testes automatizados que comparam um binário de inventário salvo pelo servidor original com o JSON retornado pelo serviço Node.js.</li>
-      <li>Documentar o contrato REST (método, rota, parâmetros) em um arquivo incluído no projeto para consulta rápida.</li>
-      <li>Mapear procedures SQL usadas pelo DataServer (ex.: <code>WZ_GetResetInfo</code>, <code>WZ_GetWarehouse</code>) para consultas parametrizadas em Node.js, validando tipos e limites.</li>
-      <li>Criar um modo offline em UE5 que usa SQLite/local JSON para espelhar respostas do DataServer, permitindo testes sem conexão.</li>
+      <li>Configurar um serviço Node.js com conexão SQL (ODBC ou driver nativo) que exponha endpoints para lista/criação/carga de personagem (espelhando cabeçalhos 0x01–0x04) e warehouse.</li>
+      <li>Versionar scripts SQL/migrations que criam tabelas equivalentes às do DataServer (Character, Warehouse, Guild, AccountData) e popular dados de teste.</li>
+      <li>No UE5, adicionar o plugin VaRest e criar um <code>UActorComponent</code> responsável por fazer requisições HTTP (GET/POST) ao Node.js, com headers de autenticação.</li>
+      <li>Mapear o JSON retornado para structs UE (<code>FCharacterSnapshot</code>, <code>FInventorySlot</code>) e aplicar os dados no <code>AGameState</code> ou diretamente no <code>ACharacter</code>.</li>
+      <li>Implementar cache local/segurança equivalente aos checks de <code>CheckTextSyntax</code> e bloqueio de slots (<code>GameIDC</code>), rejeitando nomes inválidos antes de chamar o backend.</li>
+      <li>Garantir que a gravação (reset, inventário) use endpoints POST/PUT que executem procedures equivalentes a <code>WZ_GetResetInfo</code> e atualizações de inventário; validar sucesso via códigos HTTP.</li>
+      <li>Adicionar camadas de retry e backoff no VaRest para erros HTTP/SQL, registrando falhas em log persistente e expondo estado (conectado/offline) na UI.</li>
+      <li>Implementar testes automatizados que comparam um binário de inventário salvo pelo servidor original com o JSON retornado pelo serviço Node.js, garantindo correspondência de slots e quantidades.</li>
+      <li>Documentar o contrato REST (método, rota, parâmetros, exemplos) em um arquivo incluído no projeto para consulta rápida e exposição na UI de debug.</li>
+      <li>Mapear procedures SQL usadas pelo DataServer (ex.: <code>WZ_GetResetInfo</code>, <code>WZ_GetWarehouse</code>) para consultas parametrizadas em Node.js, validando tipos e limites e retornando erros padronizados.</li>
+      <li>Criar um modo offline em UE5 que usa SQLite/local JSON para espelhar respostas do DataServer, permitindo testes sem conexão e fallback quando o backend estiver indisponível.</li>
+      <li>Automatizar backups do banco e sincronização com ambiente de teste, registrando versão do schema no cliente para detectar incompatibilidades.</li>
     </ol>
 
     <h2>Checklist Final</h2>

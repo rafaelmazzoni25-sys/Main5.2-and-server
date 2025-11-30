@@ -76,14 +76,15 @@ public:
 
     <h2>Passo a Passo em Unreal Engine 5</h2>
     <ol>
-      <li>Criar um objeto roteador e instanciá-lo no <code>AGameModeBase</code> do servidor dedicado.</li>
-      <li>Converter structs de pacotes para <code>USTRUCT()</code> e desserializar antes de chamar handlers.</li>
-      <li>Registrar logs de entrada em um canal semelhante a <code>LogAdd</code>.</li>
-      <li>Implementar handlers de chat, movimento, skills e itens usando classes <code>APlayerController</code> e <code>ACharacter</code>.</li>
-      <li>Adicionar middleware de segurança para rejeitar pacotes com tamanho fora do esperado, inspirado nas checagens de <code>ProtocolCore</code>.</li>
-      <li>Encapsular métricas de contagem de pacotes por tipo para detecção de flood.</li>
-      <li>Escrever testes de integração que enviam pacotes binários gravados do servidor original e validam roteamento em UE5.</li>
-      <li>Documentar cada ID de pacote em um <code>UEnum</code> exposto a Blueprints para depuração visual.</li>
+      <li>Criar um objeto roteador (<code>UMuPacketRouter</code>) e instanciá-lo no <code>AGameModeBase</code> do servidor dedicado, armazenando referência ao socket.</li>
+      <li>Converter structs de pacotes para <code>USTRUCT()</code> e desserializar antes de chamar handlers, validando tamanho mínimo e máximo de cada mensagem.</li>
+      <li>Registrar logs de entrada em um canal semelhante a <code>LogAdd</code>, incluindo hex dump de pacotes incomuns para análise.</li>
+      <li>Implementar handlers de chat, movimento, skills e itens usando classes <code>APlayerController</code> e <code>ACharacter</code>; delegar persistência ao módulo de inventário/persistência.</li>
+      <li>Adicionar middleware de segurança para rejeitar pacotes com tamanho fora do esperado e bloquear IP/session em caso de flood, inspirado nas checagens de <code>ProtocolCore</code>.</li>
+      <li>Encapsular métricas de contagem de pacotes por tipo para detecção de flood e publicar via HTTP (Node.js + SQL) para observabilidade.</li>
+      <li>Escrever testes de integração que enviam pacotes binários gravados do servidor original e validam roteamento em UE5, incluindo casos de mensagens inválidas.</li>
+      <li>Documentar cada ID de pacote em um <code>UEnum</code> exposto a Blueprints para depuração visual e criar um painel que mostra quantos pacotes por segundo estão chegando.</li>
+      <li>Adicionar hot-reload de handlers: um mapa de delegates que permita substituir lógicas em runtime para testes A/B.</li>
     </ol>
 
     <h2>Checklist Final</h2>

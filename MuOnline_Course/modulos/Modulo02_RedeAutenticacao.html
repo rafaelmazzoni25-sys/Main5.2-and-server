@@ -192,18 +192,22 @@ public:
 
     <h2>Passo a Passo em Unreal Engine 5</h2>
     <ol>
-      <li>Criar componente de rede e anexar ao <code>APlayerController</code>.</li>
-      <li>Implementar conexão TCP/UDP usando <code>FSocket</code> do UE5.</li>
-      <li>Espelhar as structs de pacotes (<code>PMSG_CONNECT_ACCOUNT_SEND</code>) em <code>USTRUCT()</code> para serialização.</li>
-      <li>Despachar mensagens recebidas no <code>TickComponent</code>, refletindo o <code>switch(msg.header.id)</code> original.</li>
-      <li>Atualizar UI em Blueprints após <code>RecvLoginNew</code> equivalente sinalizar sucesso.</li>
-      <li>Para autenticação via HTTP, criar endpoint Node.js com SQL que responde JSON; usar VaRest no cliente para pegar token antes de abrir socket.</li>
-      <li>Persistir estado de login em <code>UGameInstance</code> e impedir transições de mapa sem <code>CurrentProtocolState</code> válido.</li>
-      <li>Implementar mensagens de erro localizadas em Widgets, mapeando cada código de falha.</li>
-      <li>Criar testes automatizados com <code>AutomationTest</code> que simulam respostas do servidor e verificam troca de telas.</li>
-      <li>Registrar um dispatcher/logging central para cada chamada de envio, semelhante ao papel de <code>SendPacket</code>, permitindo captura de tráfego para debug.</li>
-      <li>Adicionar timeouts e reconexão automática; ao estourar o tempo, exibir um popup equivalente aos códigos de erro do cliente Win32.</li>
-      <li>Documentar na HUD (por exemplo, um painel debug) o estado atual (<code>REQUEST_LOG_IN</code>, <code>RECEIVE_LOG_IN_SUCCESS</code>) para guiar o aluno.</li>
+      <li>Adicionar um componente <code>UNetworkClientComponent</code> ao <code>APlayerController</code> para gerenciar socket e estados de protocolo.</li>
+      <li>Criar uma classe helper <code>FPayloadBuilder</code> que empacota headers e payloads seguindo o mesmo tamanho dos structs originais.</li>
+      <li>Implementar conexão TCP/UDP usando <code>FSocket</code> do UE5, configurando <code>Blocking = false</code> para mimetizar o loop com <code>WSAAsyncSelect</code>.</li>
+      <li>Espelhar as structs de pacotes (<code>PMSG_CONNECT_ACCOUNT_SEND</code>, <code>PMSG_CHARACTER_LIST_RECV</code>) em <code>USTRUCT()</code> com <code>UPROPERTY()</code> para facilitar debug.</li>
+      <li>Despachar mensagens recebidas no <code>TickComponent</code>, refletindo o <code>switch(msg.header.id)</code> original, e registrar handlers em um mapa de delegates.</li>
+      <li>Integrar VaRest para uma etapa opcional de autenticação HTTP (Node.js + SQL) que retorna token e endereço/porta do servidor de jogo antes de abrir socket nativo.</li>
+      <li>No servidor Node.js, criar rota <code>/login</code> que valida conta no banco SQL e retorna JSON com status; salvar scripts SQL no repositório.</li>
+      <li>Após sucesso HTTP, abrir a conexão TCP para o GameServer e enviar <code>PMSG_CONNECT_ACCOUNT_SEND</code> serializado; caso falhe, exibir erro e reter UI.</li>
+      <li>Implementar state machine no <code>UGameInstance</code> com enums (<code>ELoginState</code>) garantindo que transições de mapa só ocorram após <code>RECEIVE_LOG_IN_SUCCESS</code>.</li>
+      <li>Atualizar UI em Blueprints após o handler equivalente a <code>RecvLoginNew</code> sinalizar sucesso, carregando o Widget de seleção de personagem.</li>
+      <li>Adicionar mensagens de erro localizadas em Widgets, mapeando cada código de falha (senha incorreta, conta banida, servidor cheio) a textos amigáveis.</li>
+      <li>Implementar timeouts e reconexão automática; ao estourar o tempo, exibir um popup equivalente aos códigos de erro do cliente Win32 e reabrir conexão.</li>
+      <li>Criar testes automatizados com <code>AutomationTest</code> que simulam respostas do servidor (via socket local ou mock Node.js) e verificam troca de telas.</li>
+      <li>Registrar um dispatcher/logging central para cada chamada de envio, semelhante ao papel de <code>SendPacket</code>, permitindo captura de tráfego para debug e gravação em arquivo.</li>
+      <li>Documentar na HUD (por exemplo, um painel debug) o estado atual (<code>REQUEST_LOG_IN</code>, <code>RECEIVE_LOG_IN_SUCCESS</code>), o endereço do servidor e o token HTTP usado.</li>
+      <li>Publicar um checklist de rede (latência, perda, reconexão) e validar manualmente com pacotes reais capturados via Wireshark para garantir fidelidade ao protocolo.</li>
     </ol>
 
     <h2>Checklist Final</h2>

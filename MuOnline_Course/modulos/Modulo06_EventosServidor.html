@@ -128,14 +128,17 @@ void AMyGameMode::SendHeartbeat() {
   </div>
     <h2 class="mt-5">Passo a Passo em Unreal Engine 5</h2>
     <ol>
-      <li>Substituir o loop de mensagens por timers em <code>AGameModeBase</code>.</li>
-      <li>Implementar envio periódico de status via socket/HTTP em um subsystem.</li>
-      <li>Criar listeners para conexões auxiliares (Join/Data) ou mock services.</li>
-      <li>Registrar logs de eventos/timers para monitoramento.</li>
-      <li>Separar timers críticos (spawn, limpeza, reset de eventos) em <code>FTimerHandle</code> distintos para facilitar testes.</li>
-      <li>Usar <code>UE_LOG</code> + <code>PerfCounters</code> customizados para acompanhar uso de CPU/memória similar ao console do servidor.</li>
-      <li>Criar comandos de console no servidor (<code>Exec</code>) para pausar/reiniciar eventos como <code>BattleSoccer</code>.</li>
-      <li>Automatizar cenários com testes que simulam 100+ jogadores enviando pacotes para validar estabilidade do loop.</li>
+      <li>Substituir o loop de mensagens por timers em <code>AGameModeBase</code>, criando funções específicas para cada rotina do servidor (spawn, limpeza, broadcast).</li>
+      <li>Implementar envio periódico de status via socket/HTTP em um subsystem (heartbeat) com payload equivalente ao <code>DataServerInfoSend</code>.</li>
+      <li>Criar listeners para conexões auxiliares (Join/Data) ou mock services com <code>FSocket</code> ou VaRest; armazenar tokens e estado de conexão.</li>
+      <li>Registrar logs de eventos/timers para monitoramento e enviar para painel externo (Node.js + SQL) para auditoria.</li>
+      <li>Separar timers críticos (spawn, limpeza, reset de eventos) em <code>FTimerHandle</code> distintos para facilitar testes e permitir pausar cada rota individualmente.</li>
+      <li>Usar <code>UE_LOG</code> + <code>PerfCounters</code> customizados para acompanhar uso de CPU/memória similar ao console do servidor, exibindo em uma HUD de admin.</li>
+      <li>Criar comandos de console no servidor (<code>Exec</code>) para pausar/reiniciar eventos como <code>BattleSoccer</code> e forçar envio de heartbeat.</li>
+      <li>Automatizar cenários com testes que simulam 100+ jogadores enviando pacotes para validar estabilidade do loop; medir tempos de resposta.</li>
+      <li>Implementar alarmes: se algum timer atrasar ou falhar, disparar notificação (log + opcional e-mail via Node.js).</li>
+      <li>Versionar arquivos de configuração de eventos (JSON/DataTable) e carregar no <code>BeginPlay</code>, replicando o comportamento de leitura de tabelas do servidor original.</li>
+      <li>Documentar o fluxo de start/stop dos eventos, incluindo dependências de mapas e NPCs, para que o aluno consiga reproduzir sequência de boot completa.</li>
     </ol>
     <h2 class="mt-4">Checklist Final</h2>
     <ul>
