@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  <title>Módulo 32 – Cash Shop e PcPoint</title>
+</head>
+<body class="bg-light">
+  <div class="container py-5">
+    <h1 class="mb-4">Módulo 32 – Cash Shop e PcPoint</h1>
+    <p class="lead">Cobre o carregamento de pacotes/produtos do Cash Shop, controle de itens periódicos e o fluxo de pontos PcPoint, com adaptação completa para UE5, VaRest, Node.js e SQL.</p>
+
+    <h2>Pré-requisitos</h2>
+    <ul>
+      <li>Módulo 5 – Inventário e Itens.</li>
+      <li>Módulo 9 – Persistência/DataServer.</li>
+      <li>Módulo 29 – Comércio.</li>
+    </ul>
+
+    <h2>Conceitos do Código Original</h2>
+
+    <div class="card mb-3">
+      <div class="card-body">
+        <h5 class="card-title">CCashShop::LoadPackage/LoadProduct – Leitura de scripts</h5>
+
+        <h6>📘 O Que é?</h6>
+        <p>Rotinas que leem arquivos de script e popular arrays de pacotes e produtos do Cash Shop.</p>
+
+        <h6>🎯 Para Que Serve?</h6>
+        <p>Define catálogo e preços de itens premium, incluindo sockets, opções e duração.</p>
+
+        <h6>💻 Como Funciona?</h6>
+        <p>
+          <pre><code>void CCashShop::LoadPackage(char* path) {
+  CMemScript* lpMemScript = new CMemScript;
+  if(lpMemScript->SetBuffer(path) == 0) { ErrorMessageBox(...); delete lpMemScript; return; }
+  this->m_CashShopPackageCount = 0;
+  while(true) {
+    if(lpMemScript->GetToken() == TOKEN_END) break;
+    if(strcmp("end",lpMemScript->GetString()) == 0) break;
+    CASH_SHOP_PACKAGE_INFO info{};
+    info.Category = lpMemScript->GetNumber();
+    info.BaseIndex = lpMemScript->GetAsNumber();
+    info.MainIndex = lpMemScript->GetAsNumber();
+    info.ItemIndex = lpMemScript->GetAsNumber();
+    info.CoinIndex = lpMemScript->GetAsNumber();
+    info.CoinValue = lpMemScript->GetAsNumber();
+    info.BonusGP = lpMemScript->GetAsNumber();
+    for(int n=0;n < MAX_CASH_SHOP_PACKAGE_PRODUCT;n++) info.ProductBaseIndex[n] = lpMemScript->GetAsNumber();
+    for(int n=0;n < MAX_CASH_SHOP_PACKAGE_PRODUCT;n++) info.ProductMainIndex[n] = lpMemScript->GetAsNumber();
+    this->SetPackageInfo(info);
+  }
+}
+</code></pre>
+          <pre><code>void CCashShop::LoadProduct(char* path) {
+  ...
+  info.BaseIndex = lpMemScript->GetNumber();
+  info.MainIndex = lpMemScript->GetAsNumber();
+  info.CoinValue = lpMemScript->GetAsNumber();
+  info.ItemIndex = lpMemScript->GetAsNumber();
+  info.ItemLevel = lpMemScript->GetAsNumber();
+  info.ItemOption1 = lpMemScript->GetAsNumber();
+  ...
+  info.ItemSocketOption5 = lpMemScript->GetAsNumber();
+  info.ItemQuantity = lpMemScript->GetAsNumber();
+  info.ItemDuration = lpMemScript->GetAsNumber();
+  this->SetProductInfo(info);
+}
+</code></pre>
+        </p>
+
+        <h6>📁 Onde Encontrar?</h6>
+        <p><code>Source MuServer Update 15/GameServer/GameServer/CashShop.cpp</code>, linhas 30-198.</p>
+
+        <h6>⏱️ Quando é Executado?</h6>
+        <p>Carregado na inicialização do GameServer (fase de scripts) para disponibilizar catálogo antes de abrir o Cash Shop.</p>
+      </div>
+    </div>
+
+    <div class="card mb-3">
+      <div class="card-body">
+        <h5 class="card-title">CCashShop::MainProc – Expiração de itens periódicos</h5>
+
+        <h6>📘 O Que é?</h6>
+        <p>Loop que percorre inventário e remove itens com <code>m_PeriodicItemTime</code> expirado.</p>
+
+        <h6>🎯 Para Que Serve?</h6>
+        <p>Garante que buffs/itens temporários do Cash Shop sejam removidos quando o tempo acaba.</p>
+
+        <h6>💻 Como Funciona?</h6>
+        <p>
+          <pre><code>for(int n=OBJECT_START_USER;n < MAX_OBJECT;n++) {
+  if(gObjIsConnectedGP(n) == 0) continue;
+  LPOBJ lpObj = &gObj[n];
+  for(int i=0;i < INVENTORY_SIZE;i++) {
+    if(lpObj->Inventory[i].IsItem() == 0) continue;
+    if(lpObj->Inventory[i].m_IsPeriodicItem == 0) continue;
+    if(lpObj->Inventory[i].m_LoadPeriodicItem == 0) continue;
+    if(lpObj->Inventory[i].m_PeriodicItemTime <= ((int)time(0))) {
+      gItemManager.InventoryDelItem(lpObj->Index,i);
+      gItemManager.GCItemDeleteSend(lpObj->Index,i,1);
+      gItemManager.UpdateInventoryViewport(lpObj->Index,i);
+    }
+  }
+}
+</code></pre>
+        </p>
+
+        <h6>📁 Onde Encontrar?</h6>
+        <p><code>Source MuServer Update 15/GameServer/GameServer/CashShop.cpp</code>, linhas 260-302.</p>
+
+        <h6>⏱️ Quando é Executado?</h6>
+        <p>No tick principal do servidor para todos os jogadores conectados, antes de permitir novas compras.</p>
+      </div>
+    </div>
+
+    <div class="card mb-3">
+      <div class="card-body">
+        <h5 class="card-title">CPcPoint::Load/CGPcPointItemBuyRecv – Catálogo e compras de PcPoint</h5>
+
+        <h6>📘 O Que é?</h6>
+        <p>Carrega itens compráveis com PcPoint e envia requisição ao DataServer quando o jogador compra pelo slot.</p>
+
+        <h6>🎯 Para Que Serve?</h6>
+        <p>Permite ao jogador adquirir itens via moeda PcPoint, com verificação de transação.</p>
+
+        <h6>💻 Como Funciona?</h6>
+        <p>
+          <pre><code>void CPcPoint::Load(char* path) {
+  CMemScript* lpMemScript = new CMemScript;
+  this->Init();
+  while(true) {
+    if(lpMemScript->GetToken() == TOKEN_END) break;
+    if(strcmp("end",lpMemScript->GetString()) == 0) break;
+    int ItemIndex = SafeGetItem(GET_ITEM(lpMemScript->GetNumber(),lpMemScript->GetAsNumber()));
+    int ItemLevel = lpMemScript->GetAsNumber();
+    int ItemDurability = lpMemScript->GetAsNumber();
+    ...
+    this->InsertItemNew(ItemIndex,ItemLevel,ItemDurability,ItemOption1,ItemOption2,ItemOption3,ItemNewOption,AncOption,JOH,OpEx,Socket1,Socket2,Socket3,Socket4,Socket5,ItemValue);
+  }
+}
+</code></pre>
+          <pre><code>void CPcPoint::CGPcPointItemBuyRecv(PMSG_PC_POINT_ITEM_BUY_RECV* lpMsg,int aIndex) {
+  if(gServerInfo.m_PcPointSwitch == 0) return;
+  LPOBJ lpObj = &gObj[aIndex];
+  if(((lpObj->PcPointTransaction[1]==0)?(lpObj->PcPointTransaction[1]++):lpObj->PcPointTransaction[1]) != 0) return;
+  SDHP_PC_POINT_ITEM_BUY_SEND pMsg; pMsg.header.set(0x19,0x01,sizeof(pMsg));
+  pMsg.index = aIndex; memcpy(pMsg.account,lpObj->Account,sizeof(pMsg.account));
+  pMsg.slot = lpMsg->slot;
+  gDataServerConnection.DataSend((BYTE*)&pMsg,pMsg.header.size);
+}
+</code></pre>
+        </p>
+
+        <h6>📁 Onde Encontrar?</h6>
+        <p><code>Source MuServer Update 15/GameServer/GameServer/PcPoint.cpp</code>, linhas 35-185.</p>
+
+        <h6>⏱️ Quando é Executado?</h6>
+        <p><code>Load</code> roda na inicialização; <code>CGPcPointItemBuyRecv</code> é disparado quando o cliente envia compra, antes de o DataServer validar e debitar.</p>
+      </div>
+    </div>
+
+    <h2>Implementação em Unreal Engine 5</h2>
+    <ol>
+      <li>Modelar <code>UCashCatalogAsset</code> (DataAsset) contendo arrays de pacotes/produtos carregados de JSON (equivalente aos scripts).</li>
+      <li>Criar <code>UCashShopComponent</code> (ActorComponent) no <code>APlayerController</code> para abrir UI, listar produtos e disparar <code>ServerBuyCashItem</code> com validações de interface.</li>
+      <li>Implementar backend Node.js/SQL com rotas <code>/cash/catalog</code> e <code>/cash/buy</code>; o cliente UE5 chama via VaRest e recebe autorização antes de spawnar o item.</li>
+      <li>Adicionar verificação de itens temporários em um <code>FTimerManager</code> no <code>AGameState</code>, removendo itens expirados no inventário do <code>ACharacter</code> (replicação usando <code>OnRep_Inventory</code>).</li>
+      <li>Para PcPoint, criar <code>UPcPointService</code> que consulta <code>/pcpoint/catalog</code> e <code>/pcpoint/buy</code>; replicar saldo em <code>APlayerState</code> e usar <code>Server</code>/<code>Client</code> RPCs para atualizar UI.</li>
+    </ol>
+
+    <h2>Passo a Passo em Unreal Engine 5</h2>
+    <ol>
+      <li>Importar catálogos JSON (pacotes/produtos) como DataAssets e expor em Blueprints para designers.</li>
+      <li>Construir UI UMG de Cash Shop com filtros de categoria e botão "Comprar" que chama <code>ServerBuyCashItem</code>; bloquear quando <code>InterfaceState != None</code>, espelhando as checagens originais.</li>
+      <li>Ao comprar, enviar requisição VaRest ao Node.js; se aprovado, spawnar item no inventário replicado e registrar tempo de expiração.</li>
+      <li>Criar tarefa periódica (<code>FTimerHandle</code>) que percorre itens replicados e remove os com timestamp vencido, emitindo notificações.</li>
+      <li>Para PcPoint, expor saldo em <code>ReplicatedUsing</code> e adicionar botão de compra por slot; chamar endpoint <code>/pcpoint/buy</code> e só concluir quando o backend responder sucesso.</li>
+      <li>Checklist: catálogo carrega em runtime; compras respeitam estado de interface; itens temporários expiram; saldo PcPoint replica; transações persistem em SQL.</li>
+    </ol>
+
+    <h2>Checklist Final</h2>
+    <ul>
+      <li>Catálogo de Cash Shop carregado de scripts/JSON e exibido no cliente.</li>
+      <li>Expiração automática de itens periódicos funcionando para todos os jogadores.</li>
+      <li>Compras de Cash Shop e PcPoint validadas via backend Node.js/SQL.</li>
+      <li>Saldo e itens replicados corretamente em UE5.</li>
+      <li>UI bloqueia ações quando o jogador está em trade/loja ou outra interface.</li>
+    </ul>
+  </div>
+</body>
+</html>
