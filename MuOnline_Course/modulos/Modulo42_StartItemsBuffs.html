@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  <title>Módulo 42 – Itens, Buffs e Moedas de Início</title>
+</head>
+<body class="bg-light">
+  <div class="container py-5">
+    <h1 class="mb-4">Módulo 42 – Itens, Buffs e Moedas de Início</h1>
+    <p class="lead">Mapeia o sistema <code>CCustomStartItem</code> que distribui itens, buffs e moedas ao criar o personagem, e descreve como recriar o fluxo na UE5 com DataTables, componentes e persistência VaRest/Node.js/SQL.</p>
+
+    <h2>Pré-requisitos</h2>
+    <ul>
+      <li>Módulo 3 – Movimento/Mapas (para posicionar o personagem inicial).</li>
+      <li>Módulo 5 – Inventário/Itens.</li>
+      <li>Módulo 9 – Persistência/DataServer.</li>
+    </ul>
+
+    <h2>Conceitos do Código Original</h2>
+
+    <div class="card mb-3">
+      <div class="card-body">
+        <h5 class="card-title">Carga de Start Items – <code>CCustomStartItem::Load</code></h5>
+
+        <h6>📘 O Que é?</h6>
+        <p>
+          Leitor de script que separa seções de itens, buffs e moedas para personagens novos.<br>
+          <pre><code>void CCustomStartItem::Load(char* path) {
+    ...
+    int section = lpMemScript-&gt;GetNumber();
+    while(true) {
+        if(section == 0) {
+            if(strcmp("end",lpMemScript-&gt;GetAsString()) == 0) break;
+            STARTITEM_ITEM_INFO info;
+            info.Class = lpMemScript-&gt;GetNumber();
+            info.ItemIndex = SafeGetItem(GET_ITEM(lpMemScript-&gt;GetAsNumber(), lpMemScript-&gt;GetAsNumber()));
+            info.ItemLevel = lpMemScript-&gt;GetAsNumber();
+            info.ItemDurability = lpMemScript-&gt;GetAsNumber();
+            info.ItemOption1 = lpMemScript-&gt;GetAsNumber();
+            ...
+            info.Duration = lpMemScript-&gt;GetAsNumber();
+            this-&gt;m_CustomStartItemItemInfo.push_back(info);
+        } else if(section == 1) {
+            if(strcmp("end",lpMemScript-&gt;GetAsString()) == 0) break;
+            STARTITEM_BUFF_INFO info;
+            info.Class = lpMemScript-&gt;GetNumber();
+            info.EffectID = lpMemScript-&gt;GetAsNumber();
+            info.Power1 = lpMemScript-&gt;GetAsNumber();
+            info.Power2 = lpMemScript-&gt;GetAsNumber();
+            info.Time = lpMemScript-&gt;GetAsNumber();
+            this-&gt;m_CustomStartItemBuffInfo.push_back(info);
+        } else if(section == 2) {
+            ...
+            STARTITEM_COIN_INFO info;
+            info.Class = lpMemScript-&gt;GetNumber();
+            info.Coin1 = lpMemScript-&gt;GetAsNumber();
+            info.Coin2 = lpMemScript-&gt;GetAsNumber();
+            info.Coin3 = lpMemScript-&gt;GetAsNumber();
+            this-&gt;m_CustomStartItemCoinInfo.push_back(info);
+        } else { break; }
+    }
+}
+</code></pre>
+        </p>
+
+        <h6>🎯 Para Que Serve?</h6>
+        <p>Define quais itens, buffs e moedas cada classe recebe automaticamente ao nascer, permitindo configuração por script.</p>
+
+        <h6>💻 Como Funciona?</h6>
+        <p>
+          O método lê o arquivo em seções (0=itens, 1=buffs, 2=moedas), criando vetores separados. Cada entrada inclui classe, índices de item, níveis de opção e duração. Os dados são utilizados por <code>SetStartItem</code> para entregar a carga inicial.
+        </p>
+
+        <h6>📁 Onde Encontrar?</h6>
+        <p><code>Source MuServer Update 15/GameServer/GameServer/CustomStartItem.cpp</code></p>
+
+        <h6>⏱️ Quando é Executado?</h6>
+        <p>Carregado na inicialização do GameServer. Chamado implicitamente antes de distribuir recompensas iniciais aos jogadores recém-criados.</p>
+      </div>
+    </div>
+
+    <div class="card mb-3">
+      <div class="card-body">
+        <h5 class="card-title">Entrega de Itens/Buffs – <code>CCustomStartItem::SetStartItem/InsertItem/InsertBuff</code></h5>
+
+        <h6>📘 O Que é?</h6>
+        <p>Fluxo que insere itens e buffs no personagem conforme a configuração carregada.</p>
+
+        <h6>🎯 Para Que Serve?</h6>
+        <p>Garante que personagens iniciam com equipamentos, efeitos temporários e moedas opcionais adequadas à classe.</p>
+
+        <h6>💻 Como Funciona?</h6>
+        <p>
+          <code>SetStartItem</code> chama <code>InsertItem</code> e <code>InsertBuff</code> (e <code>DGStartItemSaveSend</code> para persistir). <code>InsertItem</code> percorre <code>INVENTORY_WEAR_SIZE</code> e aplica apenas os registros que correspondem à classe e slot.<br>
+          <pre><code>void CCustomStartItem::SetStartItem(LPOBJ lpObj) {
+    this-&gt;InsertItem(lpObj);
+    this-&gt;InsertBuff(lpObj);
+    this-&gt;DGStartItemSaveSend(lpObj);
+}
+
+void CCustomStartItem::InsertItem(LPOBJ lpObj) {
+    for(int n=0;n<INVENTORY_WEAR_SIZE;n++) {
+        for(auto &it : this-&gt;m_CustomStartItemItemInfo) {
+            if(it.Class != lpObj-&gt;Class) continue;
+            if(it.Slot != n) continue;
+            BYTE ItemSocketOption[MAX_SOCKET_OPTION] = {0xFF,0xFF,0xFF,0xFF,0xFF};
+            // criação e inserção do item segue aqui ...
+        }
+    }
+}
+</code></pre>
+        </p>
+
+        <h6>📁 Onde Encontrar?</h6>
+        <p><code>Source MuServer Update 15/GameServer/GameServer/CustomStartItem.cpp</code></p>
+
+        <h6>⏱️ Quando é Executado?</h6>
+        <p>Chamado durante a criação do personagem ou primeiro login pós-criação, antes de liberar o controle ao jogador.</p>
+      </div>
+    </div>
+
+    <h2>Implementação em Unreal Engine 5</h2>
+    <p>Replique com DataTables para itens/buffs/moedas e componentes que aplicam configurações no primeiro login.</p>
+
+    <ol>
+      <li>Crie três DataTables (<strong>DT_StartItems</strong>, <strong>DT_StartBuffs</strong>, <strong>DT_StartCoins</strong>) com colunas equivalentes às structs originais.</li>
+      <li>Implemente <code>UStartLoadComponent</code> em <code>APlayerState</code> contendo arrays carregados dos DataTables filtrados pela classe (enum custom).</li>
+      <li>No evento de criação/primeiro login (RPC do <code>AGameMode</code>), invoque <code>GiveStartItems()</code> e <code>GiveStartBuffs()</code> no servidor, utilizando <code>UInventoryComponent</code> e <code>UEffectComponent</code> replicados.</li>
+      <li>Para moedas, exponha endpoint Node.js <code>/start/coins</code> que grava valores em SQL; use VaRest no servidor UE5 para registrar antes de conceder moedas locais.</li>
+      <li>Adicione salvaguardas para evitar execução dupla (flag <code>bStartGranted</code> persistida em SQL e replicada).</li>
+      <li>Crie blueprint utilitário que permite administradores testarem carregamento de scripts e visualizarem itens/buffs aplicados.</li>
+    </ol>
+
+    <h2>Passo a Passo em Unreal Engine 5</h2>
+    <ol>
+      <li>Definir enum de classes e mapear slots equivalentes a <code>INVENTORY_WEAR_SIZE</code>.</li>
+      <li>Importar DataTables de itens/buffs/moedas a partir do script legado.</li>
+      <li>Adicionar <code>UStartLoadComponent</code> ao <code>APlayerState</code>; carregar DataTables em <code>BeginPlay</code> (servidor).</li>
+      <li>No fluxo de criação de personagem, chamar RPC <code>ServerApplyStartLoad()</code> que aplica itens via <code>UInventoryComponent</code> e buffs via <code>UAbilitySystemComponent</code> ou equivalente.</li>
+      <li>Persistir flag e moedas via VaRest → Node.js → SQL antes de liberar o controle do personagem.</li>
+      <li>Validar em PIE e builds dedicadas que apenas novos personagens recebem o pacote inicial e que buffs respeitam duração.</li>
+    </ol>
+
+    <h2>Checklist Final</h2>
+    <ul>
+      <li>DataTables de itens/buffs/moedas importados e carregados.</li>
+      <li>Componentes aplicam carga inicial apenas uma vez por personagem.</li>
+      <li>Buffs com duração e sockets/atributos dos itens correspondem ao script.</li>
+      <li>Persistência de moedas e flag de aplicação funcionando via VaRest/Node.js/SQL.</li>
+      <li>Ferramenta de debug permite reprocessar o script e visualizar concessões.</li>
+    </ul>
+  </div>
+</body>
+</html>
