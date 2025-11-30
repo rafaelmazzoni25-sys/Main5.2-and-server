@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  <title>Módulo 6 – Eventos e Timers do Servidor</title>
+</head>
+<body class="bg-light">
+  <div class="container py-5">
+    <h1 class="mb-4">Módulo 6 – Eventos e Timers do Servidor</h1>
+    <p class="lead">Como o GameServer mantém estado com mensagens Win32, timers e atualização periódica de players e mapas.</p>
+
+    <h3>Pré-requisitos</h3>
+    <ul>
+      <li>Ter lido os módulos anteriores.</li>
+      <li>Compreender a tabela de protocolos do servidor.</li>
+    </ul>
+
+    <h2 class="mt-4">Conceitos do Código Original</h2>
+
+    <div class="card mb-3">
+      <div class="card-body">
+        <h5 class="card-title">Loop de mensagens do GameServer</h5>
+
+        <h6>📘 O Que é?</h6>
+        <p>Laço principal em <code>WinMain</code> que processa mensagens e mantém a janela/status do servidor.</p>
+
+        <h6>🎯 Para Que Serve?</h6>
+        <p>Garante que timers e sockets sejam processados pelo sistema de mensagens do Windows, mantendo a UI de monitoramento.</p>
+
+        <h6>💻 Como Funciona?</h6>
+        <p>
+          Após configurar timers e sockets, o servidor entra em <code>while(GetMessage(...))</code>, traduz e despacha mensagens, permitindo que callbacks (como <code>QueueTimerCallback</code>) sejam acionados.<br>
+          <pre><code>while(GetMessage(&msg,0,0,0) != 0) {
+    if(TranslateAccelerator(msg.hwnd,hAccelTable,&msg) == 0) {
+        TranslateMessage(&msg);
+        DispatchMessageA(&msg);
+    }
+}
+</code></pre>
+        </p>
+
+        <h6>📁 Onde Encontrar?</h6>
+        <p><code>Source MuServer Update 15/GameServer/GameServer/GameServer.cpp</code></p>
+
+        <h6>⏱️ Quando é Executado?</h6>
+        <p>Durante todo o ciclo de vida do GameServer após a inicialização em <code>WinMain</code>.</p>
+      </div>
+    </div>
+
+    <div class="card mb-3">
+      <div class="card-body">
+        <h5 class="card-title">Envio periódico para ConnectServer (<code>ConnectServerInfoSend</code>)</h5>
+
+        <h6>📘 O Que é?</h6>
+        <p>Função que monta e envia o status do GameServer para o ConnectServer via UDP.</p>
+
+        <h6>🎯 Para Que Serve?</h6>
+        <p>Atualiza o servidor de conexão com dados de população e capacidade, permitindo seleção de servidor no cliente.</p>
+
+        <h6>💻 Como Funciona?</h6>
+        <p>
+          Preenche <code>SDHP_GAME_SERVER_LIVE_SEND</code> com código do servidor, percentual de usuários e limites. Usa <code>gSocketManagerUdp.DataSend</code> para transmitir.<br>
+          <pre><code>SDHP_GAME_SERVER_LIVE_SEND pMsg;
+pMsg.header.set(0x01,sizeof(pMsg));
+pMsg.ServerCode = (WORD)gServerInfo.m_ServerCode;
+pMsg.UserTotal = (BYTE)((gObjTotalUser==0)?0:((gObjTotalUser*100)/gServerInfo.m_ServerMaxUserNumber));
+pMsg.UserCount = (WORD)gObjTotalUser;
+pMsg.MaxUserCount = (WORD)gServerInfo.m_ServerMaxUserNumber;
+gSocketManagerUdp.DataSend((BYTE*)&pMsg,pMsg.header.size);
+</code></pre>
+        </p>
+
+        <h6>📁 Onde Encontrar?</h6>
+        <p><code>Source MuServer Update 15/GameServer/GameServer/GameMain.cpp</code></p>
+
+        <h6>⏱️ Quando é Executado?</h6>
+        <p>Chamado pelo servidor conforme a lógica de timers (por exemplo, no timer de 1000 ms ou eventos de status).</p>
+      </div>
+    </div>
+
+    <div class="card mb-3">
+      <div class="card-body">
+        <h5 class="card-title">Handlers de socket auxiliares (<code>JoinServerMsgProc / DataServerMsgProc</code>)</h5>
+
+        <h6>📘 O Que é?</h6>
+        <p>Processamento de mensagens de rede para conexões com JoinServer e DataServer usando eventos WinSock.</p>
+
+        <h6>🎯 Para Que Serve?</h6>
+        <p>Garante que desconexões e dados recebidos sejam tratados corretamente, preservando a sessão dos jogadores.</p>
+
+        <h6>💻 Como Funciona?</h6>
+        <p>
+          Para cada evento WinSock (<code>FD_READ</code>, <code>FD_WRITE</code>, <code>FD_CLOSE</code>), chama métodos de <code>CConnection</code> apropriados; em <code>FD_CLOSE</code> força disconnect e derruba todos os objetos.<br>
+          <pre><code>void JoinServerMsgProc(WPARAM wParam,LPARAM lParam) {
+    switch(LOWORD(lParam)) {
+        case FD_READ: gJoinServerConnection.DataRecv(); break;
+        case FD_WRITE: gJoinServerConnection.DataSendEx(); break;
+        case FD_CLOSE: gJoinServerConnection.Disconnect(); gObjAllDisconnect(); break;
+    }
+}
+</code></pre>
+        </p>
+
+        <h6>📁 Onde Encontrar?</h6>
+        <p><code>Source MuServer Update 15/GameServer/GameServer/GameMain.cpp</code></p>
+
+        <h6>⏱️ Quando é Executado?</h6>
+        <p>Chamado pela janela do GameServer (via <code>WndProc</code>) quando o socket notifica eventos de rede.</p>
+      </div>
+    </div>
+
+    <h2 class="mt-5">Implementação em Unreal Engine 5</h2>
+    <ul>
+      <li>Substitua o loop de mensagens por <code>AGameModeBase::Tick</code> ou <code>UWorld</code> timers.</li>
+      <li>Para status de servidor, use <code>FTimerManager</code> para enviar batidas de vida a um serviço matchmaking via UDP ou HTTP.</li>
+      <li>Handlers de socket podem ser implementados com <code>FUdpSocketReceiver</code> ou <code>FSocket</code> em um <code>UGameInstanceSubsystem</code>, com callbacks de leitura.</li>
+      <li>Mantenha sincronização de estado global em classes derivadas de <code>AGameStateBase</code>.</li>
+    </ul>
+    <pre><code>// Timer em GameMode
+GetWorldTimerManager().SetTimer(HeartbeatHandle, this, &AMyGameMode::SendHeartbeat, 1.0f, true);
+
+void AMyGameMode::SendHeartbeat() {
+    // montar payload e enviar via socket/HTTP
+}
+</code></pre>
+  </div>
+    <h2 class="mt-5">Passo a Passo em Unreal Engine 5</h2>
+    <ol>
+      <li>Substituir o loop de mensagens por timers em <code>AGameModeBase</code>.</li>
+      <li>Implementar envio periódico de status via socket/HTTP em um subsystem.</li>
+      <li>Criar listeners para conexões auxiliares (Join/Data) ou mock services.</li>
+      <li>Registrar logs de eventos/timers para monitoramento.</li>
+      <li>Separar timers críticos (spawn, limpeza, reset de eventos) em <code>FTimerHandle</code> distintos para facilitar testes.</li>
+      <li>Usar <code>UE_LOG</code> + <code>PerfCounters</code> customizados para acompanhar uso de CPU/memória similar ao console do servidor.</li>
+      <li>Criar comandos de console no servidor (<code>Exec</code>) para pausar/reiniciar eventos como <code>BattleSoccer</code>.</li>
+      <li>Automatizar cenários com testes que simulam 100+ jogadores enviando pacotes para validar estabilidade do loop.</li>
+    </ol>
+    <h2 class="mt-4">Checklist Final</h2>
+    <ul>
+      <li>Timers ativos para tarefas críticas do servidor UE5.</li>
+      <li>Heartbeat do servidor enviado e confirmado por serviço externo.</li>
+      <li>Handlers de conexões auxiliares recebem e processam eventos.</li>
+      <li>Dashboard/log apresenta estado do servidor em tempo real.</li>
+    </ul>
+
+</body>
+</html>
