@@ -1,0 +1,246 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  <title>Módulo 9 – Persistência e DataServer (SQL)</title>
+</head>
+<body class="bg-light">
+  <div class="container py-4">
+    <h1 class="mb-4">Módulo 9 – Persistência e DataServer (SQL)</h1>
+    <p class="lead">Exploramos como o DataServer acessa o banco via ODBC, recebe requisições do GameServer e devolve informações completas de personagem. Adaptamos isso para UE5 usando VaRest, Node.js e um banco SQL.</p>
+
+    <h2>Pré-requisitos</h2>
+    <ul>
+      <li>Módulos 1 a 8 concluídos.</li>
+      <li>Conhecimento de ODBC/SQL e noções de serviços REST.</li>
+      <li>VaRest plugin instalado no projeto UE5.</li>
+    </ul>
+
+    <h2>Conceitos do Código Original</h2>
+
+    <div class="card mb-3">
+      <div class="card-body">
+        <h5 class="card-title">DataServerProtocolCore – despacho de pacotes de personagem</h5>
+
+        <h6>📘 O Que é?</h6>
+        <p>
+          Função central que roteia pacotes recebidos pelo DataServer para handlers específicos, incluindo operações de lista e carga de personagem.<br>
+          <pre><code>switch(head)
+{
+    case 0x01:
+        GDCharacterListRecv((SDHP_CHARACTER_LIST_RECV*)lpMsg,index);
+        break;
+    case 0x02:
+        GDCharacterCreateRecv((SDHP_CHARACTER_CREATE_RECV*)lpMsg,index);
+        break;
+    case 0x03:
+        GDCharacterDeleteRecv((SDHP_CHARACTER_DELETE_RECV*)lpMsg,index);
+        break;
+    case 0x04:
+        GDCharacterInfoRecv((SDHP_CHARACTER_INFO_RECV*)lpMsg,index);
+        break;
+}
+</code></pre>
+        </p>
+
+        <h6>🎯 Para Que Serve?</h6>
+        <p>Coordena a persistência: o GameServer envia cabeçalhos 0x01–0x04 e o DataServer responde com listas, criação, remoção ou dados completos do personagem.</p>
+
+        <h6>💻 Como Funciona?</h6>
+        <p>
+          Atualiza o tempo do socket e, dependendo do <code>head</code>, invoca o handler que consulta o banco e envia a resposta.<br>
+          <pre><code>gServerManager[index].m_PacketTime = GetTickCount();
+...
+case 0x04:
+    GDCharacterInfoRecv((SDHP_CHARACTER_INFO_RECV*)lpMsg,index);
+    break;
+</code></pre>
+        </p>
+
+        <h6>📁 Onde Encontrar?</h6>
+        <p><code>Source MuServer Update 15/DataServer/DataServer/DataServerProtocol.cpp</code></p>
+
+        <h6>⏱️ Quando é Executado?</h6>
+        <p>
+          Executa sempre que o DataServer recebe um pacote TCP do GameServer. O switch é chamado de dentro da thread de rede do DataServer assim que <code>DataRecv</code> decodifica um pacote.<br>
+          <pre><code>// DataServerProtocol.cpp
+DataServerProtocolCore(index,lpMsg[0],lpMsg,lpMsgSize);
+</code></pre>
+        </p>
+      </div>
+    </div>
+
+    <div class="card mb-3">
+      <div class="card-body">
+        <h5 class="card-title">CQueryManager – conexão ODBC e execução de queries</h5>
+
+        <h6>📘 O Que é?</h6>
+        <p>
+          Classe singleton do DataServer que gerencia handles ODBC e executa queries parametrizadas com tratamento de erro e reconexão.<br>
+          <pre><code>bool CQueryManager::Connect(char* odbc,char* user,char* pass) {
+    strcpy_s(this->m_odbc,odbc);
+    if(SQL_SUCCEEDED(SQLAllocHandle(SQL_HANDLE_DBC,this->m_SQLEnvironment,&this->m_SQLConnection)) == 0)
+        return 0;
+    if(SQL_SUCCEEDED(SQLConnect(this->m_SQLConnection,(SQLCHAR*)this->m_odbc,SQL_NTS,(SQLCHAR*)this->m_user,SQL_NTS,(SQLCHAR*)this->m_pass,SQL_NTS)) == 0)
+        return 0;
+    if(SQL_SUCCEEDED(SQLAllocHandle(SQL_HANDLE_STMT,this->m_SQLConnection,&this->m_STMT)) == 0)
+        return 0;
+    else return 1;
+}
+</code></pre>
+        </p>
+
+        <h6>🎯 Para Que Serve?</h6>
+        <p>Abstrai o acesso ao banco: abre conexão, executa <code>ExecQuery</code>, faz bind de colunas e reconecta em caso de falha, alimentando todos os handlers do DataServer.</p>
+
+        <h6>💻 Como Funciona?</h6>
+        <p>
+          Recebe uma query formatada, executa com <code>SQLExecDirect</code> e mapeia resultados em buffers de colunas; se houver erro, chama <code>Diagnostic</code> e tenta reconectar em códigos <code>08S01</code>.<br>
+          <pre><code>bool CQueryManager::ExecQuery(char* query,...) {
+    vsprintf_s(buff,query,arg);
+    if(SQL_SUCCEEDED((result=SQLExecDirect(this->m_STMT,(SQLCHAR*)buff,SQL_NTS))) == 0 && result != SQL_NO_DATA) {
+        this->Diagnostic(buff);
+        return 0;
+    }
+    SQLRowCount(this->m_STMT,&this->m_RowCount);
+    SQLNumResultCols(this->m_STMT,&this->m_ColCount);
+    for(int n=0;n < this->m_ColCount;n++) {
+        SQLDescribeCol(this->m_STMT,(n+1),this->m_SQLColName[n],...);
+        SQLBindCol(this->m_STMT,(n+1),SQL_C_CHAR,this->m_SQLData[n],sizeof(this->m_SQLData[n]),&this->m_SQLDataLen[n]);
+    }
+    return 1;
+}
+</code></pre>
+        </p>
+
+        <h6>📁 Onde Encontrar?</h6>
+        <p><code>Source MuServer Update 15/DataServer/DataServer/QueryManager.cpp</code></p>
+
+        <h6>⏱️ Quando é Executado?</h6>
+        <p>
+          Chamado por todos os handlers de persistência (ex.: <code>GDCharacterInfoRecv</code>) antes de montar respostas. A conexão inicial ocorre no boot do DataServer e permanece enquanto o processo estiver ativo.</p>
+      </div>
+    </div>
+
+    <div class="card mb-3">
+      <div class="card-body">
+        <h5 class="card-title">GDCharacterInfoRecv – carga completa do personagem</h5>
+
+        <h6>📘 O Que é?</h6>
+        <p>
+          Handler que consulta a tabela <code>Character</code> e retorna ao GameServer todos os atributos, inventário, quests e resets de um personagem.<br>
+          <pre><code>pMsg.result = ((CheckTextSyntax(lpMsg->name,sizeof(lpMsg->name))==0)?0:1);
+if(pMsg.result == 0 || gQueryManager.ExecQuery("SELECT * FROM Character WHERE AccountID='%s' AND Name='%s'",lpMsg->account,lpMsg->name) == 0 || gQueryManager.Fetch() == SQL_NO_DATA) {
+    pMsg.result = 0;
+} else {
+    pMsg.Level = (WORD)gQueryManager.GetAsInteger("cLevel");
+    pMsg.Class = (BYTE)gQueryManager.GetAsInteger("Class");
+    gQueryManager.GetAsBinary("Inventory",pMsg.Inventory[0],sizeof(pMsg.Inventory));
+    pMsg.Map = (BYTE)gQueryManager.GetAsInteger("MapNumber");
+    pMsg.X = (BYTE)gQueryManager.GetAsInteger("MapPosX");
+    pMsg.Y = (BYTE)gQueryManager.GetAsInteger("MapPosY");
+    gQueryManager.ExecQuery("UPDATE AccountCharacter SET GameIDC='%s' WHERE Id='%s'",lpMsg->name,lpMsg->account);
+}
+gSocketManager.DataSend(index,(BYTE*)&pMsg,sizeof(pMsg));
+</code></pre>
+        </p>
+
+        <h6>🎯 Para Que Serve?</h6>
+        <p>Entrega ao GameServer um snapshot completo do personagem selecionado, validando nome e preenchendo campos de estatística, posição, inventário e efeitos ativos.</p>
+
+        <h6>💻 Como Funciona?</h6>
+        <p>
+          Valida sintaxe do nome, executa SELECT, converte colunas binárias (inventário, skill, quests) e busca resets adicionais com stored procedures (<code>WZ_GetResetInfo</code> e <code>WZ_GetMasterResetInfo</code>). Atualiza o campo <code>GameIDC</code> antes de enviar via <code>gSocketManager.DataSend</code>.<br>
+          <pre><code>gQueryManager.ExecQuery("EXEC WZ_GetResetInfo '%s','%s'",lpMsg->account,lpMsg->name);
+pMsg.Reset = gQueryManager.GetAsInteger("Reset");
+...
+gSocketManager.DataSend(index,(BYTE*)&pMsg,sizeof(pMsg));
+</code></pre>
+        </p>
+
+        <h6>📁 Onde Encontrar?</h6>
+        <p><code>Source MuServer Update 15/DataServer/DataServer/DataServerProtocol.cpp</code></p>
+
+        <h6>⏱️ Quando é Executado?</h6>
+        <p>
+          Invocado quando o GameServer envia cabeçalho <code>0x04</code> para solicitar o personagem escolhido na seleção. O envio de volta acontece imediatamente após preencher <code>pMsg</code>, ainda dentro do thread de rede do DataServer.</p>
+      </div>
+    </div>
+
+    <h2>Implementação em Unreal Engine 5</h2>
+    <p>Para reproduzir a persistência em UE5 com VaRest e Node.js, separe a lógica de banco em um serviço web (Node) que expõe endpoints equivalentes aos handlers do DataServer.</p>
+    <ul>
+      <li><strong>Node.js + SQL</strong>: crie um serviço Express que execute queries SQL (ex.: <code>mysql2</code> ou <code>mssql</code>) para carregar personagem, inventário e resets.</li>
+      <li><strong>VaRest no UE5</strong>: use <code>UVaRestRequestJSON</code> para chamar os endpoints e popular um <code>USTRUCT</code> com os campos de personagem.</li>
+      <li><strong>Replicação/segurança</strong>: mantenha a validação de nome/conta no backend (equivalente a <code>CheckTextSyntax</code>) e somente aplique mudanças no GameState após resposta positiva.</li>
+    </ul>
+    <pre><code class="language-cpp">USTRUCT(BlueprintType)
+struct FCharacterSnapshot {
+    GENERATED_BODY()
+    UPROPERTY(BlueprintReadOnly) int32 Level;
+    UPROPERTY(BlueprintReadOnly) int32 Class;
+    UPROPERTY(BlueprintReadOnly) TArray<uint8> Inventory;
+    UPROPERTY(BlueprintReadOnly) FVector2D Position;
+};
+
+UCLASS()
+class UMuPersistenceComponent : public UActorComponent {
+    GENERATED_BODY()
+public:
+    UFUNCTION(BlueprintCallable)
+    void RequestCharacter(const FString& Account, const FString& Name) {
+        auto* Request = UVaRestLibrary::ConstructVaRestRequest(this, EVaRestRequestVerb::GET, EVaRestRequestContentType::json);
+        Request->SetURL(FString::Printf(TEXT("http://localhost:3000/character/info?account=%s&name=%s"), *Account, *Name));
+        Request->OnRequestComplete.AddDynamic(this, &UMuPersistenceComponent::OnCharacterResponse);
+        Request->ProcessRequest();
+    }
+private:
+    UFUNCTION()
+    void OnCharacterResponse(UVaRestRequestJSON* Req, bool bSuccess) {
+        if(!bSuccess) return;
+        FCharacterSnapshot Snapshot;
+        Snapshot.Level = Req->GetResponseObject()->GetIntegerField("Level");
+        Snapshot.Class = Req->GetResponseObject()->GetIntegerField("Class");
+        // preencher inventário e posição conforme JSON
+    }
+};
+</code></pre>
+    <pre><code class="language-js">// Node.js (Express) – rota equivalente a GDCharacterInfoRecv
+app.get('/character/info', async (req,res) => {
+  const {account, name} = req.query;
+  const [rows] = await pool.query('SELECT * FROM Character WHERE AccountID=? AND Name=?',[account,name]);
+  if(!rows.length) return res.status(404).json({result:0});
+  const row = rows[0];
+  res.json({
+    result: 1,
+    Level: row.cLevel,
+    Class: row.Class,
+    Map: row.MapNumber,
+    MapPosX: row.MapPosX,
+    MapPosY: row.MapPosY,
+    Inventory: row.Inventory,
+    Reset: row.Reset
+  });
+});
+</code></pre>
+
+    <h2>Passo a Passo em Unreal Engine 5</h2>
+    <ol>
+      <li>Configure um serviço Node.js com conexão SQL que exponha endpoints para lista/criação/carga de personagem (espelhando os cabeçalhos 0x01–0x04).</li>
+      <li>No UE5, adicione o plugin VaRest e crie um <code>UActorComponent</code> (servidor dedicado ou cliente) responsável por fazer as requisições HTTP.</li>
+      <li>Mapeie o JSON retornado para structs UE (<code>FCharacterSnapshot</code>) e aplique os dados no <code>AGameState</code> ou diretamente no <code>ACharacter</code>.</li>
+      <li>Implemente cache local/segurança equivalente aos checks de <code>CheckTextSyntax</code> e bloqueio de slots (<code>GameIDC</code>).</li>
+      <li>Garanta que a gravação (reset, inventário) use endpoints POST/PUT que executem procedures equivalentes a <code>WZ_GetResetInfo</code> e atualizações de inventário.</li>
+    </ol>
+
+    <h2>Checklist Final</h2>
+    <ul>
+      <li>Node.js expõe endpoints REST que correspondem aos handlers do DataServer (lista, criação, deleção e carga de personagem).</li>
+      <li>VaRest no UE5 consegue solicitar e receber dados completos do personagem, preenchendo estatísticas e inventário.</li>
+      <li>Consultas SQL reproduzem campos e procedimentos usados pelo DataServer original (inventário binário, resets, posição).</li>
+    </ul>
+  </div>
+</body>
+</html>

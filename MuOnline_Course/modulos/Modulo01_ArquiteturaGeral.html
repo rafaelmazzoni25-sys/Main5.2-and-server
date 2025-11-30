@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  <title>Módulo 1 – Arquitetura e Bootstrap</title>
+</head>
+<body class="bg-light">
+  <div class="container py-4">
+    <h1 class="mb-4">Módulo 1 – Arquitetura e Bootstrap</h1>
+    <p class="lead">Mapeamos os pontos de entrada e inicialização do cliente (Main 5.2) e do GameServer (Update 15), preparando o terreno para recriar a mesma organização em UE5.</p>
+
+    <h2>Pré-requisitos</h2>
+    <ul>
+      <li>Leitura do index do curso.</li>
+      <li>Noções de C++ 17 e ciclo de vida de aplicações Win32.</li>
+      <li>Familiaridade com o modelo de subsistemas de um jogo cliente/servidor.</li>
+    </ul>
+
+    <h2>Conceitos do Código Original</h2>
+
+    <div class="card mb-3">
+      <div class="card-body">
+        <h5 class="card-title">Bootstrap Win32 e globais – Winmain.cpp</h5>
+
+        <h6>📘 O Que é?</h6>
+        <p>
+          Configuração inicial do cliente, definindo dependências e globais que sustentam a janela, OpenGL e áudio.<br>
+          <pre><code>#include "UIWindows.h"
+#include "UIManager.h"
+#include "ZzzOpenglUtil.h"
+// ...
+CUIMercenaryInputBox * g_pMercenaryInputBox = NULL;
+CUIManager* g_pUIManager = NULL;
+HGLRC g_hRC = NULL;
+CTimer* g_pTimer = NULL; // performance counter.</code></pre>
+        </p>
+
+        <h6>🎯 Para Que Serve?</h6>
+        <p>Centraliza os singletons/globais do cliente e prepara subsistemas gráficos, de interface e áudio antes do loop principal.</p>
+
+        <h6>💻 Como Funciona?</h6>
+        <p>
+          O arquivo declara variáveis globais e utilitários (MP3, checksum, destruição de janela) usados ao longo do cliente.<br>
+          <pre><code>void StopMp3(char *Name, BOOL bEnforce) {
+    if(!m_MusicOnOff && !bEnforce) return;
+    if(Mp3FileName[0] != NULL) {
+        if(strcmp(Name, Mp3FileName) == 0) {
+            wzAudioStop();
+            Mp3FileName[0] = NULL;
+        }
+    }
+}</code></pre>
+          <pre><code>void DestroyWindow() {
+    leaf::CRegKey regkey;
+    regkey.SetKey(leaf::CRegKey::_HKEY_CURRENT_USER, "SOFTWARE\\Webzen\\Mu\\Config");
+    regkey.WriteDword("VolumeLevel", g_pOption->GetVolumeLevel());
+    CUIMng::Instance().Release();
+    if(g_hFont) { /* libera fontes e contexto OpenGL */ }
+}</code></pre>
+        </p>
+
+        <h6>📁 Onde Encontrar?</h6>
+        <p><code>Source Main 5.2/source/Winmain.cpp</code></p>
+
+        <h6>⏱️ Quando é Executado?</h6>
+        <p>
+          Executado na inicialização do executável (WinMain) e durante o encerramento do cliente. As rotinas de áudio são chamadas sempre que uma música muda; <code>DestroyWindow</code> é acionado no fechamento para salvar configurações e liberar contextos.<br>
+          <pre><code>// Winmain.cpp (trecho de destruição)
+void DestroyWindow() {
+    // salva volume e libera UI/fonts
+}</code></pre>
+        </p>
+      </div>
+    </div>
+
+    <div class="card mb-3">
+      <div class="card-body">
+        <h5 class="card-title">Inicialização do GameServer – GameMainInit</h5>
+
+        <h6>📘 O Que é?</h6>
+        <p>
+          Rotina de boot do GameServer que valida mutex, inicializa tabelas, monstros e conexões com JoinServer/DataServer.<br>
+          <pre><code>void GameMainInit(HWND hwnd) {
+    if(CreateMutex(0,0,gServerInfo.m_ServerMutex)==0 || GetLastError()==ERROR_ALREADY_EXISTS) {
+        ErrorMessageBox("Could not open GameServer");
+        return;
+    }
+    gObjInit();
+    InitHackCheck();
+    InitBattleSoccer();
+    gServerInfo.ReadInit();
+    gObjSetExperienceTable();
+    gMonsterManager.SetMonsterData();
+    gJoinServerConnection.Init(hwnd,JoinServerProtocolCore);
+    gDataServerConnection.Init(hwnd,DataServerProtocolCore);
+}</code></pre>
+        </p>
+
+        <h6>🎯 Para Que Serve?</h6>
+        <p>Garante exclusividade do processo, carrega configuração, popula tabelas de experiência e monstros, e liga sockets com os servidores auxiliares.</p>
+
+        <h6>💻 Como Funciona?</h6>
+        <p>
+          Após validar mutex, chama inicializações de objetos e sistemas de segurança, lê configuração, monta tabelas e prepara conexões TCP.<br>
+          <pre><code>gObjInit();
+InitHackCheck();
+gServerInfo.ReadInit();
+gJoinServerConnection.Init(hwnd,JoinServerProtocolCore);
+</code></pre>
+        </p>
+
+        <h6>📁 Onde Encontrar?</h6>
+        <p><code>Source MuServer Update 15/GameServer/GameServer/GameMain.cpp</code></p>
+
+        <h6>⏱️ Quando é Executado?</h6>
+        <p>
+          Chamado no início do processo do GameServer (antes do loop de mensagens). É invocado pela criação da janela principal e executa antes de qualquer processamento de pacote.<br>
+          <pre><code>// GameMain.cpp
+void GameMainInit(HWND hwnd);</code></pre>
+        </p>
+      </div>
+    </div>
+
+    <h2>Implementação em Unreal Engine 5</h2>
+    <p>Em UE5, centralize a inicialização em um <code>UGameInstance</code> customizado para cliente e em um <code>AGameModeBase</code> para o servidor dedicado.</p>
+    <ul>
+      <li><strong>Globais do cliente</strong>: criar um <code>UGameInstance</code> que guarda singletons (UI Manager, timer) usando <code>UPROPERTY()</code> para gerenciamento automático.</li>
+      <li><strong>Bootstrap de servidor</strong>: em um servidor dedicado UE5, usar <code>AGameModeBase::StartPlay</code> para carregar tabelas (Data Assets) e abrir conexões a serviços externos.</li>
+    </ul>
+    <pre><code class="language-cpp">UCLASS()
+class UMuGameInstance : public UGameInstance {
+    GENERATED_BODY()
+public:
+    virtual void Init() override {
+        Super::Init();
+        // Inicializar sistema de áudio e UI
+    }
+    virtual void Shutdown() override {
+        // Salvar preferências e liberar recursos
+    }
+};
+
+UCLASS()
+class AMuServerMode : public AGameModeBase {
+    GENERATED_BODY()
+public:
+    virtual void StartPlay() override {
+        Super::StartPlay();
+        // Carregar dados e iniciar conexões (sockets ou HTTP)
+    }
+};</code></pre>
+
+    <h2>Passo a Passo em Unreal Engine 5</h2>
+    <ol>
+      <li>Criar um projeto C++ em UE5 e adicionar uma classe derivada de <code>UGameInstance</code> para conter referências globais.</li>
+      <li>Registrar a classe no Project Settings &gt; Maps &amp; Modes.</li>
+      <li>Adicionar um <code>AGameModeBase</code> customizado para o servidor dedicado (ou modo listen) que inicializa tabelas e conexões.</li>
+      <li>Implementar carga de configurações (equivalente a <code>gServerInfo.ReadInit()</code>) usando Data Assets ou arquivos JSON.</li>
+      <li>Configurar um subsystem de áudio para tocar trilhas de fundo, com checagens de estado similares a <code>PlayMp3/StopMp3</code>.</li>
+    </ol>
+
+    <h2>Checklist Final</h2>
+    <ul>
+      <li>Cliente UE5 inicializa UI, áudio e configurações sem recursos não inicializados.</li>
+      <li>Servidor UE5 executa uma rotina de boot que valida exclusividade e carrega dados.</li>
+      <li>Estrutura de classes UE5 mapeia claramente os papéis de Winmain.cpp e GameMain.cpp.</li>
+    </ul>
+  </div>
+</body>
+</html>

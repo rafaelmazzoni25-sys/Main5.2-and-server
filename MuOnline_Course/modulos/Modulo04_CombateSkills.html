@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  <title>Módulo 4 – Combate e Skills</title>
+</head>
+<body class="bg-light">
+  <div class="container py-5">
+    <h1 class="mb-4">Módulo 4 – Combate e Skills</h1>
+    <p class="lead">Checagens de ataque, regras de PvP e despacho de skills entre cliente e servidor.</p>
+
+    <h3>Pré-requisitos</h3>
+    <ul>
+      <li>Ter lido os módulos 1 a 3.</li>
+      <li>Entender o fluxo de pacotes do servidor (ProtocolCore).</li>
+    </ul>
+
+    <h2 class="mt-4">Conceitos do Código Original</h2>
+
+    <div class="card mb-3">
+      <div class="card-body">
+        <h5 class="card-title">Servidor – Validação de ataque (<code>CAttack::Attack</code>)</h5>
+
+        <h6>📘 O Que é?</h6>
+        <p>Função central que processa um ataque entre atacante e alvo, aplicando checagens de PvP, mapa e teleporte.</p>
+
+        <h6>🎯 Para Que Serve?</h6>
+        <p>Garante que somente ataques válidos avancem para cálculo de dano/efeitos, evitando exploits de posição ou estado.</p>
+
+        <h6>💻 Como Funciona?</h6>
+        <p>
+          A função aborta se atacante e alvo são o mesmo índice ou não estão conectados. Também verifica se estão no mesmo mapa e se o atacante não está em teleporte. Em PvP, valida flags <code>DisablePvp</code> e, em duelos, zera o flag com aviso. Só depois disso o dano é calculado (trecho omitido).<br>
+          <pre><code>bool CAttack::Attack(LPOBJ lpObj,LPOBJ lpTarget,CSkill* lpSkill,bool send,BYTE flag,int damage,int count,bool combo) {
+    if(lpObj->Index == lpTarget->Index) return 0;
+    if(lpObj->Type == OBJECT_USER && gObjIsConnectedGP(lpObj->Index) == 0) return 0;
+    if(lpTarget->Type == OBJECT_USER && gObjIsConnectedGP(lpTarget->Index) == 0) return 0;
+    if(lpObj->Map != lpTarget->Map || lpObj->Teleport == 2) return 0;
+    if(lpObj->Type == OBJECT_USER && lpTarget->Type == OBJECT_USER) {
+        if(lpObj->DisablePvp == 1 || lpTarget->DisablePvp == 1) { ... }
+    }
+    ...
+}
+</code></pre>
+        </p>
+
+        <h6>📁 Onde Encontrar?</h6>
+        <p><code>Source MuServer Update 15/GameServer/GameServer/Attack.cpp</code></p>
+
+        <h6>⏱️ Quando é Executado?</h6>
+        <p>Invocado por handlers de pacotes de ataque ou skills (ex.: <code>gAttack.CGAttackRecv</code>) dentro de <code>ProtocolCore</code>.</p>
+      </div>
+    </div>
+
+    <div class="card mb-3">
+      <div class="card-body">
+        <h5 class="card-title">Servidor – Despacho de pacotes de combate (<code>ProtocolCore</code>)</h5>
+
+        <h6>📘 O Que é?</h6>
+        <p>Mapa de comandos que direciona cabeçalhos de ataque/skill para os sistemas corretos.</p>
+
+        <h6>🎯 Para Que Serve?</h6>
+        <p>Conecta o input de rede aos sistemas de cálculo de dano e duração de skills.</p>
+
+        <h6>💻 Como Funciona?</h6>
+        <p>
+          No <code>switch</code> principal, <code>PROTOCOL_CODE2</code> chama <code>gAttack.CGAttackRecv</code>; <code>0x19</code> aciona <code>gSkillManager.CGSkillAttackRecv</code>; <code>0x1B</code> cancela skills e <code>0x1E</code> trata skills de duração.<br>
+          <pre><code>case PROTOCOL_CODE2:
+    gAttack.CGAttackRecv((PMSG_ATTACK_RECV*)lpMsg,aIndex);
+    break;
+case 0x19:
+    gSkillManager.CGSkillAttackRecv((PMSG_SKILL_ATTACK_RECV*)lpMsg,aIndex);
+    break;
+case 0x1B:
+    gSkillManager.CGSkillCancelRecv((PMSG_SKILL_CANCEL_RECV*)lpMsg,aIndex);
+    break;
+case 0x1E:
+    gSkillManager.CGDurationSkillAttackRecv((PMSG_DURATION_SKILL_ATTACK_RECV*)lpMsg,aIndex);
+    break;
+</code></pre>
+        </p>
+
+        <h6>📁 Onde Encontrar?</h6>
+        <p><code>Source MuServer Update 15/GameServer/GameServer/Protocol.cpp</code></p>
+
+        <h6>⏱️ Quando é Executado?</h6>
+        <p>Para cada pacote de ataque/skill recebido no socket principal do servidor.</p>
+      </div>
+    </div>
+
+    <h2 class="mt-5">Implementação em Unreal Engine 5</h2>
+    <ul>
+      <li>Use <code>ACharacter</code> e <code>UAbilitySystemComponent</code> (ou RPCs customizados) para comandos de ataque.</li>
+      <li>Validações de PvP e mapa podem residir no <code>AGameModeBase</code> ou em um <code>UActorComponent</code> server-only.</li>
+      <li>Substitua o switch de protocolos por RPCs marcados como <code>Server</code> e <code>Reliable</code>/<code>Unreliable</code> conforme o tipo de ação.</li>
+      <li>Use o GAS (Gameplay Ability System) para skills de duração e cancelamento.</li>
+    </ul>
+    <pre><code>UFUNCTION(Server, Reliable)
+void ServerPerformAttack(AActor* Target);
+
+void AMyCharacter::ServerPerformAttack_Implementation(AActor* Target) {
+    if(!CanAttack(Target)) return;
+    // aplicar dano e replicar efeitos
+}
+</code></pre>
+  </div>
+    <h2 class="mt-5">Passo a Passo em Unreal Engine 5</h2>
+    <ol>
+      <li>Criar um componente de combate server-only para validar alvos (mapa, PvP) antes de aplicar dano.</li>
+      <li>Mapear comandos de ataque/skill para RPCs no <code>APlayerController</code> ou <code>AbilitySystemComponent</code>.</li>
+      <li>Implementar cancelamento/skills de duração com tarefas do GAS ou timers.</li>
+      <li>Replicar resultados (dano, efeitos) para clientes afetados.</li>
+    </ol>
+    <h2 class="mt-4">Checklist Final</h2>
+    <ul>
+      <li>Servidor UE5 rejeita ataques inválidos (alvo igual, mapa diferente, teleporte).</li>
+      <li>Skills são despachadas para lógica correta e podem ser canceladas.</li>
+      <li>Feedback visual/sonoro é replicado para todos os clientes relevantes.</li>
+      <li>Logs confirmam entrada de comandos de combate e aplicação de dano.</li>
+    </ul>
+
+</body>
+</html>
