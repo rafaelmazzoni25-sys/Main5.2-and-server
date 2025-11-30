@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  <title>Módulo 25 – Chaos Castle</title>
+</head>
+<body class="bg-light">
+  <div class="container py-5">
+    <h1 class="mb-4">Módulo 25 – Chaos Castle</h1>
+    <p class="lead">Reconstrua o evento Chaos Castle: carregamento de horários, ciclo de estados por nível e recompensa de sobrevivente.</p>
+
+    <h2>Pré-requisitos</h2>
+    <ul>
+      <li>Módulo 2 – Rede e Autenticação</li>
+      <li>Módulo 6 – Eventos e Timers do Servidor</li>
+      <li>Módulo 12 – IA de Monstros</li>
+      <li>Conhecimentos de UE5: GameMode, GameState, Level Streaming, RPCs.</li>
+    </ul>
+
+    <h2>Conceitos do Código Original</h2>
+
+    <div class="card mb-3">
+      <div class="card-body">
+        <h5 class="card-title">CChaosCastle::Load – Horários e tabelas de XP/Recompensa</h5>
+
+        <h6>📘 O Que é?</h6>
+        <p>Lê <code>ChaosCastle.dat</code> e popula tempos de aviso, início, fechamento e tabelas de experiência/reward por nível.<br>
+        <pre><code>void CChaosCastle::Load(char* path) {
+    CMemScript* lpMemScript = new CMemScript;
+    if(lpMemScript->SetBuffer(path) == 0) { ... return; }
+    this->m_ChaosCastleStartTime.clear();
+    memset(this->m_ChaosCastleExperienceTable,0,sizeof(...));
+    while(true) {
+        if(lpMemScript->GetToken() == TOKEN_END) break;
+        int section = lpMemScript->GetNumber();
+        while(true) {
+            if(section == 0) { this->m_WarningTime = lpMemScript->GetNumber(); this->m_NotifyTime = lpMemScript->GetAsNumber(); this->m_EventTime = lpMemScript->GetAsNumber(); this->m_CloseTime = lpMemScript->GetAsNumber(); }
+            else if(section == 1) { CHAOS_CASTLE_START_TIME info; info.Year = lpMemScript->GetNumber(); info.Month = lpMemScript->GetAsNumber(); info.Day = lpMemScript->GetAsNumber(); info.DayOfWeek = lpMemScript->GetAsNumber(); info.Hour = lpMemScript->GetAsNumber(); info.Minute = lpMemScript->GetAsNumber(); info.Second = lpMemScript->GetAsNumber(); this->m_ChaosCastleStartTime.push_back(info); }
+            else if(section == 2) { int level = lpMemScript->GetNumber(); this->m_ChaosCastleExperienceTable[level][0] = lpMemScript->GetAsNumber(); this->m_ChaosCastleExperienceTable[level][1] = lpMemScript->GetAsNumber(); }
+            else if(section == 3) { int level = lpMemScript->GetNumber(); this->m_ChaosCastleRewardValue[level][0] = lpMemScript->GetAsNumber(); this->m_ChaosCastleRewardValue[level][1] = lpMemScript->GetAsNumber(); this->m_ChaosCastleRewardValue[level][2] = lpMemScript->GetAsNumber(); }
+            else { break; }
+        }
+    }
+}</code></pre></p>
+
+        <h6>🎯 Para Que Serve?</h6>
+        <p>Configura tempo de preparação, início e fechamento do evento e parametriza quanto XP/prêmio cada nível concede ao vencedor.</p>
+
+        <h6>💻 Como Funciona?</h6>
+        <p>Processa seções numéricas do script, convertendo-as para listas internas de horários e tabelas de XP/reward, depois usadas no ciclo do evento.</p>
+
+        <h6>📁 Onde Encontrar?</h6>
+        <p><code>Source MuServer Update 15/GameServer/GameServer/ChaosCastle.cpp</code></p>
+
+        <h6>⏱️ Quando é Executado?</h6>
+        <p>Na inicialização do GameServer, durante o carregamento dos eventos programados.</p>
+      </div>
+    </div>
+
+    <div class="card mb-3">
+      <div class="card-body">
+        <h5 class="card-title">CChaosCastle::MainProc – Ciclo de estados por nível</h5>
+
+        <h6>📘 O Que é?</h6>
+        <p>Loop que percorre os 7 níveis, verifica tempo decorrido e avança estados (Blank/Empty/Stand/Start/Clean), controlando entrada e vitória.<br>
+        <pre><code>void CChaosCastle::MainProc() {
+    for(int n=0;n < MAX_CC_LEVEL;n++) {
+        CHAOS_CASTLE_LEVEL* lpLevel = &this->m_ChaosCastleLevel[n];
+        DWORD elapsed = GetTickCount()-lpLevel->TickCount;
+        if(elapsed < 1000) { continue; }
+        lpLevel->TickCount = GetTickCount();
+        switch(lpLevel->State) {
+            case CC_STATE_BLANK: this->ProcState_BLANK(lpLevel); break;
+            case CC_STATE_EMPTY: this->ProcState_EMPTY(lpLevel); break;
+            case CC_STATE_STAND: this->ProcState_STAND(lpLevel); break;
+            case CC_STATE_START: this->ProcState_START(lpLevel); break;
+            case CC_STATE_CLEAN: this->ProcState_CLEAN(lpLevel); break;
+        }
+    }
+}</code></pre></p>
+
+        <h6>🎯 Para Que Serve?</h6>
+        <p>Atualiza temporizadores de cada nível, libera entrada na fase Stand, inicia combate na fase Start e encerra com limpeza/recompensa.</p>
+
+        <h6>💻 Como Funciona?</h6>
+        <p>Usa <code>TickCount</code> para cadenciar em 1s; delega para <code>ProcState_*</code> que verificam limites de players/monstros e aplicam recompensas conforme tabelas carregadas.</p>
+
+        <h6>📁 Onde Encontrar?</h6>
+        <p><code>Source MuServer Update 15/GameServer/GameServer/ChaosCastle.cpp</code></p>
+
+        <h6>⏱️ Quando é Executado?</h6>
+        <p>No loop principal do GameServer (ex.: <code>User.cpp</code> chama <code>gChaosCastle.MainProc()</code> dentro de <code>GameServerLoop</code>, seguindo a cadência de timers).</p>
+      </div>
+    </div>
+
+    <h2>Implementação em Unreal Engine 5</h2>
+    <ul>
+      <li>Estruturas equivalentes: <code>AGameModeBase</code> para controlar estados por nível; <code>AGameStateBase</code> replicado com arrays de tempos/premiações; <code>APlayerController</code> para pedidos de entrada; <code>ULevelStreamingDynamic</code> para instanciar arenas por nível.</li>
+      <li>Carregue horários e prêmios via <code>DataTable</code> (CSV/JSON) e aplique-os a um componente gerenciador no GameMode.</li>
+      <li>Implemente RPC <code>ServerRequestEnterChaos(int32 Level)</code> validando tickets, nível e lotação; em caso de sucesso, teleporte o jogador para o sub-level correspondente.</li>
+      <li>Cadencie estados com <code>FTimerHandle</code> e repasse via multicast <code>ClientUpdateChaosState(Level, State)</code> para UI.</li>
+      <li>Ao finalizar, distribua XP/itens replicados e registre resultado via VaRest em um endpoint Node.js/SQL para ranking/log.</li>
+    </ul>
+
+    <h2>Passo a Passo em Unreal Engine 5</h2>
+    <ol>
+      <li>Definir <code>FChaosCastleConfig</code> (horas, tempos, XP, prêmios) e criar DataTable.</li>
+      <li>Criar <code>AChaosCastleGameMode</code> com vetor de estados; iniciar timers de Stand/Start/Clean baseados na config.</li>
+      <li>Adicionar componente de inventário que valide ticket do nível e exponha função para consumo.</li>
+      <li>Implementar <code>ServerRequestEnterChaos</code> e teleporte para sub-level usando <code>ServerTravel</code> ou <code>TeleportTo</code> em arenas carregadas por streaming.</li>
+      <li>Replicar contagem de jogadores/monstros via GameState; atualizar UI em tempo real.</li>
+      <li>Aplicar recompensa e XP via GameMode ao detectar vencedor; chamar VaRest para registrar resultado em Node.js/SQL.</li>
+      <li>Testar fluxo completo: aviso, abertura, início, vitória, fechamento e limpeza.</li>
+    </ol>
+
+    <h2>Checklist Final</h2>
+    <ul>
+      <li>Tempos de aviso/início/fechamento iguais ao <code>ChaosCastle.dat</code> carregados e aplicados.</li>
+      <li>Entrada validada por nível com ticket consumido e teleporte correto.</li>
+      <li>Estados Stand/Start/Clean replicados para UI e sincronizados entre clientes.</li>
+      <li>Recompensas de XP/itens distribuídas conforme tabelas e registradas em backend Node.js/SQL via VaRest.</li>
+      <li>Limpeza da arena executada e pronta para o próximo ciclo.</li>
+    </ul>
+  </div>
+</body>
+</html>

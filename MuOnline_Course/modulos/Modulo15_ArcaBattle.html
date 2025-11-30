@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  <title>Módulo 15 – Arca Battle (Obeliscos e Estados)</title>
+</head>
+<body class="bg-light">
+  <div class="container py-5">
+    <h1 class="mb-4">Módulo 15 – Arca Battle (Obeliscos e Estados)</h1>
+    <p class="lead">Cobrimos o evento Arca Battle do GameServer, incluindo pacotes, leitura de script, máquina de estados e como espelhar o ciclo em Unreal Engine 5.</p>
+
+    <h2>Pré-requisitos</h2>
+    <ul>
+      <li>Concluir módulos 6, 8 e 12 para entender timers do servidor, roteamento de pacotes e movimentação de monstros.</li>
+      <li>Noções de sistemas de estado em UE5 (GameMode, GameState) e timers em <code>FTimerManager</code>.</li>
+      <li>Capacidade de ler arquivos de configuração e popular DataAssets em UE5.</li>
+    </ul>
+
+    <h2>Conceitos do Código Original</h2>
+
+    <div class="card mb-3">
+      <div class="card-body">
+        <h5 class="card-title">Pacotes de Arca Battle – <code>PMSG_ARCA_BATTLE_*</code></h5>
+
+        <h6>📘 O Que é?</h6>
+        <p>Estruturas de mensagem para registrar guilds, informar estado dos obeliscos e pontuação do evento.</p>
+
+        <h6>🎯 Para Que Serve?</h6>
+        <p>Define o contrato de rede entre cliente e GameServer para inscrições, atualização de obeliscos e feedback de score.</p>
+
+        <h6>💻 Como Funciona?</h6>
+        <p>
+          <pre><code>struct PMSG_ARCA_BATTLE_GUILD_MASTER_REGISTER_SEND {
+    PSBMSG_HEAD header; // C1:F8:31
+    BYTE result;
+};
+struct PMSG_ARCA_BATTLE_OBELISK_INFO_SEND {
+    PSBMSG_HEAD header; // C1:F8:37
+    BYTE ObeliskAttribute;
+    BYTE ObeliskAuraState[MAX_ARCA_BATTLE_OBELISK_AURA];
+};
+struct PMSG_ARCA_BATTLE_SCORE_SEND {
+    PSBMSG_HEAD header; // C1:F8:3B
+    BYTE result;
+    DWORD ContributePoint;
+    DWORD KillPoint;
+    DWORD RewardExperience;
+    WORD BootyCount;
+    union { WORD ObeliskKind; char GuildName[9]; } ObeliskOccupyInfp[MAX_ARCA_BATTLE_OBELISK];
+};</code></pre>
+        </p>
+
+        <h6>📁 Onde Encontrar?</h6>
+        <p><code>Source MuServer Update 15/GameServer/GameServer/ArcaBattle.h</code>, linhas 41–135.</p>
+
+        <h6>⏱️ Quando é Executado?</h6>
+        <p>Usado sempre que o servidor responde a registros e estado do evento; enviados pelas rotinas <code>GCArcaBattle*</code> (vide classe abaixo) quando o loop do evento detecta mudanças.</p>
+      </div>
+    </div>
+
+    <div class="card mb-3">
+      <div class="card-body">
+        <h5 class="card-title">Leitura de configuração – <code>CArcaBattle::Load</code></h5>
+
+        <h6>📘 O Que é?</h6>
+        <p>Rotina que consome arquivo script e popula horários e dados de obeliscos/aura.</p>
+
+        <h6>🎯 Para Que Serve?</h6>
+        <p>Carrega programações do evento e posições/vida dos obeliscos antes de iniciar a máquina de estados.</p>
+
+        <h6>💻 Como Funciona?</h6>
+        <p>
+          <pre><code>void CArcaBattle::Load(char* path) {
+    CMemScript* lpMemScript = new CMemScript;
+    if(lpMemScript == 0) { ErrorMessageBox(MEM_SCRIPT_ALLOC_ERROR,path); return; }
+    if(lpMemScript->SetBuffer(path) == 0) { ErrorMessageBox(lpMemScript->GetLastError()); delete lpMemScript; return; }
+    this->m_ArcaBattleStartTime.clear();
+    while(true) {
+        if(lpMemScript->GetToken() == TOKEN_END) break;
+        int section = lpMemScript->GetNumber();
+        while(true) {
+            if(section == 0) { /* lê datas */ info.State = lpMemScript->GetNumber(); ... this->m_ArcaBattleStartTime.push_back(info); }
+            else if(section == 1) { /* obelisco */ info.Group = lpMemScript->GetNumber(); info.MonsterClass = lpMemScript->GetAsNumber(); ... this->m_ObeliskInfo[info.Group] = info; }
+            else if(section == 2) { /* aura */ info.Group = lpMemScript->GetNumber(); info.Index = lpMemScript->GetAsNumber(); ... this->m_ObeliskInfo[info.Group].AuraInfo[info.Index] = info; }
+            else { break; }
+        }
+    }
+    delete lpMemScript;
+}
+</code></pre>
+        </p>
+
+        <h6>📁 Onde Encontrar?</h6>
+        <p><code>Source MuServer Update 15/GameServer/GameServer/ArcaBattle.cpp</code>, linhas 41–160.</p>
+
+        <h6>⏱️ Quando é Executado?</h6>
+        <p>Chamado no bootstrap do GameServer ao carregar scripts de evento (arquivo lido via <code>Load</code>) antes de iniciar o loop principal.</p>
+      </div>
+    </div>
+
+    <div class="card mb-3">
+      <div class="card-body">
+        <h5 class="card-title">Máquina de estados e loop – <code>CArcaBattle::MainProc</code> e <code>ProcState_*</code></h5>
+
+        <h6>📘 O Que é?</h6>
+        <p>Loop de 1 segundo que controla a progressão do evento pelas fases (BLANK, EMPTY, SIGN, READY, PARTY, START, CLOSE, CLEAN, CLEAR).</p>
+
+        <h6>🎯 Para Que Serve?</h6>
+        <p>Sincroniza avisos, respawn de obeliscos, envio de vida/estado e transições de fase conforme contagem regressiva.</p>
+
+        <h6>💻 Como Funciona?</h6>
+        <p>
+          <pre><code>void CArcaBattle::MainProc() {
+    if((GetTickCount()-this->m_TickCount) >= 1000) {
+        this->m_TickCount = GetTickCount();
+        this->m_RemainTime = (int)difftime(this->m_TargetTime,time(0));
+        switch(this->m_State) {
+            case AB_STATE_EMPTY: this->ProcState_EMPTY(); break;
+            case AB_STATE_SIGN1: this->ProcState_SIGN1(); break;
+            case AB_STATE_SIGN2: this->ProcState_SIGN2(); break;
+            case AB_STATE_READY: this->ProcState_READY(); break;
+            case AB_STATE_PARTY: this->ProcState_PARTY(); break;
+            case AB_STATE_START: this->ProcState_START(); break;
+            case AB_STATE_CLOSE: this->ProcState_CLOSE(); break;
+            case AB_STATE_CLEAN: this->ProcState_CLEAN(); break;
+            case AB_STATE_CLEAR: this->ProcState_CLEAR(); break;
+        }
+    }
+}
+
+void CArcaBattle::ProcState_START() {
+    this->ChkAuraUserHover();
+    this->GCArcaBattleObeliskLifeSend();
+    this->GCArcaBattleObeliskStateSend();
+    this->RegenObelisk();
+    if(this->m_RemainTime <= 0) { gNotice.GCNoticeSendToAll(0,0,0,0,0,0,"[ArcaBattle] CLOSE"); SetState(AB_STATE_CLOSE); }
+}
+</code></pre>
+        </p>
+
+        <h6>📁 Onde Encontrar?</h6>
+        <p><code>Source MuServer Update 15/GameServer/GameServer/ArcaBattle.cpp</code>, linhas 165–358.</p>
+
+        <h6>⏱️ Quando é Executado?</h6>
+        <p>Chamado pelo loop principal do GameServer (tick) a cada segundo; as transições disparam avisos globais e chamadas <code>GCArcaBattle*</code> para atualizar clientes.</p>
+      </div>
+    </div>
+
+    <div class="card mb-3">
+      <div class="card-body">
+        <h5 class="card-title">Manipuladores de registro – <code>ProtocolCore</code> → <code>CArcaBattle::CG*</code></h5>
+
+        <h6>📘 O Que é?</h6>
+        <p>Roteamento de pacotes de registro de guild e marca para as rotinas do evento.</p>
+
+        <h6>🎯 Para Que Serve?</h6>
+        <p>Recebe requisições de inscrição e marca enviadas pelo cliente, repassando-as para validação e armazenamento.</p>
+
+        <h6>💻 Como Funciona?</h6>
+        <p>
+          <pre><code>case 0x30:
+    gArcaBattle.CGArcaBattleGuildMasterRegisterRecv(aIndex);
+    break;
+case 0x32:
+    gArcaBattle.CGArcaBattleGuildMemberRegisterRecv(aIndex);
+    break;
+case 0x43:
+    gArcaBattle.CGArcaBattleRegisterMarkRecv(aIndex);
+    break;
+</code></pre>
+        </p>
+
+        <h6>📁 Onde Encontrar?</h6>
+        <p><code>Source MuServer Update 15/GameServer/GameServer/Protocol.cpp</code>, linhas 1109–1134.</p>
+
+        <h6>⏱️ Quando é Executado?</h6>
+        <p>Durante o processamento de pacotes cliente → servidor (opcode 0xF8), logo após autenticação, permitindo que inscrições ocorram antes das fases principais do evento.</p>
+      </div>
+    </div>
+
+    <h2>Implementação em Unreal Engine 5</h2>
+    <ul>
+      <li>Estruturas de pacote: criar <code>USTRUCT</code> equivalentes e serializar via sockets ou VaRest/HTTP para um microserviço Node.js que persiste inscrições em SQL.</li>
+      <li>Configuração: armazenar datas e obeliscos em <code>UDataAsset</code> (ex.: <code>UArcaBattleConfig</code>) carregado no <code>AGameModeBase</code> no BeginPlay.</li>
+      <li>Máquina de estados: usar <code>AGameStateBase</code> com um <code>FTimerHandle</code> de 1s, enumerando estados <code>EArcaBattleState</code> e replicando via <code>OnRep</code>.</li>
+      <li>Manipuladores: expor <code>UFUNCTION(Server)</code> em um <code>APlayerController</code> para registrar guilds/marcas, chamando o serviço Node.js com VaRest para validar e atualizar SQL.</li>
+    </ul>
+
+    <h3>Passo a Passo em Unreal Engine 5</h3>
+    <ol>
+      <li>Criar um <code>UArcaBattleConfig</code> com arrays de datas e obeliscos (grupo, mapa, coord, vida) e popular a partir de CSV/JSON.</li>
+      <li>No <code>AGameModeBase</code> personalizado, carregar o <code>UArcaBattleConfig</code> e iniciar um timer de 1s que chama <code>TickArcaBattle()</code>.</li>
+      <li>Implementar <code>TickArcaBattle</code> replicando a lógica de <code>MainProc</code>: diminuir <code>RemainTime</code>, disparar eventos multicast para UI e spawn de obeliscos (<code>AActor</code> com componente de vida).</li>
+      <li>Criar <code>AArcaObelisk</code> derivado de <code>AActor</code> com componente de colisão e atributo <code>ObeliskAttribute</code>; replicar estado/vida para clientes.</li>
+      <li>No <code>APlayerController</code>, adicionar RPCs <code>ServerRegisterGuild</code> e <code>ServerRegisterMark</code>; cada RPC chama um endpoint VaRest → Node.js → SQL para gravar inscrição e retorna resultado para UI.</li>
+      <li>Usar <code>UUserWidget</code> para painéis de inscrição e monitoramento; bindar a eventos <code>OnStateChanged</code>, <code>OnObeliskUpdated</code> disparados pelo <code>AGameStateBase</code>.</li>
+      <li>Replicar avisos globais via <code>Multicast</code> e áudio, seguindo as transições BLANK→EMPTY→...→CLEAR.</li>
+    </ol>
+
+    <h3>Checklist Final</h3>
+    <ul>
+      <li>Config de datas e obeliscos carregada no GameMode.</li>
+      <li>Timer de 1s alternando estados e replicando para clientes.</li>
+      <li>Obeliscos spawnados com atributos/aura corretos e atualização de vida.</li>
+      <li>Registro de guild/master e marcas operando via RPC + VaRest/Node.js + SQL.</li>
+      <li>UI mostra avisos e fases conforme o loop original.</li>
+    </ul>
+  </div>
+</body>
+</html>

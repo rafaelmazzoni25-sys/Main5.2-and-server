@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  <title>Curso Mu Online – Unreal Engine 5</title>
+</head>
+<body class="bg-light">
+  <div class="container py-5">
+    <h1 class="mb-4">Curso: Recriando o Cliente/Servidor de Mu Online em Unreal Engine 5</h1>
+    <p class="lead">Este curso guia a reconstrução quase 1:1 do projeto <strong>Main5.2-and-server</strong>, cobrindo cliente e servidor, com adaptações técnicas mínimas para UE5.</p>
+
+    <h2 class="mt-5">Sumário dos Módulos</h2>
+    <ul class="list-group">
+      <li class="list-group-item">
+        <a href="modulos/Modulo01_ArquiteturaGeral.html">Módulo 1 – Arquitetura e Bootstrap</a><br>
+        <small>Loops principais do cliente e servidor, inicialização de recursos e timers.</small>
+      </li>
+      <li class="list-group-item">
+        <a href="modulos/Modulo02_RedeAutenticacao.html">Módulo 2 – Rede e Autenticação</a><br>
+        <small>Conexão cliente-servidor, filas de recebimento e login.</small>
+      </li>
+      <li class="list-group-item">
+        <a href="modulos/Modulo03_MovimentoMapas.html">Módulo 3 – Personagem e Movimentação</a><br>
+        <small>Sincronização de posição, timers de servidor e teleporte.</small>
+      </li>
+      <li class="list-group-item">
+        <a href="modulos/Modulo04_CombateSkills.html">Módulo 4 – Combate e Skills</a><br>
+        <small>Regras de ataque, checagens de PvP e despacho de skills.</small>
+      </li>
+      <li class="list-group-item">
+        <a href="modulos/Modulo05_InventarioItens.html">Módulo 5 – Inventário e Itens</a><br>
+        <small>Estruturas de itens no cliente e carregamento/uso no servidor.</small>
+      </li>
+      <li class="list-group-item">
+        <a href="modulos/Modulo06_EventosServidor.html">Módulo 6 – Eventos e Timers do Servidor</a><br>
+        <small>Loop de mensagens do GameServer, timers e integração com subsistemas.</small>
+      </li>
+      <li class="list-group-item">
+        <a href="modulos/Modulo07_ConexoesServidores.html">Módulo 7 – Conexões JoinServer/DataServer</a><br>
+        <small>Boot e manutenção dos sockets auxiliares com callbacks de mensagens.</small>
+      </li>
+      <li class="list-group-item">
+        <a href="modulos/Modulo08_RoteamentoPacotes.html">Módulo 8 – Roteamento de Pacotes</a><br>
+        <small>Dispatch central de pacotes do GameServer e logging.</small>
+      </li>
+      <li class="list-group-item">
+        <a href="modulos/Modulo09_PersistenciaDataServer.html">Módulo 9 – Persistência e DataServer (SQL)</a><br>
+        <small>Fluxo completo de queries ODBC, respostas ao GameServer e adaptação com VaRest + Node.js + SQL.</small>
+      </li>
+      <li class="list-group-item">
+        <a href="modulos/Modulo10_InterfaceLoop.html">Módulo 10 – Interface, Input e Loop</a><br>
+        <small>Gestão de UI, captura de input e ciclo principal do cliente.</small>
+      </li>
+      <li class="list-group-item">
+        <a href="modulos/Modulo11_SocialParty.html">Módulo 11 – Social, Party e Integridade</a><br>
+        <small>Convites de party, liderança, notificações de vida e preparação da infraestrutura social.</small>
+      </li>
+      <li class="list-group-item">
+        <a href="modulos/Modulo12_MonsterAI.html">Módulo 12 – IA de Monstros e MovePath</a><br>
+        <small>Leitura de scripts de IA, seleção de caminhos e controle de movimento de monstros.</small>
+      </li>
+      <li class="list-group-item">
+        <a href="modulos/Modulo13_MiniMapa.html">Módulo 13 – MiniMapa e Coordenadas de Party</a><br>
+        <small>Marcadores de mapa, envio de posições de party e UI de navegação.</small>
+      </li>
+      <li class="list-group-item">
+        <a href="modulos/Modulo14_MuunPets.html">Módulo 14 – Sistema Muun (Pets e Inventário)</a><br>
+        <small>Carregamento de pets Muun, aplicação de status e inventário dedicado.</small>
+      </li>
+      <li class="list-group-item">
+        <a href="modulos/Modulo15_ArcaBattle.html">Módulo 15 – Arca Battle (Obeliscos e Estados)</a><br>
+        <small>Configuração de obeliscos, máquina de estados e pacotes de inscrição do evento.</small>
+      </li>
+      <li class="list-group-item">
+        <a href="modulos/Modulo16_CastleSiege.html">Módulo 16 – Castle Siege (Ciclo e Sincronização)</a><br>
+        <small>Limpeza, leitura de config e preparação do ciclo de Castle Siege.</small>
+      </li>
+        <li class="list-group-item">
+          <a href="modulos/Modulo17_CraftingChaos.html">Módulo 17 – Chaos Box e Misturas</a><br>
+          <small>Inicialização de caixa de mistura, cálculo de taxas e roteamento de mix.</small>
+        </li>
+        <li class="list-group-item">
+          <a href="modulos/Modulo18_GensSystem.html">Módulo 18 – Sistema Gens (Facções e Contribuição)</a><br>
+          <small>Rank, símbolos, NPCs de facção, contribuição em PvP e UI de ranking.</small>
+        </li>
+        <li class="list-group-item">
+          <a href="modulos/Modulo19_Crywolf.html">Módulo 19 – Crywolf (Sincronismo, Benefícios e UI)</a><br>
+          <small>Estado global, pacotes de contrato/Chaos Rate e interface dedicada do evento.</small>
+        </li>
+        <li class="list-group-item">
+          <a href="modulos/Modulo20_DevilSquareBloodCastle.html">Módulo 20 – Devil Square e Blood Castle (Entrada e Ciclo)</a><br>
+          <small>Entrada via pacotes 0x90/0x9A, leitura de scripts, ciclos de estados e recompensas.</small>
+        </li>
+        <li class="list-group-item">
+          <a href="modulos/Modulo21_Kanturu.html">Módulo 21 – Kanturu (Maya & Nightmare)</a><br>
+          <small>Carregamento de scripts, máquina de estados e transição para Tower of Refinement.</small>
+        </li>
+        <li class="list-group-item">
+          <a href="modulos/Modulo22_Raklion.html">Módulo 22 – Raklion (Selupan)</a><br>
+          <small>Delays de aparição, verificação de ovos, fases do boss e notificações.</small>
+        </li>
+        <li class="list-group-item">
+          <a href="modulos/Modulo23_ImperialGuardian.html">Módulo 23 – Imperial Guardian e Double Goer</a><br>
+          <small>Horários diários, AI de monstros, gates/boss e fluxo multiestágio com party.</small>
+        </li>
+        <li class="list-group-item">
+          <a href="modulos/Modulo24_IllusionTemple.html">Módulo 24 – Illusion Temple</a><br>
+          <small>Convite, checagens de entrada, scripts de tempo e movimentação por nível.</small>
+        </li>
+        <li class="list-group-item">
+          <a href="modulos/Modulo25_ChaosCastle.html">Módulo 25 – Chaos Castle</a><br>
+          <small>Horários, ciclo de estados por nível, sobrevivência e recompensas.</small>
+        </li>
+        <li class="list-group-item">
+          <a href="modulos/Modulo26_AcheronGuardian.html">Módulo 26 – Acheron Guardian / Entrada Elemental</a><br>
+          <small>Validação de ticket 13,146 e teleporte para o mapa elemental.</small>
+        </li>
+      </ul>
+  </div>
+</body>
+</html>
