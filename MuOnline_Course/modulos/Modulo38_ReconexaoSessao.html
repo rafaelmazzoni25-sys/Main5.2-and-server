@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  <title>Módulo 38 – Reconexão e Retomada de Sessão</title>
+</head>
+<body class="bg-light">
+  <div class="container py-5">
+    <h1 class="mb-4">Módulo 38 – Reconexão e Retomada de Sessão</h1>
+    <p class="lead">Mostra como o GameServer salva estado de party, auto-atribuição de pontos e flags de Gens ao desconectar, expurga entradas antigas e restaura tudo após o login. Inclui roteiro detalhado para UE5 com cache local e apoio de VaRest/Node.js/SQL.</p>
+
+    <h2>Pré-requisitos</h2>
+    <ul>
+      <li>Módulo 2 – Rede e Autenticação (para entender o fluxo de login/DSProtocol).</li>
+      <li>Módulo 11 – Social/Party.</li>
+      <li>Familiaridade com <code>UGameInstance</code> e salvamento persistente em UE5.</li>
+    </ul>
+
+    <h2>Conceitos do Código Original</h2>
+
+    <div class="card mb-3">
+      <div class="card-body">
+        <h5 class="card-title">MainProc – Expurgo de reconexões expiradas</h5>
+
+        <h6>📘 O Que é?</h6>
+        <p>Loop que remove entradas de reconexão quando o tempo configurado expira.</p>
+
+        <h6>🎯 Para Que Serve?</h6>
+        <p>Evita acumular estado de jogadores que não voltaram dentro da janela de reconexão.</p>
+
+        <h6>💻 Como Funciona?</h6>
+        <p>
+          Percorre o <code>m_ReconnectInfo</code> e compara o <code>ReconnectTime</code> com o limite <code>m_PartyReconnectTime</code>.<br>
+          <pre><code>for(auto it=m_ReconnectInfo.begin();it!=m_ReconnectInfo.end();) {
+  if((GetTickCount()-it-&gt;second.ReconnectTime) > (gServerInfo.m_PartyReconnectTime*1000)) {
+    it = m_ReconnectInfo.erase(it);
+  } else { ++it; }
+}</code></pre>
+        </p>
+
+        <h6>📁 Onde Encontrar?</h6>
+        <p><code>Source MuServer Update 15/GameServer/GameServer/Reconnect.cpp</code>, linhas 25-38.</p>
+
+        <h6>⏱️ Quando é Executado?</h6>
+        <p>Chamado a cada tick no loop principal do GameServer (<code>gReconnect.MainProc()</code> em <code>User.cpp</code>, linha 299).</p>
+      </div>
+    </div>
+
+    <div class="card mb-3">
+      <div class="card-body">
+        <h5 class="card-title">SetReconnectInfo – Snapshot ao desconectar</h5>
+
+        <h6>📘 O Que é?</h6>
+        <p>Função que armazena nome, tempo, party, auto-add/reset e lista de vítimas Gens no mapa de reconexão.</p>
+
+        <h6>🎯 Para Que Serve?</h6>
+        <p>Preserva estado crítico para que o jogador retome party, comandos automáticos e configurações sociais após reconectar.</p>
+
+        <h6>💻 Como Funciona?</h6>
+        <p>
+          Copia campos de <code>LPOBJ</code> para <code>RECONNECT_INFO</code> e insere/atualiza no <code>m_ReconnectInfo</code> usando o nome como chave.<br>
+          <pre><code>RECONNECT_INFO info; memcpy(info.Name,lpObj->Name,sizeof(info.Name));
+info.ReconnectTime = GetTickCount();
+info.PartyNumber = lpObj->PartyNumber;
+info.AutoAddPointCount = lpObj->AutoAddPointCount;
+memcpy(info.AutoAddPointStats,lpObj->AutoAddPointStats,sizeof(info.AutoAddPointStats));
+...</code></pre>
+        </p>
+
+        <h6>📁 Onde Encontrar?</h6>
+        <p><code>Source MuServer Update 15/GameServer/GameServer/Reconnect.cpp</code>, linhas 40-74.</p>
+
+        <h6>⏱️ Quando é Executado?</h6>
+        <p>
+          Invocado no fluxo de desconexão, logo após limpar duel/trade (<code>ObjectManager.cpp</code>, linha 771).<br>
+          <pre><code>// durante a remoção do objeto
+if(OBJECT_RANGE(lpObj->DuelUser) != 0) { ... }
+gReconnect.SetReconnectInfo(lpObj);
+</code></pre>
+        </p>
+      </div>
+    </div>
+
+    <div class="card mb-3">
+      <div class="card-body">
+        <h5 class="card-title">GetReconnectInfo / Resume* – Restauração pós-login</h5>
+
+        <h6>📘 O Que é?</h6>
+        <p>Recupera o snapshot ao término do login, reinserindo o player na party, restaurando comandos automáticos e a lista Gens.</p>
+
+        <h6>🎯 Para Que Serve?</h6>
+        <p>Proporciona continuidade de sessão (party, auto-add/reset, senha de auto-party e vítimas de Gens) sem perda ao reconectar.</p>
+
+        <h6>💻 Como Funciona?</h6>
+        <p>
+          Busca pelo nome no mapa, executa <code>ResumeParty</code>, <code>ResumeCommand</code> e <code>ResumeGensVictimList</code>, depois remove a entrada.<br>
+          <pre><code>auto it = m_ReconnectInfo.find(std::string(lpObj->Name));
+if(it != m_ReconnectInfo.end()) {
+  ResumeParty(lpObj,&it->second);
+  ResumeCommand(lpObj,&it->second);
+  ResumeGensVictimList(lpObj,&it->second);
+  m_ReconnectInfo.erase(it);
+}</code></pre>
+        </p>
+
+        <h6>📁 Onde Encontrar?</h6>
+        <p><code>Source MuServer Update 15/GameServer/GameServer/Reconnect.cpp</code>, linhas 76-150.</p>
+
+        <h6>⏱️ Quando é Executado?</h6>
+        <p>
+          Chamada ao finalizar o login no DataServer (<code>DSProtocol.cpp</code>, linha 1288) e o expurgo roda no loop principal (<code>User.cpp</code>, linha 299).</p>
+      </div>
+    </div>
+
+    <h2>Implementação em Unreal Engine 5</h2>
+    <ol>
+      <li>Crie um <code>UPlayerReconnectComponent</code> com structs equivalentes a <code>RECONNECT_INFO</code> e anexe ao <code>APlayerState</code>.</li>
+      <li>No desligamento voluntário ou queda de conexão, serialize o snapshot e envie via VaRest para um endpoint Node.js <code>/session/snapshot</code> que persiste em SQL.</li>
+      <li>No login, após autenticar, invoque <code>/session/snapshot/{account}</code> para obter o estado e aplique funções de restauração (party, auto-add, comandos) no <code>APlayerController</code>.</li>
+      <li>Use timers em <code>UGameInstance</code> para remover snapshots locais após o timeout configurado, alinhado a <code>m_PartyReconnectTime</code>.</li>
+      <li>Valide com testes: desconectar/ reconectar em menos e mais do que o timeout, verificando se party e comandos são restaurados corretamente.</li>
+    </ol>
+
+    <h2>Passo a Passo em Unreal Engine 5</h2>
+    <ol>
+      <li>Modelar <code>USTRUCT FReconnectInfo</code> com nome, party, auto-add, auto-reset, senha e lista Gens.</li>
+      <li>No <code>APlayerState::OnDisconnect</code>, preencher <code>FReconnectInfo</code> e chamar VaRest para salvar em Node.js + SQL.</li>
+      <li>No <code>APlayerController::ClientOnLogin</code>, requisitar o snapshot e aplicar: recriar party (RPC para <code>AGameMode</code>), reativar auto-add/reset e sincronizar listas de Gens.</li>
+      <li>Implementar um timer global para expurgar snapshots antigos no cliente offline e no backend.</li>
+      <li>Incluir UI de feedback (widget) indicando sucesso/falha da restauração.</li>
+    </ol>
+
+    <h2>Checklist Final</h2>
+    <ul>
+      <li>Snapshot é salvo ao desconectar e removido quando expira.</li>
+      <li>Party, auto-add/reset e lista Gens são restaurados após login.</li>
+      <li>Timeout alinhado ao <code>m_PartyReconnectTime</code> configurado.</li>
+      <li>Endpoints Node.js/SQL expõem salvar/consultar snapshot e são consumidos via VaRest.</li>
+    </ul>
+  </div>
+</body>
+</html>
