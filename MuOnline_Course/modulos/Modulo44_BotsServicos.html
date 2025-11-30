@@ -1,0 +1,284 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  <title>Módulo 44 – Bots de Serviço (Buffer e Warper)</title>
+</head>
+<body class="bg-light">
+  <div class="container py-5">
+    <h1 class="mb-4">Módulo 44 – Bots de Serviço (Buffer e Warper)</h1>
+    <p class="lead">Explora os NPCs automáticos que buffam ou teleportam jogadores (BotBuffer e BotWarper) e mostra como reproduzir o comportamento em Unreal Engine 5, mantendo regras de nível, VIP e requisitos de Gens.</p>
+
+    <h2>Pré-requisitos</h2>
+    <ul>
+      <li>Módulo 1 – Arquitetura Geral (ciclo do GameServer e eventos de inicialização).</li>
+      <li>Módulo 7 – Conexões entre Servidores (para entender mudanças de mapa e MapServer).</li>
+      <li>Módulo 41 – Progressão/Reset (para validar limites de nível/reset usados pelos bots).</li>
+    </ul>
+
+    <h2>Conceitos do Código Original</h2>
+
+    <div class="card mb-3">
+      <div class="card-body">
+        <h5 class="card-title">Carregamento de BotBuffer – <code>ObjBotBuffer::Read</code></h5>
+
+        <h6>📘 O Que é?</h6>
+        <p>
+          Rotina que reseta o estado, limpa bots ativos e lê o script <code>BotBuffer.txt</code> para definir classe, posição, custos e itens de cada NPC buffador.<br>
+          <pre><code>void ObjBotBuffer::Read(char * FilePath) {
+  if(this-&gt;Enabled == 1) { /* remove bots vivos */ }
+  for(int i=0;i&lt;MAX_BOTBUFFER;i++) {
+    this-&gt;bot[i].index = -1;
+    this-&gt;bot[i].SkillCount = 0;
+    this-&gt;bot[i].MaxLevel = ObjBotBuff.Max_Normal_Level;
+    memset(&this-&gt;bot[i].skill,0,sizeof(this-&gt;bot[i].skill));
+    this-&gt;bot[i].Enabled = 0;
+    for(int j=0;j&lt;9;j++) this-&gt;bot[i].body[j].num =-1;
+  }
+  CMemScript* lpMemScript = new CMemScript;
+  if(lpMemScript-&gt;SetBuffer(FilePath) == 0) { ErrorMessageBox(...); return; }
+  while(true) {
+    if(lpMemScript-&gt;GetToken() == TOKEN_END) break;
+    int section = lpMemScript-&gt;GetNumber();
+    while(true) {
+      if(section == 1) {
+        if(strcmp("end",lpMemScript-&gt;GetAsString()) == 0) break;
+        int BotNum = lpMemScript-&gt;GetNumber();
+        this-&gt;bot[BotNum].Class = lpMemScript-&gt;GetAsNumber();
+        this-&gt;bot[BotNum].Enabled = lpMemScript-&gt;GetAsNumber();
+        this-&gt;bot[BotNum].ChangeColorName = lpMemScript-&gt;GetAsNumber();
+        this-&gt;bot[BotNum].Zen = lpMemScript-&gt;GetAsNumber();
+        this-&gt;bot[BotNum].PCPoints = lpMemScript-&gt;GetAsNumber();
+        this-&gt;bot[BotNum].MaxLevel = lpMemScript-&gt;GetAsNumber();
+        strncpy_s(this-&gt;bot[BotNum].Name,lpMemScript-&gt;GetAsString(),sizeof(...));
+        this-&gt;bot[BotNum].Map = lpMemScript-&gt;GetAsNumber();
+        this-&gt;bot[BotNum].X = lpMemScript-&gt;GetAsNumber();
+        this-&gt;bot[BotNum].Y = lpMemScript-&gt;GetAsNumber();
+        this-&gt;bot[BotNum].Dir = lpMemScript-&gt;GetAsNumber();
+      }
+      // demais seções continuam...
+    }
+  }
+}</code></pre>
+        </p>
+
+        <h6>🎯 Para Que Serve?</h6>
+        <p>Define, a partir de script, quais bots de buff estarão ativos, seus custos (Zen/PCPoint), posição no mapa e itens exibidos, para criar NPCs de suporte configuráveis.</p>
+
+        <h6>💻 Como Funciona?</h6>
+        <p>
+          1) Se já havia bots ativos, remove-os via <code>gObjDel</code>.<br>
+          2) Inicializa slots com índices inválidos e contadores zerados.<br>
+          3) Usa <code>CMemScript</code> para iterar seções; na seção 1 lê atributos básicos (classe, nome, custos, posição) de cada bot.<br>
+          4) Prepara arrays de skills e equipamentos que serão aplicados no spawn.<br>
+          <pre><code>// reset inicial de cada entrada
+this-&gt;bot[i].index = -1;
+this-&gt;bot[i].SkillCount = 0;
+this-&gt;bot[i].MaxLevel = ObjBotBuff.Max_Normal_Level;
+memset(&this-&gt;bot[i].skill,0,sizeof(this-&gt;bot[i].skill));
+this-&gt;bot[i].Enabled = 0;</code></pre>
+        </p>
+
+        <h6>📁 Onde Encontrar?</h6>
+        <p><code>Source MuServer Update 15/GameServer/GameServer/BotBuffer.cpp</code></p>
+
+        <h6>⏱️ Quando é Executado?</h6>
+        <p>
+          Chamado no recarregamento de bots pela rotina <code>CServerInfo::ReloadBotInfo</code> assim que scripts são lidos na inicialização do GameServer.<br>
+          <pre><code>// ServerInfo.cpp
+ObjBotBuff.Read(gPath.GetFullPath("Custom\\BotSystem\\BotBuffer.txt"));
+ObjBotBuff.MakeBot();</code></pre>
+        </p>
+      </div>
+    </div>
+
+    <div class="card mb-3">
+      <div class="card-body">
+        <h5 class="card-title">Spawn e inventário do BotBuffer – <code>ObjBotBuffer::MakeBot</code></h5>
+
+        <h6>📘 O Que é?</h6>
+        <p>
+          Rotina que instancia os NPCs buffadores após a leitura do script, configurando posição, classe, inventário e atributos base.
+          <pre><code>void ObjBotBuffer::MakeBot() {
+  if(this-&gt;Enabled == 1) {
+    for(int botNum=0; botNum&lt;MAX_BOTBUFFER; botNum++) {
+      if(this-&gt;bot[botNum].Enabled == 1) {
+        int result = gObjAddSummon();
+        if(result &gt;= 0) {
+          this-&gt;bot[botNum].index = result;
+          gObj[result].X = this-&gt;bot[botNum].X;
+          gObj[result].Y = this-&gt;bot[botNum].Y;
+          gObj[result].Dir = this-&gt;bot[botNum].Dir;
+          gObj[result].Map = this-&gt;bot[botNum].Map;
+          gObj[result].IsBot = 2;
+          gObjSetBots(result,this-&gt;bot[botNum].Class);
+          gObj[result].Class = this-&gt;bot[botNum].Class;
+          gObj[result].Level = 400;
+          gObj[result].PKLevel = this-&gt;bot[botNum].ChangeColorName;
+          gObj[result].GensFamily = this-&gt;bot[botNum].GensFamily;
+          gObj[result].Inventory = new CItem[INVENTORY_SIZE];
+          memset(&gObj[result].InventoryMap[0], (BYTE)-1, INVENTORY_SIZE);
+          strcpy_s(gObj[result].Name,this-&gt;bot[botNum].Name);
+          for(int i=0;i&lt;9;i++) {
+            if(this-&gt;bot[botNum].body[i].num &gt;= 0 && this-&gt;bot[botNum].body[i].Enabled == 1) {
+              CItem item; item.m_Level = this-&gt;bot[botNum].body[i].level; item.m_Option2 = 1;
+              item.m_Option3 = this-&gt;bot[botNum].body[i].opt; item.m_Durability = 255.0f;
+              item.Convert(this-&gt;bot[botNum].body[i].num,...);
+              gObjInventoryInsertItemPos(gObj[result].Index,item,i,0);
+            }
+          }
+          gObjectManager.CharacterMakePreviewCharSet(result);
+          GCActionSend(&gObj[result],ACTION_SALUTE1,result,result);
+        }
+      }
+    }
+  }
+}</code></pre>
+        </p>
+
+        <h6>🎯 Para Que Serve?</h6>
+        <p>Cria os NPCs buffadores in-game com visual e inventário definidos no script, prontos para atender jogadores.</p>
+
+        <h6>💻 Como Funciona?</h6>
+        <p>
+          Usa <code>gObjAddSummon</code> para alocar um slot de NPC, configura coordenadas, flag <code>IsBot</code>, classe e inventário. Cada item do array <code>body</code> é convertido e inserido diretamente nas posições iniciais do inventário antes de gerar o preview.<br>
+          <pre><code>gObjSetBots(result,this-&gt;bot[botNum].Class);
+gObj[result].Inventory = new CItem[INVENTORY_SIZE];
+item.Convert(this-&gt;bot[botNum].body[i].num,...);
+gObjInventoryInsertItemPos(gObj[result].Index,item,i,0);
+GCActionSend(&gObj[result],ACTION_SALUTE1,result,result);</code></pre>
+        </p>
+
+        <h6>📁 Onde Encontrar?</h6>
+        <p><code>Source MuServer Update 15/GameServer/GameServer/BotBuffer.cpp</code></p>
+
+        <h6>⏱️ Quando é Executado?</h6>
+        <p>Chamado logo após <code>ObjBotBuffer::Read</code> em <code>ReloadBotInfo</code> durante o boot do GameServer ou recarga de scripts, para posicionar os NPCs no mundo.</p>
+      </div>
+    </div>
+
+    <div class="card mb-3">
+      <div class="card-body">
+        <h5 class="card-title">Validação de atendimento do BotBuffer – <code>ObjBotBuffer::TradeOpen</code></h5>
+
+        <h6>📘 O Que é?</h6>
+        <p>Valida se o jogador pode interagir com o bot (nível máximo, VIP, Gens, Zen/PCPoint) antes de aplicar buffs.</p>
+
+        <h6>🎯 Para Que Serve?</h6>
+        <p>Garante que somente jogadores dentro dos limites configurados recebam o serviço de buff, exibindo mensagens específicas para restrições.</p>
+
+        <h6>💻 Como Funciona?</h6>
+        <p>
+          1) Busca o bot pelo índice do NPC.<br>
+          2) Verifica nível máximo, status VIP e contribuição Gens.<br>
+          3) Confere saldo de Zen e PCPoint.<br>
+          4) Interrompe com mensagens via <code>gNotice.NewMessageDevTeam</code> em caso de falha.<br>
+          <pre><code>BOOL ObjBotBuffer::TradeOpen(int index,int nindex) {
+  int number = this-&gt;GetBotIndex(nindex);
+  if(lpObj-&gt;Level &gt; this-&gt;bot[number].MaxLevel) { gNotice.NewMessageDevTeam(...); return 1; }
+  if(this-&gt;bot[number].OnlyVip != 0 && lpObj-&gt;AccountLevel == 0) return 1;
+  if((DWORD)this-&gt;bot[number].Zen > gObj[index].Money) return 1;
+  if(this-&gt;bot[number].PCPoints > gObj[index].PCPoint) return 1;
+  // checagens adicionais de família Gens...
+}</code></pre>
+        </p>
+
+        <h6>📁 Onde Encontrar?</h6>
+        <p><code>Source MuServer Update 15/GameServer/GameServer/BotBuffer.cpp</code></p>
+
+        <h6>⏱️ Quando é Executado?</h6>
+        <p>É invocado na abertura de trade com o NPC buffador; o handler de trade consulta <code>ObjBotBuff.TradeOpen</code> para autorizar a interação.</p>
+      </div>
+    </div>
+
+    <div class="card mb-3">
+      <div class="card-body">
+        <h5 class="card-title">Warp assistido por NPC – <code>ObjBotWarper::TradeOpen</code></h5>
+
+        <h6>📘 O Que é?</h6>
+        <p>
+          Handler de trade do BotWarper que valida requisitos (VIP, level, reset, Gens, Zen/PCPoint) e calcula a posição de teleporte segura antes de acionar o MapServer ou mover o jogador.
+          <pre><code>BOOL ObjBotWarper::TradeOpen(int index,int nindex) {
+  int number = this-&gt;GetBotIndex(nindex);
+  if(this-&gt;bot[number].OnlyVip != 0 && lpObj-&gt;AccountLevel == 0) { ...; return 1; }
+  if(gObj[index].Level < this-&gt;bot[number].MinLevel) return 1;
+  if(gObj[index].Reset < this-&gt;bot[number].MinReset) return 1;
+  if(this-&gt;bot[number].ActiveGensFamily == 1) { /* valida família e contribuição */ }
+  if(this-&gt;bot[number].Zen > gObj[index].Money) return 1;
+  int addx = this-&gt;bot[number].Warp_X + rand()%9 - 4; // procura spot livre
+  if(lpObj-&gt;Map != this-&gt;bot[number].Warp_Map) {
+    short sSvrCode = gMapServerManager.CheckMapServerMove(...);
+    if(sSvrCode != ServerCode) { GJMapServerMoveSend(...); return 1; }
+  }
+  lpObj-&gt;SkillSummonPartyMap = this-&gt;bot[number].Warp_Map;
+  lpObj-&gt;SkillSummonPartyX = addx; lpObj-&gt;SkillSummonPartyY = addy;
+  return 1;
+}</code></pre>
+        </p>
+
+        <h6>🎯 Para Que Serve?</h6>
+        <p>Oferece um NPC teleporter com regras de acesso e cobrança, incluindo redirecionamento para outro MapServer quando necessário.</p>
+
+        <h6>💻 Como Funciona?</h6>
+        <p>
+          1) Checa privilégios VIP/Gens e requerimentos de level/reset.<br>
+          2) Verifica Zen/PCPoint e interfaces bloqueadoras de movimento.<br>
+          3) Busca coordenada segura próxima do warp configurado.<br>
+          4) Se o mapa alvo está em outro servidor, envia <code>GJMapServerMoveSend</code>; caso contrário, grava o destino em <code>SkillSummonParty*</code> para teleporte.<br>
+          <pre><code>if(lpObj-&gt;Map != this-&gt;bot[number].Warp_Map) {
+  short sSvrCode = gMapServerManager.CheckMapServerMove(...);
+  if(sSvrCode != ServerCode) { GJMapServerMoveSend(...); return 1; }
+}
+lpObj-&gt;SkillSummonPartyTime = 3;
+lpObj-&gt;SkillSummonPartyMap = this-&gt;bot[number].Warp_Map;
+</code></pre>
+        </p>
+
+        <h6>📁 Onde Encontrar?</h6>
+        <p><code>Source MuServer Update 15/GameServer/GameServer/BotWarper.cpp</code></p>
+
+        <h6>⏱️ Quando é Executado?</h6>
+        <p>Disparado no momento em que o jogador inicia trade/clique com o NPC warper; se aprovado, prepara o teleporte imediato ou a troca de servidor.</p>
+      </div>
+    </div>
+
+    <h2>Implementação em Unreal Engine 5</h2>
+    <p>Para cada conceito acima, mapear para componentes e atores em UE5, garantindo lógica de validação e teleporte replicado.</p>
+
+    <h4>Equivalências de Classes</h4>
+    <ul>
+      <li>NPC Buff/Warper: <code>AActor</code> ou <code>ANPCCharacter</code> derivado de <code>ACharacter</code> com componente <code>UStaticMesh</code> e <code>USphereComponent</code> para interação.</li>
+      <li>Gerenciador de scripts: <code>UObject</code> singleton (ex.: <code>UDataTable</code> carregado de CSV/JSON</code>).</li>
+      <li>Controle de teleporte: <code>APlayerController</code> + <code>UGameplayStatics::OpenLevel</code> ou <code>ServerTravel</code> com RPCs.</li>
+    </ul>
+
+    <h4>Passo a Passo (Buff NPC)</h4>
+    <ol>
+      <li>Crie um <code>UDataTable</code> (CSV) com campos: <em>Class</em>, <em>Enabled</em>, <em>Zen</em>, <em>PCPoints</em>, <em>Map</em>, <em>Location</em>, <em>Dir</em>, <em>MaxLevel</em>, <em>BodyItems</em>, <em>Skills</em>.</li>
+      <li>Implemente um <code>UObject</code> <code>UBotBufferConfig</code> que faz o parsing do DataTable no <code>GameInstance</code> e instancia <code>ABuffNPC</code> no <code>BeginPlay</code> do <code>AGameMode</code>.</li>
+      <li>No <code>ABuffNPC</code>, exponha <code>UPROPERTY</code> para custos e limites; no <code>Server_OnInteract(APlayerController*)</code> valide nível/reset/VIP/Gens armazenados no <code>APlayerState</code>.</li>
+      <li>Para aplicar buffs, crie <code>USpellComponent</code> ou use <code>GameplayAbilitySystem</code>; replique efeitos via RPC multicast.</li>
+      <li>Para custo em PCPoints/Zen, faça chamada HTTP usando VaRest para um endpoint Node.js que atualiza o saldo SQL antes de aplicar o buff.</li>
+    </ol>
+
+    <h4>Passo a Passo (Warper NPC)</h4>
+    <ol>
+      <li>Adicione ao DataTable campos <em>WarpMap</em>, <em>WarpX</em>, <em>WarpY</em>, <em>OnlyVip</em>, <em>GensFamily</em>, <em>ReqContribution</em>.</li>
+      <li>No <code>AWarperNPC</code>, implemente <code>Server_HandleWarpRequest(APlayerController*)</code> verificando: VIP (<code>APlayerState</code>), level/reset, Gens (variável replicada) e saldo (consulta VaRest/Node.js/SQL).</li>
+      <li>Calcule posição segura usando <code>UNavigationSystemV1::GetRandomPointInNavigableRadius</code>, similar ao laço de tentativa do original.</li>
+      <li>Se o destino estiver em outro servidor/mundo, chame um serviço Node.js para registrar a migração e depois <code>ClientTravel</code> no controller; senão use <code>ServerTravel</code> interno.</li>
+      <li>Envie feedback ao jogador via <code>UUserWidget</code> replicado (mensagens equivalentes a <code>gNotice</code>).</li>
+    </ol>
+
+    <h2>Checklist Final</h2>
+    <ul>
+      <li>Scripts de bot carregam e criam NPCs com inventário e aparência corretos.</li>
+      <li>Buff NPC bloqueia jogadores fora do nível/VIP/Gens ou sem saldo e aplica buffs via componente replicado.</li>
+      <li>Warper NPC valida requisitos, cobra Zen/PCPoints via VaRest/Node.js/SQL e teleporta para coordenada segura (ou outro servidor) mantendo replicação.</li>
+      <li>Mensagens de feedback em UI replicam as notificações do servidor original.</li>
+    </ul>
+  </div>
+</body>
+</html>
