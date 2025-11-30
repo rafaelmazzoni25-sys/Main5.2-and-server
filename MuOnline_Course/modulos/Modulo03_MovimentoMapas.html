@@ -59,6 +59,49 @@
 
     <div class="card mb-3">
       <div class="card-body">
+        <h5 class="card-title">Cliente – Envio de movimento com caminho (<code>SendCharacterMoveNew</code>)</h5>
+
+        <h6>📘 O Que é?</h6>
+        <p>Função que compacta o caminho calculado pelo cliente em um buffer e envia para o servidor.</p>
+
+        <h6>🎯 Para Que Serve?</h6>
+        <p>Comunica ao servidor a intenção de deslocamento, codificando as direções numa sequência de nibbles (<code>path</code>).</p>
+
+        <h6>💻 Como Funciona?</h6>
+        <p>
+          <pre><code>void CProtocolSend::SendCharacterMoveNew(..., unsigned char PathNum, unsigned char* PathX, unsigned char* PathY, ...){
+    if (PathNum < 1) return;
+    PMSG_MOVE_SEND pMsg = { 0 };
+    if (PathNum >= MAX_PATH_FIND) { PathNum = MAX_PATH_FIND - 1; }
+    pMsg.x = PathX[0];
+    pMsg.y = PathY[0];
+    BYTE Path[8]; ZeroMemory(Path, 8);
+    for (int i = 1; i < PathNum; i++) {
+        BYTE Dir = 0;
+        for (int j = 0; j < 8; j++) {
+            if (DirTable[j * 2] == (PathX[i] - PathX[i - 1]) && DirTable[j * 2 + 1] == (PathY[i] - PathY[i - 1])) {
+                Dir = j; break;
+            }
+        }
+        if (i % 2 == 1) Path[(i + 1) / 2] = Dir << 4; else Path[(i + 1) / 2] += Dir;
+    }
+    Path[0] += (BYTE)(PathNum - 1);
+    memcpy(pMsg.path, Path, sizeof(pMsg.path));
+    SendPacket(ProtocolHead::BOTH_MOVE,(uint8_t*)&pMsg,sizeof(pMsg));
+}
+</code></pre>
+        </p>
+
+        <h6>📁 Onde Encontrar?</h6>
+        <p><code>Source Main 5.2/source/ProtocolSend.cpp</code></p>
+
+        <h6>⏱️ Quando é Executado?</h6>
+        <p>Chamado pelo cliente ao decidir um novo caminho (clique do jogador) antes de o servidor autorizar a movimentação.</p>
+      </div>
+    </div>
+
+    <div class="card mb-3">
+      <div class="card-body">
         <h5 class="card-title">Servidor – Timers de movimentação (<code>QueueTimerCallback</code>)</h5>
 
         <h6>📘 O Que é?</h6>
@@ -150,6 +193,10 @@ void AMyCharacter::ServerTeleport_Implementation(const FVector& Dest) {
       <li>Usar <code>UNavigationSystemV1</code> para recalcular caminhos após teleporte e garantir posicionamento seguro.</li>
       <li>Integrar eventos de colisão para bloquear movimento quando UI (inventário/loja) estiver aberta, semelhante ao bloqueio de input no cliente Win32.</li>
       <li>Automatizar testes com <code>Functional Testing</code> para caminhar entre dois pontos e verificar sincronização de posição.</li>
+      <li>Serializar o caminho em um array de nibbles (ou um <code>TArray&lt;uint8&gt;</code>) antes de enviar via RPC <code>ServerMove</code>, seguindo a lógica de <code>Path</code> e <code>DirTable</code>.</li>
+      <li>Implementar predição de movimento no cliente e correção ao receber a posição oficial, atualizando o <code>CharacterMovementComponent</code>.</li>
+      <li>Logar e depurar diferenças de posição, armazenando um histórico semelhante ao <code>RandomTable</code> gerado em <code>Winmain.cpp</code> para reprodução de bugs.</li>
+      <li>Adicionar testes de teleporte entre mundos e validação de obstáculos com <code>Trace</code>, garantindo que o teleporte é autorizado apenas em locais permitidos.</li>
     </ol>
     <h2 class="mt-4">Checklist Final</h2>
     <ul>

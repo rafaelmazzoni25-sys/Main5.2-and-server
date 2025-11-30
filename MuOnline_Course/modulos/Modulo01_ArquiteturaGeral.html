@@ -212,6 +212,9 @@ public:
       <li>Recriar o loop principal com <code>FViewport</code> ou <code>FTickableGameObject</code> para garantir que a renderização e a fila de rede sejam processadas mesmo sem input.</li>
       <li>Adicionar um <code>UUserWidget</code> de loading que dispara a inicialização de sockets/HTTP antes de entrar no mapa.</li>
       <li>Para o servidor dedicado, criar um serviço Windows/Linux que inicialize <code>AMuServerMode</code> e valide mutex/porta similar a <code>GameMainInit</code>.</li>
+      <li>Modelar o equivalente ao <code>g_ErrorReport</code> com um logger assíncrono (por exemplo, <code>AsyncTask</code> + gravação em arquivo) que registre versão, GPU e resolução.</li>
+      <li>Usar <code>FScopedSlowTask</code> para exibir progresso enquanto dados (tabelas de monstros/mapa) são carregados, correspondendo à leitura de <code>config.ini</code> e <code>Data\\Enc1.dat</code>.</li>
+      <li>Configurar watchdog para minimizar e restaurar janela quando perder foco, replicando as checagens de <code>g_bUseWindowMode</code> e timers de inatividade.</li>
     </ol>
 
     <h2>Checklist Final</h2>

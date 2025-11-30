@@ -136,6 +136,10 @@ class AMuPlayerController : public APlayerController {
       <li>Para input de chat, adicionar um <code>UEditableTextBox</code> que captura foco e bloqueia binds de movimento enquanto ativo, espelhando <code>g_pMercenaryInputBox</code>.</li>
       <li>Encadear inicialização no <code>Init</code> do <code>UGameInstance</code>: carregar Widgets, aplicar áudio, registrar binds, depois entrar no mapa inicial.</li>
       <li>Testar em janela e fullscreen validando que o loop continua processando input/renderização mesmo em mudanças de foco (equivalente às checagens de <code>g_bUseWindowMode</code>).</li>
+      <li>Criar um overlay de depuração que exibe FPS, estado da fila de rede e foco da janela, similar aos logs de <code>g_ErrorReport</code>.</li>
+      <li>Adicionar um <code>UInputAction</code> dedicado para alternar cursores/lock do mouse, espelhando as chamadas Win32 <code>ShowCursor</code> e <code>SetFocus</code>.</li>
+      <li>Automatizar cenários de UI com testes <code>AutomationDriver</code>, clicando sequencialmente em login, seleção de personagem e inventário para validar fluxo completo.</li>
+      <li>Expor comandos de console (via <code>Exec</code> functions) para reiniciar UI/audio em tempo de execução, facilitando depuração sem reiniciar o jogo.</li>
     </ol>
 
     <h2>Checklist Final</h2>

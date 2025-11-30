@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  <title>Módulo 11 – Social, Party e Integridade</title>
+</head>
+<body class="bg-light">
+  <div class="container py-5">
+    <h1 class="mb-4">Módulo 11 – Social, Party e Integridade</h1>
+    <p class="lead">Exploramos o subsistema de party do GameServer, incluindo criação, liderança, listas de membros e notificação de vida/mana.</p>
+
+    <h2>Pré-requisitos</h2>
+    <ul>
+      <li>Concluir os módulos 1 a 10.</li>
+      <li>Conhecer o fluxo de rede e o roteamento de pacotes (módulos 2 e 8).</li>
+      <li>Noções de replicação de estado em UE5 e de widgets de interface.</li>
+    </ul>
+
+    <h2>Conceitos do Código Original</h2>
+
+    <div class="card mb-3">
+      <div class="card-body">
+        <h5 class="card-title">Protocolos de party – estruturas e limites</h5>
+
+        <h6>📘 O Que é?</h6>
+        <p>Conjunto de <code>struct</code>s que definem os pacotes de requisição/resposta de party e constantes de tamanho.</p>
+
+        <h6>🎯 Para Que Serve?</h6>
+        <p>Estabelece o formato binário dos pacotes de convite, aceite, remoção e sincronização de vida/mana dos membros.</p>
+
+        <h6>💻 Como Funciona?</h6>
+        <p>
+          <pre><code>#define MAX_PARTY_USER 5
+struct PMSG_PARTY_REQUEST_RECV { PBMSG_HEAD header; BYTE index[2]; };
+struct PMSG_PARTY_REQUEST_SEND { PBMSG_HEAD header; BYTE index[2]; };
+struct PMSG_PARTY_RESULT_SEND  { PBMSG_HEAD header; BYTE result; };
+struct PMSG_PARTY_LIST_SEND   { PBMSG_HEAD header; BYTE result; BYTE count; };
+struct PMSG_PARTY_LIFE        { BYTE life; BYTE mana; char name[11]; };
+</code></pre>
+          Os cabeçalhos indicam códigos <code>C1:40</code> a <code>C1:44</code>, limitando o grupo a 5 membros e permitindo enviar percentuais de vida/mana por nome.
+        </p>
+
+        <h6>📁 Onde Encontrar?</h6>
+        <p><code>Source MuServer Update 15/GameServer/GameServer/Party.h</code></p>
+
+        <h6>⏱️ Quando é Executado?</h6>
+        <p>Os structs são usados nos handlers de protocolo ao receber ou enviar qualquer operação de party.</p>
+      </div>
+    </div>
+
+    <div class="card mb-3">
+      <div class="card-body">
+        <h5 class="card-title">Criação e liderança de party (<code>Create</code>, <code>AddMember</code>, <code>ChangeLeader</code>)</h5>
+
+        <h6>📘 O Que é?</h6>
+        <p>Métodos que instanciam um grupo, adicionam membros e ajustam o líder quando necessário.</p>
+
+        <h6>🎯 Para Que Serve?</h6>
+        <p>Garantem que apenas um party ativo use um slot e que a liderança seja transferida ao remover o primeiro membro.</p>
+
+        <h6>💻 Como Funciona?</h6>
+        <p>
+          <pre><code>bool CParty::Create(int aIndex) {
+    if(this->IsParty(gObj[aIndex].PartyNumber) != 0) return 0;
+    int count = this->m_PartyCount;
+    for(int n=0;n < MAX_OBJECT;n++) {
+        if(this->m_PartyInfo[count].Count == 0) {
+            gObj[aIndex].PartyNumber = count;
+            this->m_PartyInfo[count].Count = 1;
+            this->m_PartyInfo[count].Index[0] = aIndex;
+            for(int i=1;i < MAX_PARTY_USER;i++) this->m_PartyInfo[count].Index[i] = -1;
+            this->GCPartyListSend(count);
+            this->m_PartyCount = (((++this->m_PartyCount)>=MAX_OBJECT)?0:this->m_PartyCount);
+            return 1;
+        }
+        else { count = (((++count)>=MAX_OBJECT)?0:count); }
+    }
+    return 0;
+}
+</code></pre>
+          <pre><code>bool CParty::AddMember(int index,int aIndex) {
+    if(this->IsParty(index) == 0) return 0;
+    if(this->GetMemberNumber(index,aIndex) != -1) return 0;
+    for(int n=0;n < gServerInfo.m_PartyMaxMembers;n++) {
+        if(OBJECT_RANGE(this->m_PartyInfo[index].Index[n]) == 0) {
+            gObj[aIndex].PartyNumber = index;
+            this->m_PartyInfo[index].Count++;
+            this->m_PartyInfo[index].Index[n] = aIndex;
+            this->GCPartyListSend(index);
+            return 1;
+        }
+    }
+    return 0;
+}
+</code></pre>
+          <pre><code>void CParty::ChangeLeader(int index,int number) {
+    if(this->IsParty(index) == 0 || number != 0) return;
+    for(int n=1;n < MAX_PARTY_USER;n++) {
+        if(OBJECT_RANGE(this->m_PartyInfo[index].Index[n]) != 0) {
+            this->m_PartyInfo[index].Index[0] = this->m_PartyInfo[index].Index[n];
+            this->m_PartyInfo[index].Index[n] = -1;
+            break;
+        }
+    }
+}
+</code></pre>
+        </p>
+
+        <h6>📁 Onde Encontrar?</h6>
+        <p><code>Source MuServer Update 15/GameServer/GameServer/Party.cpp</code></p>
+
+        <h6>⏱️ Quando é Executado?</h6>
+        <p><code>Create</code> é chamado ao aceitar um convite; <code>AddMember</code> quando um novo jogador é incluído; <code>ChangeLeader</code> ao remover o líder.</p>
+      </div>
+    </div>
+
+    <div class="card mb-3">
+      <div class="card-body">
+        <h5 class="card-title">Envio da lista e vida de membros (<code>GCPartyListSend</code>)</h5>
+
+        <h6>📘 O Que é?</h6>
+        <p>Rotina que serializa a composição do grupo e envia para todos os membros, incluindo vida/mana.</p>
+
+        <h6>🎯 Para Que Serve?</h6>
+        <p>Sincroniza UI de party no cliente, garantindo que cada membro veja posições, mapa e status de cada participante.</p>
+
+        <h6>💻 Como Funciona?</h6>
+        <p>
+          <pre><code>void CParty::GCPartyListSend(int index) {
+    if(this->IsParty(index) == 0) return;
+    BYTE send[256]; PMSG_PARTY_LIST_SEND pMsg; pMsg.header.set(0x42,0);
+    int size = sizeof(pMsg); pMsg.result = 1; pMsg.count = 0; PMSG_PARTY_LIST info;
+    for(int n=0;n < MAX_PARTY_USER;n++) {
+        if(OBJECT_RANGE(this->m_PartyInfo[index].Index[n]) == 0) continue;
+        LPOBJ lpObj = &gObj[this->m_PartyInfo[index].Index[n]];
+        memcpy(info.name,lpObj->Name,sizeof(info.name)); info.number = n;
+        info.map = lpObj->Map; info.x = (BYTE)lpObj->X; info.y = (BYTE)lpObj->Y;
+        info.CurLife = (DWORD)(lpObj->Life); info.MaxLife = (DWORD)(lpObj->MaxLife+lpObj->AddLife);
+        info.ServerCode = gServerInfo.m_ServerCode+1; info.CurMana = (DWORD)(lpObj->Mana);
+        info.MaxMana = (DWORD)(lpObj->MaxMana+lpObj->AddMana);
+        memcpy(&send[size],&info,sizeof(info)); size += sizeof(info); pMsg.count++;
+    }
+    pMsg.header.size = size; memcpy(send,&pMsg,sizeof(pMsg));
+    for(int n=0;n < MAX_PARTY_USER;n++) if(OBJECT_RANGE(this->m_PartyInfo[index].Index[n]) != 0)
+        DataSend(this->m_PartyInfo[index].Index[n],send,size);
+}
+</code></pre>
+        </p>
+
+        <h6>📁 Onde Encontrar?</h6>
+        <p><code>Source MuServer Update 15/GameServer/GameServer/Party.cpp</code></p>
+
+        <h6>⏱️ Quando é Executado?</h6>
+        <p>Chamado após criação, adição ou remoção de membros para atualizar todos os clientes imediatamente.</p>
+      </div>
+    </div>
+
+    <div class="card mb-3">
+      <div class="card-body">
+        <h5 class="card-title">Roteamento de pacotes de party (<code>ProtocolCore</code>)</h5>
+
+        <h6>📘 O Que é?</h6>
+        <p>Switch central que direciona os códigos <code>0x40</code>–<code>0x43</code> para os handlers do <code>CParty</code>.</p>
+
+        <h6>🎯 Para Que Serve?</h6>
+        <p>Garante que convites, respostas e atualizações de lista sejam processados pelo subsistema correto.</p>
+
+        <h6>💻 Como Funciona?</h6>
+        <p>
+          <pre><code>case 0x40: gParty.CGPartyRequestRecv((PMSG_PARTY_REQUEST_RECV*)lpMsg,aIndex); break;
+case 0x41: gParty.CGPartyRequestResultRecv((PMSG_PARTY_REQUEST_RESULT_RECV*)lpMsg,aIndex); break;
+case 0x42: gParty.CGPartyListRecv(aIndex); break;
+case 0x43: gParty.CGPartyDelMemberRecv((PMSG_PARTY_DEL_MEMBER_RECV*)lpMsg,aIndex); break;
+</code></pre>
+        </p>
+
+        <h6>📁 Onde Encontrar?</h6>
+        <p><code>Source MuServer Update 15/GameServer/GameServer/Protocol.cpp</code></p>
+
+        <h6>⏱️ Quando é Executado?</h6>
+        <p>Ao chegar qualquer pacote com cabeçalho <code>0x40</code>–<code>0x43</code> no socket do GameServer.</p>
+      </div>
+    </div>
+
+    <h2>Implementação em Unreal Engine 5</h2>
+    <p>Use componentes replicados para manter a lista de party em todos os clientes, mapeando as operações para RPCs confiáveis.</p>
+    <pre><code class="language-cpp">USTRUCT(BlueprintType)
+struct FPartyMemberInfo {
+    GENERATED_BODY()
+    UPROPERTY(BlueprintReadOnly) FString Name;
+    UPROPERTY(BlueprintReadOnly) uint8 Slot;
+    UPROPERTY(BlueprintReadOnly) int32 MapId;
+    UPROPERTY(BlueprintReadOnly) FVector2D Pos;
+    UPROPERTY(BlueprintReadOnly) float Life;
+    UPROPERTY(BlueprintReadOnly) float LifeMax;
+    UPROPERTY(BlueprintReadOnly) float Mana;
+    UPROPERTY(BlueprintReadOnly) float ManaMax;
+};
+
+UCLASS()
+class APartyState : public AInfo {
+    GENERATED_BODY()
+public:
+    UPROPERTY(ReplicatedUsing=OnRep_Members) TArray<FPartyMemberInfo> Members;
+    UFUNCTION(Server, Reliable) void ServerRequestParty(const FString& TargetName);
+    UFUNCTION(Server, Reliable) void ServerAcceptParty(int32 LeaderSlot);
+    UFUNCTION() void OnRep_Members();
+};
+</code></pre>
+
+    <h2>Passo a Passo em Unreal Engine 5</h2>
+    <ol>
+      <li>Criar um ator de estado (<code>APartyState</code>) replicado no servidor dedicado.</li>
+      <li>Implementar RPC <code>ServerRequestParty</code> disparado por UI (clique em jogador) para enviar convite.</li>
+      <li>No servidor, validar limites (<code>MAX_PARTY_USER</code>) e duplicação antes de aceitar (espelhando <code>IsParty</code>/<code>GetMemberNumber</code>).</li>
+      <li>Ao aprovar, popular <code>Members</code> e marcar o índice 0 como líder (similar ao array <code>Index[0]</code>).</li>
+      <li>Propagar <code>Members</code> via <code>OnRep_Members</code> para atualizar widgets no cliente (equivalente a <code>GCPartyListSend</code>).</li>
+      <li>Adicionar RPC de remoção que, ao excluir o líder, reatribui o slot 0 para o próximo membro, reproduzindo <code>ChangeLeader</code>.</li>
+      <li>Replicar vida/mana (tick ou evento) alimentando barras de party, usando <code>OnAttributeChanged</code> do GAS ou eventos customizados.</li>
+      <li>Criar Widget Blueprint de party que liste <code>Members</code> e permita chutar jogador via botão que chama <code>ServerDelMember</code>.</li>
+      <li>Integrar com minimapa replicado para mostrar a posição <code>Pos</code> dos membros como no pacote original.</li>
+      <li>Registrar logs/telemetria para cada convite e aceite, equivalente ao logging do protocolo <code>0x40</code>–<code>0x43</code>.</li>
+      <li>Se quiser persistência externa, expor endpoints Node.js/SQL para salvar composições de grupo em sessões cooperativas e restaurar automaticamente.</li>
+      <li>Automatizar testes funcionais: criar dois clientes simulados, enviar convite, aceitar e verificar atualização de barras de vida.</li>
+    </ol>
+
+    <h2>Checklist Final</h2>
+    <ul>
+      <li>Convites de party são enviados e recebidos, respeitando limite de 5 membros.</li>
+      <li>Ao remover o líder, outro membro assume automaticamente o slot 0.</li>
+      <li>UI mostra vida/mana de todos os membros e atualiza ao receber replicação.</li>
+      <li>Logs confirmam o roteamento de pacotes 0x40–0x43 e a sincronização da lista.</li>
+    </ul>
+  </div>
+</body>
+</html>

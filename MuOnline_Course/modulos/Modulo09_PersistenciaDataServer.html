@@ -237,6 +237,8 @@ app.get('/character/info', async (req,res) => {
       <li>Adicionar camadas de retry e backoff no VaRest para erros HTTP/SQL, registrando falhas em um log persistente.</li>
       <li>Implementar testes automatizados que comparam um binário de inventário salvo pelo servidor original com o JSON retornado pelo serviço Node.js.</li>
       <li>Documentar o contrato REST (método, rota, parâmetros) em um arquivo incluído no projeto para consulta rápida.</li>
+      <li>Mapear procedures SQL usadas pelo DataServer (ex.: <code>WZ_GetResetInfo</code>, <code>WZ_GetWarehouse</code>) para consultas parametrizadas em Node.js, validando tipos e limites.</li>
+      <li>Criar um modo offline em UE5 que usa SQLite/local JSON para espelhar respostas do DataServer, permitindo testes sem conexão.</li>
     </ol>
 
     <h2>Checklist Final</h2>
