@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  <title>Módulo 14 – Sistema Muun (Pets e Inventário)</title>
+</head>
+<body class="bg-light">
+  <div class="container py-5">
+    <h1 class="mb-4">Módulo 14 – Sistema Muun (Pets e Inventário)</h1>
+    <p class="lead">Cobrimos carregamento de pets Muun, opções especiais, checagem de inventário e status aplicados aos personagens.</p>
+
+    <h2>Pré-requisitos</h2>
+    <ul>
+      <li>Módulos 2, 5 e 9 (rede, itens e persistência com VaRest/Node.js/SQL).</li>
+      <li>Conhecimento de <code>std::map</code> e manipulação de inventário no servidor.</li>
+      <li>Experiência com <code>AActor</code> e <code>UInventoryComponent</code> em UE5.</li>
+    </ul>
+
+    <h2>Conceitos do Código Original</h2>
+
+    <div class="card mb-3">
+      <div class="card-body">
+        <h5 class="card-title">Carregamento de definições Muun – <code>CMuunSystem::Load</code></h5>
+
+        <h6>📘 O Que é?</h6>
+        <p>Processo que lê duas seções de script: informações básicas do item Muun e opções especiais.</p>
+
+        <h6>🎯 Para Que Serve?</h6>
+        <p>Popular mapas <code>m_MuunSystemInfo</code> e <code>m_MuunSystemOptionInfo</code> usados em checagens posteriores de status.</p>
+
+        <h6>💻 Como Funciona?</h6>
+        <p>
+          <pre><code>void CMuunSystem::Load(char* path) {
+    CMemScript* lpMemScript = new CMemScript;
+    if(lpMemScript == 0) { ErrorMessageBox(MEM_SCRIPT_ALLOC_ERROR,path); return; }
+    if(lpMemScript->SetBuffer(path) == 0) { ErrorMessageBox(lpMemScript->GetLastError()); delete lpMemScript; return; }
+    this->m_MuunSystemInfo.clear();
+    this->m_MuunSystemOptionInfo.clear();
+    try {
+        while(true) {
+            if(lpMemScript->GetToken() == TOKEN_END) { break; }
+            int section = lpMemScript->GetNumber();
+            while(true) {
+                if(section == 0) {
+                    if(strcmp("end",lpMemScript->GetAsString()) == 0) { break; }
+                    MUUN_SYSTEM_INFO info;
+                    info.Index = lpMemScript->GetNumber();
+                    info.Type = lpMemScript->GetAsNumber();
+                    info.Rank = lpMemScript->GetAsNumber();
+                    info.OptionIndex = lpMemScript->GetAsNumber();
+                    info.EvolutionItemIndex = lpMemScript->GetAsNumber();
+                    this->m_MuunSystemInfo.insert(std::pair<int,MUUN_SYSTEM_INFO>(info.Index,info));
+                } else if(section == 1) {
+                    if(strcmp("end",lpMemScript->GetAsString()) == 0) { break; }
+                    MUUN_SYSTEM_OPTION_INFO info;
+                    info.Index = lpMemScript->GetNumber();
+                    info.OptionValue[0] = lpMemScript->GetAsNumber();
+                    info.OptionValue[1] = lpMemScript->GetAsNumber();
+                    info.OptionValue[2] = lpMemScript->GetAsNumber();
+                    info.OptionValue[3] = lpMemScript->GetAsNumber();
+                    info.OptionValue[4] = lpMemScript->GetAsNumber();
+                    info.MaxOptionValue = lpMemScript->GetAsNumber();
+                    info.SpecialOptionIndex = lpMemScript->GetAsNumber();
+                    info.SpecialOptionValue = lpMemScript->GetAsNumber();
+                    info.MapZone = lpMemScript->GetAsNumber();
+                    info.PlayTime = lpMemScript->GetAsNumber();
+                    info.DayOfWeek = lpMemScript->GetAsNumber();
+                    info.MinHour = lpMemScript->GetAsNumber();
+                    info.MaxHour = lpMemScript->GetAsNumber();
+                    info.MinLevel = lpMemScript->GetAsNumber();
+                    info.MaxLevel = lpMemScript->GetAsNumber();
+                    info.MinMasterLevel = lpMemScript->GetAsNumber();
+                    info.MaxMasterLevel = lpMemScript->GetAsNumber();
+                    this->m_MuunSystemOptionInfo.insert(std::pair<int,MUUN_SYSTEM_OPTION_INFO>(info.Index,info));
+                } else { break; }
+            }
+        }
+    } catch(...) { ErrorMessageBox(lpMemScript->GetLastError()); }
+    delete lpMemScript;
+}
+</code></pre>
+        </p>
+
+        <h6>📁 Onde Encontrar?</h6>
+        <p><code>Source MuServer Update 15/GameServer/GameServer/MuunSystem.cpp</code></p>
+
+        <h6>⏱️ Quando é Executado?</h6>
+        <p>No boot do GameServer (Update &gt;=803), preparando tabelas antes de carregar personagens.</p>
+      </div>
+    </div>
+
+    <div class="card mb-3">
+      <div class="card-body">
+        <h5 class="card-title">Aplicação contínua de status Muun – <code>CMuunSystem::MainProc</code></h5>
+
+        <h6>📘 O Que é?</h6>
+        <p>Loop que percorre jogadores conectados e ativa/desativa efeitos de itens Muun equipados.</p>
+
+        <h6>🎯 Para Que Serve?</h6>
+        <p>Garante que bônus sejam aplicados apenas quando as condições especiais são satisfeitas.</p>
+
+        <h6>💻 Como Funciona?</h6>
+        <p>
+          <pre><code>void CMuunSystem::MainProc() {
+    for(int n=OBJECT_START_USER;n < MAX_OBJECT;n++) {
+        if(gObjIsConnectedGP(n) == 0) { continue; }
+        LPOBJ lpObj = &gObj[n];
+        for(int n=0;n < MUUN_INVENTORY_WEAR_SIZE;n++) {
+            if(lpObj->MuunInventory[n].IsItem() == 0 || lpObj->MuunInventory[n].IsMuunItem() == 0 || lpObj->MuunInventory[n].m_Durability == 0) { continue; }
+            MUUN_SYSTEM_INFO MuunSystemInfo;
+            if(this->GetMuunSystemInfo(lpObj->MuunInventory[n].m_Index,&MuunSystemInfo) != 0) {
+                MUUN_SYSTEM_OPTION_INFO MuunSystemOptionInfo;
+                if(this->GetMuunSystemOptionInfo(MuunSystemInfo.OptionIndex,&MuunSystemOptionInfo) != 0) {
+                    if(this->CheckSpecialOption(lpObj,&MuunSystemOptionInfo) == 0) {
+                        if(lpObj->MuunItemStatus[n] != 0) {
+                            gObjectManager.CharacterCalcAttribute(lpObj->Index);
+                            this->GCMuunItemStatusSend(lpObj->Index,n,0);
+                            lpObj->MuunItemStatus[n] = 0;
+                        }
+                    } else {
+                        if(lpObj->MuunItemStatus[n] == 0) {
+                            gObjectManager.CharacterCalcAttribute(lpObj->Index);
+                            this->GCMuunItemStatusSend(lpObj->Index,n,1);
+                            lpObj->MuunItemStatus[n] = 1;
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+</code></pre>
+        </p>
+
+        <h6>📁 Onde Encontrar?</h6>
+        <p><code>Source MuServer Update 15/GameServer/GameServer/MuunSystem.cpp</code></p>
+
+        <h6>⏱️ Quando é Executado?</h6>
+        <p>No loop principal do GameServer, avaliando continuamente os efeitos equipados.</p>
+      </div>
+    </div>
+
+    <div class="card mb-3">
+      <div class="card-body">
+        <h5 class="card-title">Validação de inventário Muun – <code>MuunInventoryRectCheck</code> e <code>MuunInventoryInsertItem</code></h5>
+
+        <h6>📘 O Que é?</h6>
+        <p>Regras de encaixe de itens Muun em slots, respeitando largura/altura do item e mapa de ocupação.</p>
+
+        <h6>🎯 Para Que Serve?</h6>
+        <p>Impede sobreposição e mantém layout 4x15 do inventário Muun, retornando um slot válido ou 0xFF.</p>
+
+        <h6>💻 Como Funciona?</h6>
+        <p>
+          <pre><code>BYTE CMuunSystem::MuunInventoryRectCheck(int aIndex,int x,int y,int width,int height) {
+    if((x+width) > 4 || (y+height) > 15) { return 0xFF; }
+    for(int sy=0;sy < height;sy++) {
+        for(int sx=0;sx < width;sx++) {
+            if(gObj[aIndex].MuunInventoryMap[(((sy+y)*4)+(sx+x))] != 0xFF) { return 0xFF; }
+        }
+    }
+    return (((y*4)+x)+MUUN_INVENTORY_WEAR_SIZE);
+}
+
+BYTE CMuunSystem::MuunInventoryInsertItem(int aIndex,CItem item) {
+    ITEM_INFO ItemInfo;
+    if(gItemManager.GetInfo(item.m_Index,&ItemInfo) == 0) { return 0xFF; }
+    // (continua calculando posição e gravação no array, seguindo as regras de largura/altura)
+}
+</code></pre>
+        </p>
+
+        <h6>📁 Onde Encontrar?</h6>
+        <p><code>Source MuServer Update 15/GameServer/GameServer/MuunSystem.cpp</code></p>
+
+        <h6>⏱️ Quando é Executado?</h6>
+        <p>Usado ao inserir itens Muun (drop ou compra) e na montagem do inventário em login.</p>
+      </div>
+    </div>
+
+    <h2>Implementação em Unreal Engine 5</h2>
+    <p>Vamos mapear o inventário Muun para componentes e DataAssets, mantendo compatibilidade com backend Node.js/SQL via VaRest.</p>
+
+    <h3>Passo a Passo</h3>
+    <ol>
+      <li>Defina um <code>UDataTable</code> para <code>FMuunDefinition</code> e <code>FMuunOptionDefinition</code> (campos alinhados aos scripts).</li>
+      <li>Crie um <code>UMuunInventoryComponent</code> (subclasse de <code>UActorComponent</code>) com mapa 4x15 em <code>TArray&lt;int32&gt;</code> inicializado com 0xFF.</li>
+      <li>Implemente métodos <code>RectCheck</code> e <code>InsertItem</code> replicando a lógica de limites e ocupação, disparando eventos <code>OnMuunChanged</code>.</li>
+      <li>No <code>APlayerState</code>, mantenha um array de slots equipados (2 primeiros índices) e expor RPCs servidor &lt;-&gt; cliente para equipar/retirar.</li>
+      <li>Crie um <code>UMuunStatusSubsystem</code> que, a cada tick server-side, avalia condições especiais (mapa, horário, nível) e aplica <code>GameplayEffect</code> ou modificadores de atributos.</li>
+      <li>Integre com VaRest: ao logar, faça requisição GET para Node.js/SQL retornando lista de itens Muun; ao salvar, envie POST com slots e durabilidade.</li>
+      <li>Implemente UI em UMG com grid 4x15 arrastável; use <code>DragDropOperation</code> para mover itens respeitando <code>RectCheck</code>.</li>
+      <li>Adicione testes automatizados: unit test para <code>RectCheck</code> (ambos válidos/invalidos) e integração que carrega definições do DataTable e aplica um buff em personagem.</li>
+    </ol>
+
+    <h3>Checklist Final</h3>
+    <ul>
+      <li>Dados Muun carregados em DataTables e sincronizados com backend.</li>
+      <li>Inventário Muun replicado com regras de encaixe 4x15 e slots equipados funcionais.</li>
+      <li>Buffs/efeitos são aplicados e removidos dinamicamente conforme condições, com feedback visual em UI.</li>
+    </ul>
+  </div>
+</body>
+</html>

@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  <title>Módulo 46 – Bonus Manager (Buffs Globais)</title>
+</head>
+<body class="bg-light">
+  <div class="container py-5">
+    <h1 class="mb-4">Módulo 46 – Bonus Manager (Buffs Globais)</h1>
+    <p class="lead">Descreve como o servidor agenda e aplica bônus globais (XP, drop, resets) usando o <code>CBonusManager</code>, e como reproduzir esse agendador em Unreal Engine 5 com backend VaRest/Node.js/SQL.</p>
+
+    <h2>Pré-requisitos</h2>
+    <ul>
+      <li>Módulo 1 – Arquitetura Geral (inicialização do GameServer).</li>
+      <li>Módulo 18 – Sistema Gens (para entender filtros por facção, caso aplique a bônus).</li>
+      <li>Módulo 41 – Experiência/Reset (efeitos de multiplicadores sobre XP).</li>
+    </ul>
+
+    <h2>Conceitos do Código Original</h2>
+
+    <div class="card mb-3">
+      <div class="card-body">
+        <h5 class="card-title">Inicialização e carregamento – <code>CBonusManager::Load/Init</code></h5>
+
+        <h6>📘 O Que é?</h6>
+        <p>Rotinas que zeram os slots de bônus, leem horários/valores do script <code>BonusManager.dat</code> e colocam cada entrada em estado <em>EMPTY</em> para sincronizar com o horário mais próximo.<br>
+          <pre><code>CBonusManager::CBonusManager() {
+  for(int n=0;n &lt; MAX_BONUS;n++) {
+    BONUS_INFO* lpInfo = &this-&gt;m_BonusInfo[n];
+    lpInfo-&gt;Index = n; lpInfo-&gt;State = BONUS_STATE_BLANK;
+    lpInfo-&gt;RemainTime = 0; lpInfo-&gt;TargetTime = 0;
+    lpInfo-&gt;TickCount = GetTickCount();
+    lpInfo-&gt;StartTime.clear(); lpInfo-&gt;ValueInfo.clear();
+  }
+}
+void CBonusManager::Init() {
+  for(int n=0;n &lt; MAX_BONUS;n++) {
+    if(gServerInfo.m_BonusManagerSwitch == 0)
+      this-&gt;SetState(&this-&gt;m_BonusInfo[n],BONUS_STATE_BLANK);
+    else
+      this-&gt;SetState(&this-&gt;m_BonusInfo[n],BONUS_STATE_EMPTY);
+  }
+}
+void CBonusManager::Load(char* path) {
+  CMemScript* lpMemScript = new CMemScript;
+  if(lpMemScript-&gt;SetBuffer(path) == 0) { ErrorMessageBox(...); return; }
+  for(int n=0;n &lt; MAX_BONUS;n++) { this-&gt;m_BonusInfo[n].StartMessage = -1; ... }
+  while(true) { if(lpMemScript-&gt;GetToken() == TOKEN_END) break; int section = lpMemScript-&gt;GetNumber();
+    if(section == 0) { /* horários */ BONUS_START_TIME info; int index = lpMemScript-&gt;GetNumber(); info.Year = ...; info.Second = lpMemScript-&gt;GetAsNumber(); this-&gt;m_BonusInfo[index].StartTime.push_back(info); }
+    else if(section == 1) { int index = lpMemScript-&gt;GetNumber(); this-&gt;m_BonusInfo[index].StartMessage = lpMemScript-&gt;GetAsNumber(); this-&gt;m_BonusInfo[index].FinalMessage = lpMemScript-&gt;GetAsNumber(); }
+  }
+}</code></pre>
+        </p>
+
+        <h6>🎯 Para Que Serve?</h6>
+        <p>Prepara os slots de bônus para que cada entrada saiba quando deve começar, quais mensagens exibir e quais valores aplicar (XP/drop/reset etc.).</p>
+
+        <h6>💻 Como Funciona?</h6>
+        <p>O construtor zera tudo; <code>Init</code> decide se o sistema ficará ativo; <code>Load</code> popula horários e mensagens lendo o arquivo de configuração.</p>
+
+        <h6>📁 Onde Encontrar?</h6>
+        <p><code>Source MuServer Update 15/GameServer/GameServer/BonusManager.cpp</code></p>
+
+        <h6>⏱️ Quando é Executado?</h6>
+        <p><code>Load</code> e <code>Init</code> são chamados na inicialização do GameServer em <code>ServerInfo.cpp</code>, antes do loop principal.</p>
+      </div>
+    </div>
+
+    <div class="card mb-3">
+      <div class="card-body">
+        <h5 class="card-title">Máquina de estados e sincronismo – <code>CBonusManager::MainProc/CheckSync</code></h5>
+
+        <h6>📘 O Que é?</h6>
+        <p>Loop que, para cada entrada, sincroniza com o próximo horário agendado e alterna entre estados <em>EMPTY</em> (aguardando) e <em>START</em> (bônus ativo).</p>
+
+        <h6>🎯 Para Que Serve?</h6>
+        <p>Garante que os bônus globais iniciem e terminem exatamente nos horários definidos, enviando mensagens configuradas.</p>
+
+        <h6>💻 Como Funciona?</h6>
+        <p>
+          <pre><code>void CBonusManager::MainProc() {
+  for(int n=0;n < MAX_BONUS;n++) {
+    BONUS_INFO* lpInfo = &this-&gt;m_BonusInfo[n];
+    switch(lpInfo-&gt;State) {
+      case BONUS_STATE_BLANK: this-&gt;ProcState_BLANK(lpInfo); break;
+      case BONUS_STATE_EMPTY: this-&gt;ProcState_EMPTY(lpInfo); break;
+      case BONUS_STATE_START: this-&gt;ProcState_START(lpInfo); break;
+    }
+  }
+}
+void CBonusManager::ProcState_EMPTY(BONUS_INFO* lpInfo) {
+  if(lpInfo-&gt;RemainTime &lt;= 0) { if(lpInfo-&gt;StartMessage != -1) gNotice.GCNoticeSendToAll(...); this-&gt;SetState(lpInfo,BONUS_STATE_START); }
+}
+void CBonusManager::ProcState_START(BONUS_INFO* lpInfo) {
+  if(lpInfo-&gt;RemainTime &lt;= 0) { if(lpInfo-&gt;FinalMessage != -1) gNotice.GCNoticeSendToAll(...); this-&gt;SetState(lpInfo,BONUS_STATE_EMPTY); }
+}
+void CBonusManager::CheckSync(BONUS_INFO* lpInfo) {
+  if(lpInfo-&gt;StartTime.empty() != 0) { this-&gt;SetState(lpInfo,BONUS_STATE_BLANK); return; }
+  CScheduleManager ScheduleManager;
+  for(auto it : lpInfo-&gt;StartTime) { ScheduleManager.AddSchedule(it.Year,it.Month,it.Day,it.Hour,it.Minute,it.Second,it.DayOfWeek); }
+  if(ScheduleManager.GetSchedule(&ScheduleTime) == 0) { this-&gt;SetState(lpInfo,BONUS_STATE_BLANK); return; }
+  lpInfo-&gt;RemainTime = (int)difftime(ScheduleTime.GetTime(),time(0));
+  lpInfo-&gt;TargetTime = (int)ScheduleTime.GetTime();
+}</code></pre>
+        </p>
+
+        <h6>📁 Onde Encontrar?</h6>
+        <p><code>Source MuServer Update 15/GameServer/GameServer/BonusManager.cpp</code></p>
+
+        <h6>⏱️ Quando é Executado?</h6>
+        <p><code>MainProc</code> é chamado no loop <code>gObjEventRunProc</code> em <code>User.cpp</code>, garantindo atualizações a cada tick do servidor.</p>
+      </div>
+    </div>
+
+    <div class="card mb-3">
+      <div class="card-body">
+        <h5 class="card-title">Aplicação de bônus – uso em XP e drops</h5>
+
+        <h6>📘 O Que é?</h6>
+        <p>Chamadas diretas ao <code>gBonusManager.GetBonusValue</code> em pontos de cálculo de experiência e drops para multiplicar valores conforme bônus ativo.</p>
+
+        <h6>🎯 Para Que Serve?</h6>
+        <p>Permite configurar períodos de XP/drops/resets ampliados sem recompilar o servidor.</p>
+
+        <h6>💻 Como Funciona?</h6>
+        <p>
+          <pre><code>// User.cpp – loop de eventos
+gBonusManager.MainProc();
+
+// ObjectManager.cpp – recompensa de XP
+experience = (experience*gBonusManager.GetBonusValue(lpObj,BONUS_INDEX_EXPERIENCE_RATE,100,-1,-1,lpMonster-&gt;Class,lpMonster-&gt;Level))/100;
+
+// Monster.cpp – drop rate
+ItemDropRate = (ItemDropRate*gBonusManager.GetBonusValue(lpObj,BONUS_INDEX_ITEM_DROP_RATE,100,-1,-1,lpObj-&gt;Class,lpObj-&gt;Level))/100;
+</code></pre>
+        </p>
+
+        <h6>📁 Onde Encontrar?</h6>
+        <p><code>Source MuServer Update 15/GameServer/GameServer/User.cpp</code>, <code>ObjectManager.cpp</code>, <code>Monster.cpp</code></p>
+
+        <h6>⏱️ Quando é Executado?</h6>
+        <p>Durante cada cálculo de XP/drop/resets no jogo; <code>MainProc</code> mantém o estado atualizado e <code>GetBonusValue</code> é chamado no momento da recompensa.</p>
+      </div>
+    </div>
+
+    <h2>Implementação em Unreal Engine 5</h2>
+
+    <h4>Equivalências</h4>
+    <ul>
+      <li>Gerenciador de bônus: <code>UGameInstanceSubsystem</code> ou <code>UWorldSubsystem</code> com timers.</li>
+      <li>Configuração: <code>UDataTable</code> para agenda e valores; cache em <code>FBonusConfig</code> structs.</li>
+      <li>Aplicação: componentes em <code>AGameState</code> ou <code>UAttributeSet</code> (GAS) consultando o subsistema.</li>
+    </ul>
+
+    <h4>Passo a Passo</h4>
+    <ol>
+      <li>Modele um <code>UStruct FBonusSchedule</code> com campos (Data/Hora, Mensagens, Duração, Multiplicadores).</li>
+      <li>Carregue um <code>UDataTable</code> no <code>UGameInstanceSubsystem</code>; calcule o próximo horário e inicie um <code>FTimerHandle</code> para mudar de estado (EMPTY → START → EMPTY).</li>
+      <li>No <code>AGameState</code>, replique <code>CurrentBonusState</code> e multiplicadores ativos; use rep-notify para atualizar HUD.</li>
+      <li>Intercepte recompensas (XP, drop) em componentes de combate/inventário e multiplique pelo valor ativo do subsistema.</li>
+      <li>Persistência: ao iniciar/encerrar um bônus, chame VaRest → endpoint Node.js → SQL para registrar histórico e manter valores sincronizados entre shards/servidores.</li>
+    </ol>
+
+    <h2>Checklist Final</h2>
+    <ul>
+      <li>Agenda de bônus carregada de DataTable/SQL e sincronizada no servidor.</li>
+      <li>HUD mostra estado/mensagens do bônus replicadas.</li>
+      <li>Cálculos de XP, drop e resets usam multiplicadores ativos.</li>
+      <li>Logs/histórico de bônus são salvos via VaRest/Node.js/SQL.</li>
+    </ul>
+  </div>
+</body>
+</html>

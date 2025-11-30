@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  <title>Módulo 29 – Comércio: Trade e Loja Pessoal</title>
+</head>
+<body class="bg-light">
+  <div class="container py-5">
+    <h1 class="mb-4">Módulo 29 – Comércio: Trade e Loja Pessoal</h1>
+    <p class="lead">Explica as validações de trade e os pacotes de loja pessoal no GameServer, com um roteiro completo para recriar o mercado de jogadores em UE5.</p>
+
+    <h2>Pré-requisitos</h2>
+    <ul>
+      <li>Módulo 5 – Inventário e Itens.</li>
+      <li>Módulo 9 – Persistência e DataServer.</li>
+      <li>Módulo 11 – Social/Party (para notificações entre jogadores).</li>
+    </ul>
+
+    <h2>Conceitos do Código Original</h2>
+
+    <div class="card mb-3">
+      <div class="card-body">
+        <h5 class="card-title">CPersonalShop::CheckPersonalShop / Open – Validação de slots e preços</h5>
+
+        <h6>📘 O Que é?</h6>
+        <p>
+          Funções de verificação antes de abrir loja pessoal, checando slots de inventário e valores definidos pelo jogador.<br>
+          <pre><code>bool CPersonalShop::CheckPersonalShop(int aIndex) {
+  for(int n=INVENTORY_EXT4_SIZE;n < INVENTORY_FULL_SIZE;n++) {
+    if(gObj[aIndex].Inventory[n].IsItem() != 0) { return 0; }
+  }
+  return 1;
+}
+bool CPersonalShop::CheckPersonalShopOpen(int aIndex) {
+  int count = 0;
+  for(int n=INVENTORY_EXT4_SIZE;n < INVENTORY_FULL_SIZE;n++) {
+    if(gObj[aIndex].Inventory[n].IsItem() != 0) {
+#if(GAMESERVER_UPDATE>=802)
+      if(gObj[aIndex].Inventory[n].m_PShopValue <= 0 && gObj[aIndex].Inventory[n].m_PShopJoBValue <= 0 &&
+         gObj[aIndex].Inventory[n].m_PShopJoSValue <= 0 && gObj[aIndex].Inventory[n].m_PShopJoCValue <= 0)
+#else
+      if(gObj[aIndex].Inventory[n].m_PShopValue <= 0)
+#endif
+      { return 0; }
+      else { count++; }
+    }
+  }
+  return ((count==0)?0:1);
+}</code></pre>
+        </p>
+
+        <h6>🎯 Para Que Serve?</h6>
+        <p>Impede abrir loja sem itens/preços válidos e evita itens fora das extensões específicas do inventário.</p>
+
+        <h6>💻 Como Funciona?</h6>
+        <p>
+          <ol>
+            <li>Itera do slot <code>INVENTORY_EXT4_SIZE</code> ao <code>INVENTORY_FULL_SIZE</code>.</li>
+            <li>Rejeita se houver item sem preço configurado.</li>
+            <li>Conta itens elegíveis para garantir que ao menos um produto existe.</li>
+          </ol>
+        </p>
+
+        <h6>📁 Onde Encontrar?</h6>
+        <p><code>Source MuServer Update 15/GameServer/GameServer/PersonalShop.cpp</code></p>
+
+        <h6>⏱️ Quando é Executado?</h6>
+        <p>No momento em que o jogador solicita abrir a loja (via pacotes 0x3F subcódigos 0x02/0x03 em Protocol.cpp).</p>
+      </div>
+    </div>
+
+    <div class="card mb-3">
+      <div class="card-body">
+        <h5 class="card-title">Protocol.cpp – Pacotes de loja pessoal e trade</h5>
+
+        <h6>📘 O Que é?</h6>
+        <p>
+          Trechos do roteamento central que despacham handlers de trade e de loja pessoal.<br>
+          <pre><code>case 0x36: gTrade.CGTradeRequestRecv((PMSG_TRADE_REQUEST_RECV*)lpMsg,aIndex); break;
+case 0x37: gTrade.CGTradeResponseRecv((PMSG_TRADE_RESPONSE_RECV*)lpMsg,aIndex); break;
+case 0x3A: gTrade.CGTradeMoneyRecv((PMSG_TRADE_MONEY_RECV*)lpMsg,aIndex); break;
+case 0x3C: gTrade.CGTradeOkButtonRecv((PMSG_TRADE_OK_BUTTON_RECV*)lpMsg,aIndex); break;
+case 0x3D: gTrade.CGTradeCancelButtonRecv(aIndex); break;
+case 0x3F:
+  switch(lpMsg[3]) {
+    case 0x01: gPersonalShop.CGPShopSetItemPriceRecv(...); break;
+    case 0x02: gPersonalShop.CGPShopOpenRecv(...); break;
+    case 0x03: gPersonalShop.CGPShopCloseRecv(aIndex); break;
+    case 0x05: gPersonalShop.CGPShopItemListRecv(...); break;
+    case 0x06: gPersonalShop.CGPShopBuyItemRecv(...); break;
+    case 0x07: gPersonalShop.CGPShopLeaveRecv(...); break;
+  }
+  break;</code></pre>
+        </p>
+
+        <h6>🎯 Para Que Serve?</h6>
+        <p>Define o fluxo de requisição/resposta de trade (negociação direta) e de loja pessoal (vitrine persistente enquanto aberta).</p>
+
+        <h6>💻 Como Funciona?</h6>
+        <p>
+          <ol>
+            <li>Recebe pacotes com cabeçalho 0x36–0x3D para trade e 0x3F para loja.</li>
+            <li>Despacha para <code>gTrade</code> ou <code>gPersonalShop</code>, que validam itens, moedas e status de sessão.</li>
+            <li>Envia respostas de confirmação/erro para ambos jogadores ou compradores.</li>
+          </ol>
+        </p>
+
+        <h6>📁 Onde Encontrar?</h6>
+        <p><code>Source MuServer Update 15/GameServer/GameServer/Protocol.cpp</code></p>
+
+        <h6>⏱️ Quando é Executado?</h6>
+        <p>A cada pacote de rede relacionado a comércio recebido pelo GameServer.</p>
+      </div>
+    </div>
+
+    <h2>Implementação em Unreal Engine 5</h2>
+    <p>O comércio é dividido em duas camadas: interação direta (trade) e loja persistente, com backend para logging e segurança.</p>
+    <ol>
+      <li>Implemente um <code>UTradeComponent</code> em <code>APlayerController</code> com RPCs <code>ServerRequestTrade</code>, <code>ServerAcceptTrade</code>, <code>ServerConfirmTrade</code> validando inventário e moedas.</li>
+      <li>Use arrays replicados de slots de trade (<code>UPROPERTY(Replicated)</code>) para mostrar itens e valores na UI UMG.</li>
+      <li>Para loja pessoal, crie <code>UPersonalShopComponent</code> que guarda lista de itens e preços; exponha <code>ServerOpenShop</code>, <code>ServerCloseShop</code>, <code>ServerBuyFromShop</code> com verificações semelhantes a <code>CheckPersonalShopOpen</code>.</li>
+      <li>Persistência e auditoria: quando abrir/fechar loja ou concluir venda, envie via VaRest um <code>POST /shop/log</code> para um servidor Node.js que grava em SQL (itens, vendedor, comprador, valores).</li>
+      <li>Adicione checagens de integridade: valide que itens estão em slots permitidos e que o preço é maior que zero antes de replicar a vitrine.</li>
+      <li>Crie widgets UMG para trade bilateral e para vitrine (lista de itens do vendedor com botão de compra) consumindo dados replicados.</li>
+      <li>No servidor UE5, sincronize moedas e inventário usando uma camada de autoridade no <code>GameState</code> ou um serviço dedicado que aplica as mudanças apenas após confirmação do backend SQL.</li>
+      <li>Teste em multiplayer: simule duas conexões, abra loja, compre item, realize trade direto e valide replicação/desconto de moedas.</li>
+    </ol>
+
+    <h2>Checklist Final</h2>
+    <ul>
+      <li>Trade bilateral funcionando com confirmação dupla e replicação de slots.</li>
+      <li>Loja pessoal abre apenas com itens precificados e replica lista para visitantes.</li>
+      <li>Logs de venda e trade são enviados ao Node.js/SQL via VaRest.</li>
+      <li>Itens e moedas atualizam corretamente após compras/trocas.</li>
+    </ul>
+  </div>
+</body>
+</html>

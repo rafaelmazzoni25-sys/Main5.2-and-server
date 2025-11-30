@@ -1,0 +1,256 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  <title>Módulo 12 – IA de Monstros e MovePath</title>
+</head>
+<body class="bg-light">
+  <div class="container py-5">
+    <h1 class="mb-4">Módulo 12 – IA de Monstros e MovePath</h1>
+    <p class="lead">Detalhamos o carregamento de elementos de IA e caminhos de movimento usados pelo GameServer para posicionar e dirigir monstros.</p>
+
+    <h2>Pré-requisitos</h2>
+    <ul>
+      <li>Concluir os módulos 1, 6 e 8 para compreender bootstrap de servidor, timers e roteamento de pacotes.</li>
+      <li>Conhecer leitura de arquivos de configuração com <code>CMemScript</code> (visto em módulos anteriores).</li>
+      <li>Noções de AI Components em UE5 e navegação (NavMeshBoundsVolume e <code>UNavigationSystemV1</code>).</li>
+    </ul>
+
+    <h2>Conceitos do Código Original</h2>
+
+    <div class="card mb-3">
+      <div class="card-body">
+        <h5 class="card-title">Carregamento de elementos de IA – <code>CMonsterAIElement::LoadData</code></h5>
+
+        <h6>📘 O Que é?</h6>
+        <p>Rotina que lê definições de elementos de IA (classe, tipo, taxa de sucesso, delay, alvo e coordenadas) e popular arrays estáticos.</p>
+
+        <h6>🎯 Para Que Serve?</h6>
+        <p>Inicializa o catálogo de ações de IA por mapa, garantindo que cada elemento tenha parâmetros e posições válidas antes do loop do GameServer.</p>
+
+        <h6>💻 Como Funciona?</h6>
+        <p>
+          <pre><code>void CMonsterAIElement::LoadData(char* path) {
+    CMemScript* lpMemScript = new CMemScript;
+    if(lpMemScript == 0) { ErrorMessageBox(MEM_SCRIPT_ALLOC_ERROR,path); return; }
+    if(lpMemScript->SetBuffer(path) == 0) { ErrorMessageBox(lpMemScript->GetLastError()); delete lpMemScript; return; }
+    CMonsterAIElement::DelAllAIElement();
+    try {
+        while(true) {
+            if(lpMemScript->GetToken() == TOKEN_END) { break; }
+            int section = lpMemScript->GetNumber();
+            while(true) {
+                if(section == 0) {
+                    if(strcmp("end",lpMemScript->GetAsString()) == 0) { break; }
+                    CMonsterAIElementInfo info;
+                    info.m_ElementNumber = lpMemScript->GetNumber();
+                    strcpy_s(info.m_ElementName,lpMemScript->GetAsString());
+                    info.m_ElementClass = lpMemScript->GetAsNumber();
+                    info.m_ElementType = lpMemScript->GetAsNumber();
+                    info.m_SuccessRate = lpMemScript->GetAsNumber();
+                    info.m_DelayTime = lpMemScript->GetAsNumber();
+                    info.m_TargetType = lpMemScript->GetAsNumber();
+                    info.m_X = lpMemScript->GetAsNumber();
+                    info.m_Y = lpMemScript->GetAsNumber();
+                    if(info.m_ElementNumber >= 0 && info.m_ElementNumber &lt; MAX_MONSTER_AI_ELEMENT_INFO) {
+                        CMonsterAIElement::m_MonsterAIElementInfoArray[info.m_ElementNumber] = info;
+                    }
+                } else { break; }
+            }
+        }
+    } catch(...) { ErrorMessageBox(lpMemScript->GetLastError()); }
+    CMonsterAIElement::m_DataLoad = 1;
+    CMonsterAIElement::m_MonsterAIMovePath[MAP_CRYWOLF].LoadData(gPath.GetFullPath("Monster\\MovePath\\MovePath_35.dat"));
+    delete lpMemScript;
+}
+</code></pre>
+        </p>
+
+        <h6>📁 Onde Encontrar?</h6>
+        <p><code>Source MuServer Update 15/GameServer/GameServer/MonsterAIElement.cpp</code></p>
+
+        <h6>⏱️ Quando é Executado?</h6>
+        <p>Chamado durante a inicialização do GameServer, antes de qualquer spawn de monstros, garantindo que <code>m_DataLoad</code> esteja pronto e o move path de Crywolf carregado.</p>
+      </div>
+    </div>
+
+    <div class="card mb-3">
+      <div class="card-body">
+        <h5 class="card-title">Reset e consulta de elementos – <code>DelAllAIElement</code> e <code>FindAIElementInfo</code></h5>
+
+        <h6>📘 O Que é?</h6>
+        <p>Métodos utilitários para limpar o catálogo de IA e localizar um elemento por índice.</p>
+
+        <h6>🎯 Para Que Serve?</h6>
+        <p>Evita lixo de memória entre recargas de script e permite recuperar configurações para decisões de IA.</p>
+
+        <h6>💻 Como Funciona?</h6>
+        <p>
+          <pre><code>void CMonsterAIElement::DelAllAIElement() {
+    CMonsterAIElement::m_DataLoad = 0;
+    for(int n=0;n &lt; MAX_MONSTER_AI_ELEMENT_INFO;n++) {
+        CMonsterAIElement::m_MonsterAIElementInfoArray[n].Reset();
+    }
+}
+
+CMonsterAIElementInfo* CMonsterAIElement::FindAIElementInfo(int ElementNumber) {
+    if(ElementNumber &lt; 0 || ElementNumber &gt;= MAX_MONSTER_AI_ELEMENT_INFO) { return 0; }
+    if(CMonsterAIElement::m_MonsterAIElementInfoArray[ElementNumber].m_ElementNumber == ElementNumber) {
+        return &CMonsterAIElement::m_MonsterAIElementInfoArray[ElementNumber];
+    }
+    return 0;
+}
+</code></pre>
+        </p>
+
+        <h6>📁 Onde Encontrar?</h6>
+        <p><code>Source MuServer Update 15/GameServer/GameServer/MonsterAIElement.cpp</code></p>
+
+        <h6>⏱️ Quando é Executado?</h6>
+        <p><code>DelAllAIElement</code> é chamado no construtor e antes de novos loads; <code>FindAIElementInfo</code> é usado durante decisões de IA no loop do GameServer para obter parâmetros do elemento ativo.</p>
+      </div>
+    </div>
+
+    <div class="card mb-3">
+      <div class="card-body">
+        <h5 class="card-title">MovePath de monstros – <code>CMonsterAIMovePath::LoadData</code> e <code>GetMonsterNearestPath</code></h5>
+
+        <h6>📘 O Que é?</h6>
+        <p>Carregamento e consulta de pontos de caminho para deslocamento de monstros.</p>
+
+        <h6>🎯 Para Que Serve?</h6>
+        <p>Define rotas pré-configuradas que guiam monstros entre posições, escolhendo o ponto mais próximo do alvo.</p>
+
+        <h6>💻 Como Funciona?</h6>
+        <p>
+          <pre><code>void CMonsterAIMovePath::LoadData(char* path) {
+    CMemScript* lpMemScript = new CMemScript;
+    if(lpMemScript == 0) { ErrorMessageBox(MEM_SCRIPT_ALLOC_ERROR,path); return; }
+    if(lpMemScript->SetBuffer(path) == 0) { ErrorMessageBox(lpMemScript->GetLastError()); delete lpMemScript; return; }
+    this->DelAllAIMonsterMovePath();
+    try {
+        while(true) {
+            if(lpMemScript->GetToken() == TOKEN_END) { break; }
+            int section = lpMemScript->GetNumber();
+            while(true) {
+                if(section == 2) {
+                    if(strcmp("end",lpMemScript->GetAsString()) == 0) { break; }
+                    CMonsterAIMovePathInfo info;
+                    info.m_Type = lpMemScript->GetNumber();
+                    info.m_MapNumber = lpMemScript->GetAsNumber();
+                    info.m_PathX = lpMemScript->GetAsNumber();
+                    info.m_PathY = lpMemScript->GetAsNumber();
+                    if(this->m_MonsterAIMovePathInfoCount &gt;= 0 && this->m_MonsterAIMovePathInfoCount &lt; MAX_MONSTER_AI_MOVE_PATH_INFO) {
+                        this->m_MonsterAIMovePathInfoArray[this->m_MonsterAIMovePathInfoCount++] = info;
+                    }
+                } else { break; }
+            }
+        }
+    } catch(...) { ErrorMessageBox(lpMemScript->GetLastError()); }
+    this->m_DataLoad = 1;
+    delete lpMemScript;
+}
+
+void CMonsterAIMovePath::GetMonsterNearestPath(int sx,int sy,int tx,int ty,int* ox,int* oy,int NearestDistance) {
+    for(int n=0;n &lt; this->m_MonsterAIMovePathInfoCount;n++) {
+        if(sqrt(pow(((float)sx-(float)this->m_MonsterAIMovePathInfoArray[n].m_PathX),2)+pow(((float)sy-(float)this->m_MonsterAIMovePathInfoArray[n].m_PathY),2)) &lt; 10) {
+            if(sqrt(pow(((float)tx-(float)this->m_MonsterAIMovePathInfoArray[n].m_PathX),2)+pow(((float)ty-(float)this->m_MonsterAIMovePathInfoArray[n].m_PathY),2)) &lt; NearestDistance) {
+                NearestDistance = (int)sqrt(pow(((float)tx-(float)this->m_MonsterAIMovePathInfoArray[n].m_PathX),2)+pow(((float)ty-(float)this->m_MonsterAIMovePathInfoArray[n].m_PathY),2));
+                (*ox) = this->m_MonsterAIMovePathInfoArray[n].m_PathX;
+                (*oy) = this->m_MonsterAIMovePathInfoArray[n].m_PathY;
+            }
+        }
+    }
+}
+</code></pre>
+        </p>
+
+        <h6>📁 Onde Encontrar?</h6>
+        <p><code>Source MuServer Update 15/GameServer/GameServer/MonsterAIMovePath.cpp</code></p>
+
+        <h6>⏱️ Quando é Executado?</h6>
+        <p><code>LoadData</code> é chamado dentro de <code>CMonsterAIElement::LoadData</code> (para Crywolf) e em inicializações específicas de mapas; <code>GetMonsterNearestPath</code> é chamado quando a IA escolhe o próximo ponto durante movimentação.</p>
+      </div>
+    </div>
+
+    <h2>Implementação em Unreal Engine 5</h2>
+    <p>Mapearemos os elementos de IA para <code>UDataAsset</code> e caminhos para <code>UNavigationPath</code>/<code>FNavLocation</code>, com controladores herdando de <code>AAIController</code>.</p>
+
+    <h3>Passo a Passo</h3>
+    <ol>
+      <li>Crie uma <strong>Data Asset</strong> <code>UAIElementDefinition</code> com propriedades equivalentes (Classe, Tipo, Sucesso, Delay, TargetType, Posição) e uma lista em <code>UAIElementTable</code>.</li>
+      <li>Implemente um importador (editor utility) que leia arquivos CSV/JSON extraídos dos scripts do servidor e preencha as assets.</li>
+      <li>Crie um <code>AAIController</code> específico (ex.: <code>ACrywolfMonsterAIController</code>) que recebe uma referência para o <code>UAIElementTable</code> e mantém um índice para o elemento ativo.</li>
+      <li>Para caminhos, crie um <code>UDataAsset</code> <code>UMonsterMovePath</code> com array de <code>FVector</code> e um método <code>FindNearestPoint</code> replicando o cálculo de distância.</li>
+      <li>Na inicialização do nível, carregue as assets via <code>ConstructorHelpers::FObjectFinder</code> ou <code>LoadObject</code>, e injete no GameMode/Subsystem.</li>
+      <li>Implemente no controlador: ao receber alvo (<em>tx/ty</em>), chame <code>FindNearestPoint</code> e ordene um <code>MoveToLocation</code> usando <code>UNavigationSystemV1::SimpleMoveToLocation</code>.</li>
+      <li>Adicione um <code>UBlackboardComponent</code> e <code>UBehaviorTree</code> opcionais, com nós customizados para alternar entre estados NORMAL/MOVE/ATTACK conforme os elementos carregados.</li>
+      <li>Para debug, exponha comandos de console que recarregam os DataAssets (equivalente a <code>DelAllAIElement</code> + <code>LoadData</code>) e desenhem linhas dos caminhos no viewport (<code>DrawDebugLine</code>).</li>
+    </ol>
+
+    <h3>Exemplo de Código UE5</h3>
+    <pre><code>USTRUCT(BlueprintType)
+struct FAIElementDefinition {
+    GENERATED_BODY()
+    UPROPERTY(EditAnywhere, BlueprintReadOnly) int32 ElementNumber;
+    UPROPERTY(EditAnywhere, BlueprintReadOnly) FString ElementName;
+    UPROPERTY(EditAnywhere, BlueprintReadOnly) int32 ElementClass;
+    UPROPERTY(EditAnywhere, BlueprintReadOnly) int32 ElementType;
+    UPROPERTY(EditAnywhere, BlueprintReadOnly) int32 SuccessRate;
+    UPROPERTY(EditAnywhere, BlueprintReadOnly) float DelayTime;
+    UPROPERTY(EditAnywhere, BlueprintReadOnly) int32 TargetType;
+    UPROPERTY(EditAnywhere, BlueprintReadOnly) FVector2D Coord;
+};
+
+UCLASS()
+class UMoverPathData : public UDataAsset {
+    GENERATED_BODY()
+public:
+    UPROPERTY(EditAnywhere) TArray<FVector> Points;
+    UFUNCTION(BlueprintCallable)
+    FVector FindNearestPoint(const FVector& Start,const FVector& Target,float Threshold=1000.f) const;
+};
+
+FVector UMoverPathData::FindNearestPoint(const FVector& Start,const FVector& Target,float Threshold) const {
+    float Best = Threshold;
+    FVector Result = Target;
+    for(const FVector& P : Points) {
+        if(FVector::Dist2D(Start,P) &lt; 1000.f && FVector::Dist2D(Target,P) &lt; Best) {
+            Best = FVector::Dist2D(Target,P);
+            Result = P;
+        }
+    }
+    return Result;
+}
+
+UCLASS()
+class ACrywolfMonsterAIController : public AAIController {
+    GENERATED_BODY()
+public:
+    UPROPERTY(EditAnywhere) UMoverPathData* PathData;
+    virtual void OnPossess(APawn* InPawn) override {
+        Super::OnPossess(InPawn);
+        MoveAlongPath();
+    }
+    UFUNCTION(BlueprintCallable)
+    void MoveAlongPath() {
+        if(!PathData) return;
+        FVector Start = GetPawn()-&gt;GetActorLocation();
+        FVector Target = /* objetivo atual */;
+        FVector Next = PathData->FindNearestPoint(Start, Target, 10000.f);
+        MoveToLocation(Next, 5.f, true, true, false, true, 0, true);
+    }
+};
+</code></pre>
+
+    <h2>Checklist Final</h2>
+    <ul>
+      <li>Assets de elementos de IA e caminhos carregados no início do nível, com capacidade de recarga.</li>
+      <li>Controlador de IA usa o caminho mais próximo para mover monstros, respeitando estados equivalentes a NORMAL/MOVE/ATTACK.</li>
+      <li>Ferramentas de debug exibem caminhos e permitem validar coordenadas importadas.</li>
+    </ul>
+  </div>
+</body>
+</html>

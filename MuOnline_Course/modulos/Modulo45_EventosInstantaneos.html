@@ -1,0 +1,226 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  <title>Módulo 45 – Eventos Instantâneos (Quickly e Run and Catch)</title>
+</head>
+<body class="bg-light">
+  <div class="container py-5">
+    <h1 class="mb-4">Módulo 45 – Eventos Instantâneos (Quickly e Run and Catch)</h1>
+    <p class="lead">Documenta o fluxo dos eventos rápidos acionados por GMs (Quickly e Run and Catch), cobrindo timers, avisos e distribuição de prêmios, com a respectiva adaptação para Unreal Engine 5.</p>
+
+    <h2>Pré-requisitos</h2>
+    <ul>
+      <li>Módulo 1 – Arquitetura Geral (loop de eventos em <code>gObjEventRunProc</code>).</li>
+      <li>Módulo 6 – Eventos de Servidor (estrutura de notices e rewards).</li>
+      <li>Módulo 9 – Persistência/DataServer (para salvar moedas via GDSetCoin/VaRest).</li>
+    </ul>
+
+    <h2>Conceitos do Código Original</h2>
+
+    <div class="card mb-3">
+      <div class="card-body">
+        <h5 class="card-title">Timer e avisos do Quickly – <code>CEventQuickly::MainProc</code></h5>
+
+        <h6>📘 O Que é?</h6>
+        <p>Loop que decrementa o tempo restante, envia avisos globais e finaliza o evento quando o NPC expira.<br>
+          <pre><code>void CEventQuickly::MainProc() {
+  DWORD elapsed = GetTickCount()-this-&gt;m_TickCount;
+  if(elapsed &lt; 1000) return;
+  this-&gt;m_TickCount = GetTickCount();
+  if(this-&gt;m_RemainTime &gt; 0) {
+    int minutes = this-&gt;m_RemainTime/60;
+    if((this-&gt;m_RemainTime%60) == 0) minutes--;
+    if(this-&gt;MinutesLeft != minutes) {
+      this-&gt;MinutesLeft = minutes;
+      gNotice.GCNoticeSendToAll(...,gMessage.GetMessage(661),(MinutesLeft+1));
+    }
+    if(this-&gt;m_RemainTime &lt;= 5) { gNotice.GCNoticeSendToAll(...,gMessage.GetMessage(662),m_RemainTime); }
+    this-&gt;m_RemainTime--;
+    if(this-&gt;m_RemainTime &lt;= 0) {
+      gObjDel(this-&gt;m_NpcIndex);
+      this-&gt;Clear();
+      gNotice.GCNoticeSendToAll(...,gMessage.GetMessage(664));
+      LogAdd(LOG_EVENT,"[QUICKLY EVENT] Finish");
+    }
+  }
+}</code></pre>
+        </p>
+
+        <h6>🎯 Para Que Serve?</h6>
+        <p>Controla a contagem regressiva do evento Quickly, garantindo avisos de tempo restante e limpando o NPC ao término.</p>
+
+        <h6>💻 Como Funciona?</h6>
+        <p>Executado a cada segundo; quando o tempo muda de minuto ou entra nos últimos 5 segundos, dispara notices. Ao chegar a zero, remove o NPC e registra log.<br>
+          <pre><code>if(this-&gt;m_RemainTime &lt;= 0) {
+  gObjDel(this-&gt;m_NpcIndex);
+  this-&gt;Clear();
+  gNotice.GCNoticeSendToAll(...,gMessage.GetMessage(664));
+}</code></pre>
+        </p>
+
+        <h6>📁 Onde Encontrar?</h6>
+        <p><code>Source MuServer Update 15/GameServer/GameServer/EventQuickly.cpp</code></p>
+
+        <h6>⏱️ Quando é Executado?</h6>
+        <p>Chamado no loop <code>gObjEventRunProc</code> em <code>User.cpp</code>, rodando continuamente para eventos ativos.</p>
+      </div>
+    </div>
+
+    <div class="card mb-3">
+      <div class="card-body">
+        <h5 class="card-title">Spawn e início do Quickly – <code>CEventQuickly::CommandEventQuickly</code></h5>
+
+        <h6>📘 O Que é?</h6>
+        <p>Comando de GM que cria o NPC do evento em um mapa/posição e define o tempo total do desafio.<br>
+          <pre><code>void CEventQuickly::CommandEventQuickly(LPOBJ lpObj,char* arg) {
+  if(gServerInfo.m_QuicklyEvent == 0) return;
+  if(gGameMaster.CheckGameMasterLevel(lpObj,1) == 0) return;
+  if (this-&gt;m_RemainTime &gt; 0) { gObjDel(this-&gt;m_NpcIndex); this-&gt;Clear(); ... }
+  int map = gCommandManager.GetNumber(arg,0);
+  int x = gCommandManager.GetNumber(arg,1);
+  int y = gCommandManager.GetNumber(arg,2);
+  int time = gCommandManager.GetNumber(arg,3);
+  if(map &lt; 0 || x &lt;= 0 || y &lt;= 0) { map = rand() % 4; gObjGetRandomFreeLocation(map,&x,&y,255,255,50); }
+  int index = gObjAddMonster(map);
+  LPOBJ lpNPC = &gObj[index];
+  lpNPC-&gt;X = x; lpNPC-&gt;Y = y; lpNPC-&gt;Dir = 1; lpNPC-&gt;Map = map;
+  if(gObjSetMonster(index,465) == 0) { gObjDel(index); return; }
+  this-&gt;m_NpcIndex = index;
+  gNotice.GCNoticeSendToAll(...,gMessage.GetMessage(660),MapName);
+  gNotice.GCNoticeSendToAll(...,gMessage.GetMessage(665),x,y);
+  this-&gt;m_RemainTime = time*60;
+  LogAdd(LOG_EVENT,"[QUICKLY EVENT] Start");
+}</code></pre>
+        </p>
+
+        <h6>🎯 Para Que Serve?</h6>
+        <p>Permite ao GM lançar rapidamente o evento com spawn de NPC, avisos de localização e duração configurável.</p>
+
+        <h6>💻 Como Funciona?</h6>
+        <p>Lê parâmetros do chat, ajusta mapa/coords aleatórios se necessário, cria o NPC 465, grava o índice para remoção futura e inicia o cronômetro.<br>
+          <pre><code>int index = gObjAddMonster(map);
+if(gObjSetMonster(index,465) == 0) { gObjDel(index); return; }
+this-&gt;m_RemainTime = time*60;
+LogAdd(LOG_EVENT,"[QUICKLY EVENT] Start");</code></pre>
+        </p>
+
+        <h6>📁 Onde Encontrar?</h6>
+        <p><code>Source MuServer Update 15/GameServer/GameServer/EventQuickly.cpp</code></p>
+
+        <h6>⏱️ Quando é Executado?</h6>
+        <p>Chamado manualmente por GMs via comando; após o spawn, o loop <code>MainProc</code> assume o controle do temporizador.</p>
+      </div>
+    </div>
+
+    <div class="card mb-3">
+      <div class="card-body">
+        <h5 class="card-title">Encerramento e recompensa do Quickly – <code>CEventQuickly::ClickNPC</code></h5>
+
+        <h6>📘 O Que é?</h6>
+        <p>Handler acionado quando o jogador clica no NPC, encerrando o evento, tocando fogos e atribuindo moedas automáticas.</p>
+
+        <h6>🎯 Para Que Serve?</h6>
+        <p>Define o vencedor, dispara efeitos visuais e envia moedas configuradas via <code>GDSetCoinSend</code>.</p>
+
+        <h6>💻 Como Funciona?</h6>
+        <p>
+          Remove o NPC, limpa estado, dispara notice global e envia recompensa se configurada.<br>
+          <pre><code>void CEventQuickly::ClickNPC(LPOBJ lpObj) {
+  gObjDel(this-&gt;m_NpcIndex);
+  this-&gt;Clear();
+  GCFireworksSend(lpObj,lpObj-&gt;X,lpObj-&gt;Y);
+  gNotice.GCNoticeSendToAll(...,gMessage.GetMessage(663),lpObj-&gt;Name);
+  if (gServerInfo.m_QuicklyEventAutoReward1 &gt; 0 || ...) {
+    GDSetCoinSend(lpObj-&gt;Index, gServerInfo.m_QuicklyEventAutoReward1, ... ,"QuicklyEvent");
+  }
+  LogAdd(LOG_EVENT,"[QUICKLY EVENT] Finish (Winner:%s)",lpObj-&gt;Name);
+}</code></pre>
+        </p>
+
+        <h6>📁 Onde Encontrar?</h6>
+        <p><code>Source MuServer Update 15/GameServer/GameServer/EventQuickly.cpp</code></p>
+
+        <h6>⏱️ Quando é Executado?</h6>
+        <p>Ao clicar no NPC durante o evento Quickly; após a recompensa, o loop é limpo.</p>
+      </div>
+    </div>
+
+    <div class="card mb-3">
+      <div class="card-body">
+        <h5 class="card-title">Controle do Run and Catch – <code>CEventRunAndCatch::CommandEventRunAndCatch/MainProc/EventRunAndCatchHit</code></h5>
+
+        <h6>📘 O Que é?</h6>
+        <p>Conjunto de rotinas que abre inscrições, inicia o evento, acompanha tempo e detecta captura/vencedor.</p>
+
+        <h6>🎯 Para Que Serve?</h6>
+        <p>Permite ao GM iniciar um mini pega-pega: jogadores se inscrevem, são teleportados e, ao serem atingidos pelo GM, podem ser eliminados ou ganhar o evento.</p>
+
+        <h6>💻 Como Funciona?</h6>
+        <p>
+          <pre><code>// início por comando GM
+this-&gt;m_EventRunAndCatchEnter = 1;
+this-&gt;m_GmIndex = lpObj-&gt;Index;
+this-&gt;m_RemainTime = gServerInfo.m_EventRunAndCatchMaxTime*60;
+this-&gt;m_Map = lpObj-&gt;Map; this-&gt;m_MapX = lpObj-&gt;X; this-&gt;m_MapY = lpObj-&gt;Y-1;
+
+// inscrição de jogador
+lpObj-&gt;RunAndCatch = 1; gObjTeleport(lpObj-&gt;Index,this-&gt;m_Map,this-&gt;m_MapX,this-&gt;m_MapY);
+
+// loop
+if(this-&gt;m_RemainTime &lt;= (this-&gt;m_TotalTime-gServerInfo.m_EventRunAndCatchTimeToEnter) && this-&gt;m_EventRunAndCatchEnter)
+{ gNotice.GCNoticeSendToAll(...); this-&gt;m_EventRunAndCatchActive = 1; this-&gt;m_EventRunAndCatchEnter = 0; }
+
+// captura
+total inscritos é recalculado; se sobrar 1, ele recebe coins via GDSetCoinSend e fireworks; senão é eliminado via gObjMoveGate.
+</code></pre>
+        </p>
+
+        <h6>📁 Onde Encontrar?</h6>
+        <p><code>Source MuServer Update 15/GameServer/GameServer/EventRunAndCatch.cpp</code></p>
+
+        <h6>⏱️ Quando é Executado?</h6>
+        <p>Iniciado via comando de GM, roda em <code>MainProc</code> dentro de <code>gObjEventRunProc</code>; as inscrições são processadas até o tempo limite e as capturas são verificadas quando o GM atinge um participante.</p>
+      </div>
+    </div>
+
+    <h2>Implementação em Unreal Engine 5</h2>
+
+    <h4>Equivalências</h4>
+    <ul>
+      <li>Gestão do evento: <code>AGameState</code> personalizado com variáveis replicadas (<em>RemainingTime</em>, <em>IsActive</em>, <em>Winner</em>).</li>
+      <li>NPC Quickly: <code>AActor</code> simples com <code>UInteractionComponent</code> para clique.</li>
+      <li>Inscrição/teleporte: RPCs em <code>APlayerController</code> + <code>UGameplayStatics::TeleportTo</code> ou <code>ClientTravel</code> para mudar de mapa.</li>
+      <li>Recompensas: chamadas HTTP via VaRest para Node.js gravar moedas no SQL antes de replicar saldo em <code>APlayerState</code>.</li>
+    </ul>
+
+    <h4>Passo a Passo – Quickly</h4>
+    <ol>
+      <li>Crie um <code>UDataAsset</code> com configurações (tempo máximo, mapa, posição, reward coins).</li>
+      <li>No <code>AGameMode</code>, implemente um RPC <code>Server_StartQuickly(Map,Pos,Time)</code> restrito a GMs.</li>
+      <li>Instancie um <code>AQuicklyNPC</code> no mundo; replique seu <code>Actor</code> e vincule <code>OnClicked</code> a um RPC <code>Server_ClickQuickly</code>.</li>
+      <li>Adicione um <code>FTimerHandle</code> no <code>AGameState</code> para decrementar <code>RemainingTime</code>; envie <code>Multicast</code> para HUD a cada minuto e nos últimos 5 segundos.</li>
+      <li>No clique, valide sessão, chame VaRest para creditar moedas em Node.js/SQL e dispare partículas (<code>Niagara</code>) replicadas.</li>
+    </ol>
+
+    <h4>Passo a Passo – Run and Catch</h4>
+    <ol>
+      <li>Crie um componente <code>URunAndCatchComponent</code> no <code>AGameState</code> contendo arrays de inscritos e tempo restante.</li>
+      <li>Implemente <code>Server_OpenRunAndCatch(Map,Pos,Duration)</code> (somente GM) que liga o timer e permite inscrições.</li>
+      <li>No <code>APlayerController</code>, um RPC <code>Server_JoinRunAndCatch</code> adiciona o jogador, seta <code>bIsRunner</code> replicado e teleporta para a posição do evento.</li>
+      <li>Crie um <code>Server_RegisterHit(Target)</code> chamado quando o GM atinge um runner (line trace ou overlap); se restar um, chame VaRest para recompensa e marque <code>WinnerId</code>; caso contrário, teleporte o capturado para um gate (<code>TeleportOutLocation</code>).</li>
+      <li>HUD: Widgets mostram contagem regressiva e nomes restantes; sincronize via rep-notify.</li>
+    </ol>
+
+    <h2>Checklist Final</h2>
+    <ul>
+      <li>Eventos Quickly e Run and Catch aparecem no HUD com contagem regressiva replicada.</li>
+      <li>GMs conseguem criar NPC Quickly e definir tempo/localização.</li>
+      <li>Recompensas de moedas são persistidas via VaRest/Node.js/SQL e refletidas no estado do jogador.</li>
+      <li>Run and Catch teleporta inscritos, controla entradas, elimina capturados e declara vencedor corretamente.</li>
+    </ul>
+  </div>
+</body>
+</html>

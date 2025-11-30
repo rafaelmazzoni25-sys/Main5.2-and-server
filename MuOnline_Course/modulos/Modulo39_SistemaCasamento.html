@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  <title>Módulo 39 – Sistema de Casamento</title>
+</head>
+<body class="bg-light">
+  <div class="container py-5">
+    <h1 class="mb-4">Módulo 39 – Sistema de Casamento</h1>
+    <p class="lead">Explora o <code>MarrySystem</code> do GameServer: leitura de script, envio de informações ao cliente, proposta/aceite e validações de posição/sexo. Inclui mapeamento completo para UE5 com UI, replicação e backend via VaRest/Node.js/SQL.</p>
+
+    <h2>Pré-requisitos</h2>
+    <ul>
+      <li>Módulo 6 – Eventos e Timers.</li>
+      <li>Módulo 13 – MiniMapa (para trabalhar com coordenadas).</li>
+      <li>Conhecimento de <code>UUserWidget</code> e RPCs em UE5.</li>
+    </ul>
+
+    <h2>Conceitos do Código Original</h2>
+
+    <div class="card mb-3">
+      <div class="card-body">
+        <h5 class="card-title">LoadData – Configuração do casamento via script</h5>
+
+        <h6>📘 O Que é?</h6>
+        <p>Rotina que lê um arquivo de script para habilitar/desabilitar o sistema, definir mapa/tempo máximo, coordenadas de proposta/aceite e custos de divórcio.</p>
+
+        <h6>🎯 Para Que Serve?</h6>
+        <p>Centraliza parâmetros ajustáveis sem recompilar, permitindo configurar mapa permitido, posições exatas e custos.</p>
+
+        <h6>💻 Como Funciona?</h6>
+        <p>
+          Usa <code>CMemScript</code> para percorrer seções numeradas e popular os campos do sistema.<br>
+          <pre><code>this->Enabled = FALSE;
+if(lpMemScript->SetBuffer(FilePath) == 0) { ErrorMessageBox(...); return; }
+while(true) {
+  if(lpMemScript->GetToken() == TOKEN_END) break;
+  int section = lpMemScript->GetNumber();
+  if(section == 0) { this->Enabled = lpMemScript->GetNumber(); this->MarryMap = lpMemScript->GetAsNumber(); ... }
+  else if(section == 1) { this->ProposeX = lpMemScript->GetNumber(); this->ProposeY = lpMemScript->GetAsNumber(); ... }
+  else if(section == 2) { this->CostDivorce = lpMemScript->GetNumber(); ... }
+  else if(section == 3) { int Level = lpMemScript->GetNumber(); this->MapIndex[Level] = lpMemScript->GetAsNumber(); }
+}</code></pre>
+        </p>
+
+        <h6>📁 Onde Encontrar?</h6>
+        <p><code>Source MuServer Update 15/GameServer/GameServer/MarrySystem.cpp</code>, linhas 18-125.</p>
+
+        <h6>⏱️ Quando é Executado?</h6>
+        <p>Carregado na inicialização do GameServer (arquivo incluso apenas em <code>GAMESERVER_TYPE==0</code>).</p>
+      </div>
+    </div>
+
+    <div class="card mb-3">
+      <div class="card-body">
+        <h5 class="card-title">SendInfo – Envio de custos e coordenadas ao cliente</h5>
+
+        <h6>📘 O Que é?</h6>
+        <p>Mensagem enviada ao cliente com nome do parceiro, custos de divórcio e posições de proposta/aceite.</p>
+
+        <h6>🎯 Para Que Serve?</h6>
+        <p>Atualiza a UI do cliente com dados atuais do casamento e restrições de posição.</p>
+
+        <h6>💻 Como Funciona?</h6>
+        <p>
+          Preenche <code>SDHP_RECV_MARRY</code> com custos, mapa e coordenadas e envia com <code>DataSend</code>.<br>
+          <pre><code>SDHP_RECV_MARRY lpInfo; PHeadSubSetB((LPBYTE)&lpInfo,0xFA,0x10,sizeof(lpInfo));
+memcpy(lpInfo.Name,lpObj->MarryCharacterInfo.MarriedName,sizeof(lpInfo.Name));
+lpInfo.CostDivorce = this->CostDivorce; lpInfo.MAP = this->MarryMap;
+lpInfo.ProposeX = this->ProposeX; lpInfo.AcceptY = this->AcceptY;
+DataSend(lpObj->Index,(LPBYTE)&lpInfo,sizeof(lpInfo));</code></pre>
+        </p>
+
+        <h6>📁 Onde Encontrar?</h6>
+        <p><code>Source MuServer Update 15/GameServer/GameServer/MarrySystem.cpp</code>, linhas 127-155.</p>
+
+        <h6>⏱️ Quando é Executado?</h6>
+        <p>Chamado quando o sistema está habilitado e o personagem entra/solicita informações (pós-login).</p>
+      </div>
+    </div>
+
+    <div class="card mb-3">
+      <div class="card-body">
+        <h5 class="card-title">Propose – Validações de gênero, posição e timers</h5>
+
+        <h6>📘 O Que é?</h6>
+        <p>Fluxo de proposta de casamento: verifica se ambos estão solteiros, no mapa/posições corretas e de gênero diferente.</p>
+
+        <h6>🎯 Para Que Serve?</h6>
+        <p>Evita casamentos inválidos e inicia o temporizador de resposta do alvo.</p>
+
+        <h6>💻 Como Funciona?</h6>
+        <p>
+          Obtém o alvo por nome, verifica status e posições (<code>GetPos</code>), compara sexos e inicia contadores/avisos.<br>
+          <pre><code>int lpTargetID = gObjGetIndex(Wife);
+if(lpObj->MarryCharacterInfo.Married == 1) { gNotice.NewNoticeSend(...); return; }
+if(this->GetPos(lpObj) > 0 && this->GetPos(&gObj[lpTargetID]) > 0) {
+  if(lpObjSex != lpTargetSex) {
+    lpObj->MarryCharacterInfo.MarrySeconds = 0;
+    gObj[lpTargetID].MarryCharacterInfo.MarrySeconds = this->MarryMaxTime;
+    gNotice.NewNoticeSend(gObj[lpTargetID].Index,0,0,0,0,0,"[Propose] Accept marry with %s?",lpObj->Name);
+  }
+}
+</code></pre>
+        </p>
+
+        <h6>📁 Onde Encontrar?</h6>
+        <p><code>Source MuServer Update 15/GameServer/GameServer/MarrySystem.cpp</code>, linhas 185-235.</p>
+
+        <h6>⏱️ Quando é Executado?</h6>
+        <p>Chamado no handler de comando/protocolo de proposta; permanece aguardando resposta dentro do <code>MarryMaxTime</code>.</p>
+      </div>
+    </div>
+
+    <h2>Implementação em Unreal Engine 5</h2>
+    <ol>
+      <li>Defina um <code>AGameModeBase</code> com um <code>UDataTable</code> de configuração (mapa, coordenadas, custos) carregado no BeginPlay.</li>
+      <li>Crie um <code>UUserWidget</code> para exibir status/custos e botões de propor/aceitar; vincule a um <code>APlayerController</code> com RPCs Server/Client.</li>
+      <li>No servidor UE5, implemente funções <code>ServerPropose</code> e <code>ServerAccept</code> que validam mapa/posição (<code>GetActorLocation()</code>) e sexos (campo no <code>APlayerState</code>), replicando a lógica original.</li>
+      <li>Persistência: use VaRest para gravar o estado de casamento em Node.js + SQL (<code>/marry/propose</code>, <code>/marry/accept</code>, <code>/marry/status</code>). Sincronize no login chamando o endpoint e popular o widget.</li>
+      <li>Implemente timers (<code>FTimerManager</code>) para expirar propostas após <code>MarryMaxTime</code>, enviando notificações replicadas.</li>
+    </ol>
+
+    <h2>Passo a Passo em Unreal Engine 5</h2>
+    <ol>
+      <li>Criar <code>USTRUCT FMarryConfig</code> e carregar de DataTable com mapa/posições/custos.</li>
+      <li>No login, chamar endpoint Node.js para obter status atual e preencher <code>APlayerState</code> (nome do parceiro, tempo restante).</li>
+      <li>Adicionar widget de casamento ao viewport com botões que disparam <code>ServerPropose</code>/<code>ServerAccept</code> (RPCs confiáveis).</li>
+      <li>Validar posições no servidor UE5 comparando <code>FVector</code> com tolerância em relação a <code>ProposeX/Y</code> e <code>AcceptX/Y</code>.</li>
+      <li>Persistir aceite/divórcio via VaRest em endpoints SQL e atualizar todos os clientes por multicast.</li>
+    </ol>
+
+    <h2>Checklist Final</h2>
+    <ul>
+      <li>Configurações de mapa/posições/custos carregadas de tabela.</li>
+      <li>UI mostra parceiro, custos e tempo restante; botões replicam proposta/aceite.</li>
+      <li>Validação de posição/sexo espelha o servidor legado.</li>
+      <li>Estado persistente gravado em Node.js/SQL e sincronizado via VaRest.</li>
+    </ul>
+  </div>
+</body>
+</html>
