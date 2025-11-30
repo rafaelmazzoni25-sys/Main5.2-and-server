@@ -7,158 +7,135 @@
   <title>Módulo 2 – Rede e Autenticação</title>
 </head>
 <body class="bg-light">
-  <div class="container py-5">
+  <div class="container py-4">
     <h1 class="mb-4">Módulo 2 – Rede e Autenticação</h1>
-    <p class="lead">Fluxo de conexão do cliente, recebimento de pacotes e roteamento de mensagens no servidor.</p>
+    <p class="lead">Estudamos as classes de rede do cliente (ProtocolSend) e o fluxo de entrada do GameServer para pacotes de login e personagem.</p>
 
-    <h3>Pré-requisitos</h3>
+    <h2>Pré-requisitos</h2>
     <ul>
-      <li>Ter lido o Módulo 1.</li>
-      <li>Conhecer sockets TCP/UDP e conceitos básicos de serialização de pacotes.</li>
-      <li>Noções de replicação em UE5.</li>
+      <li>Módulo 1 concluído.</li>
+      <li>Conhecimento de sockets TCP e filas de mensagens.</li>
     </ul>
 
-    <h2 class="mt-4">Conceitos do Código Original</h2>
+    <h2>Conceitos do Código Original</h2>
 
     <div class="card mb-3">
       <div class="card-body">
-        <h5 class="card-title">Cliente – Conexão e recebimento (<code>CProtocolSend</code>)</h5>
+        <h5 class="card-title">Cliente – CProtocolSend (conexão e recebimento)</h5>
 
         <h6>📘 O Que é?</h6>
-        <p>Classe cliente que abre a conexão, envia ping e despacha mensagens recebidas para handlers específicos.</p>
+        <p>
+          Classe responsável por abrir a conexão TCP, manter estado e processar mensagens recebidas do servidor.<br>
+          <pre><code>bool CProtocolSend::ConnectServer(char* IP,uint16_t Port) {
+    this->SocketConnect = new CustomClient;
+    if (this->SocketConnect->Connect(IP,Port)) {
+        return true;
+    }
+    return false;
+}</code></pre>
+        </p>
 
         <h6>🎯 Para Que Serve?</h6>
-        <p>Controla a conexão TCP com o servidor e faz o roteamento inicial de pacotes como login, lista de personagens e movimentos.</p>
+        <p>Viabiliza a comunicação com GameServer/JoinServer, mantendo a fila de mensagens e repassando para handlers específicos.</p>
 
         <h6>💻 Como Funciona?</h6>
         <p>
-          <code>ConnectServer</code> instancia <code>CustomClient</code> e chama <code>Connect</code>. O loop de recebimento (reduzido no código) consome a fila <code>Incoming()</code> e, conforme <code>msg.header.id</code>, chama handlers como <code>RecvLoginNew</code> ou <code>ReceiveMovePosition</code>.<br>
-          <pre><code>bool CProtocolSend::ConnectServer(char* IP,uint16_t Port) {
-    this->SocketConnect = new CustomClient;
-    if (this->SocketConnect->Connect(IP,Port)) { return true; }
-    return false;
-}
-...
-while(true) {
+          <code>RecvMessage</code> percorre a fila <code>Incoming()</code> da conexão, desempacota e despacha de acordo com <code>msg.header.id</code>.<br>
+          <pre><code>while(true) {
     if (!gProtocolSend.SocketConnect->Incoming().empty()) {
         auto msg = gProtocolSend.SocketConnect->Incoming().pop_front().msg;
         switch(msg.header.id) {
+            case ProtocolHead::SERVER_CONNECT:
+                PMSG_CONNECT_CLIENT_RECV pMsg; msg >> pMsg;
+                gProtocolSend.RecvJoinServerNew(&pMsg);
+                break;
             case ProtocolHead::BOTH_CONNECT_LOGIN:
                 gProtocolSend.RecvLoginNew((PMSG_SIMPLE_RESULT_RECV*)msg.body.data());
                 break;
-            case ProtocolHead::BOTH_POSITION:
-                ReceiveMovePosition((BYTE*)msg.body.data());
+            case ProtocolHead::BOTH_CONNECT_CHARACTER:
+                ReceiveCharacterList((BYTE*)msg.body.data());
                 break;
         }
-    }
-}
-</code></pre>
+    } else { break; }
+}</code></pre>
         </p>
 
         <h6>📁 Onde Encontrar?</h6>
         <p><code>Source Main 5.2/source/ProtocolSend.cpp</code></p>
 
         <h6>⏱️ Quando é Executado?</h6>
-        <p>Chamado logo após a inicialização do cliente quando é necessário abrir a sessão com o servidor. O processamento de mensagens ocorre a cada iteração do loop principal do cliente.</p>
+        <p>Chamado após <code>ConnectServer</code> criar o socket; tipicamente rodaria em uma thread de rede para manter o loop de recebimento ativo.</p>
       </div>
     </div>
 
     <div class="card mb-3">
       <div class="card-body">
-        <h5 class="card-title">Servidor – Conexões auxiliares (<code>GameMainInit</code>)</h5>
+        <h5 class="card-title">Cliente – Envio de Login e Lista de Personagens</h5>
 
         <h6>📘 O Que é?</h6>
-        <p>Função de inicialização que conecta o GameServer aos serviços de JoinServer e DataServer.</p>
+        <p>Funções que enviam as requisições de login e recuperação da lista de personagens.</p>
 
         <h6>🎯 Para Que Serve?</h6>
-        <p>Garante que autenticação e persistência de dados sejam acessíveis antes de aceitar jogadores.</p>
+        <p>Controla o estado do protocolo (<code>CurrentProtocolState</code>) e valida versão antes de liberar a seleção de personagem.</p>
 
         <h6>💻 Como Funciona?</h6>
         <p>
-          Após inicializar entidades (<code>gObjInit</code>) e tabelas de experiência, a função cria conexões com <code>JoinServerProtocolCore</code> e <code>DataServerProtocolCore</code> e prepara o estado de servidor.<br>
-          <pre><code>void GameMainInit(HWND hwnd) {
-    gObjInit();
-    InitHackCheck();
-    gObjSetExperienceTable();
-    gMonsterManager.SetMonsterData();
-    gJoinServerConnection.Init(hwnd,JoinServerProtocolCore);
-    gDataServerConnection.Init(hwnd,DataServerProtocolCore);
-}
-</code></pre>
+          <pre><code>void CProtocolSend::SendRequestLogInNew(char* account, char* password) {
+    PMSG_CONNECT_ACCOUNT_SEND pMsg = { 0 };
+    LogIn = 1;
+    CurrentProtocolState = REQUEST_LOG_IN;
+    strncpy(pMsg.account, account, MAX_ID_SIZE);
+    strncpy(pMsg.password, password, MAX_PASSWORD_SIZE);
+    pMsg.TickCount = GetTickCount();
+    for (int i = 0; i < SIZE_PROTOCOLVERSION; i++)
+        pMsg.ClientVersion[i] = (BYTE)(Version[i] - (i + 1));
+    SendPacket(ProtocolHead::BOTH_CONNECT_LOGIN,(uint8_t*)&pMsg,sizeof(pMsg));
+}</code></pre>
+          <pre><code>void CProtocolSend::SendRequestCharactersListNew() {
+    PMSG_SIMPLE_RESULT_SEND pMsg = { 0 };
+    pMsg.result = 1;
+    SendPacket(ProtocolHead::BOTH_CONNECT_CHARACTER,(uint8_t*)&pMsg,sizeof(pMsg));
+}</code></pre>
         </p>
 
         <h6>📁 Onde Encontrar?</h6>
-        <p><code>Source MuServer Update 15/GameServer/GameServer/GameMain.cpp</code></p>
+        <p><code>Source Main 5.2/source/ProtocolSend.cpp</code></p>
 
         <h6>⏱️ Quando é Executado?</h6>
-        <p>Logo após a abertura de socket do GameServer (em <code>WinMain</code>), antes de iniciar timers e aceitar clientes.</p>
+        <p>Chamado a partir da UI de login (<code>CUIMng::m_LoginWin</code>) após o usuário preencher credenciais; a resposta é tratada em <code>RecvLoginNew</code>.</p>
       </div>
     </div>
 
-    <div class="card mb-3">
-      <div class="card-body">
-        <h5 class="card-title">Servidor – Roteador de pacotes (<code>ProtocolCore</code>)</h5>
-
-        <h6>📘 O Que é?</h6>
-        <p>Função central que recebe um pacote de cliente e despacha para handlers de chat, posição, itens, trade, skills etc.</p>
-
-        <h6>🎯 Para Que Serve?</h6>
-        <p>Implementa a tabela de protocolos do servidor, garantindo que cada cabeçalho (<code>head</code>) seja tratado pela lógica correta.</p>
-
-        <h6>💻 Como Funciona?</h6>
-        <p>
-          A função recebe <code>head</code> e dados brutos. Um <code>switch</code> aciona funções como <code>CGChatRecv</code>, <code>gAttack.CGAttackRecv</code>, <code>gMove.CGTeleportRecv</code> e operações de item/trade. Pacotes especiais são logados para depuração.<br>
-          <pre><code>void ProtocolCore(BYTE head,BYTE* lpMsg,int size,int aIndex,int encrypt,int serial) {
-    switch(head) {
-        case 0x00: CGChatRecv((PMSG_CHAT_RECV*)lpMsg,aIndex); break;
-        case PROTOCOL_CODE2: gAttack.CGAttackRecv((PMSG_ATTACK_RECV*)lpMsg,aIndex); break;
-        case 0x1C: gMove.CGTeleportRecv((PMSG_TELEPORT_RECV*)lpMsg,aIndex); break;
-        case 0x22: gItemManager.CGItemGetRecv((PMSG_ITEM_GET_RECV*)lpMsg,aIndex); break;
-        case 0x3F: gPersonalShop.CGPShopSetItemPriceRecv((PMSG_PSHOP_SET_ITEM_PRICE_RECV*)lpMsg,aIndex); break;
-        ...
+    <h2>Implementação em Unreal Engine 5</h2>
+    <p>Use um <code>UActorComponent</code> de rede no PlayerController do cliente para encapsular socket e fila. No servidor, use o sistema de networking próprio de UE5 ou sockets nativos em um <code>AGameSession</code> customizado.</p>
+    <p>Para cenários web/mobile, você pode combinar sockets com uma camada HTTP usando VaRest + Node.js que valide login diretamente em um banco SQL antes de abrir a sessão de jogo, espelhando o comportamento de <code>SendRequestLogInNew</code> e <code>RecvLoginNew</code>.</p>
+    <pre><code class="language-cpp">UCLASS(ClassGroup=(Network))
+class UMuClientNetComponent : public UActorComponent {
+    GENERATED_BODY()
+public:
+    void Connect(const FString& Host, int32 Port);
+    void TickComponent(float DeltaTime, enum ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction) override {
+        // ler fila de mensagens e despachar
     }
-}
+    void SendLogin(const FString& User, const FString& Pass);
+};
 </code></pre>
-        </p>
 
-        <h6>📁 Onde Encontrar?</h6>
-        <p><code>Source MuServer Update 15/GameServer/GameServer/Protocol.cpp</code></p>
-
-        <h6>⏱️ Quando é Executado?</h6>
-        <p>Invocado para cada pacote recebido pelo socket principal do GameServer, após a etapa de descriptografia e validação.</p>
-      </div>
-    </div>
-
-    <h2 class="mt-5">Implementação em Unreal Engine 5</h2>
-    <p>O stack de rede de UE5 usa <code>UNetDriver</code> e <code>APlayerController</code> para replicação.</p>
-    <ul>
-      <li>Substitua <code>CProtocolSend</code> por uma <code>UActorComponent</code> em um <code>APlayerController</code> que abra um <code>FSocket</code> custom (ou use o sistema de replicação padrão).</li>
-      <li>Implemente roteamento de pacotes com <code>FPacketHandler</code> ou mensagens RPC. Cada case de <code>ProtocolCore</code> vira um <code>Server</code>/<code>Client</code> RPC.</li>
-      <li>Conexões auxiliares (Join/Data) podem ser simuladas com <code>UGameInstanceSubsystem</code> que abre sockets adicionais ou faz chamadas HTTP para serviços externos.</li>
-    </ul>
-    <pre><code>// Exemplo de RPC para login
-UFUNCTION(Server, Reliable)
-void ServerLogin(const FString& User, const FString& Pass);
-
-void AMyPlayerController::ServerLogin_Implementation(const FString& User,const FString& Pass) {
-    // validar e responder via Client RPC
-}
-</code></pre>
-  </div>
-    <h2 class="mt-5">Passo a Passo em Unreal Engine 5</h2>
+    <h2>Passo a Passo em Unreal Engine 5</h2>
     <ol>
-      <li>Criar um componente de rede no <code>APlayerController</code> para abrir sockets ou usar replicação padrão.</li>
-      <li>Implementar RPCs de login/lista de personagens equivalentes aos handlers do cliente.</li>
-      <li>Criar um subsystem para conexões auxiliares (Join/Data) simulando <code>GameMainInit</code>.</li>
-      <li>Adicionar logs de pacotes recebidos para depuração, espelhando <code>ProtocolCore</code>.</li>
+      <li>Criar componente de rede e anexar ao <code>APlayerController</code>.</li>
+      <li>Implementar conexão TCP/UDP usando <code>FSocket</code> do UE5.</li>
+      <li>Espelhar as structs de pacotes (<code>PMSG_CONNECT_ACCOUNT_SEND</code>) em <code>USTRUCT()</code> para serialização.</li>
+      <li>Despachar mensagens recebidas no <code>TickComponent</code>, refletindo o <code>switch(msg.header.id)</code> original.</li>
+      <li>Atualizar UI em Blueprints após <code>RecvLoginNew</code> equivalente sinalizar sucesso.</li>
     </ol>
-    <h2 class="mt-4">Checklist Final</h2>
-    <ul>
-      <li>Cliente UE5 consegue abrir conexão e receber respostas de autenticação.</li>
-      <li>Pacotes de lista de personagem e movimento são roteados para handlers apropriados.</li>
-      <li>Serviços auxiliares (Join/Data) respondem e mantêm sessão ativa.</li>
-      <li>Logs de rede exibem cabeçalhos/códigos de mensagem recebidos.</li>
-    </ul>
 
+    <h2>Checklist Final</h2>
+    <ul>
+      <li>Cliente UE5 conecta, envia login e recebe resposta de sucesso ou erro.</li>
+      <li>Fila de recebimento trata pacotes de login e lista de personagens.</li>
+      <li>Estados de protocolo reproduzem <code>CurrentProtocolState</code> do projeto original.</li>
+    </ul>
+  </div>
 </body>
 </html>

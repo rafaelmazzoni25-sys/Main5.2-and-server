@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  <title>Módulo 8 – Roteamento de Pacotes no Servidor</title>
+</head>
+<body class="bg-light">
+  <div class="container py-4">
+    <h1 class="mb-4">Módulo 8 – Roteamento de Pacotes no GameServer</h1>
+    <p class="lead">Exploramos o <code>ProtocolCore</code> do GameServer, que recebe, loga e despacha todos os pacotes do cliente.</p>
+
+    <h2>Pré-requisitos</h2>
+    <ul>
+      <li>Módulos 1, 2 e 7 concluídos.</li>
+      <li>Entendimento de estruturas de pacotes e handlers de gameplay.</li>
+    </ul>
+
+    <h2>Conceitos do Código Original</h2>
+
+    <div class="card mb-3">
+      <div class="card-body">
+        <h5 class="card-title">ProtocolCore – despacho principal</h5>
+
+        <h6>📘 O Que é?</h6>
+        <p>Função central do GameServer que analisa o cabeçalho (<code>head</code>) e chama o handler apropriado para cada tipo de pacote.</p>
+
+        <h6>🎯 Para Que Serve?</h6>
+        <p>Organiza a lógica de rede do servidor em um único ponto, garantindo logging e segurança antes de atingir subsistemas (ataque, movimento, itens).</p>
+
+        <h6>💻 Como Funciona?</h6>
+        <p>
+          <pre><code>void ProtocolCore(BYTE head,BYTE* lpMsg,int size,int aIndex,int encrypt,int serial) {
+    if((head != 0xF3 || lpMsg[3] != 0xF1) && head != 0x0E && head != 0x18 && head != PROTOCOL_CODE1) {
+        char String[1024];
+        for( int i = 0; i < size; ++i ) {
+            sprintf(&String[2*i], "%02X", lpMsg[i]);
+        }
+        LogAdd(LOG_RED,"PacketIN: INDEX: %d TYPE: %#X, HEAD: %#04X, SIZE: %02d, PACKET: %s",aIndex,lpMsg[0],head,size,String);
+    }
+    switch(head) {
+        case 0x00: CGChatRecv((PMSG_CHAT_RECV*)lpMsg,aIndex); break;
+        case PROTOCOL_CODE2: gAttack.CGAttackRecv((PMSG_ATTACK_RECV*)lpMsg,aIndex); break;
+        case PROTOCOL_CODE3: CGPositionRecv((PMSG_POSITION_RECV*)lpMsg,aIndex); break;
+        case 0x19: gSkillManager.CGSkillAttackRecv((PMSG_SKILL_ATTACK_RECV*)lpMsg,aIndex); break;
+        case 0x22: gItemManager.CGItemGetRecv((PMSG_ITEM_GET_RECV*)lpMsg,aIndex); break;
+        // ... muitos outros cases
+    }
+}</code></pre>
+        </p>
+
+        <h6>📁 Onde Encontrar?</h6>
+        <p><code>Source MuServer Update 15/GameServer/GameServer/Protocol.cpp</code></p>
+
+        <h6>⏱️ Quando é Executado?</h6>
+        <p>Invocado a cada pacote recebido pelo socket do jogador (<code>aIndex</code>), logo após a leitura no <code>SocketManager</code>.</p>
+      </div>
+    </div>
+
+    <h2>Implementação em Unreal Engine 5</h2>
+    <p>Em UE5, implemente roteamento em um <code>UObject</code> dedicado no servidor que mapeia códigos para delegates.</p>
+    <pre><code class="language-cpp">UCLASS()
+class UMuPacketRouter : public UObject {
+    GENERATED_BODY()
+public:
+    void RoutePacket(uint8 Head, const TArray<uint8>& Data, int32 ClientId) {
+        switch(Head) {
+            case 0x00: HandleChat(Data, ClientId); break;
+            case 0x19: HandleSkillAttack(Data, ClientId); break;
+            case 0x22: HandleItemGet(Data, ClientId); break;
+            default: break;
+        }
+    }
+};</code></pre>
+
+    <h2>Passo a Passo em Unreal Engine 5</h2>
+    <ol>
+      <li>Criar um objeto roteador e instanciá-lo no <code>AGameModeBase</code> do servidor dedicado.</li>
+      <li>Converter structs de pacotes para <code>USTRUCT()</code> e desserializar antes de chamar handlers.</li>
+      <li>Registrar logs de entrada em um canal semelhante a <code>LogAdd</code>.</li>
+      <li>Implementar handlers de chat, movimento, skills e itens usando classes <code>APlayerController</code> e <code>ACharacter</code>.</li>
+    </ol>
+
+    <h2>Checklist Final</h2>
+    <ul>
+      <li>Servidor UE5 registra cada pacote recebido com cabeçalho e tamanho.</li>
+      <li>Handlers específicos são chamados para chat, ataque, posição e itens.</li>
+      <li>Arquitetura de roteamento centralizada espelha <code>ProtocolCore</code> do código original.</li>
+    </ul>
+  </div>
+</body>
+</html>
