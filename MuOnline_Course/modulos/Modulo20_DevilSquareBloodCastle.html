@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  <title>Módulo 20 – Devil Square e Blood Castle (Entrada e Ciclo)</title>
+</head>
+<body class="bg-light">
+  <div class="container py-5">
+    <h1 class="mb-4">Módulo 20 – Devil Square e Blood Castle (Entrada e Ciclo)</h1>
+    <p class="lead">Abordamos o fluxo de entrada (pacotes 0x90 e 0x9A), leitura de scripts e ciclo de estados dos eventos Devil Square e Blood Castle, além de como portar o comportamento para UE5 com instâncias de mapa, timers e backend VaRest/Node.js/SQL.</p>
+
+    <h2>Pré-requisitos</h2>
+    <ul>
+      <li>Módulos 6 e 12 concluídos (timers e IA de monstros).</li>
+      <li>Conhecimento de instanciamento de mapas em UE5 e replicação.</li>
+      <li>Banco SQL preparado para armazenar agendamentos/recompensas.</li>
+    </ul>
+
+    <h2>Conceitos do Código Original</h2>
+
+    <div class="card mb-3">
+      <div class="card-body">
+        <h5 class="card-title">Protocol.cpp – Entrada Devil Square (0x90) e Blood Castle (0x9A)</h5>
+
+        <h6>📘 O Que é?</h6>
+        <p>Roteamento dos pacotes de entrada dos eventos no switch principal do GameServer.<br>
+          <pre><code>case 0x90:
+    gDevilSquare.CGDevilSquareEnterRecv((PMSG_DEVIL_SQUARE_ENTER_RECV*)lpMsg,aIndex);
+    break;
+...
+case 0x9A:
+    gBloodCastle.CGBloodCastleEnterRecv((PMSG_BLOOD_CASTLE_ENTER_RECV*)lpMsg,aIndex);
+    break;</code></pre>
+        </p>
+
+        <h6>🎯 Para Que Serve?</h6>
+        <p>Recebe a requisição do cliente para entrar nos eventos, encaminhando para os handlers que validam itens, nível e estado da instância.</p>
+
+        <h6>💻 Como Funciona?</h6>
+        <p>O opcode 0xC1/0xC3 chega ao <code>ProtocolCore</code> e cai no case específico. Cada handler verifica se o evento está aberto e se o jogador possui o convite correto, depois transfere o personagem para o mapa do nível correspondente.</p>
+
+        <h6>📁 Onde Encontrar?</h6>
+        <p><code>Source MuServer Update 15/GameServer/GameServer/Protocol.cpp</code>, casos 0x90 e 0x9A.</p>
+
+        <h6>⏱️ Quando é Executado?</h6>
+        <p>Quando o jogador clica para entrar no evento (após usar convite ou interface). O pacote é enviado pelo cliente e processado imediatamente no servidor.</p>
+      </div>
+    </div>
+
+    <div class="card mb-3">
+      <div class="card-body">
+        <h5 class="card-title">CDevilSquare::Init/Load – Configuração e Start Times</h5>
+
+        <h6>📘 O Que é?</h6>
+        <p>Inicialização e leitura do script de horários, experiência e prêmios do Devil Square.<br>
+          <pre><code>for(int n=0;n < MAX_DS_LEVEL;n++) {
+    DEVIL_SQUARE_LEVEL* lpLevel = &this->m_DevilSquareLevel[n];
+    lpLevel->State = DS_STATE_BLANK;
+    lpLevel->Map = ((n<4)?MAP_DEVIL_SQUARE1:MAP_DEVIL_SQUARE2);
+    lpLevel->EnterEnabled = 0;
+    this->CleanUser(lpLevel);
+}
+...
+this->m_DevilSquareStartTime.push_back(info);
+this->m_DevilSquareRewardExperience[level][n] = lpMemScript->GetAsNumber();</code></pre>
+        </p>
+
+        <h6>🎯 Para Que Serve?</h6>
+        <p>Prepara os níveis do evento, define mapas e horários de início, e carrega tabelas de recompensa de experiência e zen para cada rank.</p>
+
+        <h6>💻 Como Funciona?</h6>
+        <p>No construtor, limpa estados e define mapas por nível. Em <code>Load</code>, lê um script via <code>CMemScript</code> preenchendo <code>m_DevilSquareStartTime</code> e tabelas de recompensa. Em <code>Init</code>, define estado inicial (BLANK ou EMPTY) conforme configuração do servidor.</p>
+
+        <h6>📁 Onde Encontrar?</h6>
+        <p><code>Source MuServer Update 15/GameServer/GameServer/DevilSquare.cpp</code>, construtor, <code>Init</code> e <code>Load</code>.</p>
+
+        <h6>⏱️ Quando é Executado?</h6>
+        <p>Chamado na inicialização do GameServer, antes de aceitar jogadores. O loop de eventos usa os horários carregados para abrir/fechar instâncias.</p>
+      </div>
+    </div>
+
+    <div class="card mb-3">
+      <div class="card-body">
+        <h5 class="card-title">CBloodCastle::Init/Load – Estados, Horários e Tabelas</h5>
+
+        <h6>📘 O Que é?</h6>
+        <p>Inicialização das instâncias de Blood Castle, definindo mapas, estados e leitura de scripts de tempo, experiência e premiação.<br>
+          <pre><code>for(int n=0;n < MAX_BC_LEVEL;n++) {
+    BLOOD_CASTLE_LEVEL* lpLevel = &this->m_BloodCastleLevel[n];
+    lpLevel->Level = n;
+    lpLevel->State = BC_STATE_BLANK;
+    lpLevel->Map = ((n<7)?(MAP_BLOOD_CASTLE1+n):MAP_BLOOD_CASTLE8);
+    lpLevel->EnterEnabled = 0;
+    this->CleanUser(lpLevel);
+    this->CleanMonster(lpLevel);
+}
+...
+this->m_BloodCastleStartTime.push_back(info);
+this->m_BloodCastleExperienceTable[level][0] = lpMemScript->GetAsNumber();</code></pre>
+        </p>
+
+        <h6>🎯 Para Que Serve?</h6>
+        <p>Define as oito instâncias de Blood Castle, limpa usuários/monstros e carrega tabelas de recompensas e tempos de evento.</p>
+
+        <h6>💻 Como Funciona?</h6>
+        <p>O construtor cria estruturas por nível, define mapas e limpa dados. <code>Init</code> habilita ou zera estados conforme configuração. <code>Load</code> lê seções do script: tempos de aviso/notificação/evento, horários de início, tabelas de experiência e zen, e vida de NPCs.</p>
+
+        <h6>📁 Onde Encontrar?</h6>
+        <p><code>Source MuServer Update 15/GameServer/GameServer/BloodCastle.cpp</code>, construtor, <code>Init</code> e <code>Load</code>.</p>
+
+        <h6>⏱️ Quando é Executado?</h6>
+        <p>Executa na inicialização do servidor; os ciclos de estado usam esses valores para abrir/fechar entradas e controlar monstros.</p>
+      </div>
+    </div>
+
+    <div class="card mb-3">
+      <div class="card-body">
+        <h5 class="card-title">gObjUserDie – Delegação para Eventos</h5>
+
+        <h6>📘 O Que é?</h6>
+        <p>Função central de morte do jogador que delega para os eventos instanciados, garantindo processamento específico de cada mapa.<br>
+          <pre><code>if(DS_MAP_RANGE(lpObj->Map) != 0) {
+    gDevilSquare.UserDieProc(lpObj,lpTarget); return;
+} else if(BC_MAP_RANGE(lpObj->Map) != 0) {
+    gBloodCastle.UserDieProc(lpObj,lpTarget); return;
+}
+...
+gGensSystem.UserDieProc(lpObj,lpTarget);
+</code></pre>
+        </p>
+
+        <h6>🎯 Para Que Serve?</h6>
+        <p>Encaminha a lógica de morte para a instância certa (Devil Square ou Blood Castle), aplicando regras de pontuação e ressurgimento específicas do evento.</p>
+
+        <h6>💻 Como Funciona?</h6>
+        <p>Verifica mapas com macros <code>DS_MAP_RANGE</code> e <code>BC_MAP_RANGE</code>. Em caso positivo, chama <code>UserDieProc</code> do evento e retorna, impedindo execução de lógica padrão de PK/drop.</p>
+
+        <h6>📁 Onde Encontrar?</h6>
+        <p><code>Source MuServer Update 15/GameServer/GameServer/User.cpp</code>, função <code>gObjUserDie</code>.</p>
+
+        <h6>⏱️ Quando é Executado?</h6>
+        <p>Disparado sempre que um jogador morre. Se estiver dentro de Devil Square ou Blood Castle, a rotina específica do evento roda imediatamente.</p>
+      </div>
+    </div>
+
+    <h2>Implementação em Unreal Engine 5</h2>
+    <ul>
+      <li><strong>Instâncias de mapa</strong>: use <code>UWorld::SpawnActor</code> para gerenciar arenas separadas ou níveis de streaming para cada instância.</li>
+      <li><strong>Controladores de evento</strong>: crie Actors server-only (ex.: <code>ADevilSquareController</code>, <code>ABloodCastleController</code>) com timers para estados (Blank, Empty, Playing, Closing).</li>
+      <li><strong>Entrada</strong>: implemente RPC <code>ServerRequestEnterEvent(EventType, Level)</code> no <code>APlayerController</code>; valide convite/nível e mova o player para a instância.</li>
+      <li><strong>Persistência</strong>: mantenha tabelas SQL para horários e recompensas; carregue via Node.js e envie ao servidor UE5 no boot. Clientes podem consultar via VaRest para exibir tempo restante.</li>
+    </ul>
+
+    <h3>Exemplo de Controller em UE5</h3>
+    <pre><code>UENUM(BlueprintType)
+enum class EEventState : uint8 { Blank, Empty, Playing, Closing };
+
+UCLASS()
+class ADevilSquareController : public AActor {
+    GENERATED_BODY()
+public:
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) int32 LevelIndex;
+    UPROPERTY(ReplicatedUsing=OnRep_State) EEventState State = EEventState::Blank;
+    UPROPERTY(EditAnywhere) TArray<FDateTime> StartTimes;
+    UPROPERTY(EditAnywhere) TArray<int32> RewardExp;
+
+    UFUNCTION() void TickState();
+    UFUNCTION(Server, Reliable) void ServerRequestEnter(APlayerController* PC);
+};</code></pre>
+
+    <h3>Fluxo de Entrada</h3>
+    <ol>
+      <li>No cliente, ao clicar em "Entrar", envie RPC para <code>ServerRequestEnter</code> com o nível.</li>
+      <li>No servidor, valide estado <code>State == Empty</code>, horário ativo e item de convite (armazenado em inventário replicado).</li>
+      <li>Use <code>AController::Possess</code> e <code>TeleportTo</code> para mover o player à instância correspondente.</li>
+      <li>Informe Node.js via VaRest de que o jogador entrou (log SQL) para estatísticas.</li>
+    </ol>
+
+    <h3>Recompensas e Mortes</h3>
+    <ol>
+      <li>Ao terminar a rodada, calcule rank e aplique recompensas replicando tabelas lidas de SQL.</li>
+      <li>Substitua o tratamento de morte padrão: em <code>OnCharacterDied</code>, cheque se o mapa é Devil Square/Blood Castle e invoque lógica específica (similar a <code>gObjUserDie</code>).</li>
+      <li>Envie resultados para os clientes via multicast e para o backend via VaRest.</li>
+    </ol>
+
+    <h2>Passo a Passo em Unreal Engine 5</h2>
+    <ol>
+      <li>Carregue tabelas de horários/recompensas de Devil Square e Blood Castle do SQL (via Node.js) ao iniciar o servidor.</li>
+      <li>Instancie controladores para cada nível e programe timers de estado.</li>
+      <li>Implemente RPC de entrada que valida convite/nível e teleporta o jogador para o mapa instanciado.</li>
+      <li>Adapte UI para mostrar tempo restante e estado (dados via VaRest) antes da entrada.</li>
+      <li>Em mortes dentro da instância, aplique lógica específica e bloqueie drops padrão.</li>
+      <li>Finalize a rodada calculando ranking, distribuindo recompensas e limpando a instância.</li>
+    </ol>
+
+    <h2>Checklist Final</h2>
+    <ul>
+      <li>Eventos Devil Square e Blood Castle possuem controladores de estado com timers equivalentes ao servidor original.</li>
+      <li>Entrada só ocorre quando o estado está aberto e o convite/nível são válidos.</li>
+      <li>Mapas instanciados isolam jogadores e aplicam regras de morte específicas.</li>
+      <li>Recompensas e logs são persistidos no SQL via Node.js.</li>
+      <li>UI do cliente mostra estado/tempo e confirmações de entrada.</li>
+    </ul>
+  </div>
+</body>
+</html>
