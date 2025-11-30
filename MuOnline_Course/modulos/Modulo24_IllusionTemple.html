@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  <title>Módulo 24 – Illusion Temple</title>
+</head>
+<body class="bg-light">
+  <div class="container py-5">
+    <h1 class="mb-4">Módulo 24 – Illusion Temple</h1>
+    <p class="lead">Implemente o evento Illusion Temple com leitura de script, checagens de entrada, movimentação para gates e distribuição de recompensas.</p>
+
+    <h2>Pré-requisitos</h2>
+    <ul>
+      <li>Módulo 2 – Rede e Autenticação</li>
+      <li>Módulo 6 – Eventos e Timers do Servidor</li>
+      <li>Módulo 12 – IA de Monstros</li>
+      <li>Módulo 17 – Chaos Box e Misturas (uso de convite)</li>
+      <li>Conhecimento de UE5: GameMode, GameState, ActorComponents, RPCs e timers.</li>
+    </ul>
+
+    <h2>Conceitos do Código Original</h2>
+
+    <div class="card mb-3">
+      <div class="card-body">
+        <h5 class="card-title">CIllusionTemple::Load – Leitura de script e tabelas</h5>
+
+        <h6>📘 O Que é?</h6>
+        <p>Rotina que lê <code>IllusionTemple.dat</code>, tempos do evento e tabelas de experiência/recompensa antes do ciclo principal.<br>
+        <pre><code>void CIllusionTemple::Load(char* path) {
+    CMemScript* lpMemScript = new CMemScript;
+    ...
+    this-&gt;m_IllusionTempleStartTime.clear();
+    memset(this-&gt;m_IllusionTempleExperienceTable,0,sizeof(...));
+    while(true) {
+        if(lpMemScript-&gt;GetToken() == TOKEN_END) break;
+        int section = lpMemScript-&gt;GetNumber();
+        while(true) {
+            if(section == 0) { ... this-&gt;m_WarningTime = lpMemScript-&gt;GetNumber(); ... }
+            else if(section == 1) {
+                ILLUSION_TEMPLE_START_TIME info;
+                info.Year = lpMemScript-&gt;GetNumber();
+                info.Month = lpMemScript-&gt;GetAsNumber();
+                ...
+                this-&gt;m_IllusionTempleStartTime.push_back(info);
+            }
+            else if(section == 2) {
+                int level = lpMemScript-&gt;GetNumber();
+                this-&gt;m_IllusionTempleExperienceTable[level][0] = lpMemScript-&gt;GetAsNumber();
+                this-&gt;m_IllusionTempleExperienceTable[level][1] = lpMemScript-&gt;GetAsNumber();
+            }
+            else if(section == 3) {
+                int level = lpMemScript-&gt;GetNumber();
+                this-&gt;m_IllusionTempleReward[level][0] = lpMemScript-&gt;GetAsNumber();
+                this-&gt;m_IllusionTempleReward[level][1] = lpMemScript-&gt;GetAsNumber();
+                this-&gt;m_IllusionTempleReward[level][2] = lpMemScript-&gt;GetAsNumber();
+            } else { break; }
+        }
+    }
+}</code></pre></p>
+
+        <h6>🎯 Para Que Serve?</h6>
+        <p>Define a janela de avisos/entrada do evento, horários de início por nível, e tabelas de XP/recompensa usadas nos cálculos de fim de partida.</p>
+
+        <h6>💻 Como Funciona?</h6>
+        <p>Cria um <code>CMemScript</code>, percorre seções numéricas e preenche vetores de horários e tabelas; converte tokens do arquivo diretamente para valores internos usados no ciclo principal.<br>
+        <pre><code>this-&gt;m_WarningTime = lpMemScript-&gt;GetNumber();
+this-&gt;m_IllusionTempleExperienceTable[level][0] = lpMemScript-&gt;GetAsNumber();</code></pre></p>
+
+        <h6>📁 Onde Encontrar?</h6>
+        <p><code>Source MuServer Update 15/GameServer/GameServer/IllusionTemple.cpp</code></p>
+
+        <h6>⏱️ Quando é Executado?</h6>
+        <p>Durante a inicialização do GameServer, após carregar configs do evento.<br>
+        <pre><code>gIllusionTemple.Load(gPath.GetFullPath("Event\\IllusionTemple.dat"));</code></pre></p>
+      </div>
+    </div>
+
+    <div class="card mb-3">
+      <div class="card-body">
+        <h5 class="card-title">CIllusionTemple::CGIllusionTempleEnterRecv – Validação de entrada</h5>
+
+        <h6>📘 O Que é?</h6>
+        <p>Handler do pacote <code>0xBF 0x70</code> que valida convite, slot, PK, duel, guild war e move o jogador para o gate adequado.<br>
+        <pre><code>void CIllusionTemple::CGIllusionTempleEnterRecv(...,int aIndex) {
+    if(gServerInfo.m_IllusionTempleEvent == 0) return;
+    LPOBJ lpObj = &gObj[aIndex];
+    PMSG_ILLUSION_TEMPLE_ENTER_SEND pMsg; pMsg.header.set(0xBF,0x70,sizeof(pMsg));
+    pMsg.result = 0;
+    lpMsg-&gt;level = this-&gt;GetUserAbleLevel(lpObj);
+    if(INVENTORY_FULL_RANGE(lpMsg-&gt;slot) == 0) { pMsg.result = 1; DataSend(...); return; }
+    if(gItemManager.GetInventoryItemCount(lpObj,GET_ITEM(13,51),(level+1)) == 0 ... ) { gNotice.GCNoticeSend(...); return; }
+    if(lpObj->Inventory[lpMsg->slot].m_Index == GET_ITEM(13,51) && lpObj->Inventory[lpMsg->slot].m_Level != (lpMsg->level+1)) { pMsg.result = 3; DataSend(...); return; }
+    if(OBJECT_RANGE(lpObj->PartyNumber) != 0) { pMsg.result = 1; DataSend(...); return; }
+    if(lpObj->Guild != 0 && lpObj->Guild->WarState == 1) { pMsg.result = 1; DataSend(...); return; }
+    if(OBJECT_RANGE(lpObj->DuelUser) != 0) { pMsg.result = 1; DataSend(...); return; }
+    if(lpObj->PShopOpen != 0) { pMsg.result = 1; DataSend(...); return; }
+    if(this-&gt;GetEnterEnabled(lpMsg-&gt;level) == 0) { pMsg.result = 3; DataSend(...); gNotice.GCNoticeSend(...); return; }
+    if(gServerInfo.m_PKLimitFree == 0 && lpObj->PKLevel >= 4) { pMsg.result = 7; DataSend(...); return; }
+    if(this-&gt;AddUser(lpLevel,aIndex) == 0) { pMsg.result = 4; DataSend(...); return; }
+    gItemManager.DecreaseItemDur(lpObj,lpMsg-&gt;slot,1);
+    if(lpObj->Inventory[lpMsg->slot].m_Index == GET_ITEM(13,19)) { gItemManager.InventoryDelItem(lpObj->Index,lpMsg->slot); gItemManager.GCItemDeleteSend(lpObj->Index,lpMsg->slot,1); }
+    switch(lpMsg->level) { case 0: gObjMoveGate(aIndex,142); break; ... case 5: gObjMoveGate(aIndex,147); break; }
+    this-&gt;GCIllusionTempleChangeScenarioSend(lpLevel,0,aIndex);
+}</code></pre></p>
+
+        <h6>🎯 Para Que Serve?</h6>
+        <p>Impede entradas inválidas (sem convite, slot errado, PK alto, duel/party ativos) e envia o jogador para o mapa/level correto, descontando o convite.</p>
+
+        <h6>💻 Como Funciona?</h6>
+        <p>Valida flags e inventário, envia respostas de erro via <code>pMsg.result</code>, remove durabilidade ou deleta o convite e faz <code>gObjMoveGate</code> para um dos gates 142–147, finalizando com <code>GCIllusionTempleChangeScenarioSend</code>.</p>
+
+        <h6>📁 Onde Encontrar?</h6>
+        <p><code>Source MuServer Update 15/GameServer/GameServer/IllusionTemple.cpp</code></p>
+
+        <h6>⏱️ Quando é Executado?</h6>
+        <p>Ao receber o pacote de entrada <code>0xBF 0x70</code> no <code>Protocol.cpp</code>.<br>
+        <pre><code>case 0xBF:
+    switch(lpMsg[3]) {
+        case 0x00:
+            gIllusionTemple.CGIllusionTempleEnterRecv(...);
+            break;
+        ...
+    }
+    break;</code></pre></p>
+      </div>
+    </div>
+
+    <h2>Implementação em Unreal Engine 5</h2>
+    <p>Mapeie o evento para GameMode/GameState dedicados, usando componentes para lógica de convite e teleporte.</p>
+    <ul>
+      <li>Estrutura equivalente: <code>AGameModeBase</code> para orquestrar estados; <code>AGameStateBase</code> replicado para tempos e pontuação; <code>APlayerController</code> para comandos de entrada; <code>UActorComponent</code> para inventário/convite.</li>
+      <li>Crie um <code>USTRUCT</code> com horários e recompensas carregados de <code>DataTable</code> ou JSON (mirroring <code>IllusionTemple.dat</code>), aplicando-os ao GameMode no BeginPlay.</li>
+      <li>Validação de entrada: RPC servidor <code>ServerRequestEnterIllusion(int32 Level, int32 Slot)</code> no PlayerController; execute checks de inventário (componentes), estado de party/duel e PK. Em caso de falha, envie <code>ClientNotifyEnterResult(uint8 Result)</code>.</li>
+      <li>Teleporte: use <code>UGameplayStatics::OpenLevel</code> ou <code>ServerTravel</code> para sub-levels/gates e posicione jogadores em coordenadas pré-definidas por nível.</li>
+      <li>Consumo de item: remova do inventário replicado (Array de <code>FItemSlot</code>) e notifique UI; utilize VaRest para registrar consumo em backend Node.js/SQL, persistindo uso do convite.</li>
+      <li>Estado do evento: timers com <code>FTimerHandle</code> replicados; ao fechar entrada, rejeite novos pedidos e avance para fase de combate, emitindo multicast para UI.</li>
+    </ul>
+
+    <h2>Passo a Passo em Unreal Engine 5</h2>
+    <ol>
+      <li>Criar <strong>DataTable</strong> com horários/recompensas espelhando <code>IllusionTemple.dat</code>.</li>
+      <li>Implementar <code>AIllusionTempleGameMode</code> com estados (Blank, Empty, Stand, Start, Clean) e timers replicados.</li>
+      <li>No <code>AIllusionTemplePlayerController</code>, adicionar RPC <code>ServerRequestEnterIllusion</code> que consulta componente de inventário e estado social (party/duel/UI).</li>
+      <li>Consumir item convite no componente de inventário e disparar <code>ClientUpdateInventory</code>; em caso de <code>m_Index == GET_ITEM(13,19)</code>, deletar slot.</li>
+      <li>Teletransportar para sub-level ou streaming cell conforme nível; chamar <code>ClientTravel</code> para o mapa correto.</li>
+      <li>Replicar pontuação e posse do item objetivo via GameState; implementar multicast <code>ClientUpdateScenario(State)</code>.</li>
+      <li>Integrar VaRest para registrar entrada e resultado no Node.js/SQL (tabela de ranking do evento).</li>
+      <li>Testar com convites válidos/ inválidos, PK &gt;=4, duel ativo, guild war e party aberta.</li>
+    </ol>
+
+    <h2>Checklist Final</h2>
+    <ul>
+      <li>Horários e recompensas carregados de forma equivalente ao <code>IllusionTemple.dat</code>.</li>
+      <li>Convite consumido ou deletado corretamente e jogador movido para o gate do nível.</li>
+      <li>Rejeições replicam os mesmos códigos de <code>pMsg.result</code> (slot inválido, PK, duel, guild war, sem item).</li>
+      <li>Estado do evento e pontuação replicados para todos os clientes; UI notifica troca de cenário.</li>
+      <li>Entrada e resultado registrados via VaRest no backend Node.js/SQL.</li>
+    </ul>
+  </div>
+</body>
+</html>

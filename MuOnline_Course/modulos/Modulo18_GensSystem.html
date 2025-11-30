@@ -1,0 +1,268 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  <title>Módulo 18 – Sistema Gens (Facções e Contribuição)</title>
+</head>
+<body class="bg-light">
+  <div class="container py-5">
+    <h1 class="mb-4">Módulo 18 – Sistema Gens (Facções e Contribuição)</h1>
+    <p class="lead">Mapeamos o fluxo completo do sistema Gens no GameServer e na UI do cliente, cobrindo cálculo de símbolos, interação com NPCs Duprian/Varnert, atualização de contribuição em mortes e exibição de ranking. Em seguida mostramos como replicar o comportamento em UE5 usando componentes de facção, replicação e VaRest/Node.js/SQL.</p>
+
+    <h2>Pré-requisitos</h2>
+    <ul>
+      <li>Concluir os módulos 4, 5 e 11 para ter base de combate, inventário e party/social.</li>
+      <li>Conhecer replicação em UE5 (<code>APlayerState</code>, <code>AGameStateBase</code>) e uso de <code>UActorComponent</code>.</li>
+      <li>Ter o stack Node.js + SQL configurado (ver Módulo 9) e VaRest instalado no cliente UE5.</li>
+    </ul>
+
+    <h2>Conceitos do Código Original</h2>
+
+    <div class="card mb-3">
+      <div class="card-body">
+        <h5 class="card-title">CGensSystem::CalcGensMemberInfo – Ranking e Símbolos</h5>
+
+        <h6>📘 O Que é?</h6>
+        <p>
+          Função que calcula o símbolo e o próximo requisito de contribuição para um membro Gens com base no rank e pontos atuais.<br>
+          <pre><code>void CGensSystem::CalcGensMemberInfo(LPOBJ lpObj)
+{
+    if(lpObj-&gt;GensFamily == 0) { return; }
+    if(lpObj-&gt;GensContribution &gt;= 10000) {
+        if(lpObj-&gt;GensRank == 1) { lpObj-&gt;GensSymbol = 1; }
+        else if(lpObj-&gt;GensRank &gt;= 2 && lpObj-&gt;GensRank &lt;= 5) { lpObj-&gt;GensSymbol = 2; }
+        ...
+    } else {
+        if(lpObj-&gt;GensContribution &gt;= 0 && lpObj-&gt;GensContribution &lt;= 499) { lpObj-&gt;GensSymbol = 14; }
+        ...
+    }
+    lpObj-&gt;GensNextContribution = gGensSystemContributionTable[(lpObj-&gt;GensSymbol-1)];
+}</code></pre>
+        </p>
+
+        <h6>🎯 Para Que Serve?</h6>
+        <p>Define visual e progressão do jogador em uma das facções Gens, calculando o símbolo exibido na UI e o próximo patamar de contribuição.</p>
+
+        <h6>💻 Como Funciona?</h6>
+        <p>Avalia primeiro se o jogador pertence a alguma família. Compara contribuição e rank para atribuir símbolos de 1 a 9 (alta contribuição) ou 10 a 14 (faixas iniciais). Em seguida lê a tabela <code>gGensSystemContributionTable</code> para armazenar o requisito do próximo nível.<br>
+          <pre><code>if(lpObj-&gt;GensContribution &gt;= 10000) {
+    if(lpObj-&gt;GensRank == 1) { lpObj-&gt;GensSymbol = 1; }
+    ...
+} else {
+    if(lpObj-&gt;GensContribution &gt;= 6000 && lpObj-&gt;GensContribution &lt;= 9999) {
+        lpObj-&gt;GensSymbol = 10;
+    }
+}</code></pre>
+        </p>
+
+        <h6>📁 Onde Encontrar?</h6>
+        <p><code>Source MuServer Update 15/GameServer/GameServer/GensSystem.cpp</code>, função <code>CGensSystem::CalcGensMemberInfo</code>.</p>
+
+        <h6>⏱️ Quando é Executado?</h6>
+        <p>Invocado sempre que a contribuição ou rank mudam (por exemplo, ao sincronizar com o DataServer ou após mortes). A chamada de envio ocorre via <code>CGensSystem::GDGensSystemUpdateSend</code> depois de <code>UserDieProc</code> ajustar os pontos.</p>
+      </div>
+    </div>
+
+    <div class="card mb-3">
+      <div class="card-body">
+        <h5 class="card-title">CGensSystem::NpcGensDuprianSteward / Varnert – Diálogo e Interface</h5>
+
+        <h6>📘 O Que é?</h6>
+        <p>
+          Handlers que inicializam a interface de interação com os NPCs de cada família, preenchendo contribuição atual e disparando um pacote 0xF9 0x01.<br>
+          <pre><code>lpObj-&gt;Interface.use = 1;
+lpObj-&gt;Interface.type = INTERFACE_QUEST_WORLD;
+pMsg.header.set(0xF9,0x01,sizeof(pMsg));
+pMsg.MonsterClass = lpNpc-&gt;Class;
+pMsg.contribution = (lpObj-&gt;GensFamily == GENS_FAMILY_VARNERT)
+    ? lpObj-&gt;GensContribution : 0;
+DataSend(lpObj-&gt;Index,(BYTE*)&pMsg,pMsg.header.size);</code></pre>
+        </p>
+
+        <h6>🎯 Para Que Serve?</h6>
+        <p>Abre a UI de adesão/consulta Gens para o jogador, diferenciando Duprian e Varnert e mostrando a contribuição atual somente se o jogador pertence à mesma família.</p>
+
+        <h6>💻 Como Funciona?</h6>
+        <p>Habilita a interface do tipo <code>INTERFACE_QUEST_WORLD</code>, salva a classe do NPC para verificar o altar mais tarde e envia o pacote 0xF9/0x01 com classe do NPC e contribuição válida. O valor de contribuição é zerado quando a família não coincide.<br>
+          <pre><code>if(lpObj-&gt;GensFamily == GENS_FAMILY_DUPRIAN) {
+    pMsg.contribution = lpObj-&gt;GensContribution;
+} else {
+    pMsg.contribution = 0;
+}
+DataSend(lpObj-&gt;Index,(BYTE*)&pMsg,pMsg.header.size);</code></pre>
+        </p>
+
+        <h6>📁 Onde Encontrar?</h6>
+        <p><code>Source MuServer Update 15/GameServer/GameServer/GensSystem.cpp</code>, funções <code>NpcGensDuprianSteward</code> e <code>NpcGensVarnertSteward</code>.</p>
+
+        <h6>⏱️ Quando é Executado?</h6>
+        <p>Chamado quando o jogador usa o NPC steward de sua facção, após roteamento de pacotes no <code>Protocol.cpp</code> (opcode 0xF9). O fluxo começa no clique do NPC no cliente e culmina aqui para montar a UI.</p>
+      </div>
+    </div>
+
+    <div class="card mb-3">
+      <div class="card-body">
+        <h5 class="card-title">CGensSystem::UserDieProc / CheckGens – Contribuição por Mortes</h5>
+
+        <h6>📘 O Que é?</h6>
+        <p>Rotina que ajusta contribuição de Gens após PvP válido em mapas de batalha, verificando flood de vítimas e níveis para aplicar bônus e penalidades.<br>
+          <pre><code>if(this-&gt;CheckGens(lpObj,lpTarget) == 0) { return; }
+if(this-&gt;VerifyGensVictimList(lpObj,lpTarget) == 0) { return; }
+int ContributionIncrease = gServerInfo.m_GensSystemKillerContributionIncrease;
+int ContributionDecrease = gServerInfo.m_GensSystemVictimContributionDecrease;
+...
+lpObj-&gt;GensContribution -= ContributionDecrease;
+this-&gt;GDGensSystemUpdateSend(lpObj-&gt;Index);
+ContributionIncrease = ((ContributionIncrease&gt;gServerInfo.m_GensSystemKillerMaxContributionIncrease)?...);
+lpTarget-&gt;GensContribution += ContributionIncrease;
+this-&gt;GDGensSystemUpdateSend(lpTarget-&gt;Index);</code></pre>
+        </p>
+
+        <h6>🎯 Para Que Serve?</h6>
+        <p>Garante que apenas mortes entre famílias rivais, em mapas permitidos e sem flood de kills, modifiquem a contribuição. Aplica limites de ganho/perda conforme configuração do servidor.</p>
+
+        <h6>💻 Como Funciona?</h6>
+        <p>Primeiro valida tipos (somente usuários) e mapas com <code>gMapManager.GetMapGensBattle</code>; depois bloqueia se famílias são iguais. A lista de vítimas evita contagem excessiva em curto intervalo. Ajusta contribuição de acordo com diferença de nível e símbolo, clampa aos limites configurados e envia atualização ao DataServer.<br>
+          <pre><code>if(gMapManager.GetMapGensBattle(lpObj-&gt;Map) == 0) { return 0; }
+if(lpObj-&gt;GensFamily != lpTarget-&gt;GensFamily) { return 1; }
+...
+lpObj-&gt;GensContribution -= ContributionDecrease;
+GDGensSystemUpdateSend(lpObj-&gt;Index);
+lpTarget-&gt;GensContribution += ContributionIncrease;
+GDGensSystemUpdateSend(lpTarget-&gt;Index);</code></pre>
+        </p>
+
+        <h6>📁 Onde Encontrar?</h6>
+        <p><code>Source MuServer Update 15/GameServer/GameServer/GensSystem.cpp</code>, funções <code>UserDieProc</code> e <code>CheckGens</code>.</p>
+
+        <h6>⏱️ Quando é Executado?</h6>
+        <p>Disparado no processamento de morte do jogador: <code>gObjUserDie</code> em <code>User.cpp</code> chama <code>gGensSystem.UserDieProc(lpObj, lpTarget)</code> após tratar eventos específicos.<br>
+          <pre><code>void gObjUserDie(LPOBJ lpObj,LPOBJ lpTarget) {
+    ...
+    gDuel.UserDieProc(lpObj,lpTarget);
+    gGensSystem.UserDieProc(lpObj,lpTarget);
+}</code></pre>
+        </p>
+      </div>
+    </div>
+
+    <div class="card mb-3">
+      <div class="card-body">
+        <h5 class="card-title">CNewUIGensRanking – Exibição de Ranking e Símbolo</h5>
+
+        <h6>📘 O Que é?</h6>
+        <p>Componente de UI do cliente que mostra o time Gens, símbolo, rank, contribuição atual e lista rolável de posições.<br>
+          <pre><code>bool CNewUIGensRanking::Create(CNewUIManager* pNewUIMng, int x, int y) {
+    m_pNewUIMng = pNewUIMng;
+    m_pNewUIMng-&gt;AddUIObj(INTERFACE_GENSRANKING, this);
+    m_pScrollBar = new CNewUIScrollBar();
+    m_pScrollBar-&gt;Create( x, y, 110 );
+    m_pTextBox = new CNewUITextBox();
+    m_pTextBox-&gt;Create( x, y, 200, 110 );
+    SetPos(x, y);
+    SetBtnInfo(450, 0);
+    LoadImages();
+    Show(false);
+    return true;
+}</code></pre>
+        </p>
+
+        <h6>🎯 Para Que Serve?</h6>
+        <p>Renderiza a janela de ranking Gens com barras, textos e um símbolo associado ao campo <code>m_byGensInfluence</code>, exibindo dados retornados do servidor.</p>
+
+        <h6>💻 Como Funciona?</h6>
+        <p>Inicializa barra de rolagem e caixa de texto, registra o UI na <code>CNewUIManager</code> e carrega texturas. O método <code>Render</code> desenha frame, marca da facção e textos usando <code>g_pRenderText</code>.<br>
+          <pre><code>bool CNewUIGensRanking::Render() {
+    EnableAlphaTest();
+    RenderFrame();
+    RenderTexts();
+    RenderButtons();
+    if( m_pScrollBar ) m_pScrollBar-&gt;Render();
+    if( m_pTextBox ) m_pTextBox-&gt;Render();
+    return true;
+}</code></pre>
+        </p>
+
+        <h6>📁 Onde Encontrar?</h6>
+        <p><code>Source Main 5.2/source/NewUIGensRanking.cpp</code>, classe <code>CNewUIGensRanking</code>.</p>
+
+        <h6>⏱️ Quando é Executado?</h6>
+        <p>Aberta quando o jogador clica nos botões de UI Gens (veja módulo de interface). Os dados são exibidos após receber pacotes de ranking do servidor e sincronizar <code>Hero-&gt;m_byRankIndex</code> e <code>m_nContribution</code>.</p>
+      </div>
+    </div>
+
+    <h2>Implementação em Unreal Engine 5</h2>
+    <p>Para recriar o sistema Gens em UE5, mapeie:</p>
+    <ul>
+      <li><strong>Símbolos/Rank</strong>: use <code>APlayerState</code> com <code>UPROPERTY(Replicated)</code> para família, contribuição, símbolo e rank.</li>
+      <li><strong>Lógica de contribuição</strong>: coloque em um <code>UActorComponent</code> anexado ao <code>APlayerState</code> ou <code>APlayerController</code> para rodar no servidor.</li>
+      <li><strong>UI</strong>: crie um <code>UUserWidget</code> (UMG) que consome os campos replicados e recebe atualizações via eventos.</li>
+      <li><strong>Persistência</strong>: exponha endpoints REST em Node.js (por exemplo, <code>POST /gens/update</code>, <code>GET /gens/rank</code>) e chame-os do cliente com VaRest.</li>
+    </ul>
+
+    <h3>Exemplo de componente de facção</h3>
+    <pre><code>UCLASS(ClassGroup=(Custom), meta=(BlueprintSpawnableComponent))
+class UGensComponent : public UActorComponent
+{
+    GENERATED_BODY()
+public:
+    UPROPERTY(ReplicatedUsing=OnRep_Contribution) int32 Contribution = 0;
+    UPROPERTY(Replicated) int32 Rank = 0;
+    UPROPERTY(Replicated) int32 Symbol = 14;
+    UPROPERTY(Replicated) uint8 Family = 0; // 0 none, 1 Duprian, 2 Varnert
+
+    UFUNCTION(Server, Reliable)
+    void ServerRegisterKill(APlayerState* Victim, const FGensConfig& Config);
+
+protected:
+    UFUNCTION() void OnRep_Contribution();
+};</code></pre>
+    <p>No método <code>ServerRegisterKill</code>, replique o cálculo de <code>UserDieProc</code>, usando curvas configuráveis (<code>FGensConfig</code>) para limites, e ao final:</p>
+    <ul>
+      <li>Atualize os campos replicados e chame um endpoint VaRest para persistir no SQL via Node.js.</li>
+      <li>Dispare um <code>Multicast</code> para atualizar UI dos clientes próximos.</li>
+    </ul>
+
+    <h3>UI de Ranking em UMG</h3>
+    <p>Monte um widget com barra de rolagem e textos ligados a propriedades do <code>APlayerState</code>. Use um <code>UDataTable</code> ou DataAsset para armazenar thresholds de símbolo equivalentes a <code>CalcGensMemberInfo</code>. Exemplo de binding:</p>
+    <pre><code>int32 UMG_GensPanel::ComputeSymbol(int32 Contribution, int32 Rank) const
+{
+    if(Contribution &gt;= 10000) {
+        if(Rank == 1) return 1;
+        if(Rank &gt;=2 && Rank &lt;=5) return 2;
+        ...
+    } else if(Contribution &gt;= 6000) { return 10; }
+    return 14;
+}</code></pre>
+
+    <h3>Chamadas REST (VaRest + Node.js + SQL)</h3>
+    <ol>
+      <li>No servidor Node.js, exponha <code>POST /gens/kill</code> para registrar ganho/perda de contribuição com validações de mapa/família (replicando <code>CheckGens</code>).</li>
+      <li>No cliente UE5, ao confirmar um kill válido no servidor de jogo, envie <code>UVaRestRequestJSON</code> com <code>killerId</code>, <code>victimId</code>, <code>mapId</code>, <code>symbol</code> e receba os novos valores para replicar.</li>
+      <li>Salve rankings em tabela SQL <code>gens_ranking</code> com índices por família e rank.</li>
+    </ol>
+
+    <h2>Passo a Passo em Unreal Engine 5</h2>
+    <ol>
+      <li>Crie um <code>APlayerState</code> customizado com campos <code>Family</code>, <code>Contribution</code>, <code>Rank</code> e <code>Symbol</code> (replicados).</li>
+      <li>Implemente um <code>UGensComponent</code> no servidor que valida mapas permitidos (use um <code>DataAsset</code> com IDs de mapa de batalha) e chama <code>ServerRegisterKill</code> quando um dano letal é aplicado.</li>
+      <li>Implemente uma função de cálculo de símbolo/thresholds espelhando <code>CalcGensMemberInfo</code> e aplique sempre que <code>Contribution</code> ou <code>Rank</code> mudarem.</li>
+      <li>Monte endpoints Node.js: <code>/gens/register</code> (adesão), <code>/gens/kill</code> (atualização), <code>/gens/ranking</code> (consulta). Cada um grava/retorna dados SQL.</li>
+      <li>No cliente UE5, adicione um Widget "GensRanking" com barra de rolagem e marque o símbolo por família; popule com dados recebidos de <code>/gens/ranking</code> via VaRest.</li>
+      <li>Para NPCs, crie <code>AActor</code> interativo (Duprian/Varnert) que abre um widget de confirmação e chama <code>/gens/register</code>; ao sucesso, define a família e ressincroniza contribuição.</li>
+      <li>Teste em mapa de batalha replicado: mate um jogador da outra família, verifique ajuste de contribuição e símbolo, persista no SQL e exiba na UI.</li>
+    </ol>
+
+    <h2>Checklist Final</h2>
+    <ul>
+      <li>PlayerState replica família, contribuição, símbolo e rank corretamente.</li>
+      <li>Kills entre famílias rivais em mapas habilitados ajustam contribuição conforme regras.</li>
+      <li>NPCs de facção abrem UI e registram adesão via VaRest/Node.js/SQL.</li>
+      <li>Widget de ranking exibe símbolo, título e lista com dados vindos do backend.</li>
+      <li>Dados persistem no banco e recarregam ao reconectar.</li>
+    </ul>
+  </div>
+</body>
+</html>

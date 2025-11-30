@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  <title>Módulo 17 – Chaos Box e Misturas</title>
+</head>
+<body class="bg-light">
+  <div class="container py-5">
+    <h1 class="mb-4">Módulo 17 – Chaos Box e Misturas</h1>
+    <p class="lead">Documenta o inventário de mistura (Chaos Box), cálculo de taxa de sucesso e integração com protocolo de mixagem.</p>
+
+    <h2>Pré-requisitos</h2>
+    <ul>
+      <li>Completar módulos 5 e 8 (inventário e roteamento de pacotes).</li>
+      <li>Conhecer manipulação de itens e atributos no cliente legado.</li>
+      <li>Ter backend Node.js/SQL para registrar mixes e logs.</li>
+    </ul>
+
+    <h2>Conceitos do Código Original</h2>
+
+    <div class="card mb-3">
+      <div class="card-body">
+        <h5 class="card-title">Inicialização da Chaos Box – <code>CChaosBox::ChaosBoxInit</code></h5>
+
+        <h6>📘 O Que é?</h6>
+        <p>Limpa todos os slots da Chaos Box e mapa de ocupação.</p>
+
+        <h6>🎯 Para Que Serve?</h6>
+        <p>Garante que cada tentativa de mix começa com slots válidos e índices zerados.</p>
+
+        <h6>💻 Como Funciona?</h6>
+        <p>
+          <pre><code>void CChaosBox::ChaosBoxInit(LPOBJ lpObj) {
+    for(int n=0;n < CHAOS_BOX_SIZE;n++) {
+        lpObj->ChaosBox[n].Clear();
+        lpObj->ChaosBoxMap[n] = 0xFF;
+    }
+}
+</code></pre>
+        </p>
+
+        <h6>📁 Onde Encontrar?</h6>
+        <p><code>Source MuServer Update 15/GameServer/GameServer/ChaosBox.cpp</code>, linhas 46–53.</p>
+
+        <h6>⏱️ Quando é Executado?</h6>
+        <p>Chamado ao abrir/resetar a Chaos Box do usuário antes de qualquer operação de mix.</p>
+      </div>
+    </div>
+
+    <div class="card mb-3">
+      <div class="card-body">
+        <h5 class="card-title">Cálculo de taxa com Talisman – <code>CChaosBox::GetTalismanOfLuckRate</code></h5>
+
+        <h6>📘 O Que é?</h6>
+        <p>Acumula durabilidade de Talismans of Luck na Chaos Box para aumentar a taxa de sucesso.</p>
+
+        <h6>🎯 Para Que Serve?</h6>
+        <p>Aplica bônus de sorte proporcional à quantidade/durabilidade de talismãs, respeitando limite máximo.</p>
+
+        <h6>💻 Como Funciona?</h6>
+        <p>
+          <pre><code>bool CChaosBox::GetTalismanOfLuckRate(LPOBJ lpObj,int* rate) {
+    int count = 0;
+    for(int n=0;n < CHAOS_BOX_SIZE;n++) {
+        if(lpObj->ChaosBox[n].IsItem() == 0) continue;
+        if(lpObj->ChaosBox[n].m_Index == GET_ITEM(14,53)) {
+            count += (int)lpObj->ChaosBox[n].m_Durability;
+        }
+    }
+    (*rate) += count;
+    return ((count>MAX_TALISMAN_OF_LUCK)?0:1);
+}
+</code></pre>
+        </p>
+
+        <h6>📁 Onde Encontrar?</h6>
+        <p><code>Source MuServer Update 15/GameServer/GameServer/ChaosBox.cpp</code>, linhas 105–125.</p>
+
+        <h6>⏱️ Quando é Executado?</h6>
+        <p>Invocado durante o cálculo de taxa em <code>ChaosItemMix</code> antes de decidir o resultado do mix.</p>
+      </div>
+    </div>
+
+    <div class="card mb-3">
+      <div class="card-body">
+        <h5 class="card-title">Mixagem base – <code>CChaosBox::ChaosItemMix</code></h5>
+
+        <h6>📘 O Que é?</h6>
+        <p>Processa itens inseridos, calcula custo, taxa e decide sucesso/falha.</p>
+
+        <h6>🎯 Para Que Serve?</h6>
+        <p>Implementa a regra padrão de Chaos Mix (chaos + itens de nível ≥4 com opção), com fallback para mensagens de erro.</p>
+
+        <h6>💻 Como Funciona?</h6>
+        <p>
+          <pre><code>void CChaosBox::ChaosItemMix(LPOBJ lpObj) {
+    int ChaosCount = 0, ItemCount = 0, ItemMoney = 0;
+    for(int n=0;n < CHAOS_BOX_SIZE;n++) {
+        if(lpObj->ChaosBox[n].IsItem() == 0) continue;
+        if(lpObj->ChaosBox[n].m_Index == GET_ITEM(12,15)) { ChaosCount++; lpObj->ChaosBox[n].OldValue(); ItemMoney += lpObj->ChaosBox[n].m_OldBuyMoney; }
+        else if(lpObj->ChaosBox[n].m_Index == GET_ITEM(14,13) || lpObj->ChaosBox[n].m_Index == GET_ITEM(14,14)) { ItemCount++; lpObj->ChaosBox[n].OldValue(); ItemMoney += lpObj->ChaosBox[n].m_OldBuyMoney; }
+        else if(lpObj->ChaosBox[n].m_Level >= 4 && lpObj->ChaosBox[n].m_Option3 >= 1) { ItemCount++; ItemMoney += lpObj->ChaosBox[n].m_BuyMoney; }
+    }
+    if(ChaosCount == 0 || ItemCount == 0) { this->GCChaosMixSend(lpObj->Index,7,0); return; }
+    if(gServerInfo.m_ChaosItemMixRate[lpObj->AccountLevel] == -1) lpObj->ChaosSuccessRate = (ItemMoney/20000);
+    else lpObj->ChaosSuccessRate = gServerInfo.m_ChaosItemMixRate[lpObj->AccountLevel];
+    if(this->GetTalismanOfLuckRate(lpObj,&lpObj->ChaosSuccessRate) == 0) { this->GCChaosMixSend(lpObj->Index,240,0); return; }
+}
+</code></pre>
+        </p>
+
+        <h6>📁 Onde Encontrar?</h6>
+        <p><code>Source MuServer Update 15/GameServer/GameServer/ChaosBox.cpp</code>, linhas 149–199.</p>
+
+        <h6>⏱️ Quando é Executado?</h6>
+        <p>Chamado quando o cliente envia pedido de mix (opcode 0x86), processado em <code>ProtocolCore</code>.</p>
+      </div>
+    </div>
+
+    <div class="card mb-3">
+      <div class="card-body">
+        <h5 class="card-title">Entrada de protocolo – <code>ProtocolCore</code> rota 0x86/0x87</h5>
+
+        <h6>📘 O Que é?</h6>
+        <p>Roteia pacotes de mixagem e fechamento da Chaos Box para o handler correspondente.</p>
+
+        <h6>🎯 Para Que Serve?</h6>
+        <p>Conecta a UI do cliente ao processamento de mix, garantindo que somente requisições válidas alcancem <code>ChaosItemMix</code>.</p>
+
+        <h6>💻 Como Funciona?</h6>
+        <p>
+          <pre><code>case 0x86:
+    gChaosBox.CGChaosMixRecv((PMSG_CHAOS_MIX_RECV*)lpMsg,aIndex);
+    break;
+case 0x87:
+    gChaosBox.CGChaosMixCloseRecv(aIndex);
+    break;
+</code></pre>
+        </p>
+
+        <h6>📁 Onde Encontrar?</h6>
+        <p><code>Source MuServer Update 15/GameServer/GameServer/Protocol.cpp</code>, linhas 340–351.</p>
+
+        <h6>⏱️ Quando é Executado?</h6>
+        <p>Durante o processamento de pacotes padrão (0xC1/0xC3), assim que o jogador clica para iniciar/fechar um mix na Chaos Box.</p>
+      </div>
+    </div>
+
+    <h2>Implementação em Unreal Engine 5</h2>
+    <ul>
+      <li>Representar a Chaos Box como um <code>UInventoryComponent</code> dedicado em <code>APlayerState</code> ou <code>APlayerController</code>, com array replicado de slots.</li>
+      <li>Calcular taxas em C++ ou no backend: enviar composição via VaRest para Node.js registrar tentativa e retornar sucesso/falha, aplicando bônus de talismãs.</li>
+      <li>Usar <code>UUserWidget</code> para UI de mix com validações (mínimo 1 chaos + item elegível).</li>
+      <li>Persistir logs/resultados em SQL pelo Node.js para auditoria.</li>
+    </ul>
+
+    <h3>Passo a Passo em Unreal Engine 5</h3>
+    <ol>
+      <li>Criar <code>UChaosBoxComponent</code> com tamanho fixo, métodos <code>ResetSlots()</code> e <code>ServerStartMix()</code> (RPC).</li>
+      <li>Em <code>ResetSlots()</code>, limpar os slots replicados semelhante a <code>ChaosBoxInit</code>.</li>
+      <li>Na UI, ao clicar “Mix”, coletar itens elegíveis e chamar <code>ServerStartMix</code>; o servidor UE5 envia payload via VaRest para Node.js calcular taxa (incluindo durabilidade de talismãs) e resposta de sucesso.</li>
+      <li>No retorno, aplicar consumo/resultado dos itens no componente de inventário e replicar para o cliente.</li>
+      <li>Adicionar RPC <code>ServerCloseMix</code> para limpar/fechar a janela, espelhando o pacote 0x87.</li>
+    </ol>
+
+    <h3>Checklist Final</h3>
+    <ul>
+      <li>Slots da Chaos Box sincronizados e resetáveis.</li>
+      <li>Validação de itens e bônus de talismãs aplicada no cálculo de taxa.</li>
+      <li>Fluxo de mix acionado via UI → RPC → VaRest/Node.js → SQL com resultado replicado.</li>
+      <li>Logs de tentativa/sucesso armazenados para auditoria.</li>
+    </ul>
+  </div>
+</body>
+</html>
