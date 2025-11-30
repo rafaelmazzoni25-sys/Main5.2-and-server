@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  <title>Módulo 1 – Arquitetura e Bootstrap</title>
+</head>
+<body class="bg-light">
+  <div class="container py-5">
+    <h1 class="mb-4">Módulo 1 – Arquitetura e Bootstrap</h1>
+    <p class="lead">Visão geral dos pontos de entrada do cliente e do servidor, evidenciando como o loop principal, recursos gráficos e conexões são inicializados.</p>
+
+    <h3>Pré-requisitos</h3>
+    <ul>
+      <li>Conhecimentos básicos de C++ legado (Win32) e gerenciamento de janela.</li>
+      <li>Conceitos de loops de renderização e tratamento de mensagens.</li>
+      <li>Noções de criação de projetos C++ em Unreal Engine 5.</li>
+    </ul>
+
+    <h2 class="mt-4">Conceitos do Código Original</h2>
+
+    <div class="card mb-3">
+      <div class="card-body">
+        <h5 class="card-title">Loop principal do cliente – <code>WinMain</code></h5>
+
+        <h6>📘 O Que é?</h6>
+        <p>
+          Ponto de entrada Win32 do cliente que configura a janela, OpenGL, áudio e despacha o loop principal.<br>
+          <pre><code>int APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PSTR szCmdLine, int nCmdShow)
+{
+    ...
+    while(1)
+    {
+        if(PeekMessage(&msg,NULL,0,0,PM_NOREMOVE)) { ... }
+        else { Scene(g_hDC); }
+        ProtocolCompiler();
+    }
+}</code></pre>
+        </p>
+
+        <h6>🎯 Para Que Serve?</h6>
+        <p>Inicializa log, resolução, fontes, input, áudio, sistemas de UI e executa o loop que alterna entre processamento de mensagens Win32 e renderização da cena, além de compilar pacotes de rede.</p>
+
+        <h6>💻 Como Funciona?</h6>
+        <p>
+          Após ler versão e chaves de criptografia, a função cria janela/OpenGL, fontes e subsistemas (input, UI, som). O loop verifica mensagens com <code>PeekMessage</code>; se não houver, chama <code>Scene(g_hDC)</code> para renderizar. A cada iteração, chama <code>ProtocolCompiler()</code> e, no modo novo protocolo, <code>gProtocolSend.RecvMessage()</code>.<br>
+          <pre><code>g_hWnd = StartWindow(hInstance,nCmdShow);
+if(!CreateOpenglWindow()) return FALSE;
+...
+while( 1 ) {
+    if( PeekMessage(&msg,NULL,0,0,PM_NOREMOVE) ) { ... }
+    else { Scene(g_hDC); }
+    ProtocolCompiler();
+    gProtocolSend.RecvMessage();
+}</code></pre>
+        </p>
+
+        <h6>📁 Onde Encontrar?</h6>
+        <p><code>Source Main 5.2/source/Winmain.cpp</code></p>
+
+        <h6>⏱️ Quando é Executado?</h6>
+        <p>
+          Executado ao iniciar o executável do cliente (<code>WinMain</code> padrão). O loop roda até <code>WM_QUIT</code> ser recebido, chamando <code>Scene</code> sempre que não há mensagens.<br>
+          <pre><code>if( !GetMessage(&msg,NULL,0,0) ) { break; }
+TranslateMessage(&msg);
+DispatchMessage(&msg);
+// sem mensagens
+Scene(g_hDC);
+</code></pre>
+        </p>
+      </div>
+    </div>
+
+    <div class="card mb-3">
+      <div class="card-body">
+        <h5 class="card-title">Bootstrap do servidor – <code>GameServer::WinMain</code></h5>
+
+        <h6>📘 O Que é?</h6>
+        <p>Ponto de entrada Win32 do GameServer que registra janela, inicializa sockets, timers e subsistemas de jogo.</p>
+
+        <h6>🎯 Para Que Serve?</h6>
+        <p>Configura título/janela, carrega configurações, inicia sockets TCP/UDP, conecta-se a JoinServer/DataServer e ativa timers do loop de jogo.</p>
+
+        <h6>💻 Como Funciona?</h6>
+        <p>
+          Após registrar classe de janela, lê <code>GameServerInfo</code>, inicia <code>WSAStartup</code> e <code>gSocketManager</code>. Chama <code>GameMainInit</code> para alocar entidades e tabelas, depois conecta a servidores auxiliares e agenda timers via <code>gQueueTimer.CreateTimer</code>. O loop principal processa mensagens com <code>GetMessage</code>.<br>
+          <pre><code>if(WSAStartup(MAKEWORD(2,2),&wsa) == 0) {
+    if(gSocketManager.Start((WORD)gServerInfo.m_ServerPort)) {
+        GameMainInit(hWnd);
+        JoinServerConnect(WM_JOIN_SERVER_MSG_PROC);
+        DataServerConnect(WM_DATA_SERVER_MSG_PROC);
+        gQueueTimer.CreateTimer(QUEUE_TIMER_MONSTER,100,&QueueTimerCallback);
+        ...
+    }
+}
+while(GetMessage(&msg,0,0,0)!=0) {
+    TranslateMessage(&msg);
+    DispatchMessageA(&msg);
+}
+</code></pre>
+        </p>
+
+        <h6>📁 Onde Encontrar?</h6>
+        <p><code>Source MuServer Update 15/GameServer/GameServer/GameServer.cpp</code></p>
+
+        <h6>⏱️ Quando é Executado?</h6>
+        <p>Ao iniciar o executável do GameServer. A inicialização ocorre antes de entrar no loop de mensagens; timers e conexões são configurados imediatamente após <code>GameMainInit</code>.</p>
+      </div>
+    </div>
+
+    <h2 class="mt-5">Implementação em Unreal Engine 5</h2>
+    <p>Em UE5, os pontos de entrada são substituídos por módulos e classes de GameInstance.</p>
+    <ul>
+      <li>Crie um módulo C++ e use <code>UGameInstance</code> para inicialização de recursos (equivalente ao bloco antes do loop).</li>
+      <li>Use <code>FSlateApplication</code> ou uma janela customizada apenas se necessário; normalmente a viewport já é criada pela engine.</li>
+      <li>O loop de jogo é gerenciado pela engine; implemente lógica recorrente em <code>Tick</code> de <code>UGameInstance</code> ou <code>AActor</code> para substituir o <code>while</code> manual.</li>
+      <li>Para timers, utilize <code>FTimerManager</code> em vez de <code>SetTimer</code> Win32.</li>
+    </ul>
+    <pre><code>// GameInstance customizado
+UCLASS()
+class UMuGameInstance : public UGameInstance {
+    GENERATED_BODY()
+public:
+    virtual void Init() override {
+        // carregar configs e inicializar sockets
+    }
+    virtual void Shutdown() override {
+        // liberar conexões
+    }
+};
+</code></pre>
+  </div>
+
+    <h2 class="mt-5">Passo a Passo em Unreal Engine 5</h2>
+    <ol>
+      <li>Criar um projeto C++ em UE5 e adicionar uma classe derivada de <code>UGameInstance</code>.</li>
+      <li>Inicializar leitura de configuração e sockets no método <code>Init</code>.</li>
+      <li>Configurar <code>FTimerManager</code> para tarefas recorrentes que substituem <code>SetTimer</code>.</li>
+      <li>Usar <code>Tick</code> de <code>UGameInstance</code> ou um <code>Subsystem</code> para lógica recorrente equivalente ao loop <code>while(1)</code>.</li>
+    </ol>
+
+    <h2 class="mt-4">Checklist Final</h2>
+    <ul>
+      <li>Janela/viewport do projeto UE5 abre e renderiza a cena base.</li>
+      <li><code>UGameInstance</code> lê configurações iniciais e registra logs.</li>
+      <li>Timers recorrentes configurados para substituir chamadas periódicas do cliente.</li>
+      <li>Sockets ou serviços necessários inicializados sem bloquear a thread principal.</li>
+    </ul>
+  </div>
+</body>
+</html>
