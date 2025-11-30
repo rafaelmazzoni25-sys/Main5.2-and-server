@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  <title>Módulo 33 – Invasões Globais e Avisos</title>
+</head>
+<body class="bg-light">
+  <div class="container py-5">
+    <h1 class="mb-4">Módulo 33 – Invasões Globais e Avisos</h1>
+    <p class="lead">Detalha o CInvasionManager do GameServer: leitura de scripts, agendamento, spawn de grupos e avisos globais. Mostra como replicar a lógica com timers, data tables e spawns coordenados em Unreal Engine 5.</p>
+
+    <h2>Pré-requisitos</h2>
+    <ul>
+      <li>Módulo 6 – Eventos e Timers do Servidor.</li>
+      <li>Módulo 12 – IA de Monstros e MovePath.</li>
+      <li>Conhecimentos de AGameState, UWorld::SpawnActor e timers em UE5.</li>
+    </ul>
+
+    <h2>Conceitos do Código Original</h2>
+
+    <div class="card mb-3">
+      <div class="card-body">
+        <h5 class="card-title">CInvasionManager::Load – Script de horários, mensagens e grupos</h5>
+
+        <h6>📘 O Que é?</h6>
+        <p>
+          Leitura de um script dividido em seções para horários, mensagens, grupos de respawn e monstros de cada invasão.<br>
+          <pre><code>void CInvasionManager::Load(char* path) {
+  CMemScript* lpMemScript = new CMemScript;
+  if(lpMemScript->SetBuffer(path) == 0) { ErrorMessageBox(lpMemScript->GetLastError()); return; }
+  for(int n=0;n < MAX_INVASION;n++) { m_InvasionInfo[n].RespawnMessage = -1; ... m_InvasionInfo[n].MonsterInfo.clear(); }
+  while(true) {
+    if(lpMemScript->GetToken() == TOKEN_END) break;
+    int section = lpMemScript->GetNumber();
+    while(true) {
+      if(section == 0) { /* horários */ INVASION_START_TIME info; int index = lpMemScript->GetNumber(); info.Year = lpMemScript->GetAsNumber(); ... info.Second = lpMemScript->GetAsNumber(); m_InvasionInfo[index].StartTime.push_back(info); }
+      else if(section == 1) { int index = lpMemScript->GetNumber(); m_InvasionInfo[index].RespawnMessage = lpMemScript->GetAsNumber(); m_InvasionInfo[index].DespawnMessage = lpMemScript->GetAsNumber(); m_InvasionInfo[index].BossIndex = lpMemScript->GetAsNumber(); m_InvasionInfo[index].BossMessage = lpMemScript->GetAsNumber(); m_InvasionInfo[index].InvasionTime = lpMemScript->GetAsNumber(); }
+      else if(section == 2) { INVASION_RESPWAN_INFO info; int index = lpMemScript->GetNumber(); info.Group = lpMemScript->GetAsNumber(); info.Map = lpMemScript->GetAsNumber(); info.Value = lpMemScript->GetAsNumber(); m_InvasionInfo[index].RespawnInfo[info.Group].push_back(info); }
+      else if(section == 3) { INVASION_MONSTER_INFO info; int index = lpMemScript->GetNumber(); info.Group = lpMemScript->GetAsNumber(); info.MonsterClass = lpMemScript->GetAsNumber(); info.RegenType = lpMemScript->GetAsNumber(); info.RegenTime = lpMemScript->GetAsNumber(); m_InvasionInfo[index].MonsterInfo.push_back(info); }
+      else { break; }
+    }
+  }
+}</code></pre>
+        </p>
+
+        <h6>🎯 Para Que Serve?</h6>
+        <p>Carrega toda a configuração de cada invasão (horário, mensagens, boss, grupos, monstros e tempos de regen) para ser usada pelo loop principal.</p>
+
+        <h6>💻 Como Funciona?</h6>
+        <p>
+          Inicializa arrays, limpa vetores e percorre seções numeradas do script; cada seção popula estruturas específicas que serão lidas pelo agendador e pelo spawn.<br>
+          <pre><code>// Exemplo de preenchimento de horários
+if(section == 0) {
+  INVASION_START_TIME info; int index = lpMemScript->GetNumber();
+  info.Hour = lpMemScript->GetAsNumber(); info.Minute = lpMemScript->GetAsNumber(); info.Second = lpMemScript->GetAsNumber();
+  m_InvasionInfo[index].StartTime.push_back(info);
+}</code></pre>
+        </p>
+
+        <h6>📁 Onde Encontrar?</h6>
+        <p><code>Source MuServer Update 15/GameServer/GameServer/InvasionManager.cpp</code>, linhas 23-205.</p>
+
+        <h6>⏱️ Quando é Executado?</h6>
+        <p>
+          Chamado na inicialização do GameServer, logo após <code>Init()</code>, antes do loop de eventos.<br>
+          <pre><code>if(gServerInfo.m_InvasionManagerSwitch == 0) { SetState(..., INVASION_STATE_BLANK); } else { SetState(..., INVASION_STATE_EMPTY); }</code></pre>
+        </p>
+      </div>
+    </div>
+
+    <div class="card mb-3">
+      <div class="card-body">
+        <h5 class="card-title">MainProc/SetState – Agendamento, avisos e troca de estado</h5>
+
+        <h6>📘 O Que é?</h6>
+        <p>
+          Loop por invasão que atualiza timers, envia avisos e alterna entre EMPTY/START com base no relógio.<br>
+          <pre><code>void CInvasionManager::MainProc() {
+  for(int n=0;n < MAX_INVASION;n++) {
+    INVASION_INFO* lpInfo = &m_InvasionInfo[n];
+    DWORD elapsed = GetTickCount()-lpInfo->TickCount; if(elapsed < 1000) continue;
+    if(lpInfo->State == INVASION_STATE_BLANK) { if (gServerDisplayer.EventInvasion[n] != -1) gServerDisplayer.EventInvasion[n] = -1; }
+    else { if (lpInfo->State == INVASION_STATE_EMPTY) { gServerDisplayer.EventInvasion[n] = lpInfo->RemainTime; } else { if (gServerDisplayer.EventInvasion[n] != 0) gServerDisplayer.EventInvasion[n] = 0; } }
+    lpInfo->TickCount = GetTickCount();
+    lpInfo->RemainTime = (int)difftime(lpInfo->TargetTime,time(0));
+    switch(lpInfo->State) { case INVASION_STATE_EMPTY: ProcState_EMPTY(lpInfo); break; case INVASION_STATE_START: ProcState_START(lpInfo); break; }
+  }
+}
+void CInvasionManager::ProcState_EMPTY(INVASION_INFO* lpInfo) {
+  if(lpInfo->RemainTime <= 0) { if(lpInfo->RespawnMessage != -1) gNotice.GCNoticeSendToAll(...,gMessage.GetMessage(lpInfo->RespawnMessage)); SetState(lpInfo,INVASION_STATE_START); }
+}
+void CInvasionManager::ProcState_START(INVASION_INFO* lpInfo) {
+  if(lpInfo->RemainTime <= 0) { if(lpInfo->DespawnMessage != -1) gNotice.GCNoticeSendToAll(...,gMessage.GetMessage(lpInfo->DespawnMessage)); SetState(lpInfo,INVASION_STATE_EMPTY); }
+}</code></pre>
+        </p>
+
+        <h6>🎯 Para Que Serve?</h6>
+        <p>Coordena o ciclo do evento: agenda próximo horário, anuncia início e fim e mantém o painel do servidor atualizado.</p>
+
+        <h6>💻 Como Funciona?</h6>
+        <p>
+          Usa <code>RemainTime</code> e <code>TargetTime</code> para decidir quando enviar avisos. <code>CheckSync</code> calcula o próximo horário e <code>SetState_START</code> faz o spawn.<br>
+          <pre><code>void CInvasionManager::CheckSync(INVASION_INFO* lpInfo) {
+  if(lpInfo->StartTime.empty()!=0) { SetState(lpInfo,INVASION_STATE_BLANK); return; }
+  CScheduleManager ScheduleManager; for(auto it: lpInfo->StartTime) { ScheduleManager.AddSchedule(...); }
+  if(ScheduleManager.GetSchedule(&ScheduleTime)==0) { SetState(lpInfo,INVASION_STATE_BLANK); return; }
+  lpInfo->RemainTime = (int)difftime(ScheduleTime.GetTime(),time(0)); lpInfo->TargetTime = (int)ScheduleTime.GetTime();
+}</code></pre>
+        </p>
+
+        <h6>📁 Onde Encontrar?</h6>
+        <p><code>Source MuServer Update 15/GameServer/GameServer/InvasionManager.cpp</code>, linhas 221-394.</p>
+
+        <h6>⏱️ Quando é Executado?</h6>
+        <p>Rodado a cada tick do GameServer; <code>CheckSync</code> é chamado quando o estado passa para EMPTY e <code>SetState_START</code> na virada para START.</p>
+      </div>
+    </div>
+
+    <div class="card mb-3">
+      <div class="card-body">
+        <h5 class="card-title">SetState_START/SetMonster – Spawn por grupo e marcação de boss</h5>
+
+        <h6>📘 O Que é?</h6>
+        <p>
+          Seleciona um grupo de respawn, instancia monstros, define <code>MaxRegenTime</code> e registra o boss para avisos.<br>
+          <pre><code>void CInvasionManager::SetState_START(INVASION_INFO* lpInfo) {
+  for(int n=0;n < MAX_INVASION_RESPAWN_GROUP;n++) {
+    if(lpInfo->RespawnInfo[n].empty()==0) {
+      INVASION_RESPWAN_INFO* lpRespawnInfo = &lpInfo->RespawnInfo[n][(GetLargeRand()%lpInfo->RespawnInfo[n].size())];
+      for(auto it=lpInfo->MonsterInfo.begin(); it!=lpInfo->MonsterInfo.end(); it++) {
+        if(it->Group == lpRespawnInfo->Group) { SetMonster(lpInfo,lpRespawnInfo,&(*it)); }
+      }
+    }
+  }
+  lpInfo->RemainTime = lpInfo->InvasionTime; lpInfo->TargetTime = (int)(time(0)+lpInfo->RemainTime);
+}
+void CInvasionManager::SetMonster(INVASION_INFO* lpInfo,INVASION_RESPWAN_INFO* lpRespawnInfo,INVASION_MONSTER_INFO* lpMonsterInfo) {
+  for(int n=0;n < gMonsterSetBase.m_count;n++) {
+    MONSTER_SET_BASE_INFO* lpMsbInfo = &gMonsterSetBase.m_MonsterSetBaseInfo[n];
+    if(lpMsbInfo->Type != 3 || lpMsbInfo->MonsterClass != lpMonsterInfo->MonsterClass || lpMsbInfo->Map != lpRespawnInfo->Map || lpMsbInfo->Value != lpRespawnInfo->Value) continue;
+    int index = gObjAddMonster(lpMsbInfo->Map); if(OBJECT_RANGE(index)==0) continue;
+    if(gObjSetPosMonster(index,n)==0 || gObjSetMonster(index,lpMsbInfo->MonsterClass)==0) { gObjDel(index); continue; }
+    lpObj->MaxRegenTime = ((lpMonsterInfo->RegenType==0)?(lpInfo->InvasionTime*1000):lpMonsterInfo->RegenTime);
+    if(lpObj->Class == lpInfo->BossIndex && lpInfo->BossMessage != -1) { LogAdd(LOG_EVENT,"[Invasion Manager] Index(%d) Boss Position (Map: %d X: %d Y: %d)",lpInfo->Index,lpObj->Map,lpObj->X,lpObj->Y); }
+    if(this->AddMonster(lpInfo,index) == 0) { gObjDel(index); }
+  }
+}</code></pre>
+        </p>
+
+        <h6>🎯 Para Que Serve?</h6>
+        <p>Garante que cada invasão usa um grupo aleatório válido, preenche slots de tracking e registra coordenadas do boss para avisos e monitoramento.</p>
+
+        <h6>💻 Como Funciona?</h6>
+        <p>Itera os grupos e, para cada respawn escolhido, percorre <code>MonsterInfo</code>; cria monstros com <code>gObjAddMonster</code>, aplica posição de script e guarda índices para limpeza posterior.</p>
+
+        <h6>📁 Onde Encontrar?</h6>
+        <p><code>Source MuServer Update 15/GameServer/GameServer/InvasionManager.cpp</code>, linhas 345-365 e 467-526.</p>
+
+        <h6>⏱️ Quando é Executado?</h6>
+        <p>Chamado ao mudar para <code>INVASION_STATE_START</code> (fim do countdown). <code>MonsterDieProc</code> usa os índices para detectar morte do boss e enviar aviso.</p>
+      </div>
+    </div>
+
+    <h2>Implementação em Unreal Engine 5</h2>
+    <p>Mapeie o CInvasionManager para um <strong>UInvasionSubsystem</strong> (UWorldSubsystem) ou um <strong>AGameState</strong> especializado que gerencie datas, timers e spawn de AActors.</p>
+    <ol>
+      <li>Crie uma <code>USTRUCT</code> <code>FInvasionSchedule</code> com campos de data/hora e um <code>FInvasionMonsterGroup</code> com grupo, mapa (Level/WorldPartition) e classe de inimigo.</li>
+      <li>Carregue um DataTable (CSV/JSON) equivalente ao script lido em <code>Load</code> e converta para arrays em <code>InitializeSubsystem</code>.</li>
+      <li>Implemente um timer (GetWorld()->GetTimerManager()) que chama <code>TickInvasions</code> a cada segundo, replicando a lógica de <code>MainProc</code> (controle de estado e avisos).</li>
+      <li>Quando o estado mudar para START, selecione um grupo aleatório e use <code>UWorld::SpawnActorDeferred</code> para instanciar os inimigos. Salve os <code>TWeakObjectPtr</code> em um array para limpeza.</li>
+      <li>Para avisos globais, use um <code>AGameState</code> replicado e notifique os clientes via <code>Multicast</code> ou <code>GameplayMessageSubsystem</code>.</li>
+      <li>Se usar VaRest + Node.js + SQL para telemetria, poste o horário da invasão e mortes de boss para um endpoint HTTP assíncrono; armazene em tabela <code>invasions_log</code> com data, mapa, bossClass e vencedor.</li>
+    </ol>
+    <pre><code>// Exemplo de subsystem UE5
+USTRUCT(BlueprintType)
+struct FInvasionMonsterGroup { GENERATED_BODY(); UPROPERTY(EditAnywhere) int32 GroupId; UPROPERTY(EditAnywhere) TSoftClassPtr<AActor> MonsterClass; UPROPERTY(EditAnywhere) int32 Count; };
+
+UCLASS()
+class UInvasionSubsystem : public UWorldSubsystem {
+  GENERATED_BODY()
+public:
+  virtual void Initialize(FSubsystemCollectionBase& Collection) override { LoadDataTable(); ScheduleNext(); GetWorld()->GetTimerManager().SetTimer(TickHandle,this,&UInvasionSubsystem::TickInvasions,1.0f,true); }
+  void TickInvasions();
+  void SpawnGroup(const FInvasionMonsterGroup& Group);
+private:
+  void ScheduleNext();
+  TArray<FInvasionSchedule> Schedules; TArray<FInvasionMonsterGroup> Groups; FDateTime TargetTime; int32 State; TArray<TWeakObjectPtr<AActor>> Spawned;
+};</code></pre>
+
+    <h2>Passo a Passo em Unreal Engine 5</h2>
+    <ol>
+      <li>Crie um <em>Plugin</em> ou módulo C++ com <code>UInvasionSubsystem</code> e structs para horário e grupos.</li>
+      <li>Importe um CSV que replique as seções 0-3 do script e converta para DataTable no Editor.</li>
+      <li>No <code>Initialize</code>, leia o DataTable, defina <code>State = Empty</code> e compute <code>TargetTime</code> com <code>FDateTime</code>.</li>
+      <li>Implemente <code>TickInvasions</code> para: (a) decrementar tempo restante, (b) quando chegar a zero e em EMPTY, disparar multicast de aviso e chamar <code>SpawnGroup</code>; (c) quando em START e tempo expirar, destruir atores e voltar para EMPTY.</li>
+      <li>Em <code>SpawnGroup</code>, escolha um grupo compatível com o mapa atual e chame <code>SpawnActorDeferred</code> para cada instância; armazene em um array para limpeza.</li>
+      <li>Crie um <code>UUserWidget</code> replicado com HUD de countdown usando dados do GameState e gatilhos de aviso.</li>
+      <li>Integre VaRest para registrar início/fim em um endpoint Node.js (rotas <code>/api/invasions/start</code> e <code>/api/invasions/end</code>) salvando no SQL o mapa, horário e jogador que matou o boss.</li>
+    </ol>
+
+    <h2>Checklist Final</h2>
+    <ul>
+      <li>DataTable com horários, mensagens, grupos e monstros carregada em runtime.</li>
+      <li>HUD mostra countdown da próxima invasão e esconde durante START.</li>
+      <li>Spawns surgem no mapa correto e limpam ao fim ou ao reiniciar o estado.</li>
+      <li>Avisos globais de início/fim e de morte do boss replicados para todos os clientes.</li>
+      <li>Logs HTTP gravados via VaRest/Node.js em tabela SQL com histórico das invasões.</li>
+    </ul>
+  </div>
+</body>
+</html>

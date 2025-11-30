@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  <title>Módulo 36 – MuRummy e Lucky Coin</title>
+</head>
+<body class="bg-light">
+  <div class="container py-5">
+    <h1 class="mb-4">Módulo 36 – MuRummy e Lucky Coin</h1>
+    <p class="lead">Cobre o minigame de cartas MuRummy (deck, embaralhamento, slots) e o fluxo de Lucky Coin (consulta, registro e troca no DataServer). Inclui mapeamento para UE5 com UI, replicação e back-end HTTP/SQL.</p>
+
+    <h2>Pré-requisitos</h2>
+    <ul>
+      <li>Módulo 9 – Persistência/DataServer (SQL).</li>
+      <li>Módulo 10 – Interface e Input.</li>
+      <li>Conhecimento de UMG, UUserWidget e replicação de inventário em UE5.</li>
+    </ul>
+
+    <h2>Conceitos do Código Original</h2>
+
+    <div class="card mb-3">
+      <div class="card-body">
+        <h5 class="card-title">CMuRummyMng::SetCardDeck/CardShuffle – Montagem e embaralhamento do baralho</h5>
+
+        <h6>📘 O Que é?</h6>
+        <p>
+          Inicializa 5 cores × 5 números (25 cartas), limpa slots e embaralha o deck para uso na sessão do jogador.<br>
+          <pre><code>void CMuRummyMng::SetCardDeck(CMuRummyInfo* pMuRummyInfo) {
+  int nCardArr = 0; CMuRummyCardInfo* pCCardInfo = pMuRummyInfo->GetCardInfo();
+  for (int nCardColor = 0; nCardColor < MURUMMY_MAX_CARD_COLOR; nCardColor++) {
+    for (int nCardNum = 0; nCardNum < MURUMMY_MAX_SLOT; nCardNum++) {
+      pCCardInfo[nCardArr].SetColor(nCardColor + 1); pCCardInfo[nCardArr].SetNumber(nCardNum + 1);
+      pCCardInfo[nCardArr].SetState(0); pCCardInfo[nCardArr].SetSlotNum(0); nCardArr++;
+    }
+  }
+  LPBYTE pSlotIndexInfo = pMuRummyInfo->GetSlotIndexInfo(); for (int i = 0; i < MURUMMY_MAX_SLOT; i++) { pSlotIndexInfo[i] = -1; }
+  pMuRummyInfo->SetCardDeckCnt(MURUMMY_MAX_CARD);
+}
+void CMuRummyMng::CardShuffle(CMuRummyCardInfo* pCCardInfo) {
+  CMuRummyCardInfo CardInfoTmp;
+  for (int nCnt = 0; nCnt < MURUMMY_MAX_CARD; nCnt++) {
+    DWORD iIndex = nCnt + GetLargeRand() % (MURUMMY_MAX_CARD - nCnt);
+    CardInfoTmp = pCCardInfo[nCnt];
+    pCCardInfo[nCnt] = pCCardInfo[iIndex];
+    pCCardInfo[iIndex] = CardInfoTmp;
+  }
+}</code></pre>
+        </p>
+
+        <h6>🎯 Para Que Serve?</h6>
+        <p>Configura o baralho inicial da sessão MuRummy para cada jogador e gera uma ordem aleatória de compra.</p>
+
+        <h6>💻 Como Funciona?</h6>
+        <p>Preenche o vetor de cartas com cor/número e reseta estados. Em seguida, embaralha usando swaps aleatórios com <code>GetLargeRand()</code>.</p>
+
+        <h6>📁 Onde Encontrar?</h6>
+        <p><code>Source MuServer Update 15/GameServer/GameServer/MuRummy.cpp</code>, linhas 30-150.</p>
+
+        <h6>⏱️ Quando é Executado?</h6>
+        <p>Ao iniciar uma sessão MuRummy para o jogador, antes de distribuir cartas para slots.</p>
+      </div>
+    </div>
+
+    <div class="card mb-3">
+      <div class="card-body">
+        <h5 class="card-title">CMuRummyMng::SetPlayCardInfo – Construção do estado enviado ao cliente</h5>
+
+        <h6>📘 O Que é?</h6>
+        <p>Copiando cartas marcadas como estado 1 para um array de saída que será enviado ao cliente.</p>
+
+        <h6>🎯 Para Que Serve?</h6>
+        <p>Controla quais cartas estão ativas no tabuleiro e limita a 5 cartas, preenchendo cor/número/slot.</p>
+
+        <h6>💻 Como Funciona?</h6>
+        <p>
+          <pre><code>bool CMuRummyMng::SetPlayCardInfo(CMuRummyInfo* pMuRummyInfo, _tagMuRummyCardInfo* pOutCardInfo) {
+  int nCardCnt = 0; CMuRummyCardInfo* pCCardInfo = pMuRummyInfo->GetCardInfo(); LPBYTE pSlotIndexInfo = pMuRummyInfo->GetSlotIndexInfo();
+  for (int nCnt = 0; nCnt < MURUMMY_MAX_SLOT; nCnt++) {
+    int nCardArr = pSlotIndexInfo[nCnt]; if (nCardArr < 0 || nCardArr >= MURUMMY_MAX_CARD) continue;
+    if (pCCardInfo[nCardArr].GetState() == 1) {
+      pOutCardInfo[nCardCnt].btColor = pCCardInfo[nCardArr].GetColor();
+      pOutCardInfo[nCardCnt].btNumber = pCCardInfo[nCardArr].GetNumber();
+      pOutCardInfo[nCardCnt].btSlotNum = pCCardInfo[nCardArr].GetSlotNum();
+      nCardCnt++;
+    }
+  }
+  return true;
+}</code></pre>
+        </p>
+
+        <h6>📁 Onde Encontrar?</h6>
+        <p><code>Source MuServer Update 15/GameServer/GameServer/MuRummy.cpp</code>, linhas 155-200.</p>
+
+        <h6>⏱️ Quando é Executado?</h6>
+        <p>Antes de enviar o estado da mão/mesa ao cliente, após o embaralhamento e seleção de slots.</p>
+      </div>
+    </div>
+
+    <div class="card mb-3">
+      <div class="card-body">
+        <h5 class="card-title">LuckyCoin – Consulta, registro e troca via DataServer</h5>
+
+        <h6>📘 O Que é?</h6>
+        <p>Handlers que enviam para o DataServer requisições de contagem, registro de moedas no inventário e troca de prêmios.</p>
+
+        <h6>🎯 Para Que Serve?</h6>
+        <p>Sincroniza o saldo de Lucky Coin entre cliente e DataServer, controlando transações com flags de reentrada.</p>
+
+        <h6>💻 Como Funciona?</h6>
+        <p>
+          <pre><code>void CLuckyCoin::CGLuckyCoinCountRecv(PMSG_LUCKY_COIN_COUNT_RECV* lpMsg,int aIndex) {
+  if(((lpObj->LuckyCoinTransaction[0]==0)?(lpObj->LuckyCoinTransaction[0]++):lpObj->LuckyCoinTransaction[0]) != 0) return;
+  SDHP_LUCKY_COIN_COUNT_SEND pMsg; pMsg.header.set(0x1A,0x00,sizeof(pMsg)); pMsg.index = aIndex; memcpy(pMsg.account,lpObj->Account,sizeof(pMsg.account));
+  gDataServerConnection.DataSend((BYTE*)&pMsg,pMsg.header.size);
+}
+void CLuckyCoin::CGLuckyCoinRegisterRecv(PMSG_LUCKY_COIN_REGISTER_RECV* lpMsg,int aIndex) {
+  if(((lpObj->LuckyCoinTransaction[1]==0)?(lpObj->LuckyCoinTransaction[1]++):lpObj->LuckyCoinTransaction[1]) != 0) return;
+  SDHP_LUCKY_COIN_REGISTER_SEND pMsg; pMsg.header.set(0x1A,0x01,sizeof(pMsg)); pMsg.index = aIndex; memcpy(pMsg.account,lpObj->Account,sizeof(pMsg.account));
+  pMsg.slot = gItemManager.GetInventoryItemSlot(lpObj,GET_ITEM(14,100),-1); gDataServerConnection.DataSend((BYTE*)&pMsg,pMsg.header.size);
+}
+void CLuckyCoin::CGLuckyCoinExchangeRecv(PMSG_LUCKY_COIN_EXCHANGE_RECV* lpMsg,int aIndex) {
+  if(((lpObj->LuckyCoinTransaction[1]==0)?(lpObj->LuckyCoinTransaction[1]++):lpObj->LuckyCoinTransaction[1]) != 0) return;
+  SDHP_LUCKY_COIN_EXCHANGE_SEND pMsg; pMsg.header.set(0x1A,0x02,sizeof(pMsg)); pMsg.index = aIndex; memcpy(pMsg.account,lpObj->Account,sizeof(pMsg.account));
+  pMsg.TradeCoin = lpMsg->TradeCoin; gDataServerConnection.DataSend((BYTE*)&pMsg,pMsg.header.size);
+}</code></pre>
+        </p>
+
+        <h6>📁 Onde Encontrar?</h6>
+        <p><code>Source MuServer Update 15/GameServer/GameServer/LuckyCoin.cpp</code>, linhas 15-64.</p>
+
+        <h6>⏱️ Quando é Executado?</h6>
+        <p>Chamado quando o cliente solicita contagem, registra uma moeda encontrada ou troca por prêmios; cada handler envia pacote ao DataServer e usa flags para evitar duplo clique.</p>
+      </div>
+    </div>
+
+    <h2>Implementação em Unreal Engine 5</h2>
+    <p>MuRummy pode ser um minigame local replicado via <strong>AGameState</strong> ou <strong>AActor</strong> gerenciado pelo servidor, enquanto Lucky Coin pode ser tratado com HTTP + replicação leve.</p>
+    <ol>
+      <li>Crie um <code>UDataAsset</code> com definições de cores/números e recompensas de MuRummy.</li>
+      <li>Implemente um <code>AMuRummyGameActor</code> com arrays replicados de cartas e função <code>ShuffleDeck</code> equivalente a <code>CardShuffle</code>.</li>
+      <li>Use <code>UUserWidget</code> para UI de slots; sincronize estados via <code>NetMulticast</code> para todos os clientes na sessão.</li>
+      <li>Para Lucky Coin, crie um componente <code>ULuckyCoinComponent</code> com métodos <code>ServerRequestCount</code>, <code>ServerRegisterCoin</code> e <code>ServerExchange</code>; cada um chama VaRest para endpoints Node.js (<code>/api/lucky/count</code>, <code>/api/lucky/register</code>, <code>/api/lucky/exchange</code>) e atualiza variáveis replicadas.</li>
+      <li>Persistir no SQL via Node.js, retornando JSON com saldo e recompensas; atualizar UI no cliente.</li>
+    </ol>
+    <pre><code>UCLASS()
+class AMuRummyGameActor : public AActor {
+  GENERATED_BODY()
+public:
+  UPROPERTY(Replicated) TArray<int32> Deck; // ids codificados cor/numero
+  UFUNCTION(Server,Reliable) void ServerShuffle();
+};
+
+UCLASS(ClassGroup=(Custom), meta=(BlueprintSpawnableComponent))
+class ULuckyCoinComponent : public UActorComponent {
+  GENERATED_BODY()
+public:
+  UFUNCTION(Server,Reliable) void ServerRequestCount();
+};</code></pre>
+
+    <h2>Passo a Passo em Unreal Engine 5</h2>
+    <ol>
+      <li>Implemente <code>AMuRummyGameActor</code> com <code>ServerShuffle</code> e métodos para puxar carta/colocar em slot; use arrays replicados para deck e slots.</li>
+      <li>Crie widgets para mostrar 5 slots e permitir arrastar/soltar cartas; bloqueie mais de 5 cartas como em <code>SetPlayCardInfo</code>.</li>
+      <li>Para Lucky Coin, conecte VaRest aos endpoints Node.js, armazenando o token de sessão e saldo retornado; atualize um widget de moedas.</li>
+      <li>Garanta que chamadas HTTP sejam feitas no servidor ou em um <code>GameInstance</code> autorizado, com callbacks para UI.</li>
+      <li>Teste: iniciar sessão MuRummy, embaralhar, mover cartas, consultar saldo de Lucky Coin, registrar e trocar.</li>
+    </ol>
+
+    <h2>Checklist Final</h2>
+    <ul>
+      <li>MuRummy embaralha e distribui cartas replicadas para todos os clientes da sessão.</li>
+      <li>UI limita a 5 cartas ativas e reflete cor/número corretos.</li>
+      <li>Lucky Coin consulta/registrar/trocar funciona via VaRest/Node.js e atualiza saldo.</li>
+      <li>Persistência no SQL registra transações de Lucky Coin e histórico de partidas MuRummy (opcional).</li>
+    </ul>
+  </div>
+</body>
+</html>

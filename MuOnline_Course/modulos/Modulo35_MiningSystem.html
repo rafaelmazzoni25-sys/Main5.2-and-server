@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  <title>Módulo 35 – Sistema de Mineração</title>
+</head>
+<body class="bg-light">
+  <div class="container py-5">
+    <h1 class="mb-4">Módulo 35 – Sistema de Mineração</h1>
+    <p class="lead">Aborda o sistema de mineração do GameServer: leitura de estágios, checagens de interface, consumo de picareta e pacotes 0x4C para início/sucesso/falha. Inclui adaptação completa para UE5 com componentes, UI e backend opcional.</p>
+
+    <h2>Pré-requisitos</h2>
+    <ul>
+      <li>Módulo 5 – Inventário e Itens.</li>
+      <li>Módulo 3 – Movimento (para validar mapa e alvo).</li>
+      <li>Conhecimento de componentes de interação e UMG em UE5.</li>
+    </ul>
+
+    <h2>Conceitos do Código Original</h2>
+
+    <div class="card mb-3">
+      <div class="card-body">
+        <h5 class="card-title">CMiningSystem::Load/GetMiningInfo – Configuração de estágios e recompensas</h5>
+
+        <h6>📘 O Que é?</h6>
+        <p>
+          Carrega do script os estágios, valores de dano na picareta e recompensas; fornece busca por índice/classe.<br>
+          <pre><code>void CMiningSystem::Load(char* path) {
+  CMemScript* lpMemScript = new CMemScript;
+  if(lpMemScript->SetBuffer(path) == 0) { ErrorMessageBox(lpMemScript->GetLastError()); return; }
+  m_MiningInfo.clear();
+  while(true) {
+    if(lpMemScript->GetToken() == TOKEN_END) break;
+    if(strcmp("end",lpMemScript->GetString()) == 0) break;
+    MINING_INFO info; info.Index = lpMemScript->GetNumber(); info.Stage = lpMemScript->GetAsNumber(); info.Value = lpMemScript->GetAsNumber(); info.ItemRate = lpMemScript->GetAsNumber(); info.ItemIndex = lpMemScript->GetAsNumber(); info.ItemCount = lpMemScript->GetAsNumber(); info.BonusItemRate = lpMemScript->GetAsNumber(); info.BonusItemIndex = lpMemScript->GetAsNumber(); info.BonusItemCount = lpMemScript->GetAsNumber(); m_MiningInfo.push_back(info);
+  }
+}
+bool CMiningSystem::GetMiningInfo(int index,int stage,MINING_INFO* lpInfo) {
+  for(auto it=m_MiningInfo.begin(); it!=m_MiningInfo.end(); it++) {
+    if(it->Index == index && it->Stage == stage) { (*lpInfo)=(*it); return 1; }
+  }
+  return 0;
+}</code></pre>
+        </p>
+
+        <h6>🎯 Para Que Serve?</h6>
+        <p>Define quantos estágios uma pedra possui, quanto de durabilidade consome na picareta e quais itens/bonus ela pode conceder.</p>
+
+        <h6>💻 Como Funciona?</h6>
+        <p>Parseia cada linha do script e guarda numa lista; <code>GetMiningInfo</code> busca pelo índice do monstro e estágio pedido, retornando a configuração usada nos handlers.</p>
+
+        <h6>📁 Onde Encontrar?</h6>
+        <p><code>Source MuServer Update 15/GameServer/GameServer/MiningSystem.cpp</code>, linhas 21-169.</p>
+
+        <h6>⏱️ Quando é Executado?</h6>
+        <p><code>Load</code> roda no bootstrap; <code>GetMiningInfo</code> é chamado sempre que o cliente envia <code>CGMiningStartRecv</code> ou <code>CGMiningSuccessRecv</code>.</p>
+      </div>
+    </div>
+
+    <div class="card mb-3">
+      <div class="card-body">
+        <h5 class="card-title">CGMiningStartRecv – Validações e avanço de estágio</h5>
+
+        <h6>📘 O Que é?</h6>
+        <p>Handler do pacote 0x4C, subcódigo 0x00, que verifica permissões, estado da interface e consumo de picareta.</p>
+
+        <h6>🎯 Para Que Serve?</h6>
+        <p>Evita exploração (ex.: outro player já minerando, mapa diferente, interface ocupada) e controla avanço de estágio, atualizando durabilidade e interface.</p>
+
+        <h6>💻 Como Funciona?</h6>
+        <p>
+          <pre><code>void CMiningSystem::CGMiningStartRecv(PMSG_MINING_START_RECV* lpMsg,int aIndex) {
+  if(gObjIsConnectedGP(aIndex) == 0) return; if(lpMsg->index != aIndex) return; if(gObjIsConnected(lpMsg->MonsterIndex) == 0) return;
+  MINING_INFO MiningInfo; if(GetMiningInfo(lpMsg->MonsterClass,(lpMsg->stage+1),&MiningInfo) == 0) { GCMiningStartSend(...,0,3); return; }
+  if(gObj[lpMsg->MonsterIndex].Map != lpObj->Map) { GCMiningStartSend(...,0,3); return; }
+  if(OBJECT_RANGE(gObj[lpMsg->MonsterIndex].MiningIndex) != 0 && gObj[lpMsg->MonsterIndex].MiningIndex != aIndex) { GCMiningStartSend(...,0,8); return; }
+  if(lpObj->Change >= 0) { GCMiningStartSend(...,0,10); return; }
+  if(gItemManager.GetInventoryEmptySlotCount(lpObj) < MAX_MINING_JEWEL_PACK) { GCMiningStartSend(...,0,11); return; }
+  if(lpObj->Inventory[0].IsItem() == 0 || lpObj->Inventory[0].m_Index != GET_ITEM(0,41) || lpObj->Inventory[0].m_Durability < MiningInfo.Value) { GCMiningStartSend(...,0,18); return; }
+  if((GetLargeRand()%10000) < MiningInfo.ItemRate) {
+    lpObj->Inventory[0].m_Durability -= MiningInfo.Value; gItemManager.GCItemDurSend(aIndex,0,(BYTE)lpObj->Inventory[0].m_Durability,0);
+    lpObj->Interface.use = 1; lpObj->Interface.type = INTERFACE_MINING; lpObj->MiningStage++; lpObj->MiningIndex = lpMsg->MonsterIndex;
+    gObj[lpMsg->MonsterIndex].MiningStage = 1; gObj[lpMsg->MonsterIndex].MiningIndex = aIndex;
+    GCMiningStartSend(aIndex,lpMsg->MonsterIndex,lpMsg->MonsterClass,lpMsg->map,lpObj->MiningStage,MiningInfo.ItemCount,(lpObj->MiningStage==MAX_MINING_STAGE)?1:0);
+  } else { /* falha */ GCMiningStartSend(aIndex,lpMsg->MonsterIndex,lpMsg->MonsterClass,lpMsg->map,lpMsg->stage,0,2); }
+}</code></pre>
+        </p>
+
+        <h6>📁 Onde Encontrar?</h6>
+        <p><code>Source MuServer Update 15/GameServer/GameServer/MiningSystem.cpp</code>, linhas 171-309.</p>
+
+        <h6>⏱️ Quando é Executado?</h6>
+        <p>Ao cliente clicar para iniciar mineração; também dispara do estágio 0 para o 1 e a cada tentativa subsequente.</p>
+      </div>
+    </div>
+
+    <div class="card mb-3">
+      <div class="card-body">
+        <h5 class="card-title">CGMiningSuccessRecv/FailureRecv – Conclusão, drop e reset de interface</h5>
+
+        <h6>📘 O Que é?</h6>
+        <p>Handlers para concluir mineração com sucesso ou falha, limpando interface, aplicando recompensas e matando o monstro.</p>
+
+        <h6>🎯 Para Que Serve?</h6>
+        <p>Fecha o fluxo garantindo consistência: remove link entre jogador e monstro, zera interface, entrega item e executa <code>CharacterLifeCheck</code>.</p>
+
+        <h6>💻 Como Funciona?</h6>
+        <p>
+          <pre><code>void CMiningSystem::CGMiningSuccessRecv(PMSG_MINING_SUCCESS_RECV* lpMsg,int aIndex) {
+  if(gObjIsConnectedGP(aIndex) == 0) return; if(lpMsg->index != aIndex) return; if(gObjIsConnected(lpMsg->MonsterIndex) == 0) return;
+  if(lpObj->Interface.use == 0 || lpObj->Interface.type != INTERFACE_MINING) return; if(lpObj->MiningIndex != lpMsg->MonsterIndex) return;
+  if(GetMiningInfo(lpMsg->MonsterClass,lpObj->MiningStage,&MiningInfo) == 0) { GCMiningSuccessSend(...,0); return; }
+  // entrega recompensa e reseta
+  lpObj->Interface.use = 0; lpObj->Interface.type = INTERFACE_NONE; lpObj->Interface.state = 0; lpObj->MiningStage = 0; lpObj->MiningIndex = -1;
+  gObj[lpMsg->MonsterIndex].Life = 0; gObj[lpMsg->MonsterIndex].MiningStage = 0; gObj[lpMsg->MonsterIndex].MiningIndex = -1;
+  gObjectManager.CharacterLifeCheck(lpObj,&gObj[lpMsg->MonsterIndex],0,0,0,0,0,0);
+  GCMiningSuccessSend(aIndex,lpMsg->MonsterIndex,lpMsg->MonsterClass,lpMsg->map,lpMsg->stage,3);
+}
+void CMiningSystem::CGMiningFailureRecv(...) {
+  // lógica semelhante, mas sem recompensa; também reseta interface e mata o monstro
+}
+</code></pre>
+        </p>
+
+        <h6>📁 Onde Encontrar?</h6>
+        <p><code>Source MuServer Update 15/GameServer/GameServer/MiningSystem.cpp</code>, linhas 314-470.</p>
+
+        <h6>⏱️ Quando é Executado?</h6>
+        <p>Após o cliente reportar sucesso ou falha; fecha o vínculo e dispara <code>GCMiningSuccessSend</code>/<code>GCMiningStartSend</code> para feedback.</p>
+      </div>
+    </div>
+
+    <h2>Implementação em Unreal Engine 5</h2>
+    <p>Implemente como um componente de interação com um actor "Veia de Minério" e um sistema de loot replicado.</p>
+    <ol>
+      <li>Modele <code>FMiningStage</code> (Stage, DamageCost, ItemRate, RewardId/Count) em um DataTable.</li>
+      <li>Crie um <code>AResourceNode</code> derivado de <code>AActor</code> com variáveis <code>CurrentStage</code>, <code>OwnerPlayer</code> e <code>RemainingLife</code>.</li>
+      <li>Adicione um componente <code>UInteractionComponent</code> que chama um <code>Server</code> RPC para iniciar mineração; valide jogador único, mapa/nível correto e ferramenta equipada.</li>
+      <li>Em caso de sucesso, desconte durabilidade da ferramenta (Item Component) e incremente estágio; se atingir o máximo, gere loot usando uma tabela de recompensas e <code>GiveItem</code>.</li>
+      <li>Envie feedback ao cliente via <code>Client</code> RPC (HUD de progresso). Em falha, apenas desconte durabilidade e reset, similar ao código legado.</li>
+      <li>Opcional: registrar eventos no Node.js via VaRest (<code>/api/mining/log</code>) com account, stage e reward, gravando no SQL.</li>
+    </ol>
+    <pre><code>USTRUCT(BlueprintType)
+struct FMiningStage : public FTableRowBase { GENERATED_BODY(); UPROPERTY(EditAnywhere) int32 Stage; UPROPERTY(EditAnywhere) int32 DamageCost; UPROPERTY(EditAnywhere) int32 ItemRate; UPROPERTY(EditAnywhere) int32 RewardId; UPROPERTY(EditAnywhere) int32 RewardCount; };
+
+UCLASS()
+class AResourceNode : public AActor {
+  GENERATED_BODY()
+public:
+  UFUNCTION(Server,Reliable) void ServerStartMining(APlayerController* PC);
+  UPROPERTY(Replicated) int32 CurrentStage;
+};</code></pre>
+
+    <h2>Passo a Passo em Unreal Engine 5</h2>
+    <ol>
+      <li>Crie o DataTable de estágios (equivalente ao script) e associe a um <code>UDataAsset</code> de configurações.</li>
+      <li>Implemente o <code>AResourceNode</code> com colisor de interação e RPC <code>ServerStartMining</code>; valide jogador único e ferramenta equipada.</li>
+      <li>Desconte durabilidade da ferramenta e avance <code>CurrentStage</code>; se chegar ao fim, chame <code>SpawnReward</code> e destrua o node.</li>
+      <li>Atualize HUD com um widget de barra de progresso e mensagens de erro (inventário cheio, outro minerando, etc.).</li>
+      <li>Adapte para VaRest/Node.js salvando logs de mineração no SQL para auditoria.</li>
+      <li>Teste com múltiplos clientes para garantir exclusividade do alvo e sincronização das respostas.</li>
+    </ol>
+
+    <h2>Checklist Final</h2>
+    <ul>
+      <li>Configurações de estágios carregadas de DataTable e aplicadas em runtime.</li>
+      <li>Validações de alvo, mapa, interface e ferramenta replicam o comportamento original.</li>
+      <li>HUD mostra progresso e mensagens de falha/sucesso.</li>
+      <li>Recompensas são entregues e o nó é destruído ou resetado conforme o resultado.</li>
+      <li>Logs opcionais enviados via VaRest/Node.js/SQL.</li>
+    </ul>
+  </div>
+</body>
+</html>
