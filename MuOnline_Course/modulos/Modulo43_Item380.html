@@ -118,6 +118,16 @@ void C380ItemOption::SetInfo(ITEM_380_OPTION_INFO info) {
       <li>Criar testes de regressão: troca rápida de equipamentos 380, reconexão (para garantir re-aplicação), e verificação de segurança contra itens sem flag.</li>
     </ol>
 
+    <h3>Guia detalhado para iniciantes</h3>
+    <ol>
+      <li><strong>Tabela</strong>: adicione colunas <code>SetName</code>, <code>PartsNeeded</code>, <code>DefBonus</code>, <code>AtkBonus</code>, <code>SocketCount</code> em <em>Item380.csv</em>. Importe como <code>FItem380Row</code>.</li>
+      <li><strong>Componente</strong>: crie <code>BP_Item380Component</code> no <code>PlayerState</code> com arrays replicados <code>Equipped380</code> (ItemID, SetName, SocketValues) e funções <code>RecalcBonus</code>/<code>ApplySocketEffects</code>.</li>
+      <li><strong>Equipar</strong>: no evento <code>OnItemEquipped</code> do <code>InventoryComponent</code>, se <code>bHas380Flag</code> for true, insira no array e chame <code>RecalcBonus</code>. Aplique modificadores (GameplayEffect) de defesa/ataque conforme tabela e, se <code>EquippedCount == PartsNeeded</code>, aplique <code>FullSetBonus</code>.</li>
+      <li><strong>Sockets</strong>: cada item contém <code>SocketValues</code> (array int). UI <code>WBP_Item380</code> mostra 5 círculos de 20px logo abaixo do slot (offset Y = +28). Clique em um círculo abre <code>WBP_SocketPicker</code> que grava o valor e chama <code>ApplySocketEffects</code>.</li>
+      <li><strong>VaRest</strong>: POST <code>/item380/save</code> com {account, items:[{id,set,sockets[]}]} sempre que <code>OnItemEquipped/Unequipped</code> ocorre. No login, GET <code>/item380/load</code> e re-popule <code>Equipped380</code> antes do primeiro <code>RecalcBonus</code>.</li>
+      <li><strong>Testes</strong>: cenário A (2 peças) deve mostrar bônus parcial; cenário B (conjunto completo) ativa FullSet. Remova uma peça e confirme que bônus completo some. Reentre para validar que sockets e flags persistem.</li>
+    </ol>
+
     <h2>Checklist Final</h2>
     <ul>
       <li>DataTable de opções 380 carregado no UE5.</li>
