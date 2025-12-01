@@ -300,6 +300,15 @@ lpObj-&gt;SkillSummonPartyMap = this-&gt;bot[number].Warp_Map;
       <li><strong>Retentativa offline</strong>: se qualquer POST falhar, registre em array <code>PendingNpcOps</code> (struct com account, npcType, action). Um timer no GameInstance tenta reenviar a cada 10s até limpar.</li>
       <li><strong>Teste guiado</strong>: roteiro: (1) entrar sem Zen e tentar buff (esperar erro); (2) adicionar Zen e repetir (buff aplicado + partícula + log salvo); (3) tentar warp para mapa proibido pelo VIP e ver mensagem; (4) warp válido mostrando contagem regressiva e teleporte para coordenadas do CSV.</li>
     </ol>
+
+    <h4>Mapa de arquivos e posicionamento 1:1 (UI Buff/Warper)</h4>
+    <ul>
+      <li><strong>Widget raiz</strong>: <code>/Game/UI/NPC/WBP_NPCDialog</code> (Canvas 1280x720, âncora centro). Caixa principal <em>Border</em> 520x320 posicionada em <strong>X=380, Y=200</strong>.</li>
+      <li><strong>Aba Buffs</strong> (dentro de <code>WidgetSwitcher</code>): <code>WBP_BuffRow</code> (UserWidget) 220x80, gerado em <code>ScrollBox</code> 520x200 posicionado em <strong>X=0, Y=60</strong>. Campos: ícone (48x48 à esquerda), textos Nome e Duração, botão “Aplicar” (W=96, H=32) alinhado à direita.</li>
+      <li><strong>Aba Warp</strong>: <code>WBP_WarpRow</code> 220x80, <code>ScrollBox</code> 520x200 em <strong>X=0, Y=60</strong>. Campos: Destino (texto), Requisito VIP (TextBlock vermelho) e botão “Warp” (96x32) no canto direito.</li>
+      <li><strong>Botões de aba</strong>: dois <em>Button</em> 120x36 no topo do Border (coordenadas locais: Buff X=16,Y=16; Warp X=152,Y=16). Use <em>Set Active Widget Index</em> para alternar.</li>
+      <li><strong>Painel de feedback</strong>: TextBlock <code>Txt_Status</code> 480x36 em <strong>X=20, Y=280</strong> para erros (vermelho) ou confirmações (verde), refletindo respostas VaRest.</li>
+    </ul>
   </div>
 </body>
 </html>
