@@ -169,5 +169,20 @@ void ServerMoveItem(int32 From, int32 To);
       <li>Logs mostram mudanças de slots após cada operação.</li>
     </ul>
 
+    <h2 class="mt-5">Tutorial Blueprint (iniciante) com VaRest + SQL</h2>
+    <p>Fluxo completo para quem nunca montou um inventário em UE5. As coordenadas usam viewport 1920x1080; em outras resoluções, deixe os anchors fixos em Bottom-Left e escale proporcionalmente.</p>
+    <ol>
+      <li><strong>Crie os dados:</strong> Adicione um <code>PrimaryDataAsset</code> <em>DA_ItemTable</em> com array <code>Items</code> (Id, Nome, RarityColor, Icon, SlotType, Width, Height, StackMax). Preencha com os IDs do script original (ex.: "GET_ITEM(0,0)").</li>
+      <li><strong>Monte o Blueprint de Inventário:</strong> Em <code>Content/UI</code>, crie <em>WBP_Inventory</em> (UserWidget). Adicione um <em>Canvas Panel</em> e posicione um <em>Border</em> em <strong>X=68, Y=612</strong>, <strong>W=620, H=370</strong> (slots 8x5 usando célula de 72 px, bordas de 10 px). Dentro, insira um <em>UniformGridPanel</em> com <code>Slot Padding (4,4)</code> e preencha dinamicamente via <code>CreateWidget</code> de <em>WBP_InventorySlot</em>.</li>
+      <li><strong>Slot Blueprint:</strong> Em <em>WBP_InventorySlot</em>, adicione um <em>Button</em> ocupando 100% da célula, com <em>Image</em> para o ícone e <em>Text</em> para quantidade (fonte 16, alinhado Bottom-Right). Use <code>OnDragDetected</code> para criar um <em>Drag Visual</em> (ícone 64x64) e <code>OnDrop</code> para chamar um evento <code>Server_MoveItem(From, To)</code>.</li>
+      <li><strong>RPCs no PlayerController (Blueprint):</strong> Declare eventos <em>Custom Event</em> <code>Server_MoveItem</code>, <code>Server_PickupItem</code> e <code>Server_DropItem</code> marcados como <em>Run on Server, Reliable</em>. Cada evento chama uma função Blueprint <code>ValidateSlot</code> (checa se o destino está livre) e, em seguida, atualiza o <code>InventorySlots</code> (array replicado no PlayerState).</li>
+      <li><strong>Replicação visual imediata:</strong> No PlayerState, crie um array <code>InventorySlots</code> de structs (ItemId, Qty) com <em>RepNotify</em>. No <code>OnRep</code>, atualize todos os <em>WBP_InventorySlot</em> com ícones/quantidade. Isso evita gaps de percepção enquanto a resposta do servidor chega.</li>
+      <li><strong>Persistência via VaRest:</strong> No <code>Event BeginPlay</code> do PlayerController, chame VaRest <em>POST</em> para <code>/api/inventory/load</code> com {accountId, characterId}. No <code>OnRequestComplete</code>, converta o JSON em <code>InventorySlots</code>. No <code>EndPlay</code> (ou Logout), envie <code>/api/inventory/save</code> com o snapshot dos slots. Mantenha as rotas compatíveis com o módulo 9.</li>
+      <li><strong>Tooltips alinhados:</strong> Crie <em>WBP_ItemTooltip</em> e mostre em <code>OnHovered</code> do slot. Para reproduzir a HUD clássica, fixe a tooltip com offset <strong>(+32, +18)</strong> do cursor e largura máxima 320 px; use <code>Wrap Text At</code> para evitar cortes.</li>
+      <li><strong>Feedback e bloqueios:</strong> Adicione <em>Audio Cue</em> de sucesso/erro e um <em>TextBlock</em> de aviso abaixo do grid (Y=992). Bloqueie o botão durante uma operação em trânsito (flag <code>bInventoryBusy</code>) para prevenir duplicação.</li>
+      <li><strong>Testes guiados:</strong> Em <code>Automation</code>, crie um teste funcional que: (1) carrega o mapa, (2) arrasta um item para outro slot, (3) verifica atualização na UI e no array replicado, (4) envia logout e confirma via VaRest que o JSON salvo contém o slot modificado.</li>
+      <li><strong>Checklist visual:</strong> No viewport 1920x1080, confirme: painel do inventário começa em (68,612), grid 8x5 visível, tooltip alinha ao cursor, ícones não pixelam (use <em>UI Texture Group</em>), textos legíveis em 100%/125% de escala.</li>
+    </ol>
+
 </body>
 </html>

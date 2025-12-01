@@ -149,6 +149,21 @@ class AMuPlayerController : public APlayerController {
       <li>Input de teclado/mouse é roteado para o Widget ativo e para o personagem conforme esperado.</li>
       <li>Áudio inicia e respeita preferências salvas; UI continua responsiva quando a janela muda de foco.</li>
     </ul>
+
+    <h2 class="mt-5">Tutorial Blueprint da HUD (iniciante)</h2>
+    <p>Guia clicável para posicionar e ligar a HUD base (HP/MP, barras, chat e hotbar) em Blueprints mantendo paridade visual com o cliente original 5.2.</p>
+    <ol>
+      <li><strong>Crie o HUD raiz:</strong> Em <code>Content/UI</code>, crie <em>WBP_HUDRoot</em> (UserWidget) e defina o <code>Class Settings</code> para <code>Player Controller Class</code> do projeto. Dentro do Canvas principal, defina <em>Screen Size</em> para 1920x1080.</li>
+      <li><strong>Orb de HP/MP:</strong> Adicione dois <em>Image</em> circulares com textura radial. Posicione o HP em <strong>X=46, Y=858</strong> (tamanho 180x180) e o MP em <strong>X=244, Y=858</strong>. Use <code>Material Parameter Collection</code> para controlar preenchimento por porcentagem (0–1) e amarre ao valor replicado do PlayerState.</li>
+      <li><strong>Barras de EXP e Stamina:</strong> Adicione um <em>ProgressBar</em> abaixo das orbs em <strong>X=48, Y=1048, W=640, H=18</strong>. Configure <code>Percent</code> via binding <code>GetExpPercent</code> (EXP atual / EXP necessária). A barra de stamina fica logo acima, com altura 12 px e cor azul.</li>
+      <li><strong>Hotbar de skills:</strong> Insira um <em>Horizontal Box</em> em <strong>X=640, Y=1012</strong>, largura 640, com 10 botões (64x64). Cada botão chama um evento <code>Server_CastSkill(SlotIndex)</code> (Run on Server). Adicione binding para ícone a partir de <code>DA_Skills</code> e exiba cooldown com um <em>Overlay</em> + <em>Border</em> semi-transparente.</li>
+      <li><strong>Chat com bloqueio de input:</strong> Adicione <em>WBP_Chat</em> ancorado em <strong>X=32, Y=620</strong>, largura 520, altura 220. Inclua <em>ScrollBox</em> para mensagens e <em>EditableTextBox</em> na base. Em <code>OnTextCommitted</code>, chame <code>Server_SendChat</code>. Quando o campo ganha foco, chame um evento <code>SetInputModeUIOnly</code> para bloquear movimentação.</li>
+      <li><strong>Mini HUD de party:</strong> Crie <em>Vertical Box</em> em <strong>X=48, Y=68</strong> com entradas <em>WBP_PartySlot</em> (largura 280, altura 56). Cada slot mostra HP/MP com barras de 120 px e ícone da classe. Atualize via <code>OnRep_PartyStatus</code> no PlayerState.</li>
+      <li><strong>Integração com VaRest para avisos:</strong> Adicione um <em>Notification Panel</em> em <strong>X=640, Y=120</strong> que exibe textos vindos de <code>/api/announcements</code> (GET a cada 30s). Use um <code>Timer by Event</code> no <em>Event Construct</em> para chamar VaRest e preencher uma fila (array) mostrada com animação <em>Fade In/Out</em>.</li>
+      <li><strong>Atalhos e lock do mouse:</strong> No PlayerController Blueprint, mapear teclas (I para inventário, C para personagem, V para opções). Cada tecla chama <code>UIRegistry->OpenScreen</code> e alterna visibilidade. Use <code>Set Show Mouse Cursor</code> e <code>Set Input Mode Game and UI</code> para alternar o cursor ao abrir UI.</li>
+      <li><strong>Debug overlay:</strong> Sobreponha um <em>TextBlock</em> no canto superior esquerdo (X=20, Y=20) mostrando FPS, ping e estado de socket/HTTP. Alimente o valor de ping a partir do <code>UNetConnection</code> e do tempo de resposta VaRest.</li>
+      <li><strong>Teste visual rápido:</strong> No PIE com resolução 1920x1080, confirme: orbs alinhadas à esquerda sem sobrepor hotbar; chat não bloqueia a hotbar; barra de EXP inteira visível; atalhos funcionam e o cursor alterna corretamente.</li>
+    </ol>
   </div>
 </body>
 </html>
