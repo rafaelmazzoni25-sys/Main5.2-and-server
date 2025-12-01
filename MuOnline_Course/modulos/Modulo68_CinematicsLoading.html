@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  <title>Módulo 68 – Cinematics, Loading Scene e Direção de Câmera</title>
+</head>
+<body class="bg-light">
+  <div class="container py-5">
+    <h1 class="mb-4">Módulo 68 – Cinematics, Loading Scene e Direção de Câmera</h1>
+    <p class="lead">Conecta o fluxo de entrada (Winmain → LoadingScene → MoveMap) com cutscenes e direções (<code>CDirection</code>, <code>MovieScene</code>, <code>CKANTURUDirection</code>, <code>CMVP1stDirection</code>). Define como replicar as animações introdutórias, tela de loading e controle de câmera no UE5 com Sequencer/Niagara.</p>
+
+    <h2>Contexto do Código Legado</h2>
+    <ul>
+      <li><strong>LoadingScene.cpp:</strong> renderiza plano com barra de progresso enquanto pré-carrega mapas, texturas e BMD.</li>
+      <li><strong>CDirection.cpp / CKANTURUDirection.cpp:</strong> scripts de direção com keyframes para câmeras, eventos de som e disparo de partículas.</li>
+      <li><strong>MovieScene.cpp:</strong> controla cenas de logotipo/intro e transição para a UI de login.</li>
+    </ul>
+
+    <h2>Blueprints e Sequencer</h2>
+    <ol>
+      <li><strong>Loading:</strong> crie <code>WBP_Loading</code> (Canvas 1920x1080) com barra de progresso (ProgressBar <code>PB_Load</code> em X=360,Y=900,W=1200,H=36) e dicas rotativas (<code>Txt_Tip</code>). O Level Blueprint de <code>LV_Loading</code> seta <code>SetInputModeUIOnly</code> e <code>Show Mouse Cursor = false</code>.</li>
+      <li><strong>Sequencer de Intro:</strong> em <code>LV_Intro</code>, adicione um <em>Level Sequence</em> <code>SEQ_LogoIntro</code> com faixas: CameraCut (FOV 45), plano de fundo (logo estático), fade-in/out (Track de Visibility). Duração 6s, chamando <code>OpenLevel</code> para <code>LV_Login</code> ao terminar.</li>
+      <li><strong>Direção de mapa:</strong> para mapas com scripts (Kanturu, MVP1st), crie <code>Level Sequence</code> por cena (<code>SEQ_KanturuIntro</code>, <code>SEQ_MVP1st</code>) com keyframes de posição/rotação da câmera replicando arrays de <code>CDirection</code>. Use <code>CameraActor</code> com <code>InterpTo</code> entre pontos e <code>Play</code> no <code>BeginPlay</code> do mapa.</li>
+      <li><strong>Eventos de som e FX:</strong> converta entradas de <code>DSPlaySound.h</code> usadas em cutscenes para <code>AnimNotify</code> ou <code>Sequence Event Track</code>. Para partículas (fog, spark), referencie Niagara <code>NN_CutsceneSpark</code>, <code>NN_CutsceneFog</code> e gatilhe via <code>Spawn System at Location</code>.</li>
+      <li><strong>Transição para gameplay:</strong> após <code>SEQ_LogoIntro</code> e <code>WBP_Loading</code>, carregue o mapa alvo via <code>OpenLevel</code> ou <code>ServerTravel</code> preservando o <code>PlayerState</code>. Ao concluir <code>LV_Loading</code>, spawn o pawn e chame <code>AttachToController</code>.</li>
+    </ol>
+
+    <h2>Recriação 1:1 da Tela de Loading</h2>
+    <ul>
+      <li><strong>Imagens:</strong> use a arte legada <code>Loading01-06</code> convertida para PNG/TGA em <code>/UI/Loading</code>. Alternar a cada 2s com <code>Set Timer by Event</code>.</li>
+      <li><strong>Progressão:</strong> exponha um evento <code>OnLoadingStep(percent, tip)</code> chamado pelo <code>GameInstance</code> conforme cada asset/carregamento de mapa termina, espelhando o <code>LoadingScene::LoadingProgress</code>.</li>
+      <li><strong>Orientação:</strong> no C++ a câmera é fixa; em UE5 mantenha a UI pura (sem 3D) e use render scale 1.0 para evitar blur.</li>
+    </ul>
+
+    <h2>Checklist</h2>
+    <ul>
+      <li>Sequências criadas para Intro e mapas especiais, com keyframes baseados em <code>CDirection</code> e eventos de som equivalentes.</li>
+      <li><code>WBP_Loading</code> com barra e dicas em coordenadas exatas; troca de artes de fundo implementada.</li>
+      <li>Transições entre Intro → Login → Loading → Mapa preservam PlayerState e rotas de rede.</li>
+      <li>FX/sons das cutscenes mapeados para Niagara/SoundCue com gatilhos no Sequencer.</li>
+    </ul>
+  </div>
+</body>
+</html>

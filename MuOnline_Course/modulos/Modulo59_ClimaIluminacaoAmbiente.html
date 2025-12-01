@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  <title>Módulo 59 – Clima, Iluminação e Ambiência de Mapas</title>
+</head>
+<body class="bg-light">
+  <div class="container py-5">
+    <h1 class="mb-4">Módulo 59 – Clima, Iluminação e Ambiência de Mapas</h1>
+    <p class="lead">Mapeia o sistema de clima, hora do dia, fog, skybox e partículas ambientais do cliente legado C++ e detalha como recriar tudo na Unreal Engine 5 com controle 1:1 por mapa, incluindo conversão de coordenadas e triggers de mudança.</p>
+
+    <h2 class="mt-4">Enums e Tabelas do Código Legado</h2>
+    <div class="card mb-3">
+      <div class="card-body">
+        <h5 class="card-title">Clima e Sky</h5>
+        <ul>
+          <li><strong><code>Weather.h</code></strong>: enum <code>eWEATHER_TYPE</code> (<em>NONE</em>, <em>RAIN</em>, <em>SNOW</em>, <em>STORM</em>, <em>SUNNY</em>). <code>WeatherDefault[MAP_MAX]</code> define o clima inicial por mapa.</li>
+          <li><strong><code>MapManager.cpp</code></strong>: estrutura <code>MAP_INFO</code> inclui <code>Weather</code>, <code>WorldTime</code>, <code>Light</code> (RGB), <code>SkyColor</code> e <code>Fog</code> (<code>Start/End/Density</code>).</li>
+          <li><strong>Sky Textures</strong>: <code>World\NightDay\*.ozb</code>/<code>*.ozj</code> definem gradientes de céu. O renderer alterna por horário (<code>g_iWorldTime</code>) e clima.</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="card mb-3">
+      <div class="card-body">
+        <h5 class="card-title">Fog, Luz e Partículas</h5>
+        <ul>
+          <li><strong><code>Fog.h</code></strong>: enum <code>eFOG_TYPE</code> com presets (padrão, dungeon, lava). <code>SetFog</code> recebe <em>color</em>/<em>near</em>/<em>far</em>/<em>density</em> e é chamado na troca de mapa.</li>
+          <li><strong><code>Scene.cpp</code></strong>: ao carregar <code>MAP_INFO</code>, aplica <code>LightDiffuse/Specular</code> e inicia partículas ambientais (chuva/neve) com emissores em tela (<code>WeatherPoint</code>).</li>
+          <li><strong>Sons ambientais</strong>: <code>DSPlaySound.h</code> liga <code>SOUND_RAIN</code>/<code>SOUND_WIND</code> ao estado atual de clima.</li>
+        </ul>
+      </div>
+    </div>
+
+    <h2 class="mt-4">Replicação 1:1 na Unreal Engine 5</h2>
+    <ol>
+      <li><strong>DataTable <code>DT_MapAmbience</code>:</strong> Colunas: <code>MapId</code>, <code>WeatherDefault</code>, <code>WorldTimeStart</code>, <code>SkyMaterial</code>, <code>FogColor</code>, <code>FogStart</code>, <code>FogEnd</code>, <code>FogDensity</code>, <code>DirectionalLight</code> (Color/Intensity), <code>SkyLight</code>, <code>AmbientSound</code>. Popule a partir de <code>MAP_INFO</code> e dos arquivos <code>WeatherDefault</code> do legado.</li>
+      <li><strong>Clima Dinâmico (<code>BP_WeatherController</code>):</strong> Actor singleton no nível persistente com variáveis replicadas <code>CurrentWeather</code>, <code>CurrentTime</code>, <code>CurrentMap</code>. Use <code>Set Timer by Function Name</code> a cada 1s para avançar o tempo (<code>CurrentTime = (CurrentTime+1) % 2400</code>) e acionar transições de clima conforme tabelas.</li>
+      <li><strong>Partículas:</strong> Converta texturas de chuva/neve (<code>Effect\Weather</code>) para Niagara. Para chuva: emitter com <em>Spawn Rate</em> baseado em intensidade e colisão com o piso (Tile→UU). Para neve: partículas mais lentas com <em>Drag</em>. Instancie emitters como <code>NiagaraComponent</code> anexado à câmera do jogador.</li>
+      <li><strong>Sky e Luz:</strong> Crie material de sky dinâmico que mistura gradientes dia/noite convertidos de <code>*.ozb/ozj</code>. No <code>BP_WeatherController</code>, use <code>Lerp</code> entre cores de céu/fog e <code>Set Intensity</code> do <code>DirectionalLight</code>/<code>SkyLight</code> conforme <code>CurrentTime</code> e <code>Weather</code>.</li>
+      <li><strong>Fog:</strong> Adapte <code>FogStart/FogEnd/Density</code> para <code>ExponentialHeightFog</code>. No início de cada mapa, leia <code>DT_MapAmbience</code> e aplique via <code>Set Fog Inscattering Color</code>, <code>Set Fog Density</code>.</li>
+      <li><strong>Som ambiental:</strong> Em <code>BP_AudioRouter</code>, toque <code>SOUND_RAIN</code> ou <code>SOUND_WIND</code> (linhas do <code>DT_SoundFX</code> do Módulo 52) quando <code>CurrentWeather</code> mudar. Ajuste <code>Volume Multiplier</code> para 0 fora de chuva/neve.</li>
+      <li><strong>Triggers de Mapa/Gate:</strong> No <code>BP_GateTrigger</code> (módulo 3), ao teletransportar, chame <code>BP_WeatherController::OnMapChanged(MapId)</code> para carregar a linha correta do <code>DT_MapAmbience</code>, aplicar clima inicial e pré-carregar sky/fog.</li>
+      <li><strong>Conversão de Orientação:</strong> Ao importar posições de luz/fog do legado (coordenadas Y-up), converta para UE5: <code>(X,Y,Z)_legacy → (-Y, X, Z)_UE</code> e ajuste ângulo de sol invertendo Yaw.</li>
+    </ol>
+
+    <h2 class="mt-4">Checklist Final</h2>
+    <ul>
+      <li>Todas as entradas de <code>MAP_INFO</code> refletidas em <code>DT_MapAmbience</code> com clima/sky/fog/luz correspondentes.</li>
+      <li>Transições de clima e hora do dia aplicadas via <code>BP_WeatherController</code> com interpolação suave.</li>
+      <li>Partículas de chuva/neve convertidas e reproduzidas na câmera com colisão em piso equivalente ao legado.</li>
+      <li>Som ambiental trocando conforme o clima e sincronizado ao volume do jogo.</li>
+      <li>Gates e trocas de mapa atualizando clima/iluminação imediatamente após o load.</li>
+    </ul>
+  </div>
+</body>
+</html>

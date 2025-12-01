@@ -148,12 +148,44 @@ case 0x87:
       </div>
     </div>
 
+    <div class="card mb-3">
+      <div class="card-body">
+        <h5 class="card-title">Upgrade +10 a +15 – <code>CChaosBox::PlusItemLevelMix</code></h5>
+
+        <h6>📘 O Que é?</h6>
+        <p>Receita avançada da Chaos Machine que permite subir itens acima do +9 usando combinação de Chaos, Bless, Soul e Life.</p>
+
+        <h6>🎯 Para Que Serve?</h6>
+        <p>Replica o fluxo padrão do Mu original para melhorar itens além do limite das joias comuns.</p>
+
+        <h6>💻 Como Funciona?</h6>
+        <p>
+          A função varre os slots da Chaos Box e valida: 1 item equipável nível ≥9, 1 <code>Chaos</code>, 1 <code>Bless</code>, 1 <code>Soul</code> e 1 <code>Life</code>. Calcula taxa base via <code>gServerInfo.m_PlusItemLevelMixRate</code> e aplica bônus de <code>Talisman of Luck</code>. Sucesso incrementa <code>m_Level</code> do item; falha destrói o item principal (joias são consumidas).<br>
+          <pre><code>int iChaos = this->GetChaosItemCount(lpObj);
+if(iChaos != 1 || this->GetItemPlus10MixCheck(lpObj) == 0) { this->GCChaosMixSend(lpObj->Index,7,0); return; }
+lpObj->ChaosSuccessRate = gServerInfo.m_PlusItemLevelMixRate[lpObj->AccountLevel];
+this->GetTalismanOfLuckRate(lpObj,&lpObj->ChaosSuccessRate);
+if( (rand()%100) < lpObj->ChaosSuccessRate ) this->ChaosMixPlusItemLevelSuccess(lpObj);
+else this->ChaosMixPlusItemLevelFail(lpObj);
+</code></pre>
+        </p>
+
+        <h6>📁 Onde Encontrar?</h6>
+        <p><code>Source MuServer Update 15/GameServer/GameServer/ChaosBox.cpp</code> (rotinas <code>PlusItemLevelMix</code>, <code>ChaosMixPlusItemLevelSuccess</code> e <code>Fail</code>).</p>
+
+        <h6>⏱️ Quando é Executado?</h6>
+        <p>Quando o jogador coloca item + joias + Chaos na máquina e confirma o mix (opcode 0x86 com <code>type=0x13</code>).</p>
+      </div>
+    </div>
+
     <h2>Implementação em Unreal Engine 5</h2>
     <ul>
       <li>Representar a Chaos Box como um <code>UInventoryComponent</code> dedicado em <code>APlayerState</code> ou <code>APlayerController</code>, com array replicado de slots.</li>
       <li>Calcular taxas em C++ ou no backend: enviar composição via VaRest para Node.js registrar tentativa e retornar sucesso/falha, aplicando bônus de talismãs.</li>
       <li>Usar <code>UUserWidget</code> para UI de mix com validações (mínimo 1 chaos + item elegível).</li>
       <li>Persistir logs/resultados em SQL pelo Node.js para auditoria.</li>
+      <li><strong>Receita +10 a +15</strong>: adicione ramo <code>Request.Type == PlusItemLevel</code> no RPC de mix. No servidor UE5, valide a presença de 1 item em <code>Slot_1</code> com <code>Level &gt;= 9</code> e as joias (Chaos/Bless/Soul/Life) nos demais slots. Consulte <code>ChaosMixRates_DT.PlusMixRate</code> e bônus de talismã para definir a chance; sucesso: <code>Item.Level++</code>; falha: destrua item e joias.</li>
+      <li><strong>Efeito visual/áudio</strong>: após sucesso, dispare <strong>Multicast</strong> <code>MC_OnMixSuccess</code> que aciona <strong>Spawn Emitter at Location</strong> (niagara <code>NS_ItemUpgrade</code>) e som <code>SFX_ChaosSuccess</code>. Em falha, use <code>NS_ChaosFail</code> e <code>SFX_ChaosFail</code>.</li>
     </ul>
 
     <h3>Passo a Passo em Unreal Engine 5</h3>
