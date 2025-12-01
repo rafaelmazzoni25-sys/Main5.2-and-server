@@ -200,6 +200,48 @@ void AMyCharacter::ServerTeleport_Implementation(const FVector& Dest) {
       <li>Exibir um painel de debug (Widget) com coordenadas locais e remotas, estado de predição e número de correções aplicadas.</li>
       <li>Para compatibilizar com VaRest/Node.js, opcionalmente registrar posições em um endpoint HTTP de telemetria para auditoria de trapaça.</li>
     </ol>
+
+    <h2 class="mt-4">Guia Blueprint detalhadíssimo (clique a clique)</h2>
+    <ol>
+      <li><strong>Setup de movimento no Player</strong>
+        <ul>
+          <li>No <em>Character Blueprint</em>, habilite <code>Replicates</code> e <code>Use Controller Rotation Yaw = true</code> para câmera isométrica.</li>
+          <li>Abra o Graph e crie evento <code>OnLeftMouseButton</code>. Adicione <em>Get Hit Result Under Cursor</em> → <em>Break Hit</em> → <code>Vector</code> <em>Hit Location</em>.</li>
+          <li>Use <em>AI Move To</em> com Pawn Self e <em>Destination</em> = Hit Location. Marque <em>Stop On Overlap</em> e <em>Acceptance Radius</em> = 35 para imitar o clique clássico.</li>
+          <li>No <em>Tick</em>, leia <code>CharacterMovement → Velocity</code> e repasse para variável replicada <em>DesiredVelocity</em> para HUD de depuração.</li>
+        </ul>
+      </li>
+      <li><strong>Serializar caminho em Blueprint</strong>
+        <ul>
+          <li>Crie um <em>Function Library</em> <em>BP_PathCodec</em>. Função <code>EncodePath(Nodes: TArray<Vector2D>)</code> retorna <code>TArray&lt;uint8&gt;</code>.</li>
+          <li>Implemente <em>For Loop</em> index 1..N-1: calcule <code>Delta = Nodes[i] - Nodes[i-1]</code>. Compare com tabela <code>DirTable</code> (DataTable 8 linhas) e devolva índice 0-7.</li>
+          <li>Para pares ímpares, <code>Byte = Index &lt;&lt; 4</code>; para pares pares, <code>Byte += Index</code>. Salve em array de bytes. Na posição 0, some <code>(Nodes.Length-1)</code> ao byte inicial.</li>
+          <li>Retorne o array e envie via <em>Send Bytes</em> no componente de rede, alinhando com <code>SendCharacterMoveNew</code>.</li>
+        </ul>
+      </li>
+      <li><strong>Receber posição oficial e corrigir</strong>
+        <ul>
+          <li>No <em>BP_SocketClient</em>, crie evento <code>OnReceivePosition(Key, PosX, PosY)</code>. Converta para <code>FVector</code> (multiplique grid por 100 Unreal Units).</li>
+          <li>Use <em>SetActorLocation</em> com <em>Interp Speed</em> = 12 (via <em>VInterp To</em>) antes de aplicar; em bolas (<code>MODEL_BALL</code>), adicione <em>Add Force</em> Z = 20.000 para simular <code>Gravity = 20.f</code>.</li>
+          <li>Salve um log no <em>BP_DebugPanel</em> mostrando <code>LocalPos</code> vs <code>ServerPos</code> e o número de correções aplicadas.</li>
+        </ul>
+      </li>
+      <li><strong>Teleporte com validação visual</strong>
+        <ul>
+          <li>Crie evento <code>RequestTeleport(MapID, Target)</code> no <em>PlayerController</em>. Chame endpoint VaRest <code>/teleport/check</code> passando <code>account</code>, <code>map</code>, <code>pos</code>.</li>
+          <li>Se o JSON retornar <code>"allowed": true</code>, faça RPC <em>Server_Teleport</em> com <code>Target</code>. No cliente, abra <em>Widget Loading</em> (fundo preto 0.6 alpha) por 0.8s.</li>
+          <li>No servidor, valide colisão com <em>Box Trace</em> antes de <code>SetActorLocation</code>; em caso de falha, devolva VaRest erro “blocked” e reabra posição anterior.</li>
+        </ul>
+      </li>
+      <li><strong>Checklist para quem nunca usou UE5</strong>
+        <ul>
+          <li>Verde: ícone “Net OK” no topo direito acende quando <em>BP_SocketClient</em> conecta.</li>
+          <li>Amarelo: “Predição ativa” aparece quando <em>AI Move To</em> está correndo; desaparece ao receber correção.</li>
+          <li>Vermelho: texto “Correção aplicada!” surge no HUD quando a diferença &gt; 120 UU, indicando rubber band.</li>
+          <li>Botão debug “Gravar Caminho” exporta o array de bytes para arquivo CSV via <em>Save Game to Slot</em> para comparar com capturas do cliente original.</li>
+        </ul>
+      </li>
+    </ol>
     <h2 class="mt-4">Checklist Final</h2>
     <ul>
       <li>Personagem do cliente se move e sincroniza posição recebida do servidor.</li>

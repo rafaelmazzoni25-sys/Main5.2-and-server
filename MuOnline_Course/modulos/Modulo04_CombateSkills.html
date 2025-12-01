@@ -120,6 +120,53 @@ void AMyCharacter::ServerPerformAttack_Implementation(AActor* Target) {
       <li>Expor comandos de console para spawnar um dummy e testar DPS, garantindo que os valores batem com a tabela de skills.</li>
       <li>Documentar a matriz de interação (PvE, PvP, eventos) e validar manualmente em uma sessão multiplayer local.</li>
     </ol>
+
+    <h2 class="mt-4">Guia Blueprint minucioso (combate)</h2>
+    <ol>
+      <li><strong>Montar UI de combate</strong>
+        <ul>
+          <li>No <em>WB_HUD</em>, adicione barra de HP (Width=280, Height=24) em (42,620) e MP em (42,652); texto de alvo em (360,600) exibindo nome e HP do inimigo.</li>
+          <li>Crie uma <em>Hotbar</em> de 8 botões 64x64 alinhados em X=460..920, Y=660. Nomeie de <em>Btn_Skill1</em> … <em>Btn_Skill8</em> e vincule <code>OnClicked</code> para evento <code>OnHotbarPressed(Index)</code>.</li>
+          <li>Adicione widget flutuante <em>WB_DamageText</em> (TextBlock vermelho 24pt) para spawnar sobre o alvo.</li>
+        </ul>
+      </li>
+      <li><strong>Blueprint de validação server-side</strong>
+        <ul>
+          <li>No <em>PlayerState</em>, adicione componente <em>BP_CombatValidator</em>. Variáveis: <em>DisablePvp</em> (bool), <em>IsTeleporting</em> (bool), <em>LastAttackTime</em> (float).</li>
+          <li>Função <code>CanAttack(Target)</code>: checa se Target != Self, ambos conectados (<em>IsValid</em>), mapa igual (variável <em>MapID</em> replicada) e <em>IsTeleporting</em> == false. Se PvP e <em>DisablePvp</em> true, retorna falso e envia log VaRest <code>/combat/reject</code> com motivo.</li>
+          <li>Adicione checagem de intervalo: <code>Now - LastAttackTime &gt;= AttackSpeed</code>; se não, set Text “Velocidade inválida” no HUD debug.</li>
+        </ul>
+      </li>
+      <li><strong>RPCs de ataque/skill</strong>
+        <ul>
+          <li>No <em>Character BP</em>, crie evento <code>Server_Attack(Target)</code> (Server, Reliable). Primeira linha: <code>Branch CanAttack</code>. Se falso, retorne.</li>
+          <li>Calcule dano simples: pegue DataTable <em>DT_Skills</em> linha <em>BasicAttack</em>, some <em>Strength</em> + <em>WeaponDamage</em>. Subtraia <em>Target.Defense</em>. Garanta <code>Max(Dano,1)</code>.</li>
+          <li>Set <em>LastAttackTime = Now</em>, aplique <em>Apply Damage</em> no Target, depois chame <code>Multicast_OnHit(Target,Dano)</code>.</li>
+        </ul>
+      </li>
+      <li><strong>Skills com duração e cancelamento</strong>
+        <ul>
+          <li>Para skill de canalização, crie <em>AbilityTask_WaitDelay</em> 3s que a cada 0.5s chama <em>Apply Damage</em>. Guarde <em>Handle_Cast</em> e cancele se receber <em>SkillCancel</em>.</li>
+          <li>Implemente evento <code>Server_CancelSkill</code> (Server, Reliable) ligado ao botão direito do mouse. Ao cancelar, invalide o timer e chame <code>Multicast_StopFX</code> para esconder partículas.</li>
+          <li>Para efeitos em área, use <em>Sphere Overlap Actors</em> com raio 280 UU e filtre por <em>Team</em>. Replique apenas lista de atingidos (índices) para economizar banda.</li>
+        </ul>
+      </li>
+      <li><strong>Feedback visual replicado</strong>
+        <ul>
+          <li>No <code>Multicast_OnHit</code>, toque <em>Montage</em> de impacto, spawn de partícula no socket “hand_r” e crie <em>WB_DamageText</em> posicionado com <em>Project World to Screen</em>.</li>
+          <li>Se o ataque for rejeitado, mostre texto amarelo “Bloqueado” e reproduza som curto (<em>UI_Error</em>).</li>
+          <li>Logue cada ataque em VaRest endpoint <code>/combat/log</code> com JSON {attacker, target, skillId, dano, mapa} para cruzar com SQL.</li>
+        </ul>
+      </li>
+      <li><strong>Checklist para iniciantes</strong>
+        <ul>
+          <li>Botão “Testar DPS” no HUD cria dummy com 5.000 HP em frente ao jogador.</li>
+          <li>Sem alvo selecionado, hotbar pisca em vermelho e texto “Selecione um alvo” aparece.</li>
+          <li>Quando PvP bloqueado, borda da tela fica cinza por 1s e aviso “PvP desabilitado no mapa”.</li>
+          <li>Cooldown visível: cada botão mostra cronômetro regressivo sobreposto (texto branco).</li>
+        </ul>
+      </li>
+    </ol>
     <h2 class="mt-4">Checklist Final</h2>
     <ul>
       <li>Servidor UE5 rejeita ataques inválidos (alvo igual, mapa diferente, teleporte).</li>
