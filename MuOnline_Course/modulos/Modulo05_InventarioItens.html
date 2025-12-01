@@ -171,9 +171,9 @@ else if(lpObj->Money > 0 && (GetLargeRand()%((lpObj->MoneyRate==0)?1:lpObj->Mone
       </div>
     </div>
 
-    <div class="card mb-3">
-      <div class="card-body">
-        <h5 class="card-title">Cliente – Animação e som do drop</h5>
+      <div class="card mb-3">
+        <div class="card-body">
+          <h5 class="card-title">Cliente – Animação e som do drop</h5>
 
         <h6>📘 O Que é?</h6>
         <p>Carregamento dos áudios de drop de item e de ouro usados pelo cliente para feedback imediato ao spawnar loot.</p>
@@ -192,12 +192,63 @@ else if(lpObj->Money > 0 && (GetLargeRand()%((lpObj->MoneyRate==0)?1:lpObj->Mone
       </div>
     </div>
 
+    <div class="card mb-3">
+      <div class="card-body">
+        <h5 class="card-title">Servidor – Uso de Jewel of Bless/Soul para subir nível (0 → 9)</h5>
+
+        <h6>📘 O Que é?</h6>
+        <p>Validação e aplicação de upgrade direto no item (nível +1) quando o jogador usa joias comuns.</p>
+
+        <h6>🎯 Para Que Serve?</h6>
+        <p>Permite elevar rapidamente o nível do item até +9, consumindo joias e respeitando chances de falha/downgrade (Soul).</p>
+
+        <h6>💻 Como Funciona?</h6>
+        <p>
+          Dentro de <code>gItemManager.CGItemUseRecv</code>, o handler verifica se o item usado é <code>Jewel of Bless</code> (<code>GET_ITEM(14,13)</code>) ou <code>Jewel of Soul</code> (<code>GET_ITEM(14,14)</code>). <br>
+          <ul>
+            <li><strong>Bless</strong>: checa <code>m_Level &lt; 9</code>, incrementa <code>m_Level</code> e reseta <code>Durability</code>. A aplicação falha se o item já estiver no +9.</li>
+            <li><strong>Soul</strong>: sorteia chance de sucesso (<code>gServerInfo.m_JewelOfSoulSuccessRate</code> e bônus de <code>+luck</code>), sucesso incrementa <code>m_Level</code>, falha derruba nível em 1.</li>
+            <li>Ao final, envia <code>GCItemDurSend</code>/<code>GCItemModifySend</code> para atualizar o inventário do cliente.</li>
+          </ul>
+        </p>
+
+        <h6>📁 Onde Encontrar?</h6>
+        <p><code>Source MuServer Update 15/GameServer/GameServer/ItemManager.cpp</code> (<code>CGItemUseRecv</code> e auxiliares de Jewel).</p>
+
+        <h6>⏱️ Quando é Executado?</h6>
+        <p>Quando o jogador arrasta a joia para cima de um item equipável no inventário.</p>
+      </div>
+    </div>
+
+    <div class="card mb-3">
+      <div class="card-body">
+        <h5 class="card-title">Cliente – Feedback visual de upgrade (glow/nível)</h5>
+
+        <h6>📘 O Que é?</h6>
+        <p>Shader/efeito de brilho que muda conforme <code>m_Level</code> do item.</p>
+
+        <h6>🎯 Para Que Serve?</h6>
+        <p>Reforçar visualmente a progressão do item (cores e intensidade distintas para +7/+9).</p>
+
+        <h6>💻 Como Funciona?</h6>
+        <p>O cliente lê o nível do item e seleciona materiais de emissive distintos para renderizar o modelo (ex.: <code>item(n)->GetLevel()</code> define o índice do efeito). O mesmo índice é usado para escolher o rastro/flare exibido na tela de inventário.</p>
+
+        <h6>📁 Onde Encontrar?</h6>
+        <p><code>Source Main 5.2/source/ZzzItemRender.cpp</code> (switch de nível para brilho) e materiais associados.</p>
+
+        <h6>⏱️ Quando é Executado?</h6>
+        <p>Quando o item é renderizado no mundo, no inventário ou equipado.</p>
+      </div>
+    </div>
+
     <h2 class="mt-5">Implementação em Unreal Engine 5</h2>
     <ul>
       <li>Modelar itens como <code>UObjects</code> com <code>UDataAsset</code> para dados estáticos (slot, tamanho, flags).</li>
       <li>Replicar inventário em <code>APlayerState</code> usando <code>TArray</code> de structs replicáveis; operações são RPCs de servidor.</li>
       <li>Para looting, implemente um <code>AActor</code> item no mundo com interface de interação, disparando RPC <code>ServerPickupItem</code>.</li>
       <li>Serialize/deserialize usando <code>FArchive</code> ou <code>FNetSerialize</code> para manter compatibilidade com o protocolo desejado.</li>
+      <li><strong>Upgrade por Jewel of Bless/Soul</strong>: crie função <code>ServerApplyJewel(int32 JewelID, int32 TargetSlot)</code> no <code>PlayerController</code> com o seguinte Blueprint: <ol type="a"><li>Leia <code>Inventory[TargetSlot].Level</code>; se &gt;=9, faça <em>Branch</em> para <code>ClientToast("Nível máximo alcançado")</code>.</li><li>Se <code>JewelID==Bless</code>: <code>Inventory[TargetSlot].Level++</code>; consuma a joia; chame <code>MulticastUpdateItem</code> e <code>SaveInventory</code> (VaRest POST).</li><li>Se <code>JewelID==Soul</code>: use <strong>Random Integer in Range (0,99)</strong> + tabela de taxa; sucesso: <code>Level++</code>; falha: <code>Level = max(Level-1,0)</code>. Envie update e log.</li><li>Dispare <strong>AnimNotify</strong> no item (event dispatcher) para atualizar o material do modelo equipado.</li></ol></li>
+      <li><strong>Glow/nível visual</strong>: crie <code>DataTable</code> <code>ItemGlow_DT</code> (campos <code>Level</code>, <code>Material</code>, <code>Particle</code>). No <code>BP_ItemActor</code>, no evento <em>OnRep_ItemData</em>, faça lookup na tabela e aplique <strong>Set Material</strong> e <strong>Spawn Emitter Attached</strong> conforme o nível.</li>
     </ul>
     <pre><code>USTRUCT(BlueprintType)
 struct FMuItemSlot {
