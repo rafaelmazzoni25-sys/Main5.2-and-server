@@ -170,6 +170,44 @@ public:
       <li>Roleta entrega itens com opções/sockets conforme tabela.</li>
       <li>Logs de compra enviados via VaRest/Node.js para o SQL (quando habilitado).</li>
     </ul>
+
+    <h2>Guia Blueprint ultra detalhado</h2>
+    <ol>
+      <li>Dados e posicionamento
+        <ul>
+          <li>Monte <strong>DT_MossItems</strong> (ItemId, Level, Option, Luck, Skill, Socket[5], Rate, Cost) e <strong>DT_MossSchedule</strong> (Year, Month, Day, Hour, Minute).</li>
+          <li>Place <strong>BP_MossMerchant</strong> no mapa: Location X=5200, Y=3800, Z=120, rotação faceando a praça; adicione <em>Billboard</em> verde “Moss”.</li>
+        </ul>
+      </li>
+      <li>UI e roleta
+        <ul>
+          <li>Crie <strong>W_Moss</strong> com WrapBox 3×3 (X=420, Y=220, 360×360) e botão “Girar” (X=820, Y=580, 120×40); texto de saldo <em>Txt_Money</em> (X=420, Y=180).</li>
+          <li>Ao abrir, sorteie 9 itens usando <em>Random Float</em> &lt; Rate e preencha <strong>SlotWidget</strong> com ícone.</li>
+          <li>Use <em>Timeline</em> de 1.5s para mover borda de seleção entre slots; pare no vencedor e toque <em>SoundCue_Fanfare</em>.</li>
+        </ul>
+      </li>
+      <li>Transação segura
+        <ul>
+          <li>Botão → <strong>ServerSpinMoss</strong> (Run on Server) com Seed gerado no servidor (<em>RandomStream</em>).</li>
+          <li>Valide <code>Money &gt;= Cost</code> e <code>InterfaceState == None</code>; se falhar, <strong>MC_ShowNotice</strong> vermelho (X=24, Y=620).</li>
+          <li>Se ok, VaRest POST <code>/moss/buy</code> {account,itemId,seed}; ao sucesso, chame <em>AddItemToInventory</em> replicado.</li>
+        </ul>
+      </li>
+      <li>Anti-abuso e cooldown
+        <ul>
+          <li>Flag <strong>bPendingMoss</strong> no PlayerState; só libera após resposta.</li>
+          <li>Cooldown: TextBlock “Pronto em Xs” (X=820,Y=640) atualizado por timer de 1s; bloqueie o botão enquanto X&gt;0.</li>
+        </ul>
+      </li>
+      <li>Checklist visual
+        <ul>
+          <li>NPC interage com tecla F e abre widget posicionado.</li>
+          <li>Roleta destaca slot vencedor com borda verde.</li>
+          <li>Botão fica desabilitado durante requisição e cooldown.</li>
+          <li>Saldo atualiza na UI imediatamente após a compra.</li>
+        </ul>
+      </li>
+    </ol>
   </div>
 </body>
 </html>
