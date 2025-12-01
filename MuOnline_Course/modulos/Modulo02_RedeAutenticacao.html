@@ -210,6 +210,49 @@ public:
       <li>Publicar um checklist de rede (latência, perda, reconexão) e validar manualmente com pacotes reais capturados via Wireshark para garantir fidelidade ao protocolo.</li>
     </ol>
 
+    <h2 class="mt-4">Guia Blueprint ultra detalhado (iniciante)</h2>
+    <ol>
+      <li><strong>Preparar UI de Login</strong>
+        <ul>
+          <li>Crie um <code>Widget Blueprint</code> chamado <em>WB_Login</em>. Canvas central 1280x720; insira um <em>Border</em> 520x360 centrado (Pos X=380, Pos Y=180).</li>
+          <li>Adicione dois <em>TextBox</em> (Account, Password) dentro do Border: Account em (40,60) com dica “Account”, Password em (40,140) com “Password” e marcar <em>Is Password</em>.</li>
+          <li>Adicione botão “Conectar” em (40,240) tamanho 180x48. Vincule evento <code>OnClicked</code> para o passo seguinte.</li>
+          <li>Adicione um <em>TextBlock</em> vermelho em (40,300) chamado <em>Txt_Erro</em> para exibir mensagens do servidor.</li>
+        </ul>
+      </li>
+      <li><strong>Configurar VaRest + SQL</strong>
+        <ul>
+          <li>Na pasta <em>/Game/Blueprints/Network</em>, crie <em>BP_HTTPAuth</em> (Actor). Em <code>BeginPlay</code>, defina variável <em>APIBase</em> = <code>"https://auth.local"</code>.</li>
+          <li>No evento <code>LoginHTTP(Account,Password)</code>, adicione nó <em>VaRest Request (JSON)</em> método POST, URL <code>APIBase + "/login"</code>. No Body, <code>Add Field string</code> <em>account</em>/<em>password</em>.</li>
+          <li>No <em>OnRequestComplete</em>, use <code>Get Response Object</code> → <code>Get String Field "token"</code> e <code>Get String Field "gameserver"</code>; salve em variáveis <em>AuthToken</em> e <em>GameServerAddress</em>. Se falhar, atualize <em>Txt_Erro</em>.</li>
+          <li>SQL: crie tabela <code>Accounts(id PK, password_hash, last_token, last_ip)</code>; o endpoint deve validar hash, gerar token, salvar em <code>last_token</code> e devolver <code>gameserver_host</code>/<code>port</code>.</li>
+        </ul>
+      </li>
+      <li><strong>Conectar ao socket do GameServer (Blueprint)</strong>
+        <ul>
+          <li>No <em>PlayerController</em>, adicione componente <em>BP_SocketClient</em> (ActorComponent). Exponha função <code>Connect(Host,Port)</code> (use plugin de socket ou <em>FSocket</em> via C++ wrapper).</li>
+          <li>Após <em>BP_HTTPAuth</em> retornar sucesso, chame <code>BP_SocketClient.Connect(GameServerAddress, Port=55901)</code> e guarde estado <em>IsConnected</em>.</li>
+          <li>Crie evento custom <code>SendLoginPacket(Account,Password)</code>: use nó <em>Make Struct</em> com campos alinhados ao struct (<code>account[10]</code>, <code>password[20]</code>, <code>TickCount</code>, <code>ClientVersion[5]</code>). Serialize para <code>Byte Array</code> e chame <em>Send Bytes</em>.</li>
+          <li>No <code>Tick</code> do componente, leia fila de bytes → decodifique header (2 bytes id + size) → <em>Switch on Int</em> para IDs 0x01 (conectado), 0x20 (login OK), 0x00/0x06/0x09 (erros). Atualize <em>Txt_Erro</em> e navegue para seleção de personagem quando id 0x20.</li>
+        </ul>
+      </li>
+      <li><strong>Fluxo de Seleção de Personagem</strong>
+        <ul>
+          <li>Crie <em>WB_CharacterList</em>: lista vertical 320x400 em (40,40) + botão “Entrar” em (380,380).</li>
+          <li>Ao receber pacote <code>BOTH_CONNECT_CHARACTER</code>, use <em>ForEach Loop</em> nos personagens e crie widgets <em>WB_CharEntry</em> (texto + ícone). Salvar <em>SelectedIndex</em>.</li>
+          <li>No botão “Entrar”, monte pacote <code>PMSG_SIMPLE_RESULT_SEND</code> (result=1) e envie via <em>Send Bytes</em>; avance para mapa ao receber confirmação.</li>
+        </ul>
+      </li>
+      <li><strong>Checklist visual para iniciantes</strong>
+        <ul>
+          <li>UI login mostra “Conectando…” em laranja enquanto aguarda resposta.</li>
+          <li>Quando falhar, borda do Border fica vermelha (<code>Set Brush Color</code>).</li>
+          <li>Quando sucesso, botão “Conectar” desabilita e texto muda para “Selecionar personagem…”.</li>
+          <li>LED debug no canto superior direito: um <em>Image</em> 24x24 que troca cor Azul (HTTP), Amarelo (Socket conectando), Verde (Logado), Vermelho (Erro).</li>
+        </ul>
+      </li>
+    </ol>
+
     <h2>Checklist Final</h2>
     <ul>
       <li>Cliente UE5 conecta, envia login e recebe resposta de sucesso ou erro.</li>
