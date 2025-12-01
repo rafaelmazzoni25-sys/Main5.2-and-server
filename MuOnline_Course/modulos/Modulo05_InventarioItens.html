@@ -315,6 +315,33 @@ void ServerMoveItem(int32 From, int32 To);
       <li><strong>Checklist visual:</strong> No viewport 1920x1080, confirme: painel do inventário começa em (68,612), grid 8x5 visível, tooltip alinha ao cursor, ícones não pixelam (use <em>UI Texture Group</em>), textos legíveis em 100%/125% de escala.</li>
     </ol>
 
+    <div class="card mb-3">
+      <div class="card-body">
+        <h5 class="card-title">Conversão de assets originais (BMD/OZ* → FBX/PNG/TGA)</h5>
+
+        <h6>📘 O Que é?</h6>
+        <p>Pipeline para trazer os modelos/ícones originais (BMD + texturas OZJ/OZT/OZB/OZP/OZD/OZG) para formatos compatíveis com a UE5.</p>
+
+        <h6>🎯 Para Que Serve?</h6>
+        <p>Garante visual 1:1 dos itens e personagens usando os assets do cliente legado sem refazer arte.</p>
+
+        <h6>💻 Como Funciona?</h6>
+        <ul>
+          <li><strong>Modelos BMD → FBX</strong>: use um conversor BMD→OBJ/FBX (ex.: bmd2obj + import no Blender → export FBX 2018). Preserve pivô e nomes de ossos; exporte sem aplicar rotações; combine com a textura correspondente (ver abaixo).</li>
+          <li><strong>Texturas</strong>: converta os formatos originais para imagens padrão antes do import para UE5: <code>OZJ → JPG</code>, <code>OZT → TGA</code>, <code>OZB → BMP</code>, <code>OZP → PNG</code>, <code>OZD → DDS</code>, <code>OZG → GFX</code> (mantém atlas SWF). Em lote, use ImageMagick/ffmpeg para <code>*.ozj</code>/<code>*.ozt</code> → <code>.png</code> e aponte o Material para o <em>Base Color</em> no import do FBX.</li>
+          <li><strong>Mapeamento de nomes</strong>: crie DataTable <code>DT_ItemAssets</code> (RowName = <code>Index</code>) com colunas <code>StaticMesh</code>, <code>IconTexture</code>, <code>GlowMaterial</code>. Preencha com os FBXs/texturas importados mantendo o nome original (ex.: <code>item_helmet01.fbx</code>, <code>item_helmet01_icon.png</code>).</li>
+          <li><strong>Import na UE5</strong>: no <code>Content/MU/Items</code>, importe FBX com <em>Import Uniform Scale</em> 1.0 e <em>Material Search Location</em> = <em>Current Content Browser</em>. Para ícones, importe como <em>UI/2D</em> para uso em UMG.</li>
+          <li><strong>Aplicação na UI e no personagem</strong>: o <code>Inventory[Slot].Index</code> referencia a linha em <code>DT_ItemAssets</code>. No <code>WBP_Inventory</code>, use <strong>Get Data Table Row</strong> → <code>IconTexture</code> para preencher <code>Image.Icon</code>. No <code>BP_MuCharacter</code>, ao equipar, faça <code>Set Static Mesh</code> no <code>HelmMesh/SwordMesh</code> com o FBX importado e troque o material para o <code>GlowMaterial</code> conforme nível/opção.</li>
+        </ul>
+
+        <h6>📁 Onde Encontrar?</h6>
+        <p><code>Source Main 5.2/data/*.bmd</code> e <code>data/*.ozj/*.ozt/*.ozp/*.ozb/*.ozd/*.ozg</code> → converta para <code>Content/MU/Items</code> na UE5.</p>
+
+        <h6>⏱️ Quando é Executado?</h6>
+        <p>Durante a preparação do projeto UE5 (antes de construir UI e equipar itens) e sempre que um novo item/skin do legado for importado.</p>
+      </div>
+    </div>
+
     <h2 class="mt-5">Guia ultra-detalhado (cliques + nós Blueprint)</h2>
     <p>Use esta seção como roteiro “faça você mesmo” para iniciantes completos, sem saltos de conhecimento.</p>
     <ol>

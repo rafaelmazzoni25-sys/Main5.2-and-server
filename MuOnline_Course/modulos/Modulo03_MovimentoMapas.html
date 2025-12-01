@@ -243,6 +243,15 @@ void AMyCharacter::ServerTeleport_Implementation(const FVector& Dest) {
           <li>No servidor, valide colisão com <em>Box Trace</em> antes de <code>SetActorLocation</code>; em caso de falha, devolva VaRest erro “blocked” e reabra posição anterior.</li>
         </ul>
       </li>
+      <li><strong>Conversão de mapas e colisão (MAP/ATT/OBJ → UE5)</strong>
+        <ul>
+          <li><strong>MAP → Heightmap/StaticMesh</strong>: use um extrator para gerar <code>.raw</code>/<code>.png 16-bit</code> do terreno e <code>.obj</code> dos blocos. No UE5, crie <em>Landscape</em> → <em>Import from File</em> e selecione o heightmap; para malhas, importe os <code>.obj</code> em <code>Content/MU/Maps/&lt;MapName&gt;/Meshes</code> com escala 1.0.</li>
+          <li><strong>ATT → máscara de navegação</strong>: converta o arquivo ATT em <code>.csv</code> (X,Y,Walkable). No <em>Construction Script</em> do <code>BP_MapLoader</code>, leia o CSV (DataTable) e marque tiles não-walkable com <code>Add Nav Modifier Box</code> (Extent = 50,50,200) posicionados em <code>(X*100, -Y*100, 0)</code>.</li>
+          <li><strong>OBJ → posicionamento de objetos</strong>: parseie o OBJ legado para lista de instâncias (ModelId, X, Y, Rot). Crie DataTable <code>DT_MapProps</code> e, no <code>BP_MapLoader</code>, faça <em>For Each Row</em> → <code>SpawnActorDeferred</code> do StaticMesh correspondente (mapeado em <code>DT_ItemAssets</code> ou <code>DT_MapMeshes</code>) em <code>(X*100, -Y*100, ZOffset)</code> com <code>Yaw = -Rot</code>.</li>
+          <li><strong>Texturas originais</strong>: converta <code>OZJ/OZT/OZB/OZP/OZD</code> para <code>.png</code>/<code>.tga</code> antes de aplicar nos materiais do Landscape/meshes. Mantenha UV e rotação padrão (não aplique <em>Flip UV</em>).</li>
+          <li><strong>Validação</strong>: após importar, use <em>Play In Editor</em> e verifique alinhamento 1:1 com o cliente: pontos de colisão devem coincidir com ATT (tente atravessar muros), gate positions batem com coordenadas originais (ver próximo item).</li>
+        </ul>
+      </li>
       <li><strong>Gate → troca de mapa instanciada</strong>
         <ul>
           <li>No <strong>Content Browser</strong>, crie <em>Blueprint Class</em> &rarr; <code>Actor</code> chamado <code>BP_GateTrigger</code> em <code>/Game/Blueprints/World/BP_GateTrigger.uasset</code>. Adicione <em>Box Collision</em> (Extent 150,150,200) e marque <code>Generate Overlap Events</code>.</li>
