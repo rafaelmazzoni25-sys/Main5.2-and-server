@@ -245,6 +245,12 @@ case 0x43:
           <li>Grid de obeliscos: <em>Construct</em> → cria widgets filhos para cada <em>ObeliskInfos</em>; <em>OnRep_ObeliskInfos</em> atualiza barras de HP (<code>Set Percent</code>) e cores.</li>
         </ul>
       </li>
+      <li><strong>Mapa de arquivos e posições (UI)</strong>:
+        <ul>
+          <li><code>/Game/UI/Events/Arca/WBP_ArcaPanel</code> (Canvas 1920x1080). Caixa superior Border 640x120 em <strong>X=640, Y=40</strong>; Grid de obeliscos (UniformGrid) 560x360 em <strong>X=680, Y=180</strong> (2 colunas, célula 280x180); botão <code>Btn_Register</code> 260x60 em <strong>X=80, Y=880</strong> com TextBlock de erro <code>Txt_Error</code> 260x28 em <strong>X=80, Y=946</strong>.</li>
+          <li><code>/Game/UI/Events/Arca/WBP_ArcaDebug</code> 250x160 ancorado canto inferior direito (X=1620, Y=840) com três TextBlocks (<code>Txt_State</code>, <code>Txt_Players</code>, <code>Txt_Obelisks</code>) e botão <code>Btn_Advance</code> 220x32.</li>
+        </ul>
+      </li>
       <li>Botão Registrar: OnClicked → chama função local <code>RequestRegisterGuild</code> (veja seção VaRest) e desativa o botão enquanto espera resposta.</li>
       <li>Alertas: em <code>OnRep_CurrentState</code> (client) toca SFX/mostra anúncio em tela cheia quando entra em PLAYING e CLEAR.</li>
     </ol>
