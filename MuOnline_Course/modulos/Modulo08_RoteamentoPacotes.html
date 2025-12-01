@@ -87,6 +87,32 @@ public:
       <li>Adicionar hot-reload de handlers: um mapa de delegates que permita substituir lógicas em runtime para testes A/B.</li>
     </ol>
 
+    <h2 class="mt-4">Guia Blueprint passo a passo (roteador visual)</h2>
+    <p class="fw-semibold">Objetivo: montar um roteador de pacotes no UE5 só com Blueprints, com indicadores visuais e logs hexadecimais.</p>
+    <ol>
+      <li>No <strong>Content Browser</strong>, crie <em>Blueprint Class</em> &rarr; <code>Actor</code> chamado <code>BP_PacketRouter</code>. Marque <em>Replicates</em>.</li>
+      <li>No <strong>Event BeginPlay</strong>, adicione:
+        <ul>
+          <li><code>Create Socket</code> (UDP ou TCP conforme sua stack) e guarde em variável <code>ClientSocket</code>.</li>
+          <li><code>Bind Event to OnMessage</code> &rarr; crie evento <code>OnPacket</code>.</li>
+        </ul>
+      </li>
+      <li>No evento <code>OnPacket</code>:
+        <ul>
+          <li>Use <code>Get Bytes</code> (do plugin) &rarr; <code>Array Slice</code> para separar <code>Head</code> (byte 0) e <code>Body</code> (restante).</li>
+          <li>Faça <code>Switch on Int</code> com os códigos principais (0x00 chat, 0x19 skill, 0x22 item, 0xC1 login etc.).</li>
+          <li>Para cada case, chame <code>Custom Event</code> correspondente: <code>HandleChat</code>, <code>HandleAttack</code>, <code>HandleMove</code>, <code>HandleItem</code>.</li>
+          <li>Adicione <code>Print String</code> para o hex dump: use <code>Array To String</code> e <code>Replace</code> para formatar "AA BB CC". Mostre no <code>Screen</code> e no <code>Log</code>.</li>
+        </ul>
+      </li>
+      <li>Para <code>HandleChat</code>: converta <code>Body</code> em texto via <code>Byte Array To String</code> (UTF-8) e repasse para um <code>Multicast</code> <code>OnChatMessage</code> em <code>GameState</code>. Exiba em um widget <code>BP_ChatBox</code> com <code>ScrollBox</code>.</li>
+      <li>Para <code>HandleMove</code>: leia 2 bytes para X e 2 para Y (<code>Array Slice</code> + <code>Bytes To Int</code>). Chame <code>Find Player By ID</code> (mapa PlayerId &rarr; Character ref) e use <code>Set Actor Location</code> com <code>RInterp To</code> para suavizar.</li>
+      <li>Para <code>HandleAttack</code>: desserialize <code>TargetId</code> e <code>SkillId</code>, verifique cooldown com <code>Map</code> de timestamps e chame <code>Multicast PlayMontage</code> no personagem.</li>
+      <li>Para <code>HandleItem</code>: divida o corpo em <code>Slot</code>, <code>ItemId</code>, <code>Durability</code>; atualize <code>BP_InventoryWidget</code> chamando <code>Set Brush From Texture</code> no slot correspondente e salve estado em <code>SaveGame</code>.</li>
+      <li>Crie um painel de depuração rápido: Widget <code>BP_PacketHUD</code> com 4 barras horizontais (ProgressBar) que mostram pacotes/s por tipo. No <code>Tick</code> do roteador, atualize as barras usando contadores incrementados em cada handler.</li>
+      <li>Teste prático para iniciantes: use <code>Simulate</code> e dispare manualmente evento <code>OnPacket</code> com arrays pré-gravados (crie <code>DataTable</code> <em>Packets.csv</em>). Marque caixa de seleção "Passei" após ver o resultado em tela.</li>
+    </ol>
+
     <h2>Checklist Final</h2>
     <ul>
       <li>Servidor UE5 registra cada pacote recebido com cabeçalho e tamanho.</li>

@@ -192,6 +192,55 @@ public:
       <li>Chaos Rate e penalidades são aplicadas a sistemas de drop/XP conforme GameState.</li>
       <li>Dados persistem no banco via Node.js e são recarregados ao iniciar o mapa.</li>
     </ul>
+
+    <h2>Guia Blueprint ultra detalhado (iniciante)</h2>
+    <p>Transforme o evento Crywolf em um fluxo totalmente em Blueprints, com coordenadas e cliques guiados.</p>
+
+    <h3>1) HUD e posicionamento</h3>
+    <ul>
+      <li><strong>WBP_CrywolfHUD</strong> (1920x1080):
+        <ul>
+          <li>Timer grande (X=760, Y=40, W=400, H=80) para fase atual.</li>
+          <li>Caixa de status (X=40, Y=40, W=360, H=180) com labels: "Estado", "Ocupação", "Chaos Rate", "Penalidades".</li>
+          <li>Lista de NPCs Altares (X=40, Y=240, W=360, H=240) com barras de HP (W=300, H=18) e checkbox "Contratado".</li>
+          <li>Banner central vermelho/verde (X=560, Y=360, W=800, H=120) para sucesso/fracasso.</li>
+        </ul>
+      </li>
+    </ul>
+
+    <h3>2) GameState e controladores</h3>
+    <ol>
+      <li>Crie <code>BP_GS_Crywolf</code> (GameState) com variáveis replicadas: <em>Phase</em> (enum PREP, DEFEND, RESULT), <em>RemainingSeconds</em>, <em>ChaosRate</em> (float), <em>PenaltyDrop</em> (float), <em>AltarStates</em> (array struct {Name, HP, IsContracted}).</li>
+      <li>No servidor, BeginPlay: carregue DataAsset <code>DA_CrywolfConfig</code> (horários, HP de altar, coordenadas dos NPCs Balram/Sorcerer) e acione <code>Set Timer by Function Name</code> (1s) para <code>TickCrywolf</code>.</li>
+      <li><code>TickCrywolf</code>: decrementa <em>RemainingSeconds</em>; quando zera, avança fase: PREP → DEFEND (spawns invasores), DEFEND → RESULT (calcula sucesso se todos altares vivos/contratados), RESULT → PREP (reset HP, timers).</li>
+      <li>Actor <code>BP_CrywolfController</code> (Authority only) gerencia spawn de mobs com <code>SpawnActor</code> nas coordenadas do DataAsset e monitora mortes para ajustar <em>AltarStates</em>.</li>
+    </ol>
+
+    <h3>3) Contrato do altar em Blueprint</h3>
+    <ul>
+      <li>Actor <code>BP_CrywolfAltar</code>: StaticMesh + Capsule Collision (radius 120). OnOverlap → exibe prompt "Pressione F para Contratar".</li>
+      <li>Input F (client) → chama <code>ServerRequestContract(AltarID)</code> (Server, Reliable). No servidor, verifica se já contratado; se não, envia VaRest POST <code>/crywolf/contract</code> com {altarId, account}.</li>
+      <li>Na resposta (Success), seta <em>IsContracted</em>=true, emite Multicast para tocar SFX "Contract" e atualizar barra no HUD.</li>
+    </ul>
+
+    <h3>4) VaRest + SQL</h3>
+    <ul>
+      <li>Endpoints:
+        <ul>
+          <li>GET <code>/crywolf/state</code> retorna fase, tempos, taxas, altar HP → chamado no BeginPlay para restaurar sessão.</li>
+          <li>POST <code>/crywolf/contract</code> registra quem contratou cada altar, atualiza tabela <code>crywolf_contracts</code>.</li>
+          <li>POST <code>/crywolf/result</code> salva sucesso/fracasso, ChaosRate final e penalidades.</li>
+        </ul>
+      </li>
+      <li>No <code>BP_GS_Crywolf</code>, ao finalizar DEFEND, chama <code>/crywolf/result</code> e recebe novos valores de <em>ChaosRate</em>/<em>PenaltyDrop</em> para replicar.</li>
+    </ul>
+
+    <h3>5) Debug e checklist</h3>
+    <ul>
+      <li>Crie comando <code>Crywolf.Debug</code> que abre <code>WBP_CrywolfDebug</code> com logs de fases e contagem de mobs.</li>
+      <li>Nos altares, habilite <code>Draw Debug Sphere</code> (radius 120) e impressão do HP quando sofrer dano.</li>
+      <li>Checklist: entrar no mapa, ver HUD preencher, contratar um altar (barra marca), mobs spawnam na fase DEFEND, timer zera e banner de sucesso/fracasso aparece; valores persistem ao recarregar o mapa.</li>
+    </ul>
   </div>
 </body>
 </html>
