@@ -158,6 +158,51 @@
       <li>Portais/portões sincronizados para entrada/fechamento conforme estado.</li>
       <li>Logs/telemetria enviados via VaRest para backend Node.js/SQL.</li>
     </ul>
+
+    <h2>Guia Blueprint Hiper Detalhado</h2>
+    <p>Passo a passo visual para criar Raklion (Selupan) em UE5 apenas com Blueprints e VaRest.</p>
+    <h3>Estruturas e Tabelas</h3>
+    <ol>
+      <li>Crie o struct <strong>BST_RaklionConfig</strong> com: <em>State</em> (Enum Idle/Notify/Standby/Ready/StartBattle/Close/End), <em>DurationMs</em>, <em>EggHalf</em>, <em>EggMax</em>, <em>PortalDelay</em>, <em>PatternDelays[6]</em>.</li>
+      <li>Monte a <code>DataTable</code> <strong>DT_RaklionSchedule</strong> importando CSV com horários de notificação e duração por fase (Idle 0, Notify1 60000, Standby 120000, Ready 30000, StartBattle 600000, CloseDoor 15000).</li>
+      <li>Crie <strong>DT_RaklionSpawns</strong> com linhas para ovos e Selupan: <em>Type</em> (Egg/Boss), <em>Location</em> (ex.: ovos em X=18200,Y=5500,Z=120 distribuídos em círculo, boss em X=17600,Y=5200,Z=120), <em>Count</em>, <em>TriggerState</em>.</li>
+    </ol>
+
+    <h3>GameState + Componentes</h3>
+    <ol>
+      <li>Derive <strong>BP_RaklionState</strong> de <code>GameState</code> com variáveis replicadas <code>CurrentState</code>, <code>RemainingMs</code>, <code>EggsAlive</code>, <code>PortalOpen</code> (bool), <code>BossRef</code> (Actor).</li>
+      <li>Adicione componente <strong>BP_RaklionFSM</strong> com função <code>AdvanceState</code> que lê a tabela e arma timers; registre <em>OnTimerFinished</em> para chamar <code>AdvanceState</code> novamente.</li>
+      <li>Em <code>BeginPlay</code>, spawn os ovos usando <em>ForEachRow DT_RaklionSpawns</em> filtrando Type=Egg; guarde as referências num array replicado.</li>
+      <li>Quando <code>EggsAlive</code> chegar a 0 (binding em <em>OnDestroyed</em> dos ovos), chame <code>AdvanceState</code> para Standby/Ready automaticamente.</li>
+    </ol>
+
+    <h3>IA do Selupan em Blueprint</h3>
+    <ol>
+      <li>Crie um <strong>BP_Selupan</strong> derivado de <code>Character</code> com componente <code>PawnSensing</code> (Sight Radius 2200). Em <code>OnSeePawn</code>, guarde o alvo.</li>
+      <li>Adicione timeline “PatternTimer” 6s em loop. Em cada <em>Update</em>, use <em>Switch on Int</em> (index 0-5) para disparar ataques: <em>Launch Character</em> (Salto), <em>Spawn Actor</em> (Meteoro), <em>Apply Damage</em> em área 600u, <em>Summon Minion</em> do DataTable de spawns.</li>
+      <li>Controle padrões lendo <code>PatternDelays</code> do struct: configure <em>Set Timer by Event</em> com os delays e alterne o índice. Salve <code>SelupanHP% → PatternIndex</code> (ex.: &lt;70% index2, &lt;40% index4).</li>
+    </ol>
+
+    <h3>HUD e Coordenadas</h3>
+    <ol>
+      <li>Widget <strong>WBP_RaklionHUD</strong> (Canvas 1920x1080): barra “Portão” em (X=70,Y=120,W=360,H=18) que muda de cor (verde aberto, vermelho fechado). Texto de estado acima (X=70,Y=90) com ícone de alerta.</li>
+      <li>Mini painel de ovos em (X=70,Y=160,W=260,H=140) com 10 checkboxes distribuídos em grade 5x2; marque/desmarque conforme <code>EggsAlive</code>.</li>
+      <li>Barra de vida do Selupan no topo central (X=480,Y=40,W=960,H=26) ancorada ao centro-topo; vincule a HP do <code>BossRef</code> replicado.</li>
+    </ol>
+
+    <h3>Fluxos VaRest/SQL</h3>
+    <ol>
+      <li>No GameInstance, configure <code>GET /api/raklion/schedule</code> para atualizar a <code>DT_RaklionSchedule</code> em runtime (use <em>VaRestParseJSON</em> e <em>Make Data Table Row</em> para sobrepor).</li>
+      <li>Em cada transição de estado, chame <code>POST /api/raklion/state</code> com {state, remainingMs, eggsAlive}. Ao finalizar (END), envie <code>/api/raklion/reward</code> com os players e dano total.</li>
+      <li>SQL sugerido: tabela <code>RaklionEvents(Id, State, EggsDestroyed, DurationMs, Winner, CreatedAt)</code>. Preencha com os POSTs.</li>
+    </ol>
+
+    <h3>Debug Rápido</h3>
+    <ul>
+      <li>Console command <code>raklion.spawnselupan</code> (Server) para spawn manual do boss; usa <em>Authority Only</em>.</li>
+      <li>Overlay debug em (X=1500,Y=80,W=360,H=160) mostrando <code>CurrentState</code>, <code>RemainingMs</code> e <code>EggsAlive</code> atualizado por <em>Tick</em>.</li>
+      <li>Ative <em>Draw Debug Sphere</em> ao redor de cada ovo (Raio 120) para alinhar com o mapa legado.</li>
+    </ul>
   </div>
 </body>
 </html>
