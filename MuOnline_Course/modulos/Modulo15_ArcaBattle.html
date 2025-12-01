@@ -207,6 +207,67 @@ case 0x43:
       <li>Registro de guild/master e marcas operando via RPC + VaRest/Node.js + SQL.</li>
       <li>UI mostra avisos e fases conforme o loop original.</li>
     </ul>
+
+    <h2>Guia Blueprint ultra detalhado (iniciante)</h2>
+    <p class="fw-bold">Objetivo: recriar o evento Arca Battle somente com Blueprints + VaRest, sem exigir código C++ do aluno.</p>
+
+    <h3>1) Preparação de assets</h3>
+    <ul>
+      <li>No Content Drawer, crie <strong>DataAsset &raquo; ArcaBattleConfig</strong> (Base: <code>PrimaryDataAsset</code>) com arrays: Datas (DateTime), Obeliscos (Struct: Mapa, X, Y, Vida, Aura, GuildOwner).</li>
+      <li>Adicione sons <code>SFX_EventStart</code> e <code>SFX_ObeliskUnderAttack</code>; partículas para aura (azul/vermelha) em <code>/VFX/Arca</code>.</li>
+      <li>Monte um <strong>Blueprint Actor</strong> <code>BP_ArcaObelisk</code> com <em>StaticMesh</em> central, <em>Sphere Collision</em> (raio 180), <em>Widget</em> 3D para barra de vida.</li>
+      <li>Crie <strong>Widget</strong> <code>WBP_ArcaPanel</code> (1920x1080):
+        <ul>
+          <li>Caixa superior (X=640, Y=40, W=640, H=120) para fase/tempo.</li>
+          <li>Grid de obeliscos (colunas 2x2) com barras de HP (W=280, H=24) e cor da aura.</li>
+          <li>Botão "Registrar Guild" (X=80, Y=880, W=260, H=60) + label de erro (vermelho) logo abaixo.</li>
+        </ul>
+      </li>
+    </ul>
+
+    <h3>2) Blueprint do GameMode/GameState</h3>
+    <ol>
+      <li>Duplique seu <code>GameMode</code> e <code>GameState</code> atuais para <code>GM_ArcaBattle</code> e <code>GS_ArcaBattle</code>.</li>
+      <li>No <code>GS_ArcaBattle</code>, crie Enum <code>EArcaState</code> (BLANK, EMPTY, PLAYING, END, CLEAR) e variáveis replicadas: <em>CurrentState</em>, <em>RemainingSeconds</em>, <em>ObeliskInfos</em> (array de struct com Vida/Aura/GuildOwner).</li>
+      <li>Event BeginPlay (server): "Get DataTable Row" ou "Get Primary Asset" &rarr; preenche <em>ObeliskInfos</em> e seta <em>RemainingSeconds</em> baseado no próximo horário do DataAsset.</li>
+      <li>Use <strong>Set Timer by Function Name</strong> (Rate 1.0, Looping) chamando função <code>TickArcaBattle</code> no GameState (executes on server; marcada como <em>Run on Server</em> via Authority check).</li>
+      <li>Em <code>TickArcaBattle</code>: decrementa <em>RemainingSeconds</em>; quando chega a 0, avança estado: BLANK→EMPTY (spawn obeliscos), EMPTY→PLAYING (habilita dano), PLAYING→END (fecha inscrição), END→CLEAR (limpa obeliscos) e recomeça o ciclo.</li>
+      <li>Para spawn: <em>ForEach ObeliskInfos</em> &rarr; <code>SpawnActor BP_ArcaObelisk</code> na coordenada (X=Obelisk.X, Y=Obelisk.Y, Z=120) com <code>Authority Only</code>. Guarde referência num array replicado <em>SpawnedObelisks</em>.</li>
+    </ol>
+
+    <h3>3) Fluxo UI e botões</h3>
+    <ol>
+      <li>No <code>APlayerController</code>, Event BeginPlay (client): <code>Create Widget WBP_ArcaPanel</code> &rarr; <code>Add to Viewport</code> &rarr; define <em>Input Mode Game and UI</em>.</li>
+      <li>Bind no <code>WBP_ArcaPanel</code>:
+        <ul>
+          <li>Texto de fase: <em>GS_ArcaBattle.CurrentState → Switch on Enum → converte para string</em>.</li>
+          <li>Timer: <em>RemainingSeconds</em> formatado <code>MM:SS</code> (use <code>Divide int 60</code> e <code>Modulo</code>).</li>
+          <li>Grid de obeliscos: <em>Construct</em> → cria widgets filhos para cada <em>ObeliskInfos</em>; <em>OnRep_ObeliskInfos</em> atualiza barras de HP (<code>Set Percent</code>) e cores.</li>
+        </ul>
+      </li>
+      <li>Botão Registrar: OnClicked → chama função local <code>RequestRegisterGuild</code> (veja seção VaRest) e desativa o botão enquanto espera resposta.</li>
+      <li>Alertas: em <code>OnRep_CurrentState</code> (client) toca SFX/mostra anúncio em tela cheia quando entra em PLAYING e CLEAR.</li>
+    </ol>
+
+    <h3>4) VaRest + SQL (microserviço)</h3>
+    <ul>
+      <li>Endpoint POST <code>/arca/register</code> (body: <em>account, guild, markCode</em>) grava em tabela <code>arca_registrations</code> (columns: id, account, guild, markCode, timestamp).</li>
+      <li>No PlayerController (client), crie função <code>RequestRegisterGuild</code>:
+        <ol>
+          <li><code>VaRestRequestJSON</code> → <em>Set URL</em> <code>http://127.0.0.1:3000/arca/register</code>.</li>
+          <li><em>Set Verb</em> POST, <em>Set Request Object</em> com campos.</li>
+          <li><em>Bind Event to OnRequestComplete</em> → no sucesso, exibir mensagem verde e reabilitar botão; no erro, mensagem vermelha.</li>
+        </ol>
+      </li>
+      <li>No servidor Blueprint (Authority), quando um obelisco perde vida: <code>OnComponentBeginOverlap</code> → se atacante é de guild X, atualize <em>GuildOwner</em> na struct e faça PATCH <code>/arca/obelisk</code> salvando dono/HP.</li>
+    </ul>
+
+    <h3>5) Debug visual</h3>
+    <ul>
+      <li>Adicione comando console <code>ToggleArcaDebug</code>: mostra um <code>WBP_ArcaDebug</code> com lista de timers e HP.</li>
+      <li>No <code>BP_ArcaObelisk</code>, habilite <code>Draw Debug Sphere</code> (raio 180, cor ciano) em BeginPlay e quando HP mudar.</li>
+      <li>Checklist final para o aluno: conseguir registrar guild, ver HUD mudar estados em 5 min, causar dano em obelisco e observar cor da aura trocando.</li>
+    </ul>
   </div>
 </body>
 </html>

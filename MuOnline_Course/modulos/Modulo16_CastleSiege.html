@@ -155,6 +155,61 @@
       <li>NPCs/gates spawnados e visíveis no minimapa replicado.</li>
       <li>Possibilidade de definir Map Server Group via RPC seguro.</li>
     </ul>
+
+    <h2>Guia Blueprint ultra detalhado (iniciante)</h2>
+    <p>Foque em cliques e coordenadas para que qualquer aluno replique o Castle Siege em UE5 sem C++.</p>
+
+    <h3>1) Setup rápido</h3>
+    <ul>
+      <li>Crie <code>DataAsset &raquo; DA_CastleSiegeConfig</code> com: Datas (struct {StartDateTime, State}), Gates (X, Y, HP Máx., GateID), NPCs (Tipo, Coord, Rotação).</li>
+      <li>Blueprints essenciais: <code>BP_CastleGate</code> (StaticMesh + Box Collision 240x360 + HP float + Widget 3D barra 300x24), <code>BP_CastleCrown</code> (sphere radius 200 para captura), <code>BP_CastleSwitch</code> (Box 160x160).</li>
+      <li>Widget principal <code>WBP_CastleSiegeHUD</code> (1920x1080):
+        <ul>
+          <li>Banner de estado (X=560,Y=20,W=800,H=110) com nome do estado e timer.</li>
+          <li>Lista de Gates (anchor Top-Right, X=1380,Y=140,W=480,H=400) contendo 6 linhas com barra de HP (W=360,H=18) e checkbox "Aberto".</li>
+          <li>Mapa miniatura (X=40,Y=700,W=360,H=320) exibindo pins de gates/NPCs.</li>
+          <li>Botão "Registrar Guild" (X=40,Y=1040,W=260,H=50) e label de aviso logo abaixo.</li>
+        </ul>
+      </li>
+    </ul>
+
+    <h3>2) GameState totalmente em Blueprints</h3>
+    <ol>
+      <li>Crie <code>BP_GS_CastleSiege</code> (deriva de GameState) com variáveis replicadas: <em>CurrentState</em> (enum REG SIEGE/REG MARK/NOTIFY/GAME/END), <em>RemainingSeconds</em>, <em>GateData</em> (array de structs HP/IsOpen/Coord), <em>OwnerGuild</em> (String), <em>MapGroup</em> (int).</li>
+      <li>Event BeginPlay (Authority): carrega <code>DA_CastleSiegeConfig</code>, seta <em>RemainingSeconds</em> para a próxima data e inicia <code>Set Timer by Function Name</code> de 1s chamando <code>TickSiege</code>.</li>
+      <li><code>TickSiege</code> reduz <em>RemainingSeconds</em>; quando zera, chama <code>AdvanceState</code> que alterna enum e reseta <em>RemainingSeconds</em> com valores curtos para testes (ex.: 60s por fase).</li>
+      <li>Dentro de <code>AdvanceState</code>, dispara <code>Multicast</code> para tocar SFX e atualizar widgets; no estado GAME, chama função <code>SpawnGates</code> (ForEach GateData → SpawnActor <code>BP_CastleGate</code> na coord (X,Y,Z=0)).</li>
+    </ol>
+
+    <h3>3) Fluxo UI passo a passo</h3>
+    <ol>
+      <li>No PlayerController, BeginPlay (client): cria <code>WBP_CastleSiegeHUD</code> e adiciona ao viewport (ZOrder 5).</li>
+      <li>Binding do banner: <em>OnRep_CurrentState</em> → <code>Switch on Enum</code> → define texto e cor (REG=amarelo, GAME=vermelho, END=verde).</li>
+      <li>Timer: use <code>RemainingSeconds / 60</code> e <code>Modulo</code> para mostrar MM:SS; refresque a cada <em>OnRep_RemainingSeconds</em>.</li>
+      <li>Lista de Gates: OnConstruct cria 6 linhas; a cada <em>OnRep_GateData</em> atualiza <code>ProgressBar.Percent</code> (HP Atual/HP Máx) e ícone de status (verde aberto, cinza fechado).</li>
+      <li>Minimapa: para cada GateData, spawn de <code>WidgetComponent</code> 2D no mundo (ou use <em>Canvas Panel</em> com conversão X,Y → UV). No client, atualize posição a cada 1s (timeline).</li>
+      <li>Botão "Registrar Guild": OnClicked chama função <code>RequestGuildRegistration</code> (veja VaRest) e desabilita o botão enquanto aguarda.</li>
+    </ol>
+
+    <h3>4) VaRest + SQL</h3>
+    <ul>
+      <li>Endpoint POST <code>/castle/register</code> salva em <code>castle_registrations</code> (guild, alliance, master, timestamp).</li>
+      <li>No PlayerController, função <code>RequestGuildRegistration</code>:
+        <ol>
+          <li><code>VaRestRequestJSON</code> → URL <code>http://127.0.0.1:3000/castle/register</code>, Verb POST.</li>
+          <li>Adiciona campos JSON (guildName, alliance, account).</li>
+          <li>OnSuccess: texto verde "Registrado"; OnFail: texto vermelho com motivo.</li>
+        </ol>
+      </li>
+      <li>Para estados e gates, crie endpoint GET <code>/castle/state</code> retornando enum e HPs; no servidor Blueprint (Authority), chame a cada 30s para sincronizar com SQL em caso de reinício.</li>
+    </ul>
+
+    <h3>5) Debug e checklist visual</h3>
+    <ul>
+      <li>Comando console <code>CS.Debug</code> abre <code>WBP_CSDebug</code> com lista de timers e estados.</li>
+      <li>No <code>BP_CastleGate</code>, habilite <code>Draw Debug Box</code> na colisão e imprima HP no mundo quando sofrer dano.</li>
+      <li>Aluno conclui quando: consegue registrar guild, vê HUD contar regressivamente, observa gates spawnarem/HP mudar e minimapa atualizar pins.</li>
+    </ul>
   </div>
 </body>
 </html>
