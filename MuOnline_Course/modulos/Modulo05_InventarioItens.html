@@ -171,6 +171,67 @@ else if(lpObj->Money > 0 && (GetLargeRand()%((lpObj->MoneyRate==0)?1:lpObj->Mone
       </div>
     </div>
 
+    <div class="card mb-3">
+      <div class="card-body">
+        <h5 class="card-title">Cliente – cálculo de bônus de nível e Excellent</h5>
+
+        <h6>📘 O Que é?</h6>
+        <p>Rotina que recalcula dano, defesa e requisitos de itens considerando nível e flags de Excellent ao gerar tooltips e atributos.</p>
+
+        <h6>🎯 Para Que Serve?</h6>
+        <p>Reproduz os incrementos exatos (+3 por nível, +25 “níveis virtuais” para Excellent) que afetam dano/defesa e requisitos antes de mostrar o item ao jogador.</p>
+
+        <h6>💻 Como Funciona?</h6>
+        <p>
+          Em <code>PrintItem</code>, o cliente soma bônus por nível e, se o item tiver opção Excellent, aplica multiplicadores extras e trata um “ItemLevel” deslocado em +25 para requisitos. Dano/defesa recebem incrementos adicionais quando <code>Excellent == true</code>, e requisitos de Força/Destreza/Energia são recalculados com esse nível aumentado.<br>
+          <pre><code>if(DamageMin > 0) {
+    if(Excellent && p-&gt;Level)
+        DamageMin += p-&gt;DamageMin*25/p-&gt;Level+5;
+    DamageMin += Level*3;
+}
+... // mesmos ajustes para DamageMax e Defense
+int ItemLevel = p-&gt;Level;
+if(Excellent) ItemLevel = p-&gt;Level + 25;
+RequireStrength = 20 + p-&gt;RequireStrength*(ItemLevel+Level*3)*3/100;</code></pre>
+        </p>
+
+        <h6>📁 Onde Encontrar?</h6>
+        <p><code>Source Main 5.2/source/ZzzInfomation.cpp</code> (cálculo em <code>PrintItem</code> com flag <code>Excellent</code>).</p>
+
+        <h6>⏱️ Quando é Executado?</h6>
+        <p>Na montagem de tooltips/listagens de itens, antes de exibir atributos no cliente.</p>
+      </div>
+    </div>
+
+    <div class="card mb-3">
+      <div class="card-body">
+        <h5 class="card-title">Cliente – opções Excellent e texto de tooltips</h5>
+
+        <h6>📘 O Que é?</h6>
+        <p>Leitura do arquivo <code>ItemAddOption.bmd</code> que descreve pares de opção/valor para itens Excellent.</p>
+
+        <h6>🎯 Para Que Serve?</h6>
+        <p>Popular as linhas extras (HP/Mana, Decrease/Reflection, +%Dmg, +%Zen) na tooltip com o valor exato do item.</p>
+
+        <h6>💻 Como Funciona?</h6>
+        <p>
+          O construtor abre <code>Data\Local\ItemAddOption.bmd</code>, lê blocos <code>ITEM_ADD_OPTION</code> e descriptografa com <code>BuxConvert</code>. A função <code>GetItemAddOtioninfoText</code> percorre dois slots (<code>m_byOption1/2</code>, <code>m_byValue1/2</code>) e monta as strings de tooltip conforme o código de opção, usando <code>GlobalText</code> para o rótulo.<br>
+          <pre><code>fread(m_ItemAddOption, nSize, 1, fp);
+BuxConvert((BYTE*)m_ItemAddOption, nSize);
+switch(optiontype) {
+  case 1: sprintf(TempText, GlobalText[2184], optionvalue); break;
+  ...
+}</code></pre>
+        </p>
+
+        <h6>📁 Onde Encontrar?</h6>
+        <p><code>Source Main 5.2/source/ItemAddOptioninfo.cpp</code> (carregamento do BMD e geração de texto).</p>
+
+        <h6>⏱️ Quando é Executado?</h6>
+        <p>No boot do cliente e ao abrir uma tooltip de item com flags Excellent.</p>
+      </div>
+    </div>
+
       <div class="card mb-3">
         <div class="card-body">
           <h5 class="card-title">Cliente – Animação e som do drop</h5>
@@ -249,6 +310,8 @@ else if(lpObj->Money > 0 && (GetLargeRand()%((lpObj->MoneyRate==0)?1:lpObj->Mone
       <li>Serialize/deserialize usando <code>FArchive</code> ou <code>FNetSerialize</code> para manter compatibilidade com o protocolo desejado.</li>
       <li><strong>Upgrade por Jewel of Bless/Soul</strong>: crie função <code>ServerApplyJewel(int32 JewelID, int32 TargetSlot)</code> no <code>PlayerController</code> com o seguinte Blueprint: <ol type="a"><li>Leia <code>Inventory[TargetSlot].Level</code>; se &gt;=9, faça <em>Branch</em> para <code>ClientToast("Nível máximo alcançado")</code>.</li><li>Se <code>JewelID==Bless</code>: <code>Inventory[TargetSlot].Level++</code>; consuma a joia; chame <code>MulticastUpdateItem</code> e <code>SaveInventory</code> (VaRest POST).</li><li>Se <code>JewelID==Soul</code>: use <strong>Random Integer in Range (0,99)</strong> + tabela de taxa; sucesso: <code>Level++</code>; falha: <code>Level = max(Level-1,0)</code>. Envie update e log.</li><li>Dispare <strong>AnimNotify</strong> no item (event dispatcher) para atualizar o material do modelo equipado.</li></ol></li>
       <li><strong>Glow/nível visual</strong>: crie <code>DataTable</code> <code>ItemGlow_DT</code> (campos <code>Level</code>, <code>Material</code>, <code>Particle</code>). No <code>BP_ItemActor</code>, no evento <em>OnRep_ItemData</em>, faça lookup na tabela e aplique <strong>Set Material</strong> e <strong>Spawn Emitter Attached</strong> conforme o nível.</li>
+      <li><strong>Excelente vs. comum</strong>: adicione <code>bIsExcellent</code> no struct replicado e expanda o <code>ItemGlow_DT</code> para ter materiais/FX específicos (colunas <code>Glow_Mundane</code>, <code>Glow_Excellent</code>). Use o mesmo fator de requisito do legado: se <code>bIsExcellent</code> for verdadeiro, calcule <code>Requisito = BaseReq * (BaseLevel + 25 + Level*3) * 0.03 + 20</code> e exiba na tooltip.</li>
+      <li><strong>Tooltip 1:1</strong>: crie um <code>DataTable</code> <code>DT_ItemExcellentOptions</code> com <code>OptionCode</code> → texto (ex.: “Aumenta HP +4%”). No <em>WBP_ItemTooltip</em>, concatene até dois campos conforme <code>OptionCode</code> vindos do item, replicando a ordem original. Prefixe com cor verde/azul igual ao cliente.</li>
     </ul>
     <pre><code>USTRUCT(BlueprintType)
 struct FMuItemSlot {

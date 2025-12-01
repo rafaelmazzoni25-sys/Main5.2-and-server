@@ -167,6 +167,32 @@ void AMyCharacter::ServerPerformAttack_Implementation(AActor* Target) {
         </ul>
       </li>
     </ol>
+    <h2 class="mt-4">Renderização de skills (legado → UE5)</h2>
+    <div class="card mb-3">
+      <div class="card-body">
+        <h5 class="card-title">Carregamento de modelos BMD e texturas de skill</h5>
+        <p>O cliente carrega cada efeito de skill como modelo BMD (inferno, blast, earthquake, javelin, fury strike) e associa texturas em <code>Data\Skill</code>, além de bitmaps 2D para efeitos planos.</p>
+        <p>No bootstrap gráfico, <code>gLoadData.AccessModel</code> abre os BMDs e <code>gLoadData.OpenTexture</code> carrega as texturas correspondentes (incluindo subvariantes <code>MODEL_SKILL_FURY_STRIKE+1..8</code> e bitmaps <code>BITMAP_FLOWER</code>). Um loop final garante que todos os IDs entre <code>MODEL_SKILL_BEGIN</code> e <code>MODEL_SKILL_END</code> recebam textura.</p>
+        <p class="mb-0"><strong>Adaptação UE5:</strong> converta cada BMD de <code>Data/Skill</code> para FBX mantendo pivot/orientação, e importe texturas para <code>Content/MU/Skills</code>. Use uma <code>DataTable</code> <em>DT_SkillAssets</em> com colunas <code>SkillModel</code>, <code>SkillMaterial</code>, <code>IsSprite</code> para diferenciar partículas 2D.</p>
+      </div>
+    </div>
+
+    <div class="card mb-3">
+      <div class="card-body">
+        <h5 class="card-title">Efeitos 2D vs. modelos 3D no runtime</h5>
+        <p>Funções como <code>RenderCircle</code>/<code>RenderCircle2D</code> desenham quads texturizados com rotação e escala, enquanto <code>CreateArrow</code> instancia flechas/impactos usando o BMD da arma, sons de arco e partículas.</p>
+        <p class="mb-0"><strong>Adaptação UE5:</strong> para efeitos planos, use <em>Niagara Ribbon/Sprite</em> ou <em>Widget Component</em> com material unlit e UV animado; para BMD convertidos, instancie um <code>NiagaraSystem</code> ou <code>StaticMeshComponent</code> com o mesh da DataTable. Sincronize a emissão com <em>AnimNotifies</em> e defina <code>bServerOnly</code> para RPCs de spawn com verificação de dono (equivalente ao filtro do cliente legado que só cria efeitos do herói).</p>
+      </div>
+    </div>
+
+    <div class="card mb-3">
+      <div class="card-body">
+        <h5 class="card-title">Gerência de instâncias de efeito</h5>
+        <p><code>CSkillEffectMgr::IsSkillEffect</code> filtra quais modelos devem ser instanciados (blast, inferno, fury strike) apenas para o herói, e <code>DeleteEffect</code>/<code>MoveEffects</code> reciclam um pool <code>m_SkillEffects</code>.</p>
+        <p class="mb-0"><strong>Adaptação UE5:</strong> crie um <code>UObject</code> <em>SkillEffectPool</em> com <code>TArray&lt;FSkillEffectInstance&gt;</code> e limites de contagem por skill. Use <code>IsLocalController()</code> para só spawnar FX locais quando o pawn for do jogador e registre <em>OnDestroy</em> para limpar partículas no fim da duração.</p>
+      </div>
+    </div>
+
     <h2 class="mt-4">Mapa de animações e sons (legado → UE5)</h2>
     <ul>
       <li><strong>Ações de ataque do jogador</strong>: o código C++ mapeia golpes para enums <code>PLAYER_ATTACK_*</code> e <code>PLAYER_ATTACK_SKILL_*</code> (<em>ex.:</em> <code>PLAYER_ATTACK_SWORD_RIGHT1</code>, <code>PLAYER_ATTACK_TWO_HAND_SWORD1</code>, <code>PLAYER_ATTACK_SKILL_SWORD5</code>) definidos em <code>_enum.h</code>. Crie <code>DT_PlayerAttackAnim</code> (ActionId, WeaponType, AnimMontage, HitNotifyName) e, no <em>AnimBP_MuCharacter</em>, selecione o montage conforme <code>ActionId</code>. Use <em>AnimNotify</em> <code>HitWindow</code> para disparar o evento de dano no frame exato em que o pacote do servidor valida o ataque.</li>
