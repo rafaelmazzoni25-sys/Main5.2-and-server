@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  <title>Módulo 57 – Enums de NPCs, Diálogos, Shops e Quests</title>
+</head>
+<body class="bg-light">
+  <div class="container py-5">
+    <h1 class="mb-4">Módulo 57 – Enums de NPCs, Diálogos, Shops e Quests</h1>
+    <p class="lead">Reúne os enums e tabelas do código legado C++ para NPCs, falas, shops e quests, e descreve como reconstruir o comportamento 1:1 na Unreal Engine 5, incluindo UI, lojinhas, teleporte e scripts de quest.</p>
+
+    <h2 class="mt-4">Enums e Arquivos do Código Legado</h2>
+    <div class="card mb-3">
+      <div class="card-body">
+        <h5 class="card-title">NPCs e Shops</h5>
+        <ul>
+          <li><strong><code>NPC.h</code></strong>: enum <code>eNPC_CLASS</code> cobre IDs (ex.: <code>NPC_DEVILSQUARE = 229</code>, <code>NPC_POTION_GIRL = 229</code> em Season 6, <code>NPC_ELBELAND_GUARD = 259</code>, <code>NPC_CHAOS_MIX = 247</code>, <code>NPC_WAREHOUSE = 240</code>, <code>NPC_MOSS_MERCHANT = 568</code>).</li>
+          <li><strong><code>Shop.cpp</code></strong>: <code>g_ShopData</code> organiza slots de itens por shop ID e vincula ao NPC via <code>m_iNpcIndex</code>. Tabelas <code>ShopItemSetType.txt</code> e <code>Shop*.txt</code> definem estoques.</li>
+          <li><strong><code>QuestExpLuaBind.cpp</code></strong> e <code>NPCQuest.cpp</code>: mapeiam scripts Lua e estados de quest com enums (<code>QUEST_STATE_NONE/START/COMPLETE</code>), além de alvos (<code>QUEST_TARGET_MONSTER</code>, <code>QUEST_TARGET_ITEM</code>).</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="card mb-3">
+      <div class="card-body">
+        <h5 class="card-title">Diálogos e Janelas</h5>
+        <ul>
+          <li><strong><code>NewUINPCDialog.h</code></strong>: enums para tipos de diálogo (<code>DIALOGUE_SHOP</code>, <code>DIALOGUE_REPAIR</code>, <code>DIALOGUE_STORAGE</code>, <code>DIALOGUE_QUEST</code>, <code>DIALOGUE_GATE</code>) e estados da janela.</li>
+          <li><strong><code>UINPCButtons.h</code></strong>: mapeia botões por NPC (ex.: <em>Chaos Mix</em> → <code>Btn_RegularMix</code>, <code>Btn_PlusMix</code>, <em>GateKeeper</em> → <code>Btn_Register</code>, <code>Btn_Status</code>).</li>
+          <li><strong><code>MoveCommand.h</code></strong>: enum <code>eGateType</code> e <code>g_MoveCommand</code> conectam NPC GateKeeper aos destinos com custo em Zen e requisitos de nível.</li>
+        </ul>
+      </div>
+    </div>
+
+    <h2 class="mt-4">Replicação 1:1 na Unreal Engine 5</h2>
+    <ol>
+      <li><strong>DataTables:</strong>
+        <ul>
+          <li><em>DT_NPCs</em>: colunas <code>NpcId (Name)</code>, <code>DisplayName</code>, <code>Mesh (SkeletalMesh)</code>, <code>AnimBP</code>, <code>DialogType</code>, <code>ShopId</code>, <code>QuestScript</code>, <code>GateId</code>, <code>Position/Rotation</code> por mapa.</li>
+          <li><em>DT_Shops</em>: <code>ShopId</code>, array de <em>Items</em> (ItemCode, Level, Durability, ExcellentMask, PriceZen), alinhado ao <code>g_ShopData</code>.</li>
+          <li><em>DT_Quests</em>: <code>QuestId</code>, <code>NpcId</code>, <code>State</code>, <code>TargetType</code>, <code>TargetId</code>, <code>Count</code>, <code>RewardXP</code>, <code>RewardItem</code>, scripts Lua opcionais para lógica especial.</li>
+          <li><em>DT_Gates</em>: <code>GateId</code>, <code>MapIndex</code>, <code>TargetMap</code>, <code>TargetPos</code>, <code>CostZen</code>, <code>ReqLevel</code>, seguindo <code>MoveCommand.h</code> (já usado nos módulos de mapa).</li>
+        </ul>
+      </li>
+      <li><strong>Enums Blueprint:</strong> Crie <code>E_NPC_ID</code>, <code>E_DialogueType</code>, <code>E_QuestState</code> e <code>E_GateId</code>. Alimente cada Widget/Blueprint com <code>Switch on</code> para replicar as máquinas de estado do legado (<code>NewUINPCDialog</code>).</li>
+      <li><strong>Widgets de Diálogo/Shop:</strong> Crie <code>WBP_NPCDialog</code> com um <code>WidgetSwitcher</code> para abas Shop/Repair/Warehouse/Quest/Gate. Cada aba usa os dados das tabelas correspondentes. Os botões seguem a mesma hierarquia do legado (ex.: Chaos Mix com botões Regular/P10/P11/P12).</li>
+      <li><strong>Spawning e Interação:</strong> No <code>BP_MapSpawner</code>, leia <code>DT_NPCs</code> ao carregar o mapa e instancie <code>BP_NPCActor</code> com SkeletalMesh/AnimBP corretos. Adicione <code>Sphere Collision</code> para <em>Interact</em>. O <code>BP_NPCActor</code> abre o <code>WBP_NPCDialog</code> adequado baseado em <code>DialogType</code> e <code>ShopId/QuestId</code>.</li>
+      <li><strong>Quests:</strong> Implemente <code>BP_QuestComponent</code> (ActorComponent replicado) com lista de <code>FQuestState</code>. Ao interagir com NPC de quest, chame <code>StartQuest</code>/<code>CompleteQuest</code> consultando <em>DT_Quests</em>. Eventos de kill/drop atualizam progressos via <code>OnMonsterKilled</code>/<code>OnItemCollected</code> ligados a <code>QuestExpLuaBind</code> equivalente.</li>
+      <li><strong>MoveCommand/Gate:</strong> Para GateKeeper, carregue <em>DT_Gates</em> no diálogo. Clique em um gate dispara RPC <code>Server_RequestGate</code> que valida Zen/nível e chama <code>OpenLevel</code> com <code>TargetMap/Pos</code> (corrigindo orientação Y→-X conforme módulo de mapas).</li>
+      <li><strong>Sincronização de Shops:</strong> O <code>BP_ShopManager</code> aplica <code>DT_Shops</code> no servidor e replica o estoque para clientes (respeitando preço/level/excellent). Reaproveite os slots e regras descritas no Módulo 29 para inventário.</li>
+    </ol>
+
+    <h2 class="mt-4">Checklist Final</h2>
+    <ul>
+      <li>Enums <code>eNPC_CLASS</code>, <code>DIALOGUE_*</code>, <code>eGateType</code> e estados de quest convertidos para enums Blueprint e usados com <code>Switch</code> explícitos.</li>
+      <li><em>DT_NPCs</em>, <em>DT_Shops</em>, <em>DT_Quests</em> e <em>DT_Gates</em> preenchidos com dados do legado, incluindo posições e custos.</li>
+      <li><code>WBP_NPCDialog</code> com abas Shop/Repair/Warehouse/Quest/Gate replicando layout e botões do cliente C++.</li>
+      <li>Spawning de NPCs e gating/quests funcionando em servidor dedicado com persistência de estado de quest.</li>
+    </ul>
+  </div>
+</body>
+</html>
