@@ -167,6 +167,13 @@ void AMyCharacter::ServerPerformAttack_Implementation(AActor* Target) {
         </ul>
       </li>
     </ol>
+    <h2 class="mt-4">Mapa de animações e sons (legado → UE5)</h2>
+    <ul>
+      <li><strong>Ações de ataque do jogador</strong>: o código C++ mapeia golpes para enums <code>PLAYER_ATTACK_*</code> e <code>PLAYER_ATTACK_SKILL_*</code> (<em>ex.:</em> <code>PLAYER_ATTACK_SWORD_RIGHT1</code>, <code>PLAYER_ATTACK_TWO_HAND_SWORD1</code>, <code>PLAYER_ATTACK_SKILL_SWORD5</code>) definidos em <code>_enum.h</code>. Crie <code>DT_PlayerAttackAnim</code> (ActionId, WeaponType, AnimMontage, HitNotifyName) e, no <em>AnimBP_MuCharacter</em>, selecione o montage conforme <code>ActionId</code>. Use <em>AnimNotify</em> <code>HitWindow</code> para disparar o evento de dano no frame exato em que o pacote do servidor valida o ataque.</li>
+      <li><strong>Skills e transições especiais</strong>: para ações como <code>PLAYER_ATTACK_SKILL_WHEEL</code>, <code>PLAYER_ATTACK_SKILL_FURY_STRIKE</code> e <code>PLAYER_SKILL_HELL_START</code>, configure Montages com root motion desativado (para manter o servidor autoritativo) e blend times curtos. Acrescente <em>AnimNotifies</em> nomeados <code>Cast_Start</code>/<code>Cast_End</code> para alinhar partículas e cooldowns; se o servidor cancelar a skill, chame <code>Montage Stop</code> usando o mesmo <code>ActionId</code>.</li>
+      <li><strong>Sons de armas e impacto</strong>: os índices <code>SOUND_BRANDISH_SWORD01..04</code>, <code>SOUND_ATTACK01</code>, <code>SOUND_EXPLOTION01</code> e as variações de arco/besta (<code>SOUND_BOW01</code>, <code>SOUND_CROSSBOW01</code>) estão definidos em <code>DSPlaySound.h</code>. Monte um <em>DataTable</em> <code>DT_ActionAudio</code> (ActionId, SoundCue) e associe o <code>SoundCue</code> ao <em>AnimNotify</em> de swing/impacto. Para gritinhos de dano, inclua <code>SOUND_HUMAN_SCREAM0*</code>/<code>SOUND_FEMALE_SCREAM0*</code> e toque-os quando o Character receber dano crítico.</li>
+      <li><strong>Mobs: animação + som em ataque</strong>: reaproveite os IDs <code>MONSTER01_ATTACK1/2/3</code> e <code>MONSTER01_DIE</code> de <code>_define.h</code> para preencher <code>DT_MobAnimations</code> (ActionId, AnimSequence, SoundCue). No <em>AnimBP_Mob</em>, cada notify <code>AttackImpact</code> deve tocar <code>SoundCue</code> derivado do índice armazenado em <code>BMD.Sounds</code>, mantendo o comportamento do cliente original.</li>
+    </ul>
     <h2 class="mt-4">Checklist Final</h2>
     <ul>
       <li>Servidor UE5 rejeita ataques inválidos (alvo igual, mapa diferente, teleporte).</li>

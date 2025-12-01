@@ -128,6 +128,70 @@ case 0x26:
       </div>
     </div>
 
+    <div class="card mb-3">
+      <div class="card-body">
+        <h5 class="card-title">Servidor – Seleção do drop (item vs. Zen) e opções</h5>
+
+        <h6>📘 O Que é?</h6>
+        <p>Trecho que decide o que cai ao matar um mob: item específico (com opções e sockets) ou dinheiro (Zen), aplicando bônus e tabelas de mapa.</p>
+
+        <h6>🎯 Para Que Serve?</h6>
+        <p>Reproduz a distribuição de loot 1:1: respeita ItemBag por classe, bônus de drop, Set/Exc, chance de Zen e quantidade.</p>
+
+        <h6>💻 Como Funciona?</h6>
+        <p>
+          Em <code>gObjMonsterDieGiveItem</code> o servidor verifica ItemBags/quests e, se não dispararem, calcula <code>ItemDropRate</code> e <code>ExcItemDropRate</code> com bônus do player/mapa antes de sortear um índice via <code>gMonsterManager.GetMonsterItem</code>. Se falhar ou não houver item, tenta Zen.<br>
+          <pre><code>if(gItemBagManager.DropItemByMonsterClass(lpObj->Class,lpTarget,lpObj->Map,lpObj->X,lpObj->Y)) return;
+if(gQuestObjective.MonsterItemDrop(lpObj)) return;
+if(gItemDrop.DropItem(lpObj,lpTarget)) return;
+int ItemDropRate = gServerInfo.m_ItemDropRate[lpTarget->AccountLevel];
+ItemDropRate = (ItemDropRate*(lpTarget->ItemDropRate+lpTarget->EffectOption.AddItemDropRate))/100;
+ItemDropRate = (ItemDropRate*gMapManager.GetMapItemDropRate(lpObj->Map))/100;
+if((DropIndex=gMonsterManager.GetMonsterItem(DropLevel,ExcItemDrop,gMapManager.GetMapSocketItemDrop(lpObj->Map))) >= GET_ITEM(0,0)
+   && (GetLargeRand()%((lpObj->ItemRate==0)?1:lpObj->ItemRate)) < ItemDropRate) {
+    gItemOptionRate.GetItemOption0(((ExcItemDrop==0)?0:1),&ItemLevel);
+    ...
+    GDCreateItemSend(lpTarget->Index,lpObj->Map,(BYTE)lpObj->X,(BYTE)lpObj->Y,ItemIndex,ItemLevel,0,ItemOption1,ItemOption2,ItemOption3,
+                     lpTarget->Index,ItemNewOption,ItemSetOption,0,0,ItemSocketOption,0xFF,0);
+}
+else if(lpObj->Money > 0 && (GetLargeRand()%((lpObj->MoneyRate==0)?1:lpObj->MoneyRate)) < 10) {
+    int money = ((__int64)lpObj->Money*gServerInfo.m_MoneyAmountDropRate[lpTarget->AccountLevel])/100;
+    if (gServerInfo.m_MoneyValue[lpTarget->AccountLevel] > 0)
+        money = (lpObj->Level*gServerInfo.m_MoneyValue[lpTarget->AccountLevel]);
+    money = ((__int64)money*lpTarget->MoneyAmountDropRate)/100;
+    gMap[lpObj->Map].MoneyItemDrop(money,lpObj->X,lpObj->Y);
+}</code></pre>
+        </p>
+
+        <h6>📁 Onde Encontrar?</h6>
+        <p><code>Source MuServer Update 15/GameServer/GameServer/Monster.cpp</code> (função <code>gObjMonsterDieGiveItem</code>).</p>
+
+        <h6>⏱️ Quando é Executado?</h6>
+        <p>No servidor, ao matar um mob (inclusive bosses), imediatamente antes de enviar o pacote de criação de item/Zen para os jogadores no mapa.</p>
+      </div>
+    </div>
+
+    <div class="card mb-3">
+      <div class="card-body">
+        <h5 class="card-title">Cliente – Animação e som do drop</h5>
+
+        <h6>📘 O Que é?</h6>
+        <p>Carregamento dos áudios de drop de item e de ouro usados pelo cliente para feedback imediato ao spawnar loot.</p>
+
+        <h6>🎯 Para Que Serve?</h6>
+        <p>Garantir que o som/efeito ao dropar item ou Zen seja idêntico ao original.</p>
+
+        <h6>💻 Como Funciona?</h6>
+        <p>Em <code>ZzzOpenData.cpp</code>, os waves <code>pDropItem.wav</code> e <code>pDropMoney.wav</code> são carregados como <code>SOUND_DROP_ITEM01</code> e <code>SOUND_DROP_GOLD01</code>. O efeito visual usa o BMD do item com animação idle flutuante.</p>
+
+        <h6>📁 Onde Encontrar?</h6>
+        <p><code>Source Main 5.2/source/ZzzOpenData.cpp</code> (linhas de <code>LoadWaveFile</code> para <code>SOUND_DROP_ITEM01</code> e <code>SOUND_DROP_GOLD01</code>).</p>
+
+        <h6>⏱️ Quando é Executado?</h6>
+        <p>Durante o boot do cliente, antes de entrar no mapa; o som é disparado quando o item/Zen é criado no mundo.</p>
+      </div>
+    </div>
+
     <h2 class="mt-5">Implementação em Unreal Engine 5</h2>
     <ul>
       <li>Modelar itens como <code>UObjects</code> com <code>UDataAsset</code> para dados estáticos (slot, tamanho, flags).</li>
@@ -175,14 +239,22 @@ void ServerMoveItem(int32 From, int32 To);
       <li><strong>Crie os dados:</strong> Adicione um <code>PrimaryDataAsset</code> <em>DA_ItemTable</em> com array <code>Items</code> (Id, Nome, RarityColor, Icon, SlotType, Width, Height, StackMax). Preencha com os IDs do script original (ex.: "GET_ITEM(0,0)").</li>
       <li><strong>Monte o Blueprint de Inventário:</strong> Em <code>Content/UI</code>, crie <em>WBP_Inventory</em> (UserWidget). Adicione um <em>Canvas Panel</em> e posicione um <em>Border</em> em <strong>X=68, Y=612</strong>, <strong>W=620, H=370</strong> (slots 8x5 usando célula de 72 px, bordas de 10 px). Dentro, insira um <em>UniformGridPanel</em> com <code>Slot Padding (4,4)</code> e preencha dinamicamente via <code>CreateWidget</code> de <em>WBP_InventorySlot</em>.</li>
       <li><strong>Slot Blueprint:</strong> Em <em>WBP_InventorySlot</em>, adicione um <em>Button</em> ocupando 100% da célula, com <em>Image</em> para o ícone e <em>Text</em> para quantidade (fonte 16, alinhado Bottom-Right). Use <code>OnDragDetected</code> para criar um <em>Drag Visual</em> (ícone 64x64) e <code>OnDrop</code> para chamar um evento <code>Server_MoveItem(From, To)</code>.</li>
-      <li><strong>Mapa de arquivos e posições (Inventário/Equip/Shop/Warehouse):</strong>
-        <ul>
-          <li><code>/Game/UI/Inventory/WBP_Inventory</code> (Canvas 1920x1080): Border principal em <strong>X=68, Y=612, W=620, H=370</strong> com <code>UniformGridPanel</code> 8x5 (célula 72 px, Padding 4). Botões <code>Btn_Sort</code> e <code>Btn_Expand</code> 120x36 alinhados no topo direito do Border.</li>
-          <li><code>/Game/UI/Inventory/WBP_Equipment</code> (Anchor Top-Left em <strong>X=720, Y=120</strong>): slots de equipamento 3x4 (72x72, espaçamento 10) nomeados <code>Slot_Weapon</code>, <code>Slot_Shield</code>, <code>Slot_Helm</code>, etc.; painel de atributos rápidos (HP/MP/DEF/ATK) em <strong>X=32, Y=340, W=260, H=120</strong>.</li>
-          <li><code>/Game/UI/Inventory/WBP_Warehouse</code> (Canvas 1920x1080): janela modal 980x520 centrada; grid do baú 8x15 (célula 64 px, Padding 2) em <strong>X=48, Y=64</strong>; lista do inventário do jogador (para transferir) 8x5 em <strong>X=48, Y=420</strong>; botões <code>Btn_Deposit</code> e <code>Btn_Withdraw</code> 140x40 em <strong>X=840, Y=440</strong>. Ancore a janela ao centro e bloqueie input de jogo com <code>Set Input Mode UI Only</code>.</li>
-          <li><code>/Game/UI/Inventory/WBP_NPCShop</code> (Canvas 820x560 ancorado centro): painel esquerdo <strong>X=36, Y=42, W=480, H=472</strong> com grid 6x4 (slot 72 px) para lista de compra; painel direito <strong>X=540, Y=42, W=240, H=472</strong> mostrando detalhes do item (ícone 96x96, descrição, preço). Botões <code>Btn_Buy</code> e <code>Btn_Sell</code> 160x44 em <strong>X=540, Y=460</strong>. A abertura deve ser feita pelo overlap em NPC chamando <code>Create Widget (WBP_NPCShop)</code> → <code>Add to Viewport</code>.</li>
-        </ul>
-      </li>
+        <li><strong>Mapa de arquivos e posições (Inventário/Equip/Shop/Warehouse):</strong>
+          <ul>
+            <li><code>/Game/UI/Inventory/WBP_Inventory</code> (Canvas 1920x1080): Border principal em <strong>X=68, Y=612, W=620, H=370</strong> com <code>UniformGridPanel</code> 8x5 (célula 72 px, Padding 4). Botões <code>Btn_Sort</code> e <code>Btn_Expand</code> 120x36 alinhados no topo direito do Border.</li>
+            <li><code>/Game/UI/Inventory/WBP_Equipment</code> (Anchor Top-Left em <strong>X=720, Y=120</strong>): slots de equipamento 3x4 (72x72, espaçamento 10) nomeados <code>Slot_Weapon</code>, <code>Slot_Shield</code>, <code>Slot_Helm</code>, etc.; painel de atributos rápidos (HP/MP/DEF/ATK) em <strong>X=32, Y=340, W=260, H=120</strong>.</li>
+            <li><code>/Game/UI/Inventory/WBP_Warehouse</code> (Canvas 1920x1080): janela modal 980x520 centrada; grid do baú 8x15 (célula 64 px, Padding 2) em <strong>X=48, Y=64</strong>; lista do inventário do jogador (para transferir) 8x5 em <strong>X=48, Y=420</strong>; botões <code>Btn_Deposit</code> e <code>Btn_Withdraw</code> 140x40 em <strong>X=840, Y=440</strong>. Ancore a janela ao centro e bloqueie input de jogo com <code>Set Input Mode UI Only</code>.</li>
+            <li><code>/Game/UI/Inventory/WBP_NPCShop</code> (Canvas 820x560 ancorado centro): painel esquerdo <strong>X=36, Y=42, W=480, H=472</strong> com grid 6x4 (slot 72 px) para lista de compra; painel direito <strong>X=540, Y=42, W=240, H=472</strong> mostrando detalhes do item (ícone 96x96, descrição, preço). Botões <code>Btn_Buy</code> e <code>Btn_Sell</code> 160x44 em <strong>X=540, Y=460</strong>. A abertura deve ser feita pelo overlap em NPC chamando <code>Create Widget (WBP_NPCShop)</code> → <code>Add to Viewport</code>.</li>
+          </ul>
+        </li>
+        <li><strong>Drop 1:1 (servidor → mundo → UI):</strong>
+          <ul>
+            <li><em>DataTable</em> <code>DT_DropRules</code> em <code>/Game/Data/DT_DropRules</code> com colunas: <code>MonsterClass</code>, <code>ItemBagId</code>, <code>DropLevelOffset</code>, <code>ItemRate</code>, <code>MoneyRate</code>, <code>MoneyValue</code>, <code>BonusMultiplier</code>. Preencha com valores equivalentes aos de <code>gServerInfo</code>/<code>gMapManager</code>.</li>
+            <li><em>Actor</em> <code>BP_LootComponent</code> em <code>/Game/Blueprints/Combat</code>: função <code>Server_ResolveDrop</code> (Run on Server) recebe <code>MonsterClass</code>, <code>MapId</code>, <code>MonsterLevel</code>, <code>ItemRate</code>, <code>MoneyRate</code>, <code>MoneyAmountDropRate</code>. Nó <code>Select</code> → <code>Branch</code> decide se chama <code>SpawnItemDrop</code> ou <code>SpawnZenDrop</code> replicando o fluxo de <code>gObjMonsterDieGiveItem</code>.</li>
+            <li><em>Blueprint</em> <code>BP_ItemDropActor</code> em <code>/Game/Blueprints/World</code>: <code>StaticMesh</code> com <code>Niagara</code> <em>NS_DropFloat</em> e <code>AudioComponent</code> usando <em>AC_DropItem</em> (cue apontando para <code>pDropItem.wav</code>). Para Zen, use <em>AC_DropGold</em> com <code>pDropMoney.wav</code>. Defina <em>Timeline</em> de 0.6s elevando o item 18uu e descendo com easing <em>Ease Out</em>, replicando a animação flutuante.</li>
+            <li><em>UMG</em>: ao receber <code>OnRep_SpawnedLoot</code> no <code>PlayerController</code>, chame <code>Play Sound 2D (AC_DropItem/AC_DropGold)</code> para manter feedback 1:1. O UI de pickup permanece o mesmo (grid 8x5), apenas reage ao overlap.</li>
+          </ul>
+        </li>
       <li><strong>RPCs no PlayerController (Blueprint):</strong> Declare eventos <em>Custom Event</em> <code>Server_MoveItem</code>, <code>Server_PickupItem</code> e <code>Server_DropItem</code> marcados como <em>Run on Server, Reliable</em>. Cada evento chama uma função Blueprint <code>ValidateSlot</code> (checa se o destino está livre) e, em seguida, atualiza o <code>InventorySlots</code> (array replicado no PlayerState).</li>
       <li><strong>Replicação visual imediata:</strong> No PlayerState, crie um array <code>InventorySlots</code> de structs (ItemId, Qty) com <em>RepNotify</em>. No <code>OnRep</code>, atualize todos os <em>WBP_InventorySlot</em> com ícones/quantidade. Isso evita gaps de percepção enquanto a resposta do servidor chega.</li>
       <li><strong>Persistência via VaRest:</strong> No <code>Event BeginPlay</code> do PlayerController, chame VaRest <em>POST</em> para <code>/api/inventory/load</code> com {accountId, characterId}. No <code>OnRequestComplete</code>, converta o JSON em <code>InventorySlots</code>. No <code>EndPlay</code> (ou Logout), envie <code>/api/inventory/save</code> com o snapshot dos slots. Mantenha as rotas compatíveis com o módulo 9.</li>
