@@ -135,6 +135,13 @@ void SetGoalRightRect(int x,int y,int xl,int yl) { m_GoalRight.left=x; m_GoalRig
       <li><strong>Persistência VaRest</strong>: crie função <code>SendResult</code> no manager → <code>VaRest Request (POST)</code> para <code>/pvp/duel</code> com <em>winner, loser, arenaId, duration, score</em>. Em <code>OnSuccess</code>, mostre popup “Salvo no ranking”; em <code>OnFail</code>, guarde em fila local <code>PendingSaves</code> para retry.</li>
       <li><strong>Testes dirigidos</strong>: roteiro: (1) convidar/aceitar; (2) esperar timer zerar sem kills e verificar resultado empate; (3) marcar gol no Battle Soccer e ver barra de placar subir; (4) desconectar um jogador durante a partida e confirmar limpeza automática da arena.</li>
     </ol>
+
+    <h3>Mapa de arquivos e posicionamento 1:1</h3>
+    <ul>
+      <li><code>/Game/UI/PvP/WBP_Duel</code> (Canvas 1920x1080). Border 380x520 ancorado no canto direito (offset -400,-260) contendo ListView <code>LV_Arenas</code> 340x420 em <strong>X=20, Y=60</strong> e TextBlock <code>Txt_Title</code> em <strong>X=20, Y=12</strong>.</li>
+      <li><code>/Game/UI/PvP/WBP_DuelRow</code> (UserWidget 340x72): TextBlock <code>Txt_Name</code> em X=12, <code>Txt_State</code> em X=180, <code>Txt_Time</code> em X=240; botões <code>Btn_Invite</code> e <code>Btn_Accept</code> 72x28 alinhados à direita (X=260/Y=10 e X=260/Y=38).</li>
+      <li><code>/Game/UI/PvP/WBP_PlayerSelector</code> 360x420 ancorado centro (X=960, Y=540) com ScrollBox <code>SB_Players</code> preenchido por <code>WBP_PlayerRow</code> (row 44px com botão <code>Btn_Select</code> em X=260).</li>
+    </ul>
   </div>
 </body>
 </html>
