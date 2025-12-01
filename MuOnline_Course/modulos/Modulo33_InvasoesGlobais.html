@@ -236,6 +236,13 @@ private:
           <li>Som de alerta <em>SoundCue_Alarm</em> tocado via <strong>Play Sound 2D</strong> em todos os clientes (Multicast).</li>
         </ul>
       </li>
+      <li><strong>Mapa de arquivos e posicionamento 1:1</strong>:
+        <ul>
+          <li><code>/Game/UI/Events/Invasions/W_InvasionBanner</code> (Canvas 1920x1080) âncora topo-centro com Border 480x64 em <strong>X=640, Y=32</strong> e TextBlock <code>Txt_Message</code> centralizado.</li>
+          <li><code>/Game/UI/Events/Invasions/W_Countdown</code> TextBlock 220x48 em <strong>X=900, Y=32</strong>, fonte 28, cor amarela; alimentado por binding <code>GetRemainingText</code>.</li>
+          <li><code>/Game/UI/Events/Invasions/W_DebugStatus</code> (opcional) 420x60 em <strong>X=24, Y=700</strong> com três TextBlocks (HTTP, Spawn, Timer) alinhados verticalmente.</li>
+        </ul>
+      </li>
       <li>Persistência VaRest/SQL
         <ul>
           <li>Start: VaRest POST <code>/invasion/start</code> {index,map,startTime}. Progress: a cada 60s POST <code>/invasion/progress</code> {index, aliveCount}. End: POST <code>/invasion/end</code> {index, duration, bossKiller}.</li>
