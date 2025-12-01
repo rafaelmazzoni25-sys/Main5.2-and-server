@@ -125,6 +125,24 @@ void AMyGameMode::SendHeartbeat() {
     // montar payload e enviar via socket/HTTP
 }
 </code></pre>
+    <h2 class="mt-5">Guia Blueprint ultra detalhado (timers + heartbeats + painéis)</h2>
+    <p class="fw-semibold">Objetivo: recriar o loop de timers do GameServer no UE5 para iniciantes, sem escrever C++.</p>
+    <ol>
+      <li>No <strong>Content Browser</strong>, crie <em>Blueprint Class</em> &rarr; <code>GameModeBase</code> chamado <code>BP_GS_Loop</code>. Abra e marque <code>Run Dedicated Server</code> se usar PIE.</li>
+      <li>Abra o <strong>Event Graph</strong> e insira blocos:
+        <ul>
+          <li><code>Event BeginPlay</code> &rarr; <code>Set Timer by Function Name</code> (<em>Function Name</em>: <code>SendHeartbeat</code>, <em>Time</em>: 1.0, <em>Looping</em>: true).</li>
+          <li>Repita para <code>SpawnEvents</code> (tempo 5s), <code>CleanDeadActors</code> (tempo 15s) e <code>RefreshServerStatus</code> (tempo 10s).</li>
+        </ul>
+      </li>
+      <li>Crie <em>Functions</em> no Blueprint com o mesmo nome: em <code>SendHeartbeat</code>, coloque <code>Create VaRestRequest</code> (POST), <code>Set URL</code> (ex.: <code>http://127.0.0.1:3000/api/heartbeat</code>), <code>Set Request Body (JSON)</code> com campos <code>ServerCode</code>, <code>OnlinePercent</code>, <code>MaxPlayers</code>. Conecte a <code>Execute</code> &rarr; <code>Process URL</code>.</li>
+      <li>Em <code>SpawnEvents</code>, use <code>For Each Loop</code> sobre um <code>DataTable</code> de eventos (CSV com colunas <em>MapId</em>, <em>NpcID</em>, <em>Interval</em>), chamando <code>Spawn Actor From Class</code> para cada item. Grave o retorno em um <code>Array</code> de <code>Actor</code> para limpeza.</li>
+      <li>Em <code>CleanDeadActors</code>, use <code>For Each Loop</code> + <code>IsValid</code> + <code>Is Actor Being Destroyed</code>; se estiver destruído, chame <code>Remove Index</code> do array. Se vivo, pule.</li>
+      <li>Em <code>RefreshServerStatus</code>, use <code>VaRest</code> GET em <code>/api/server/metrics</code>. Ao receber resposta, chame um <code>Widget Blueprint</code> (<code>BP_AdminHUD</code>) e atualize campos <em>CPU</em>, <em>RAM</em>, <em>Users</em> com <code>SetText (RichTextBlock)</code>. Posicione o widget no viewport para debug.</li>
+      <li>Para simular <code>FD_CLOSE</code>, crie função <code>HandleAuxDisconnect</code> com um <code>Custom Event</code> que desconecta todos os jogadores: itere <code>Get All Actors of Class (PlayerController)</code> e chame <code>ClientTravel</code> para tela de login.</li>
+      <li>No <strong>Project Settings &rarr; Maps &amp; Modes</strong>, defina <code>BP_GS_Loop</code> como <em>GameMode Override</em> para garantir execução dos timers.</li>
+      <li>Teste no editor: use <strong>Output Log</strong> para ver prints (<code>Print String</code>) em cada timer; aumente <code>Time Dilation</code> para 10.0 e confirme que timers continuam, simulando o loop constante do GameServer.</li>
+    </ol>
   </div>
     <h2 class="mt-5">Passo a Passo em Unreal Engine 5</h2>
     <ol>

@@ -151,6 +151,20 @@
       <li>Inclua integração opcional com VaRest para persistir waypoints no backend (Node.js + SQL) e recarregar no login.</li>
     </ol>
 
+    <h3>Guia Blueprint clique a clique</h3>
+    <ol>
+      <li>No Content Drawer crie pasta <strong>Blueprints/Minimap</strong>. Adicione <em>Structure</em> <code>ST_MinimapMarker</code> com campos: <code>MapId (Integer)</code>, <code>Group (Byte)</code>, <code>Type (Byte)</code>, <code>Pos (Vector2D)</code>, <code>Label (Text)</code>, <code>Color (LinearColor)</code>.</li>
+      <li>Crie <strong>Data Table</strong> <code>DT_MinimapMarkers</code> baseado em <code>ST_MinimapMarker</code>. Importe o CSV original e valide coordenadas multiplicando por 100 quando converter para mundo.</li>
+      <li>Adicione <em>User Widget</em> <code>WBP_Minimap</code>. No <em>Designer</em>, insira uma <em>Border</em> de 400x400 px (Anchor canto superior direito, posição X= -440, Y=40, alinhamento 1,0). Dentro, adicione <em>Canvas Panel</em> chamado <code>Canvas_Map</code> 380x380 px para desenhar pinos.</li>
+      <li>No Graph, crie função <code>RefreshStaticMarkers</code>: recupere o mapa atual do PlayerState, filtre <code>DT_MinimapMarkers</code> e para cada linha use <em>Create Widget</em> de <code>WBP_MarkerPin</code> (Image 12x12). Converta <code>Pos</code> para Canvas: <code>X = (Pos.X / MapSizeX) * 380</code>, <code>Y = (Pos.Y / MapSizeY) * 380</code> e defina via <code>Slot As Canvas Slot</code> com posição (X,Y).</li>
+      <li>Party pins: crie <code>Dispatcher OnPartyLocationUpdated</code> no GameState. No <code>WBP_Minimap</code>, assine esse dispatcher e, a cada evento, desenhe/atualize ícones azuis (16x16) com borda branca para cada membro; líder recebe contorno dourado. Use <em>SetRenderOpacity</em> para piscar quando <code>Life &lt; 30%</code>.</li>
+      <li>Hotkey: no <em>Player Controller</em>, adicione ação "ToggleMinimap" em <code>Input</code>. No evento, alterne booleano <code>bMinimapVisible</code> (Replicated) e chame <code>SetVisibility</code> do <code>WBP_Minimap</code>. Use <em>Keyboard Shortcut</em> padrão "TAB" ou "M".</li>
+      <li>Waypoints do usuário: no <code>WBP_Minimap</code>, capture <code>OnMouseButtonDown</code>. Se botão direito, converta a posição do clique para coordenada de mapa (inverso da fórmula do item 4) e chame VaRest POST <code>/waypoint/save</code> com <code>MapId</code> e <code>Coord</code>. Exiba pino roxo (tamanho 14x14) para waypoints persistidos.</li>
+      <li>Integração com HUD: posicione o widget via <em>Viewport</em> no <code>HUD</code>. Ao mudar de mapa, chame <code>RefreshStaticMarkers</code> e limpe pinos da party. Adicione texto no canto superior direito do minimapa com nome do mapa e hora de servidor (VaRest GET <code>/time</code>).</li>
+      <li>Debug: crie widget <code>WBP_MinimapDebug</code> com checkbox "Mostrar Grid" que desenha linhas a cada 50 px usando <code>Draw Line</code> no <code>OnPaint</code> (marca X=0/Y=0). Útil para validar alinhamento com coordenadas do CSV.</li>
+      <li>Teste rápido: em <em>PIE Multiplayer 2</em>, mova dois jogadores em mapas diferentes. Verifique se o pino do colega some quando sai do mapa e reaparece ao entrar. Salve um waypoint e reinicie a sessão para confirmar recarga automática pelo VaRest GET <code>/waypoint/list</code>.</li>
+    </ol>
+
     <h3>Checklist Final</h3>
     <ul>
       <li>Minimapa exibe marcadores fixos por mapa a partir do DataTable.</li>

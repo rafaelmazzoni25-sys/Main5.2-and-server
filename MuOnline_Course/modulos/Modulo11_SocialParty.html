@@ -227,6 +227,20 @@ public:
       <li>Adicionar comandos de console para forçar criação/remoção de party e para depurar replicação (dump em log).</li>
     </ol>
 
+    <h2>Guia Blueprint clique a clique (iniciante)</h2>
+    <ol>
+      <li>No Content Drawer crie uma pasta <strong>Blueprints/Party</strong>; clique com o botão direito &rarr; <em>Blueprint Class</em> &rarr; <em>Actor</em> e nomeie <code>BP_PartyState</code>.</li>
+      <li>Abra <code>BP_PartyState</code> &rarr; aba <em>Class Defaults</em> e marque <strong>Replicates</strong> e <strong>Replicate Movement</strong> (desmarcado) &rarr; em <em>Replication</em> defina <strong>Net Update Frequency</strong> = 5.</li>
+      <li>Adicione uma variável <code>Members</code> do tipo <em>Array of PartyMemberInfo</em> (estrutura criada em <em>Blueprints/Structs/PartyMemberInfo</em> com campos <code>Name</code>, <code>Slot</code>, <code>MapId</code>, <code>Pos</code>, <code>Life</code>, <code>LifeMax</code>, <code>Mana</code>, <code>ManaMax</code>). Ative <em>RepNotify</em> e nomeie o evento <code>OnRep_Members</code>.</li>
+      <li>Crie um <strong>Custom Event</strong> <code>ServerRequestParty</code>, marque <em>Run on Server</em> (Reliable) e adicione parâmetro <code>TargetName (String)</code>. No gráfico, arraste <code>Request Invite</code> (VaRest POST <code>/party/request</code>) e, no retorno, atualize uma variável <code>PendingInvites</code> com <em>Current Time + 15s</em> para expirar.</li>
+      <li>Adicione um <strong>Custom Event</strong> <code>ServerAcceptParty</code> (Run on Server, Reliable) com <code>LeaderSlot (Integer)</code>. Em sequência: <em>Branch</em> validando <code>Members.Length &lt;= 4</code>, depois <em>For Each Loop</em> em <code>Members</code> para impedir nomes duplicados. Ao final, use <em>Add</em> para inserir um <code>FPartyMemberInfo</code> com <code>Slot</code> definido e chame <em>RepNotify</em>.</li>
+      <li>No <code>OnRep_Members</code> chame um <strong>Dispatcher</strong> <code>OnPartyUpdated</code>. No <em>Designer</em> do widget <code>WBP_Party</code>, adicione <em>Vertical Box</em> com 5 entradas (altura 42px cada) e, em cada linha, um <em>Progress Bar</em> (vida) e outro (mana). Posicione o widget no canto superior esquerdo (X=30, Y=120) com <em>Anchors</em> no topo esquerdo.</li>
+      <li>Para expulsar membro: no botão de cada linha, em <code>OnClicked</code>, chame <code>ServerDelMember</code> (Run on Server, Reliable) passando <code>Slot</code>. Mostre confirmação em um <em>Modal</em> com texto "Confirmar expulsão de {Name}?".</li>
+      <li>Para integração com minimapa: no <code>OnPartyUpdated</code> do <code>HUD</code>, percorra <code>Members</code> e chame <code>AddMapIcon</code> (Blueprint do minimapa) definindo <code>WorldLocation</code> via <code>MapId</code> &rarr; tabela de transformação. Use cor <span style="color:#00c8ff">ciano</span> para líder.</li>
+      <li>Anti-abuso: a cada <strong>Timer</strong> (0.5s) no servidor, valide que todos os <code>Members</code> existem (<code>IsValid PlayerState</code>) e remova desconectados. Em paralelo, VaRest GET <code>/party/health</code> pode ser usado para reconciliar barras quando houver desync.</li>
+      <li>Teste rápido local: abra dois <em>PIE Multiplayer</em> com 2 players, clique com botão direito no segundo jogador &rarr; menu contextual "Convidar" &rarr; aceite via popup. Verifique se as barras do <code>WBP_Party</code> preenchem e atualizam ao sofrer dano.</li>
+    </ol>
+
     <h2>Checklist Final</h2>
     <ul>
       <li>Convites de party são enviados e recebidos, respeitando limite de 5 membros.</li>
