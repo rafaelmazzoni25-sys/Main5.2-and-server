@@ -184,5 +184,31 @@ void ServerMoveItem(int32 From, int32 To);
       <li><strong>Checklist visual:</strong> No viewport 1920x1080, confirme: painel do inventário começa em (68,612), grid 8x5 visível, tooltip alinha ao cursor, ícones não pixelam (use <em>UI Texture Group</em>), textos legíveis em 100%/125% de escala.</li>
     </ol>
 
+    <h2 class="mt-5">Guia ultra-detalhado (cliques + nós Blueprint)</h2>
+    <p>Use esta seção como roteiro “faça você mesmo” para iniciantes completos, sem saltos de conhecimento.</p>
+    <ol>
+      <li><strong>Estrutura do projeto:</strong> Crie pastas <code>Content/UI</code>, <code>Content/Data</code>, <code>Content/Blueprints</code>. No Content Browser, clique com o botão direito → <em>Miscellaneous &gt; Data Asset</em> → escolha a classe <code>PrimaryDataAsset</code> → nomeie <em>DA_ItemTable</em>.</li>
+      <li><strong>Schema SQL inicial:</strong> No seu servidor SQL, execute:<pre><code>CREATE TABLE mu_items (
+  account_id VARCHAR(64),
+  character_id VARCHAR(64),
+  slot INT,
+  item_id INT,
+  qty INT,
+  PRIMARY KEY(account_id, character_id, slot)
+);</code></pre>Isso garante persistência simples 1:1 com os slots do inventário.</li>
+      <li><strong>Endpoints VaRest prontos:</strong> Configure o backend para aceitar:<pre><code>POST /api/inventory/load  {"accountId":"A1","characterId":"C1"}
+POST /api/inventory/save  {"accountId":"A1","characterId":"C1","slots":[{"slot":0,"itemId":4,"qty":2}]}</code></pre>No Blueprint <em>PlayerController</em>, adicione <em>Make Json Object</em> → <em>Set String Field</em> (accountId, characterId) → <em>Call URL</em> (VaRest POST).</li>
+      <li><strong>Slots replicáveis na prática:</strong> No <em>PlayerState Blueprint</em>, adicione uma variável <code>InventorySlots</code> (Array de <em>FItemSlot_BP</em>) marcada como <em>Replicated</em>. Crie um evento <code>OnRep_InventorySlots</code> que percorre (<em>For Each</em>) e chama <code>UpdateSlotWidget</code>.</li>
+      <li><strong>Montando o slot:</strong> Em <em>WBP_InventorySlot</em>, selecione o <em>Button</em> → aba <em>Details</em> → <em>On Clicked</em> → <code>Bind Event</code>. No gráfico, conecte para emitir <em>Dispatcher OnSlotClicked</em> com o índice do slot (exposto via variável <code>SlotIndex</code>).</li>
+      <li><strong>Drag-and-drop passo a passo:</strong> Ainda em <em>WBP_InventorySlot</em>, clique no <em>Button</em> → <em>Overrides</em> → <em>OnDragDetected</em>. No gráfico, adicione nós: <code>Detect Drag if Pressed</code> → <code>Construct Drag Visual</code> (use o <em>Image</em> do ícone) → <code>Set Drag Visual Offset</code> para (-32,-32) para centralizar o cursor.</li>
+      <li><strong>Chamada RPC sem erros:</strong> No <em>PlayerController Blueprint</em>, adicione <em>Custom Event</em> <code>Server_MoveItem</code> (Run on Server, Reliable). Entrada: <code>FromSlot</code>, <code>ToSlot</code>. No corpo, chame <code>ValidateSlot</code> (Branch). Se verdadeiro, atualize o array no PlayerState e chame <code>Multicast_UpdateInventory</code> (Run on Multicast) para todos verem a mudança.</li>
+      <li><strong>Popular grid por Blueprint:</strong> No <em>WBP_Inventory</em>, no <code>Event Construct</code>, crie laço <code>ForLoop</code> de 0 a 39 (40 slots). A cada iteração: <code>Create Widget (WBP_InventorySlot)</code> → <code>Set SlotIndex</code> → <code>Add Child to UniformGrid</code> com <code>Column = Index % 8</code> e <code>Row = Index / 8</code>. Salve os refs em array <code>SlotWidgets</code>.</li>
+      <li><strong>Atualizar ícones:</strong> No evento <code>UpdateSlotWidget</code>, receba <code>SlotIndex</code> e <code>FItemSlot_BP</code>. Use <code>Get Data Table Row</code> a partir do <em>DA_ItemTable</em> para buscar o ícone. Se <code>ItemId == 0</code>, esconda a imagem (<em>Set Visibility: Hidden</em>) e zere a quantidade.</li>
+      <li><strong>Persistência de saída:</strong> No <em>Event EndPlay</em> do PlayerController, monte o JSON: <code>Make Array</code> de <em>Make Json Object</em> (slot, itemId, qty) → use <code>Set Array Field ("slots")</code> → VaRest POST para <code>/api/inventory/save</code>. Conecte <code>On Request Completed</code> a um <em>Print String</em> verde para confirmar.</li>
+      <li><strong>Erro visível para usuário:</strong> Adicione um <em>TextBlock</em> <strong>"Erro: inventário cheio"</strong> posicionado em <strong>X=68, Y=996</strong>. No <code>Server_PickupItem</code>, se o inventário estiver cheio, chame um <code>Multicast_ShowMessage</code> que seta o texto e toca um som <em>UI_Error</em>.</li>
+      <li><strong>Teste manual guiado:</strong> Abra o mapa → pressione <kbd>I</kbd> → arraste um item do slot 0 ao 7 → observe highlight azul. Pressione <kbd>Shift+D</kbd> (atalho que você configura) para soltar item; valide que o VaRest <code>save</code> é chamado ao sair do mapa (confirme no log Output Log).</li>
+      <li><strong>Anti-duplicação básico:</strong> Crie variável <code>bIsMovingItem</code> (bool replicado). Antes de executar qualquer RPC de move/drop/pickup, faça <code>Branch</code>; se verdadeiro, retorne e mostre mensagem <em>"Aguardando operação anterior"</em>. Zere a flag apenas no <code>OnRep_InventorySlots</code>.</li>
+    </ol>
+
 </body>
 </html>
