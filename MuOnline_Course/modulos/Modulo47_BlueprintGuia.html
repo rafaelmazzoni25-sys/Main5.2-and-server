@@ -1,0 +1,282 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  <title>Módulo 47 – Guia Blueprint: Recriando Cliente/Servidor e Módulos 1–46</title>
+</head>
+<body class="bg-light">
+  <div class="container py-4">
+    <h1 class="mb-4">Módulo 47 – Guia Blueprint: Recriando Cliente/Servidor e Todos os Módulos</h1>
+    <p class="lead">Aula guiada para transformar os fluxos C++ legados (cliente Main 5.2 e GameServer Update 15) em Blueprints UE5, cobrindo <strong>todos os módulos (1–46)</strong> sem apagar o material original e mantendo o uso de VaRest + SQL.</p>
+
+    <h2>Trilhas de Código C++ que Servem de Referência</h2>
+    <ul>
+      <li><strong>Cliente</strong>: <code>Source Main 5.2/source/Winmain.cpp</code> (loop e globais), <code>Source Main 5.2/source/ProtocolSend.cpp</code> (envio) e <code>Source Main 5.2/source/ProtocolRecv.cpp</code> (recepção).</li>
+      <li><strong>Servidor</strong>: <code>Source MuServer Update 15/GameServer/GameServer/GameMain.cpp</code> (boot), <code>GameServer/Protocol.cpp</code> (roteamento) e <code>GameServer/MonsterAI/MonsterAI.cpp</code> (IA e timers).</li>
+      <li><strong>Persistência</strong>: <code>DataServer/QueueTimer.cpp</code> + SQL ODBC, mapeados em UE5 via Http/REST e Data Assets.</li>
+    </ul>
+
+    <h2>Blueprints: Pilares de Recriação</h2>
+    <div class="row">
+      <div class="col-md-6">
+        <div class="card mb-3">
+          <div class="card-body">
+            <h5 class="card-title">GameInstance para Globais</h5>
+            <p>Centraliza singletons de UI, rede e áudio. Crie variáveis:</p>
+            <ul>
+              <li><code>UIManagerRef</code> (tipo <code>Object</code> de um subsystem)</li>
+              <li><code>NetworkQueue</code> (array de structs de pacotes)</li>
+              <li><code>MusicState</code> (enum replicando <code>PlayMp3/StopMp3</code>)</li>
+            </ul>
+            <p>No Event Init, carregue assets e inicialize sockets HTTP/UDP.</p>
+          </div>
+        </div>
+      </div>
+      <div class="col-md-6">
+        <div class="card mb-3">
+          <div class="card-body">
+            <h5 class="card-title">GameMode/Controller para Boot do Servidor</h5>
+            <p>Use <code>AGameModeBase</code> (dedicado) para ler Data Assets de monstros/experiência e abrir conexões REST/Socket com scripts equivalentes a <code>gJoinServerConnection</code> e <code>gDataServerConnection</code>.</p>
+            <p>Implemente timers (Set Timer by Function Name) para filas de eventos e invocação de IA.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <h2>Passo a Passo (Aula Guiada – Núcleo)</h2>
+    <ol>
+      <li><strong>Preparar o Projeto</strong>
+        <ul>
+          <li>Criar um projeto C++ + Blueprint em UE5 e definir <code>UMuGameInstance</code> como Game Instance no Project Settings.</li>
+          <li>Habilitar plugin <em>VaRest</em> ou Http integrada para emular consultas ao DataServer; adicionar socket/OSC se quiser persistir TCP bruto.</li>
+          <li>Importar Data Tables em CSV para tabelas de monstros/experiência, seguindo as colunas de <code>MonsterSetBase</code> e XP do GameServer.</li>
+        </ul>
+      </li>
+      <li><strong>Cliente – Loop de Rede e Render</strong>
+        <ul>
+          <li>Criar um <em>Blueprint Function Library</em> chamado <code>BP_Protocol</code> com funções <code>SendPacket</code> e <code>ConsumeRecvQueue</code> que recebem structs equivalentes aos <code>ProtocolSend/Recv</code>.</li>
+          <li>Adicionar um <code>Actor</code> <code>BP_NetworkTick</code> com componente <em>Tick</em> habilitado para executar a cada frame: <em>Poll Messages</em> → <em>Update UI</em> → <em>Play BGM</em>, replicando o <code>Scene()</code> + <code>ProtocolCompiler()</code>.</li>
+          <li>No <code>BeginPlay</code> do <code>BP_NetworkTick</code>, instanciar <code>UIManager</code> e registrar inputs, espelhando as globais definidas em <code>Winmain.cpp</code>.</li>
+        </ul>
+      </li>
+      <li><strong>Servidor – Boot e Conexões</strong>
+        <ul>
+          <li>Em um mapa dedicado, definir <code>GM_Server</code> (Blueprint de GameMode) que chama <code>Load Config</code> (leitura de Data Assets) e abre conexões com serviços externos.</li>
+          <li>Configurar timers para: <em>Processar fila de pacotes</em> (100 ms), <em>Atualizar IA</em> (500 ms) e <em>Persistir status</em> (1 s), equivalentes às rotinas de <code>GameMain.cpp</code> e <code>MonsterAI.cpp</code>.</li>
+          <li>Registrar rotas de mensagem em um <code>DataTable</code> (ID → Function Name). No recebimento, use <code>Switch on Int</code> para chamar handlers, simulando <code>Protocol.cpp</code>.</li>
+        </ul>
+      </li>
+      <li><strong>Persistência via Blueprints</strong>
+        <ul>
+          <li>Criar <code>BP_DataServerClient</code> (Actor ou Subsystem) com funções <code>SendSQL</code> (Http POST) e <code>OnSQLResponse</code>; mapear resultados em structs para ser consumidos pelo GameMode.</li>
+          <li>Usar <em>Queues</em> (Arrays) para requests pendentes e timers para reenvio, replicando <code>QueueTimer.cpp</code>.</li>
+          <li>Padronizar headers de autenticação para todos os módulos e manter um endpoint de <code>/health</code> para validar o DataServer antes de liberar UI.</li>
+        </ul>
+      </li>
+      <li><strong>IA e Movimento</strong>
+        <ul>
+          <li>Converter scripts de <code>MonsterAI/MovePath</code> em Data Assets (listas de vetores). Carregar no <code>GM_Server</code> e usar <em>AI MoveTo</em> + <em>Behavior Tree</em> para seguir caminhos.</li>
+          <li>Usar <em>Environment Query</em> para checks de colisão e <em>Gameplay Tags</em> para estados (Aggro, Return, Dead) em vez de flags C++.</li>
+        </ul>
+      </li>
+      <li><strong>Entrega e Depuração</strong>
+        <ul>
+          <li>Adicionar comandos de console (<code>mu.DumpInit</code>, <code>mu.ForceRespawn</code>) expostos por <code>Exec</code> functions em Blueprints para validar fases de boot.</li>
+          <li>Criar um <em>Widget</em> de monitoria que mostre <em>Packets/s</em>, <em>Timers ativos</em> e <em>Estado das conexões</em> para comparar com o log do C++.</li>
+        </ul>
+      </li>
+    </ol>
+
+    <h2>Trilha Completa: Recriando os Módulos 1–46 em Blueprints</h2>
+    <p>Use esta trilha paralela aos módulos originais (C++) sem apagá-los. Cada módulo herda o núcleo acima, usa <strong>VaRest</strong> para HTTP/JSON e persiste no mesmo banco SQL (exposto por um serviço REST).</p>
+    <div class="row">
+      <div class="col-md-6">
+        <div class="card mb-3">
+          <div class="card-body">
+            <h5 class="card-title">Fundação (Mód. 1–10)</h5>
+            <ul class="mb-0">
+              <li><strong>Arquitetura/Bootstrap</strong>: Configure <code>UMuGameInstance</code> e <code>BP_NetworkTick</code> para loops de cliente/servidor (mód.1–2).</li>
+              <li><strong>Movimento/Interface</strong>: Use <em>Character Movement</em> + <em>Replicate Movement</em> para o módulo 3 e Widgets UMG para o módulo 10.</li>
+              <li><strong>Persistência</strong>: Para o módulo 9, exponha endpoints <code>/character/load</code> e <code>/character/save</code> no serviço REST; no Blueprint, chame via VaRest com <em>Retry</em> usando as filas do núcleo.</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+      <div class="col-md-6">
+        <div class="card mb-3">
+          <div class="card-body">
+            <h5 class="card-title">Social, Eventos e IA (Mód. 11–24)</h5>
+            <ul class="mb-0">
+              <li><strong>Party/Social</strong> (mód.11–13): replique pacotes com <code>DataTable</code> de eventos (PartyJoin, PartyHP) e widgets para mini-mapa.</li>
+              <li><strong>IA</strong> (mód.12): Behavior Trees com <em>Blackboard</em> para estados de agressão; caminhos em Data Assets como no núcleo.</li>
+              <li><strong>Eventos</strong> (mód.14–24): crie um <code>BP_EventScheduler</code> que lê Data Assets de scripts de evento e usa <em>Switch on Name</em> para executar fluxos (Crywolf, Blood Castle, Imperial Guardian, etc.). Cada resultado chave (recompensas, status global) persiste via VaRest em <code>/events/{id}/state</code>.</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="row">
+      <div class="col-md-6">
+        <div class="card mb-3">
+          <div class="card-body">
+            <h5 class="card-title">Economia, Itens e Scripts (Mód. 25–36)</h5>
+            <ul class="mb-0">
+              <li><strong>Chaos Castle / Acheron / Illusion</strong> (mód.24–26): estados em <em>State Machines</em> de Blueprint, com checkpoints salvos via <code>/instances/save</code>.</li>
+              <li><strong>Pentagram/Itens</strong> (mód.27–35): Data Tables para joias, sockets e mineração; use <em>Gameplay Tags</em> para validar buffs. As compras/rolagens chamam <code>/inventory/update</code> em VaRest.</li>
+              <li><strong>MuRummy/Lucky Coin</strong> (mód.36): Widgets dedicados que chamam <code>/minigames/rummy</code> e <code>/minigames/luckycoin</code> para registrar embaralhamento e recompensas.</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+      <div class="col-md-6">
+        <div class="card mb-3">
+          <div class="card-body">
+            <h5 class="card-title">Segurança, Progressão e Serviços (Mód. 37–46)</h5>
+            <ul class="mb-0">
+              <li><strong>Criptografia/Reconexão</strong> (mód.37–38): implemente cifra XOR em Blueprint Function Library e salve snapshots de sessão no endpoint <code>/session/snapshot</code>.</li>
+              <li><strong>Casamento/PvP</strong> (mód.39–40): Data Assets para regras; persistência em <code>/social/marriage</code> e <code>/pvp/match</code>. Replicar timers com <em>Timer by Event</em>.</li>
+              <li><strong>Progressão/Bonus</strong> (mód.41–46): aplique multiplicadores via <em>Gameplay Effect</em> e registre alterações no <code>/progression</code>. Para bots (mód.44), use <code>BP_BotService</code> com inventário em Data Assets.</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <h2>Nova Lista de Módulos (Blueprint + VaRest + SQL)</h2>
+    <p>Cada item abaixo corresponde ao módulo C++ original, mas com instruções diretas para refazê-lo em Blueprints, mantendo a persistência via VaRest + SQL. Siga na ordem para reutilizar Blueprints compartilhados (Packet Router, SQL Bridge e Event Scheduler).</p>
+    <ol>
+      <li><strong>Mód. 1 – Arquitetura</strong>: Configure <code>UMuGameInstance</code>, <code>BP_NetworkTick</code> e <code>BP_PacketRouter</code>; salve configs iniciais em <code>/config/init</code> (VaRest).</li>
+      <li><strong>Mód. 2 – Rede/Autenticação</strong>: Endpoints <code>/auth/login</code> e <code>/auth/refresh</code>; use <em>Switch on Int</em> para mapear IDs de pacote, salvando tokens em Data Asset.</li>
+      <li><strong>Mód. 3 – Movimento</strong>: <code>Character Movement</code> replicado; persistir posição e mapa em <code>/character/save</code> ao desconectar.</li>
+      <li><strong>Mód. 4 – Combate/Skills</strong>: Behavior Trees + Gameplay Ability System; salve cooldowns/estado de buffs em <code>/combat/state</code>.</li>
+      <li><strong>Mód. 5 – Inventário</strong>: Data Tables para itens e <code>UI_Inventory</code>; operações CRUD via <code>/inventory/update</code> com rollback em caso de falha.</li>
+      <li><strong>Mód. 6 – Timers/Eventos</strong>: <code>BP_EventScheduler</code> lendo Data Assets; persistir progresso em <code>/events/state</code>.</li>
+      <li><strong>Mód. 7 – Join/Data Server</strong>: Dois <code>HttpSubsystems</code> (Join/Data) com Health Check; log de boot em <code>/health</code>.</li>
+      <li><strong>Mód. 8 – Roteamento</strong>: <code>BP_PacketRouter</code> como dispatcher central; tabela ID → Handler em Data Asset, com logs espelhando o C++.</li>
+      <li><strong>Mód. 9 – Persistência</strong>: <code>BP_SQLBridge</code> unifica headers/retentativa; todas as gravações de personagem e eventos passam por ele.</li>
+      <li><strong>Mód. 10 – Interface</strong>: Widgets UMG (<code>UI_HUD</code>, <code>UI_Chat</code>); carregamento preguiçoso baseado em flags de <code>/config/ui</code>.</li>
+      <li><strong>Mód. 11 – Party</strong>: Replicar convites via <code>/party/invite</code>; sincronia de HP em <code>UI_Party</code> usando <code>Multicast</code>.</li>
+      <li><strong>Mód. 12 – IA Monstros</strong>: Behavior Trees + Data Assets de rotas; salvar respawns ativos em <code>/ai/spawn</code>.</li>
+      <li><strong>Mód. 13 – MiniMapa</strong>: Map Range Clamped para coordenadas; persistir pinos customizados do jogador em <code>/map/pins</code>.</li>
+      <li><strong>Mód. 14 – Muun</strong>: Data Table de pets; buffs aplicados com Gameplay Effects e persistidos em <code>/pets/state</code>.</li>
+      <li><strong>Mód. 15 – Arca Battle</strong>: State Machine em Blueprint; obeliscos carregados de Data Asset e progresso salvo em <code>/events/arca</code>.</li>
+      <li><strong>Mód. 16 – Castle Siege</strong>: Tabela de fases + timers; checkpoints e ownership gravados em <code>/events/castlesiege</code>.</li>
+      <li><strong>Mód. 17 – Chaos Box</strong>: Widget de mistura com cálculo em Blueprint Function; registrar tentativas em <code>/craft/chaos</code>.</li>
+      <li><strong>Mód. 18 – Gens</strong>: Facção em Gameplay Tags; ranking/insígnias lidos de <code>/gens/rank</code> e enviados via VaRest.</li>
+      <li><strong>Mód. 19 – Crywolf</strong>: Estados globais em <code>BP_EventScheduler</code>; contrato/benefícios sincronizados em <code>/events/crywolf</code>.</li>
+      <li><strong>Mód. 20 – Devil Square/Blood Castle</strong>: Fila de entrada com Data Table de vagas; resultados gravados em <code>/instances/devilsquare</code> e <code>/instances/bloodcastle</code>.</li>
+      <li><strong>Mód. 21 – Kanturu</strong>: Máquinas de estado separadas para Maya/Nightmare; progresso e recompensas via <code>/events/kanturu</code>.</li>
+      <li><strong>Mód. 22 – Raklion</strong>: Timer por fase de Selupan; ovos/buffs persistidos em <code>/events/raklion</code>.</li>
+      <li><strong>Mód. 23 – Imperial Guardian</strong>: Ciclo diário em Data Asset; resultados e recompensas em <code>/instances/imperial</code>.</li>
+      <li><strong>Mód. 24 – Illusion Temple</strong>: Verificação de nível, teleporte e estado por time salvos em <code>/instances/illusion</code>.</li>
+      <li><strong>Mód. 25 – Chaos Castle</strong>: Round state machine; scoreboard salvo em <code>/instances/chaoscastle</code>.</li>
+      <li><strong>Mód. 26 – Acheron Guardian</strong>: Validação de ticket e teleporte; instâncias em <code>/instances/acheron</code>.</li>
+      <li><strong>Mód. 27 – Pentagram</strong>: Data Table de joias/slots; upgrades enviados a <code>/pentagram/upgrade</code>.</li>
+      <li><strong>Mód. 28 – Quests</strong>: Data Assets de requisitos; progresso em <code>/quests/state</code> com checkpoints por etapa.</li>
+      <li><strong>Mód. 29 – Trade/Loja</strong>: Widgets de trade/loja; transações validadas em <code>/trade/validate</code> e <code>/trade/commit</code>.</li>
+      <li><strong>Mód. 30 – Guild/União</strong>: <code>BP_GuildService</code> chama <code>/guild/*</code>; união/rivais persistidas com <code>BP_SQLBridge</code>.</li>
+      <li><strong>Mód. 31 – Comandos/GM</strong>: Data Table de comandos → funções; auditoria em <code>/logs/commands</code>.</li>
+      <li><strong>Mód. 32 – Cash Shop/PcPoint</strong>: Catálogo em Data Asset; compras via <code>/cashshop/purchase</code> e pontos em <code>/cashshop/points</code>.</li>
+      <li><strong>Mód. 33 – Invasões</strong>: Tabela de spawn; estados globais em <code>/events/invasions</code> e avisos replicados.</li>
+      <li><strong>Mód. 34 – Moss Merchant</strong>: Roleta de itens em Blueprint; resultados logados em <code>/npc/moss</code>.</li>
+      <li><strong>Mód. 35 – Mineração</strong>: State machine de mineração; progresso salvo em <code>/mining/state</code>.</li>
+      <li><strong>Mód. 36 – MuRummy/Lucky Coin</strong>: Widgets dedicados chamando <code>/minigames/rummy</code> e <code>/minigames/luckycoin</code> para deck/sorteios.</li>
+      <li><strong>Mód. 37 – Criptografia</strong>: Biblioteca Blueprint com cifra XOR; chaves carregadas de <code>/security/keys</code> e salvas em cache.</li>
+      <li><strong>Mód. 38 – Reconexão</strong>: Snapshots de sessão enviados a <code>/session/snapshot</code>; restaure em <code>OnPostLogin</code> via VaRest.</li>
+      <li><strong>Mód. 39 – Casamento</strong>: FSM de pedido/aceite; persistência em <code>/social/marriage</code>.</li>
+      <li><strong>Mód. 40 – PvP</strong>: Instâncias de duelo/Battle Soccer com timers; resultados em <code>/pvp/match</code>.</li>
+      <li><strong>Mód. 41 – Experiência/Reset</strong>: Data Table de faixas; atualizações no endpoint <code>/progression/xp</code>.</li>
+      <li><strong>Mód. 42 – Start Items/Buffs</strong>: Script de entrega em Blueprint; confirmações em <code>/inventory/start</code>.</li>
+      <li><strong>Mód. 43 – Itens 380</strong>: Validação de flags e bônus via Gameplay Effects; gravação em <code>/items/380</code>.</li>
+      <li><strong>Mód. 44 – Bots de Serviço</strong>: <code>BP_BotService</code> com Data Assets de inventário; logs em <code>/npc/bots</code>.</li>
+      <li><strong>Mód. 45 – Eventos Instantâneos</strong>: Cronograma em Data Asset; resultados enviados para <code>/events/instant</code>.</li>
+      <li><strong>Mód. 46 – Bonus Manager</strong>: Timers de multiplicadores; estados globais em <code>/bonus/state</code> e métricas em <code>/bonus/metrics</code>.</li>
+    </ol>
+
+    <h2>Aulas Guiadas Detalhadas (Passo a Passo 1:1 por Módulo)</h2>
+    <p>Use estas instruções de aula para recriar cada módulo em Blueprint preservando o comportamento do código C++ original. Cada passo indica o Blueprint/Widget/Data Asset a usar e a rota VaRest/SQL para persistência.</p>
+    <ol>
+      <li><strong>Mód. 1 – Arquitetura e Boot</strong>: Criar <code>UMuGameInstance</code> + <code>BP_NetworkTick</code>; expor variáveis globais (HUDRef, PacketQueue, MusicState). Configurar endpoint <code>/config/init</code> e armazenar a resposta em Data Asset <code>DA_ConfigInit</code>.</li>
+      <li><strong>Mód. 2 – Autenticação</strong>: Blueprint Function <code>SendLogin</code> chamando <code>/auth/login</code> via VaRest; salvar <em>AccessToken</em>/<em>RefreshToken</em> no GameInstance. Criar <code>Widget UI_Login</code> com validação local antes do POST.</li>
+      <li><strong>Mód. 3 – Movimento/Mapas</strong>: Usar <code>Character Movement</code> com <em>Replicate Movement</em>. Data Table <code>DT_Maps</code> contendo <code>MapID</code>, <code>TeleportX</code>, <code>TeleportY</code>. Persistir posição em <code>/character/save</code> ao finalizar sessão.</li>
+      <li><strong>Mód. 4 – Combate/Skills</strong>: Configurar <em>Gameplay Ability System</em> em Blueprint. Data Table <code>DT_Skills</code> com <code>SkillID</code>, <code>Mana</code>, <code>DelayMs</code>, <code>AnimMontage</code>. Armazenar cooldowns em <code>/combat/state</code>.</li>
+      <li><strong>Mód. 5 – Inventário e Itens</strong>: Criar Data Table <code>DT_Items</code> com colunas <code>ItemID</code>, <code>Name</code>, <code>SlotType</code>, <code>Width</code>, <code>Height</code>, <code>Rarity</code>, <code>Option</code>, <code>Durability</code>. Widget <code>UI_Inventory</code> replicando a grade 8x12 do cliente (pixels por slot 32). Operações CRUD via <code>/inventory/update</code> com payload do slot (Index, ItemID, Durability).</li>
+      <li><strong>Mód. 6 – Timers/Eventos Servidor</strong>: <code>BP_EventScheduler</code> com timers de 1 s e 5 s. Data Asset <code>DA_EventScripts</code> (EventID, StartTime, Duration). Persistir progresso em <code>/events/state</code>.</li>
+      <li><strong>Mód. 7 – Conexões Auxiliares</strong>: <code>BP_JoinServerClient</code> e <code>BP_DataServerClient</code> (Actors). Health check <code>/health</code> antes de liberar UI. Log de boot salvo em <code>/logs/boot</code>.</li>
+      <li><strong>Mód. 8 – Roteamento de Pacotes</strong>: <code>BP_PacketRouter</code> contendo Data Table <code>DT_Packets</code> (ID, HandlerName). No <em>Event Tick</em>, usar <em>Switch on Int</em> para despachar para funções. Gravar erros em <code>/logs/packet</code>.</li>
+      <li><strong>Mód. 9 – Persistência SQL</strong>: <code>BP_SQLBridge</code> com fila de requests (Array de structs). Implementar <em>Retry</em> (3 tentativas) com timer de 2 s. Todos os módulos chamam <code>ExecuteSQL</code> → POST <code>/sql/run</code>.</li>
+      <li><strong>Mód. 10 – Interface/HUD</strong>: Widget <code>UI_HUD</code> em tela 1920x1080, ancorada: <em>HP Orb</em> (X=86,Y=972), <em>MP Orb</em> (X=206,Y=972), <em>Hotbar</em> (X=640,Y=980 largura 640 px), <em>MiniMapa</em> (X=1660,Y=40 tamanho 220x220) e <em>Chat</em> (X=80,Y=720 largura 520 px). Vincule HP/MP à BlackBoard/attributes e atualize via <code>OnAttributeChanged</code>. Configurar carregamento preguiçoso com flag de <code>/config/ui</code>.</li>
+      <li><strong>Mód. 11 – Party</strong>: <code>UI_Party</code> com slots de membros (5). Cada slot exibe HP% recebido de <code>/party/status</code>. Convites via <code>/party/invite</code>; confirmação em <code>/party/confirm</code>.</li>
+      <li><strong>Mód. 12 – IA de Monstros</strong>: Behavior Tree <code>BT_Monster</code> lendo Data Asset <code>DA_MovePath</code> (Array de vetores 3D). Respawns ativos salvos em <code>/ai/spawn</code> com <code>MonsterID</code>, <code>MapID</code>, <code>Pos</code>.</li>
+      <li><strong>Mód. 13 – MiniMapa</strong>: Widget <code>UI_MiniMapa</code> com textura 512x512. Usar <em>Map Range Clamped</em> para converter coordenadas do mundo → UI. Pinos customizados persistem em <code>/map/pins</code>.</li>
+      <li><strong>Mód. 14 – Muun/Pets</strong>: Data Table <code>DT_Muun</code> (PetID, BuffType, Value, Cooldown). Inventário dedicado <code>UI_Muun</code>. Buffs aplicados via Gameplay Effects; salvar estado em <code>/pets/state</code>.</li>
+      <li><strong>Mód. 15 – Arca Battle</strong>: State Machine Blueprint <code>BP_ArcaState</code> (SignUp → Battle → Reward). Obeliscos carregados de <code>DA_Obelisks</code>. Progresso em <code>/events/arca</code>.</li>
+      <li><strong>Mód. 16 – Castle Siege</strong>: Data Asset <code>DA_CastleSiegePhases</code> com fases/tempo. Timers em Blueprint (<em>Set Timer by Event</em>). Ownership e checkpoints persistidos em <code>/events/castlesiege</code>.</li>
+      <li><strong>Mód. 17 – Chaos Box</strong>: Widget <code>UI_ChaosBox</code> com slots 8x4. Função <code>CalculateRate</code> em Blueprint Library para replicar taxas. Registrar tentativa em <code>/craft/chaos</code> e resultado em <code>/craft/result</code>.</li>
+      <li><strong>Mód. 18 – Gens</strong>: Gameplay Tags <code>Gens.Dupren</code>/<code>Gens.Vanert</code>. NPCs com <code>Dialogue</code> chamando <code>/gens/rank</code>. Rank/insígnias atualizados via <code>/gens/update</code>.</li>
+      <li><strong>Mód. 19 – Crywolf</strong>: <code>BP_EventScheduler</code> instancia subfluxo Crywolf. Estados globais replicados no Widget <code>UI_Crywolf</code>. Contrato e Chaos Rate enviados para <code>/events/crywolf</code>.</li>
+      <li><strong>Mód. 20 – Devil Square/Blood Castle</strong>: <code>BP_InstanceQueue</code> lendo Data Table de vagas. Gates e fases em State Machine. Resultados em <code>/instances/devilsquare</code> e <code>/instances/bloodcastle</code>.</li>
+      <li><strong>Mód. 21 – Kanturu</strong>: Máquinas de estado separadas para Maya e Nightmare. Checagem de requisitos via <code>/events/kanturu/check</code>. Progresso em <code>/events/kanturu</code>.</li>
+      <li><strong>Mód. 22 – Raklion</strong>: Timers por fase de Selupan (Pré → Spawn → Enrage). Ovos/buffs salvos em <code>/events/raklion</code>. Alertas via <em>Multicast</em> para UI.</li>
+      <li><strong>Mód. 23 – Imperial Guardian</strong>: Ciclo diário em Data Asset <code>DA_ImperialSchedule</code>. Boss/portões configurados em <code>DA_ImperialActors</code>. Resultados em <code>/instances/imperial</code>.</li>
+      <li><strong>Mód. 24 – Illusion Temple</strong>: Fluxo: Convite → Teleporte → Fases cronometradas. Validar nível com Data Table <code>DT_IllusionReqs</code>. Estado por time salvo em <code>/instances/illusion</code>.</li>
+      <li><strong>Mód. 25 – Chaos Castle</strong>: State Machine <code>BP_ChaosCastle</code> (Lobby → Start → Shrink → Reward). Scoreboard replicado em <code>UI_ChaosScore</code> e salvo em <code>/instances/chaoscastle</code>.</li>
+      <li><strong>Mód. 26 – Acheron Guardian</strong>: Validação de ticket (Item 13,146) em <code>BP_TicketValidator</code>. Teleporte para mapa elemental. Persistir instâncias em <code>/instances/acheron</code>.</li>
+      <li><strong>Mód. 27 – Pentagram/Socket</strong>: Data Table <code>DT_Pentagram</code> (ItemID, Element, SocketCount). Upgrade em Blueprint <code>ApplySocketBonus</code> com POST <code>/pentagram/upgrade</code>. UI mostra chances e custos.</li>
+      <li><strong>Mód. 28 – Quests</strong>: Data Assets <code>DA_QuestLines</code> (QuestID, Steps, Rewards). Blueprint <code>BP_QuestManager</code> executa checks e envia progresso para <code>/quests/state</code>.</li>
+      <li><strong>Mód. 29 – Trade/Loja</strong>: Widgets <code>UI_Trade</code> e <code>UI_PersonalShop</code>. Validação em Blueprint <code>ValidateTrade</code> chamando <code>/trade/validate</code>; confirmação em <code>/trade/commit</code>.</li>
+      <li><strong>Mód. 30 – Guild/União</strong>: <code>BP_GuildService</code> para criação/convite/guerra. Data Assets com permissões. Persistência em <code>/guild/*</code> e <code>/union/*</code>.</li>
+      <li><strong>Mód. 31 – Comandos/GM</strong>: Data Table <code>DT_Commands</code> (Texto, Função, Permissão). Execuções registradas em <code>/logs/commands</code>. UI de chat aplica highlight para comandos GM.</li>
+      <li><strong>Mód. 32 – Cash Shop/PcPoint</strong>: Catálogo em <code>DA_CashItems</code>. Compras via <code>/cashshop/purchase</code>; saldo em <code>/cashshop/points</code>. Itens periódicos agendados com timer de 1 h.</li>
+      <li><strong>Mód. 33 – Invasões</strong>: <code>BP_InvasionManager</code> lê Data Table de grupos de spawn. Avisos replicados via <em>Multicast</em>. Estados salvos em <code>/events/invasions</code>.</li>
+      <li><strong>Mód. 34 – Moss Merchant</strong>: NPC Blueprint com roleta de itens (<em>Random Stream</em>). Resultado e custo enviados para <code>/npc/moss</code>. UI mostra seed usada para depuração.</li>
+      <li><strong>Mód. 35 – Mineração</strong>: State Machine <code>BP_Mining</code> (Start → Mining → Reward). Checks de interface/habilidade. Progresso salvo em <code>/mining/state</code>.</li>
+      <li><strong>Mód. 36 – MuRummy/Lucky Coin</strong>: Widgets dedicados <code>UI_Rummy</code>/<code>UI_LuckyCoin</code>. Embaralhamento salvo em <code>/minigames/rummy</code>; sorteios em <code>/minigames/luckycoin</code>.</li>
+      <li><strong>Mód. 37 – Criptografia</strong>: Blueprint Function Library <code>BP_Crypto</code> com cifra XOR (Key len 32). Chaves carregadas de <code>/security/keys</code> e guardadas em cache no GameInstance.</li>
+      <li><strong>Mód. 38 – Reconexão</strong>: Salvar snapshot de sessão em <code>/session/snapshot</code> (inventário, mapa, coordenadas, buffs). No <code>OnPostLogin</code>, chamar <code>/session/restore</code> e reaplicar atributos.</li>
+      <li><strong>Mód. 39 – Casamento</strong>: FSM de pedido/aceite. UI <code>UI_Marriage</code> com steps. Persistência em <code>/social/marriage</code>; efeitos visuais disparados via Gameplay Tags.</li>
+      <li><strong>Mód. 40 – PvP</strong>: Instâncias de duelo/Battle Soccer com timers. Placar salvo em <code>/pvp/match</code>. Bola e gols como Actors replicados.</li>
+      <li><strong>Mód. 41 – Progressão/Reset</strong>: Data Table <code>DT_XPReset</code> (LevelRange, ResetCost, MasterXP). Atualizações enviadas a <code>/progression/xp</code>. UI mostra multiplicadores ativos.</li>
+      <li><strong>Mód. 42 – Start Items/Buffs</strong>: Script de entrega em Blueprint <code>GiveStartItems</code> lendo <code>DA_StartItems</code>. Confirmação em <code>/inventory/start</code>; buffs em <code>/buffs/start</code>.</li>
+      <li><strong>Mód. 43 – Itens 380</strong>: Validação de flag e bônus via Gameplay Effects. Persistir upgrades em <code>/items/380</code>. UI de tooltip exibe opções extras.</li>
+      <li><strong>Mód. 44 – Bots de Serviço</strong>: <code>BP_BotService</code> spawna NPCs com inventário de Data Asset. Cada interação loga em <code>/npc/bots</code>. Requisitos de buff/warp conferidos em Blueprint.</li>
+      <li><strong>Mód. 45 – Eventos Instantâneos</strong>: Cronograma em <code>DA_InstantEvents</code>. Rotina de sorteio/recompensa salva em <code>/events/instant</code>. UI mostra tempo restante.</li>
+      <li><strong>Mód. 46 – Bonus Manager</strong>: Blueprint <code>BP_BonusManager</code> com timers de multiplicadores (XP/Drop). Estados globais em <code>/bonus/state</code> e métricas em <code>/bonus/metrics</code>; UI mostra contagem regressiva.</li>
+    </ol>
+
+    <h2>Blueprints Essenciais para a Trilha Completa</h2>
+    <ul>
+      <li><strong>BP_EventScheduler</strong>: lê Data Assets de eventos (IDs do módulo original) e instancia sub-fluxos. Mantém ponte para VaRest com rotas por evento.</li>
+      <li><strong>BP_PacketRouter</strong>: tabela ID → <em>Dispatcher</em> de eventos. Útil para módulos de rede (2, 8, 37) mantendo compatibilidade de logs com o C++.</li>
+      <li><strong>BP_SQLBridge</strong>: wrapper de VaRest que centraliza headers e roteia para endpoints SQL. Deve ser usado por todos os módulos para manter consistência.</li>
+      <li><strong>Widgets dedicados</strong>: <code>UI_EventStatus</code> (eventos 14–25), <code>UI_InventoryExtended</code> (mód.27–35) e <code>UI_DebugSession</code> (mód.37–38) para monitorar estados.</li>
+    </ul>
+
+    <h2>Checklist de Convergência (C++ → Blueprint)</h2>
+    <ul>
+      <li>Para cada módulo original, valide se há um Data Asset correspondente (config) e uma função Blueprint que consome os dados.</li>
+      <li>Logs: mantenha o mesmo <em>tag</em> do C++ (ex.: <code>[EventCrywolf]</code>) em <code>PrintString</code> ou <code>Log Blueprint</code> para alinhar comparações.</li>
+      <li>VaRest + SQL: todas as operações de salvamento/leitura devem passar pelo <code>BP_SQLBridge</code>; não deixe chamadas diretas duplicadas para evitar divergência.</li>
+      <li>Compatibilidade: se um módulo ainda estiver em C++ para performance, mantenha o Blueprint como camada de orquestração e documente o ponto de integração.</li>
+    </ul>
+
+    <h2>Recursos Necessários</h2>
+    <ul>
+      <li>Blueprints: <code>BP_NetworkTick</code>, <code>BP_Protocol</code>, <code>BP_DataServerClient</code>, <code>GM_Server</code>, <code>UI_Splash</code> (loading) e <code>UI_HUD</code>.</li>
+      <li>Plugins: Http/REST (padrão UE), VaRest (opcional), Online Subsystem para autenticação local, e suporte a sockets se preferir TCP.</li>
+      <li>Data Assets: tabelas de monstros, experiência, configuração de eventos e mapeamento de mensagens (ID → handler).</li>
+      <li>Infra: servidor Node.js/SQL simples para simular <em>DataServer</em> com endpoints <code>/login</code>, <code>/save</code> e <code>/load</code>.</li>
+    </ul>
+
+    <h2>Checklist Final</h2>
+    <ul>
+      <li>Loop de rede/visual completo em Blueprint que processa pacotes e renderiza UI sem travar, inspirado em <code>Winmain.cpp</code>.</li>
+      <li>Servidor dedicado UE5 carregando dados e mantendo timers de IA e persistência equivalentes ao GameServer C++.</li>
+      <li>Rotas de mensagem e estrutura de dados documentadas para alunos reproduzirem 1:1.</li>
+      <li>Todos os assets (UI, Data Assets, Plugins) listados e configurados antes da aula.</li>
+    </ul>
+  </div>
+</body>
+</html>
