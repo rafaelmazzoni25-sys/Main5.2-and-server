@@ -190,6 +190,20 @@ void CMonsterAIMovePath::GetMonsterNearestPath(int sx,int sy,int tx,int ty,int* 
       <li>Para debug, exponha comandos de console que recarregam os DataAssets (equivalente a <code>DelAllAIElement</code> + <code>LoadData</code>) e desenhem linhas dos caminhos no viewport (<code>DrawDebugLine</code>).</li>
     </ol>
 
+    <h3>Blueprints passo a passo (iniciante)</h3>
+    <ol>
+      <li>No Content Drawer crie <strong>Blueprints/Monsters</strong>. Adicione <em>Blueprint Class</em> &rarr; <em>Character</em> chamada <code>BP_Monster</code> e marque <strong>Replicates</strong> (Net Update Frequency = 4) e <strong>Use Controller Rotation Yaw</strong> = false.</li>
+      <li>No componente <em>CharacterMovement</em>, defina <code>Max Walk Speed = 320</code>, <code>Rotation Rate Yaw = 720</code>. Adicione um <em>Sphere Collision</em> <code>AggroSphere</code> raio 1200 e habilite Overlap com Pawn.</li>
+      <li>Crie a <strong>Data Table</strong> <code>DT_Monsters</code> com colunas: <code>Id</code>, <code>HP</code>, <code>Defense</code>, <code>MovePathId</code>, <code>SpawnX</code>, <code>SpawnY</code>, <code>Dir</code>. Importe o CSV do servidor e garanta que <code>SpawnX</code>/<code>SpawnY</code> reflitam as coordenadas originais (1 unidade = 100 Unreal Units).</li>
+      <li>No <code>BP_Monster</code> adicione variáveis: <code>MovePath (Array Vector)</code>, <code>PathIndex (Integer)</code>, <code>IsInCombat (Bool)</code>, <code>TargetActor (Actor)</code>. Marque <code>MovePath</code> como <em>RepNotify</em> e implemente <code>OnRep_MovePath</code> para reiniciar a patrulha.</li>
+      <li>Crie uma função <code>LoadPath</code>: VaRest GET <code>/path/{MapId}/{MovePathId}</code>, faça <em>ForEach</em> em cada linha e converta em vetor (X*100, Y*100, 0). Se a requisição falhar, leia arquivo local <code>Content/Monsters/MovePath_{MapId}.csv</code>.</li>
+      <li>Adicione um <strong>Custom Event</strong> <code>AdvancePath</code>. Se <code>MovePath</code> estiver vazio, retorne. Caso o <code>PathIndex</code> exceda, zere. Pegue <code>NextPoint = MovePath[PathIndex]</code> e use <code>AI Move To</code> (Acceptance Radius 75). No <code>On Success</code> incremente <code>PathIndex</code> e chame <code>AdvancePath</code> após <em>Delay</em> 0.2.</li>
+      <li>Configurar combate: no <code>AggroSphere.OnBeginOverlap</code>, se outro for <code>BP_Player</code>, grave em <code>TargetActor</code>, pare a patrulha (<code>Clear Timer</code> do <code>AdvancePath</code>) e chame <code>AI Move To</code> com Acceptance Radius 140. Ao chegar, dispare <code>ServerTryAttack</code> (Run on Server) chamando VaRest POST <code>/monster/attack</code> e aplique dano.</li>
+      <li>UI de debug: crie <code>WBP_MonsterInspector</code> (âncora topo esquerdo, X=24, Y=24) com <em>ListView</em>. A cada <code>Tick</code>, preencha com Name, HP, PathIndex e coordenadas. Use cores: verde (patrulhando), laranja (recalculando), vermelho (combate).</li>
+      <li>Persistência SQL: a cada 20s execute VaRest POST <code>/monster/state</code> com <code>Id</code>, <code>HP</code>, <code>PathIndex</code>, <code>Location</code>. Se o servidor reiniciar, chame VaRest GET <code>/monster/state</code> ao spawn e aplique <code>SetActorLocation</code> + <code>PathIndex</code> para retomar o caminho.</li>
+      <li>Teste controlado: em <em>PIE Multiplayer 2</em>, arraste dois jogadores na frente do monstro. Observe se ele troca de patrulha para combate e volta ao patrulhamento após 3s sem alvo. Valide se o <code>WBP_MonsterInspector</code> mostra o PathIndex correto.</li>
+    </ol>
+
     <h3>Exemplo de Código UE5</h3>
     <pre><code>USTRUCT(BlueprintType)
 struct FAIElementDefinition {

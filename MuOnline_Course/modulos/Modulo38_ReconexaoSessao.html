@@ -132,6 +132,17 @@ if(it != m_ReconnectInfo.end()) {
       <li>Incluir UI de feedback (widget) indicando sucesso/falha da restauração.</li>
     </ol>
 
+    <h3>Roteiro granular em Blueprints</h3>
+    <ol>
+      <li><strong>Struct</strong>: crie <code>FReconnectInfo_BP</code> com campos <em>Account (String)</em>, <em>PartyMembers (Array de String)</em>, <em>AutoAdd (bool)</em>, <em>AutoReset (bool)</em>, <em>Password (String)</em>, <em>GensSide (int)</em>, <em>Timestamp (int)</em>.</li>
+      <li><strong>Componente</strong>: adicione <code>BP_ReconnectComponent</code> ao <code>PlayerState</code>. Variáveis replicadas: <code>LastSnapshot</code> (struct), <code>ReconnectTimeout</code> (float). Evento <code>OnSaveSnapshot</code> envia <code>LastSnapshot</code> via <code>VaRest POST /session/snapshot</code> com JSON igual ao struct.</li>
+      <li><strong>Captura na desconexão</strong>: no <code>GameInstance → OnNetworkFailure</code>, recupere o <code>PlayerState</code> local, preencha <code>LastSnapshot</code> (PartyMembers via <code>GetPartyArray</code>, senha de loja se existir) e chame o evento <code>OnSaveSnapshot</code>. Exiba toast “Snapshot salvo”.</li>
+      <li><strong>Restore no login</strong>: após autenticar (evento do módulo 2), chame <code>VaRest GET /session/snapshot/{Account}</code>. Se <code>Timestamp</code> for maior que agora - <code>ReconnectTimeout</code>, aplique: <code>ForEach PartyMembers → ServerJoinParty</code>, set <code>AutoAdd/AutoReset</code> e envie RPC <code>ServerSetPassword</code> para lojas.</li>
+      <li><strong>UI</strong>: crie <code>WBP_ReconnectStatus</code> com indicador “Snapshot encontrado” (verde) ou “Expirado” (vermelho). Coloque em layout topo direito (âncora <code>X=1,Y=0</code>, offset <code>-220,20</code>).</li>
+      <li><strong>Limpeza</strong>: timer em <code>GameInstance</code> executa a cada 30s: se <code>Now - Timestamp &gt; ReconnectTimeout</code>, chama <code>DELETE /session/snapshot/{Account}</code> via VaRest e limpa <code>LastSnapshot</code>.</li>
+      <li><strong>Teste</strong>: com 2 clientes PIE + servidor, forme party, ative auto-add, desconecte o cliente 1, reconecte em 30s e verifique se party/auto-add voltam. Faça segundo teste após expirar o timeout e confirme que nada é restaurado.</li>
+    </ol>
+
     <h2>Checklist Final</h2>
     <ul>
       <li>Snapshot é salvo ao desconectar e removido quando expira.</li>

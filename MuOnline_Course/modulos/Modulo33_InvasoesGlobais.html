@@ -208,6 +208,48 @@ private:
       <li>Avisos globais de início/fim e de morte do boss replicados para todos os clientes.</li>
       <li>Logs HTTP gravados via VaRest/Node.js em tabela SQL com histórico das invasões.</li>
     </ul>
+
+    <h2>Guia Blueprint minucioso (iniciante)</h2>
+    <ol>
+      <li>DataTables e assets
+        <ul>
+          <li>Monte <strong>DT_InvasionTime</strong> (Index, Year, Month, Day, Hour, Minute, Second) e <strong>DT_InvasionGroup</strong> (Index, Group, Map, Value, MonsterId, Count, X, Y).</li>
+          <li>DataAsset <strong>DA_InvasionMessages</strong> com RespawnMessage, DespawnMessage, BossMessage, InvasionTime.</li>
+        </ul>
+      </li>
+      <li>Orquestração em Blueprint
+        <ul>
+          <li>No <strong>GameState</strong>, crie componente <strong>BP_InvasionManager</strong> com variáveis <code>NextStartTime</code>, <code>CurrentIndex</code> e arrays de grupos.</li>
+          <li>No BeginPlay, leia as tabelas e chame <em>ScheduleNext</em> (diferencial usando <em>Now → NextTime</em> e <em>SetTimer by Event</em>).</li>
+        </ul>
+      </li>
+      <li>Spawns e tracking
+        <ul>
+          <li>Evento <strong>StartInvasion</strong>: para cada linha de <em>DT_InvasionGroup</em> do índice, use <em>SpawnActor</em> do monstro (Location = (X*100, Y*100, 120)).</li>
+          <li>Guarde referências em <strong>ActiveMonsters</strong>; no <em>OnDestroyed</em>, faça <code>ActiveCount--</code>; quando chegar a zero, chame <strong>EndInvasion</strong>.</li>
+        </ul>
+      </li>
+      <li>UI e avisos
+        <ul>
+          <li>Widget <strong>W_InvasionBanner</strong> top-center (X=640, Y=32, 480×64) com texto animado. Crie <em>Timeline</em> piscando a borda quando boss spawna.</li>
+          <li>Contador no <strong>W_Countdown</strong> (TextBlock X=900, Y=32) atualizado por timer de 1s; quando zero, troca para “Invasão ativa”.</li>
+          <li>Som de alerta <em>SoundCue_Alarm</em> tocado via <strong>Play Sound 2D</strong> em todos os clientes (Multicast).</li>
+        </ul>
+      </li>
+      <li>Persistência VaRest/SQL
+        <ul>
+          <li>Start: VaRest POST <code>/invasion/start</code> {index,map,startTime}. Progress: a cada 60s POST <code>/invasion/progress</code> {index, aliveCount}. End: POST <code>/invasion/end</code> {index, duration, bossKiller}.</li>
+          <li>Exiba status de rede em widget de debug (X=24, Y=700) mudando cor Verde/Amarelo/Vermelho conforme HTTP 200/429/500.</li>
+        </ul>
+      </li>
+      <li>Checklist visual final
+        <ul>
+          <li>Banner e countdown sempre visíveis na HUD.</li>
+          <li>Spawns aparecem exatamente nas coordenadas do script.</li>
+          <li>Logs REST registrados e mostrados no painel de debug em tempo real.</li>
+        </ul>
+      </li>
+    </ol>
   </div>
 </body>
 </html>

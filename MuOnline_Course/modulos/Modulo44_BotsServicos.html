@@ -272,6 +272,16 @@ lpObj-&gt;SkillSummonPartyMap = this-&gt;bot[number].Warp_Map;
       <li>Envie feedback ao jogador via <code>UUserWidget</code> replicado (mensagens equivalentes a <code>gNotice</code>).</li>
     </ol>
 
+    <h4>Blueprint clique a clique (Buff + Warper)</h4>
+    <ol>
+      <li><strong>Colocação</strong>: posicione <code>BP_BuffNPC</code> e <code>BP_WarperNPC</code> no mapa nas coordenadas do CSV (usar detalhes de localização com X/Y/Z idênticos). Ajuste <em>Collision Sphere Radius</em> para 180.</li>
+      <li><strong>UI de interação</strong>: widget <code>WBP_NPCDialog</code> (âncora centro, 520×320) com abas “Buffs” e “Warp”. Cada linha vem do DataTable e possui botão “Comprar/Usar”. Bindings mostram custos e requisitos.</li>
+      <li><strong>Buff</strong>: ao clicar, chame <code>Server_RequestBuff(RowID)</code> no NPC. No servidor: checar saldo via VaRest POST <code>/npc/buff/check</code> (retorna {ok, newBalance}). Se ok, aplicar GameplayEffect e replicar via <code>MulticastBuffApplied</code> para mostrar partículas.</li>
+      <li><strong>Warp</strong>: botão chama <code>Server_RequestWarp(RowID)</code>. Servidor valida nível/VIP/Gens; se ok, chama VaRest POST <code>/npc/warp</code> (cobrança). Depois usa <code>Teleport</code> ou <code>ClientTravel</code>. Mostre contagem de “3…2…1…” no widget antes de teleportar.</li>
+      <li><strong>Logs/SQL</strong>: cada sucesso chama VaRest POST <code>/npc/log</code> com {account, npcType, action, cost}. Tabela SQL <code>npc_logs</code> deve ter índice por data.</li>
+      <li><strong>Testes</strong>: em PIE 2 clientes, abra o widget, tente buff sem saldo (deve falhar), adicione Zen, tente novamente (aplica). Para warp, selecione um destino de outro mapa e confirme <code>ClientTravel</code> com posição correta.</li>
+    </ol>
+
     <h2>Checklist Final</h2>
     <ul>
       <li>Scripts de bot carregam e criam NPCs com inventário e aparência corretos.</li>

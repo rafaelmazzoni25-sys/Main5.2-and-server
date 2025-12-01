@@ -77,6 +77,18 @@
       <li>Teleporte para o mapa Acheron ocorre na posição equivalente ao gate 417.</li>
       <li>UI recebe notificação de falha/sucesso e backend Node.js/SQL registra o evento via VaRest.</li>
     </ul>
+
+    <h2>Tutorial Blueprint (mínimos detalhes para iniciantes)</h2>
+    <ol>
+      <li>No <strong>Content Browser</strong> crie a pasta <code>/Acheron/</code> e um <strong>DataTable</strong> <code>FEnterTicketRow</code> com campos <code>ItemID</code> (13,146), <code>GateLocation</code> (vector X=18250 Y=-9450 Z=520), <code>FailMessage</code>.</li>
+      <li>Abra o <strong>PlayerController Blueprint</strong> e adicione função RPC <code>ServerRequestEnterAcheron(LevelIndex)</code> (Reliable, Server). Dentro: <ol type="a"><li>Chame <code>GetInventoryComponent -&gt; CountItem(ItemID=13146)</code>.</li><li><strong>Branch</strong>: se 0 → <code>ClientNotifyAcheron(false, "Precisa do item 13,146")</code> e <strong>Return</strong>.</li><li>Se &gt; 0: <code>RemoveItem(13146, Quantity=1)</code> e defina variável <code>LastEnterTimestamp = Now</code>.</li><li>Faça <strong>VaRest Request (POST)</strong> para <code>/api/acheron/consume</code> com JSON { <code>account</code>, <code>character</code>, <code>item</code>: "13,146", <code>timestamp</code>: <code>Now</code> }. Se falhar, adicione entrada a um array <code>PendingAcheronReports</code>.</li><li>Chame função <code>TeleportToAcheron</code>.</li></ol></li>
+      <li>Função <code>TeleportToAcheron</code> no PlayerController: <ol type="a"><li>Use <strong>Load Stream Level</strong> com asset <code>/Acheron/LVL_Acheron</code> (Blocking=Off, Make Visible=On).</li><li>Após <strong>OnLevelLoaded</strong>, chame <strong>GetActorLocation</strong> do <code>TargetPoint</code> chamado <code>TP_Gate417</code> posicionado em (18250,-9450,520) e faça <code>PossessedPawn -&gt; TeleportTo</code> para esse ponto.</li><li>Dispare <code>ClientNotifyAcheron(true, "Entrada autorizada")</code>.</li></ol></li>
+      <li>HUD guiada: crie widget <code>WBP_AcheronTicket</code> (200x120, ancorado canto superior direito X=1600 Y=40). Campos: texto "Entrada Acheron", subtexto "Item 13,146" e botão <strong>Entrar</strong>. No OnClicked → chama <code>ServerRequestEnterAcheron(0)</code>.</li>
+      <li>Feedback de falha: no <code>ClientNotifyAcheron</code> adicione <strong>Widget Animation</strong> para mostrar uma barra vermelha deslizando de X=1600→1300 por 0.4s com texto de erro; para sucesso use barra verde.</li>
+      <li>Persistência de posição: após teleporte, faça <strong>VaRest POST</strong> <code>/api/acheron/entry</code> com JSON { <code>account</code>, <code>map</code>:"Acheron", <code>pos</code>:{<code>x</code>,<code>y</code>,<code>z</code>}, <code>ticket</code>:"13,146" }. Se offline, armazene em <code>PendingEntries</code> e reenvie com <code>SetTimer 5s</code>.</li>
+      <li>Debug rápido: crie widget <code>WBP_AcheronDebug</code> (220x120, canto inferior esquerdo X=24 Y=880) listando <code>TicketCount</code> e <code>LastEnterTimestamp</code>. Inclua botão "Dar Ticket" que chama RPC <code>ServerGiveItem(13,146)</code> protegido por flag <code>bIsGM</code>.</li>
+      <li>Teste guiado: <ol type="a"><li>Sem item: clique em "Entrar" e verifique barra vermelha + ausência de teleporte.</li><li>Com item: após adicionar via debug, clique em "Entrar" e confirme remoção do item no inventário replicado + teleporte para coordenadas.</li><li>Desabilite internet por 5s durante o POST para ver armazenamento em <code>PendingAcheronReports</code> e reenvio automático.</li></ol></li>
+    </ol>
   </div>
 </body>
 </html>
