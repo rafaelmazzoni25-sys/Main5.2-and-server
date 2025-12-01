@@ -157,6 +157,51 @@ void gObjSecondProc() {
       <li>Spawns e contagem de monstros bloqueiam/desbloqueiam a progressão.</li>
       <li>Validação de entrada e remoção de jogadores sincronizada entre servidor UE5 e backend REST/SQL, se usado.</li>
     </ul>
+
+    <h2>Guia Blueprint Hiper Detalhado</h2>
+    <p>Use este passo a passo sem depender de C++ para replicar Kanturu com VaRest e SQL.</p>
+    <h3>Setup de Estruturas e DataTables</h3>
+    <ol>
+      <li>No <strong>Content Browser</strong>, crie um <code>Blueprint Struct</code> <strong>BST_KanturuState</strong> com campos: <em>State (Enum)</em>, <em>Condition</em>, <em>ValueMs</em>, <em>SpawnGroupId</em>, <em>NextState</em>. Salve em <code>Content/Data/Kanturu/</code>.</li>
+      <li>Crie uma <code>DataTable</code> baseada no struct e importe um CSV com linhas que imitam <code>Kanturu.dat</code>: Standby 30000ms, MayaPhase1 120000ms, MayaPhase2 120000ms, Nightmare 180000ms, Tower 300000ms.</li>
+      <li>Adicione outra <code>DataTable</code> <strong>DT_KanturuSpawns</strong> contendo <em>Wave</em>, <em>MonsterId</em>, <em>Location (Vector)</em>, <em>Rotation (Rotator)</em>, <em>Count</em>. Use coordenadas baseadas no mapa original (ex.: Maya Stage1: X=14500,Y=4300,Z=120).</li>
+    </ol>
+
+    <h3>GameState e Componentes</h3>
+    <ol>
+      <li>Derive um <strong>BP_KanturuState</strong> de <code>GameState</code> e marque <em>Replicates</em>. Adicione variáveis replicadas: <code>CurrentState</code> (Enum), <code>RemainingMs</code> (int), <code>CurrentWave</code> (int), <code>PlayersInside</code> (array).</li>
+      <li>Crie componente <strong>BP_KanturuPhaseComponent</strong> com função <code>StartPhase(StateRow)</code> que inicia um <em>Set Timer by Event</em> usando <code>ValueMs/1000</code>. Armazene referência no GameState.</li>
+      <li>No <code>BeginPlay</code> do GameState, carregue a DataTable, coloque em <em>Map</em> <code>StateId → Row</code> e chame <code>StartPhase</code> com Standby.</li>
+      <li>Eventos de transição: use <em>Switch on Enum</em> para Maya/Nightmare/Tower. Para cada transição, chame <em>Multicast</em> <code>OnKanturuStateChanged</code> repassando <code>CurrentState</code> e <code>RemainingMs</code>.</li>
+    </ol>
+
+    <h3>UI com Coordenadas</h3>
+    <ol>
+      <li>Widget <strong>WBP_KanturuHUD</strong> (Canvas 1920x1080): timer no canto superior direito (X=1420,Y=70,W=320,H=60), barra de progresso embaixo (X=1420,Y=110,W=320,H=16). Use cor #FFB347 para Standby, #1E90FF para Maya, #FF4D4D para Nightmare.</li>
+      <li>Adicione um painel de objetivos em (X=60,Y=200,W=360,H=260) com três linhas: “Destruir estátuas”, “Derrotar Maya”, “Derrotar Nightmare”. Cada linha tem um <em>CheckBox</em> ligado ao <code>CurrentState</code> (marca quando o state é ≥ correspondente).</li>
+      <li>Para Tower of Refinement, adicione botão “Teleportar para Tower” em (X=60,Y=480,W=220,H=40). No <em>OnClicked</em> invoque <code>Server_RequestTower</code>.</li>
+    </ol>
+
+    <h3>Fluxo de Entrada e Validação</h3>
+    <ol>
+      <li>No PlayerController, crie RPC <code>Server_RequestEnterKanturu(TicketId)</code>. Valide se <code>CurrentState</code> está em Standby/Notify e se o jogador tem o item MoonStone (array de inventário replicado).</li>
+      <li>Em caso positivo, use <em>Teleport</em> para o mapa de Kanturu (ex.: LevelStreaming <code>/Game/Maps/Kanturu_P</code>) e registre no array <code>PlayersInside</code>. Se falhar, mostre <em>Client</em> toast “Evento fechado ou ticket inválido”.</li>
+      <li>Para Tower of Refinement, exponha <code>Server_RequestTower</code> que só permite quando <code>CurrentState == Tower</code>. Teleporte para a subárea e ativa <em>Buff</em> “Refinement” por 300s.</li>
+    </ol>
+
+    <h3>Persistência e VaRest</h3>
+    <ol>
+      <li>Configure endpoint <code>POST /api/kanturu/state</code> para gravar <em>state</em>, <em>remainingMs</em> e <em>players</em>. No GameState, ao mudar de estado, faça <em>VaRest Request JSON</em> enviando esses campos.</li>
+      <li>No fim da Nightmare, chame endpoint <code>/api/kanturu/rewards</code> com lista de <em>playerName</em> e <em>score</em>. No sucesso, atualize UI com o retorno (ex.: joias, exp).</li>
+      <li>Mantenha tabela SQL <code>KanturuRuns(Id, State, StartAt, EndAt, PlayersJson)</code> para histórico.</li>
+    </ol>
+
+    <h3>Debug e Segurança</h3>
+    <ul>
+      <li>Adicione console command <code>kanturu.force &lt;State&gt;</code> (executado no servidor) que chama <code>SetState</code> no GameState para testes locais.</li>
+      <li>Use <em>Draw Debug Box</em> nos pontos de spawn vindos da <code>DT_KanturuSpawns</code> ao carregar cada wave.</li>
+      <li>Crie um widget debug (X=1560,Y=200,W=320,H=120) mostrando contagem de players e ovo/estátua restantes para validar fluxo como no servidor legado.</li>
+    </ul>
   </div>
 </body>
 </html>

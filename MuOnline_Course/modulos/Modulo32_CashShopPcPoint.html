@@ -188,6 +188,50 @@
       <li>Saldo e itens replicados corretamente em UE5.</li>
       <li>UI bloqueia ações quando o jogador está em trade/loja ou outra interface.</li>
     </ul>
+
+    <h2>Guia Blueprint Passo a Passo (iniciante)</h2>
+    <ol>
+      <li>Preparação de dados
+        <ul>
+          <li>Importe os scripts <code>CashShopPackage.txt</code> e <code>CashShopProduct.txt</code> para dois <strong>DataTables</strong> (estruturas: Category, BaseIndex, MainIndex, ItemIndex, CoinIndex, CoinValue, Sockets[], Duração).</li>
+          <li>Crie <strong>DT_PcPoint</strong> com colunas ItemId, Level, Options, Socket[5], Value.</li>
+        </ul>
+      </li>
+      <li>UI Cash Shop
+        <ul>
+          <li>No widget <strong>W_CashShop</strong>, adicione: painel lateral categorias (X=24, Y=80, 180×520), grid de produtos (WrapBox X=220, Y=80, 700×520) e cabeçalho saldo (TextBlock <em>Txt_Coins</em> em X=24, Y=24).</li>
+          <li>Botões de compra chamam <em>Custom Event</em> <strong>ClientBuyCashItem</strong> → <strong>ServerBuyCashItem</strong> (Run on Server) com parâmetros PackageId/ProductId.</li>
+        </ul>
+      </li>
+      <li>Fluxo VaRest/SQL
+        <ul>
+          <li>ServerBuyCashItem → VaRest POST <code>/cash/buy</code> com payload {account, packageId, productId, coinIndex}; bloqueie UI com <em>Set Is Enabled</em> = false até resposta.</li>
+          <li>Resposta positiva: use <em>SpawnActor</em> para criar item Blueprint e inserir no inventário replicado; registre <code>PeriodicExpireTimestamp</code> (int64).</li>
+          <li>Resposta negativa: chame <strong>MC_ShowNotice</strong> para mostrar aviso vermelho (X=24, Y=620).</li>
+        </ul>
+      </li>
+      <li>Expiração e timers
+        <ul>
+          <li>No <strong>GameState</strong>, crie <em>Timer</em> a cada 5s: percorra <strong>Inventory Array</strong>, filtre <code>bIsPeriodic</code> e compare <code>ExpireTimestamp &lt;= Now</code>; remova e envie VaRest <code>/cash/expire</code>.</li>
+          <li>UI: quando expirar, toque <em>SoundCue_UI_Warning</em> e mostre toast em <strong>W_Toast</strong> (posição top-right X=1120, Y=32, largura 260).</li>
+        </ul>
+      </li>
+      <li>PcPoint específico
+        <ul>
+          <li>Widget <strong>W_PcPoint</strong> com lista de slots (WrapBox X=32, Y=120, 980×520) e texto de saldo <em>Txt_PcPoint</em> no canto superior.</li>
+          <li>Botão "Comprar" → <strong>ServerBuyPcPointItem</strong> (Run on Server) → VaRest POST <code>/pcpoint/buy</code>; após sucesso, insira item no inventário e atualize saldo replicado.</li>
+          <li>Implemente trava anti-duplo-clique com variável <strong>bPendingPurchase</strong> no PlayerController.</li>
+        </ul>
+      </li>
+      <li>Checklist visual final
+        <ul>
+          <li>Catálogo popula categorias e produtos sem buracos.</li>
+          <li>Saldo de coins/PcPoint atualiza em tempo real no cabeçalho.</li>
+          <li>Ao expirar item temporário, ele some do inventário e a UI mostra toast + som.</li>
+          <li>Transações falhas exibem aviso vermelho e reabilitam botões.</li>
+        </ul>
+      </li>
+    </ol>
   </div>
 </body>
 </html>

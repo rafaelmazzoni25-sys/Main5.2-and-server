@@ -171,6 +171,42 @@ public:
       <li>Recompensas são entregues e o nó é destruído ou resetado conforme o resultado.</li>
       <li>Logs opcionais enviados via VaRest/Node.js/SQL.</li>
     </ul>
+
+    <h2>Guia Blueprint detalhado (iniciante)</h2>
+    <ol>
+      <li>Data e spawner
+        <ul>
+          <li>Monte <strong>DT_MineSpots</strong> (Map, X, Y, Z, RespawnSeconds, RewardId, RewardQty) e <strong>DT_MineStages</strong> (Stage, SuccessRate, FailDamage).</li>
+          <li>BP_MineSpawner lê a tabela no BeginPlay e cria <strong>BP_MineNode</strong> em Location = (X*100, Y*100, Z).</li>
+        </ul>
+      </li>
+      <li>Interação e validação
+        <ul>
+          <li>BP_MineNode: box collision raio 120; tecla F chama <strong>ServerStartMining</strong> (Run on Server).</li>
+          <li>Valide distância, InterfaceState == None e <strong>HasPickaxe</strong>; se falhar, mostre aviso vermelho em <strong>W_Notice</strong> (X=24,Y=620).</li>
+        </ul>
+      </li>
+      <li>Progresso e HUD
+        <ul>
+          <li>Abra widget <strong>W_MiningBar</strong> (bottom-center X=640,Y=660, largura 320, altura 28) com ProgressBar.</li>
+          <li>Use <em>Timeline</em> de 5s; no Update, set <em>Percent</em>; no Finished, chame <strong>ServerFinishMining</strong>.</li>
+        </ul>
+      </li>
+      <li>Recompensa e backend
+        <ul>
+          <li>ServerFinishMining: VaRest POST <code>/mining/claim</code> {account,nodeId}; se sucesso, adicione item RewardId e destrua o node.</li>
+          <li>Respawn: <em>SetTimer</em> com RespawnSeconds para reativar o actor e trocar material para “ativo”.</li>
+        </ul>
+      </li>
+      <li>Checklist visual
+        <ul>
+          <li>Nodos surgem em todos os pontos do DataTable.</li>
+          <li>Barra de progresso chega a 100% e some quando termina.</li>
+          <li>Toast de recompensa aparece e item entra no inventário.</li>
+          <li>Node fica acinzentado durante cooldown e volta a colorido ao respawn.</li>
+        </ul>
+      </li>
+    </ol>
   </div>
 </body>
 </html>

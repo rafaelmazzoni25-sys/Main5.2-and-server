@@ -143,6 +143,16 @@ void CCustomStartItem::InsertItem(LPOBJ lpObj) {
       <li>Validar em PIE e builds dedicadas que apenas novos personagens recebem o pacote inicial e que buffs respeitam duração.</li>
     </ol>
 
+    <h3>Guia detalhado em Blueprint</h3>
+    <ol>
+      <li><strong>Tabelas</strong>: adicione <em>StartItems.csv</em> (Class, Slot, ItemID, Level, Durability, Count), <em>StartBuffs.csv</em> (Class, BuffTag, Duration, Magnitude) e <em>StartCoins.csv</em> (Class, WCoin, GoblinPoint). Importar para structs <code>FStartItemRow</code>, <code>FStartBuffRow</code>, <code>FStartCoinRow</code>.</li>
+      <li><strong>Componente</strong>: em <code>BP_StartLoadComponent</code> (replicado), crie arrays <code>Items</code>, <code>Buffs</code>, <code>Coins</code>. Funções Blueprint: <code>LoadFromTables</code> (filtra por classe), <code>ApplyStartLoad</code> (Authority).</li>
+      <li><strong>Aplicação</strong>: em <code>ApplyStartLoad</code>, faça ForEach em <code>Items</code> e chame <code>InventoryComponent→ServerAddItem</code> com slot explícito. Para buffs, chame <code>AbilitySystem→ApplyGameplayEffectToSelf</code> com duração em segundos. Para moedas, invoque VaRest POST <code>/start/coins</code> antes de setar os valores locais.</li>
+      <li><strong>UI</strong>: <code>WBP_StartPreview</code> com três listas (itens, buffs, moedas) e botão “Aplicar”. Posicione no menu de criação (offset <code>Center, -200</code>). Bindings mostram dados carregados pelo componente.</li>
+      <li><strong>Salvaguarda</strong>: variável <code>bStartGranted</code> (bool replicada) persistida via VaRest POST <code>/start/flag</code>. No login, GET <code>/start/flag</code>; se true, não aplicar novamente.</li>
+      <li><strong>Testes</strong>: crie personagem novo, verifique slots preenchidos exatamente como no CSV (checar número de cada slot). Reentre para garantir que não duplica. Modifique CSV para outra classe e use botão “Sincronizar” (GET /start) para atualizar sem recompilar.</li>
+    </ol>
+
     <h2>Checklist Final</h2>
     <ul>
       <li>DataTables de itens/buffs/moedas importados e carregados.</li>
@@ -151,6 +161,19 @@ void CCustomStartItem::InsertItem(LPOBJ lpObj) {
       <li>Persistência de moedas e flag de aplicação funcionando via VaRest/Node.js/SQL.</li>
       <li>Ferramenta de debug permite reprocessar o script e visualizar concessões.</li>
     </ul>
+
+    <h3>Passo a passo detalhado para alunos sem experiência</h3>
+    <ol>
+      <li><strong>Importação</strong>: arraste os CSVs para a pasta <em>/Content/Data/StartLoad</em> e escolha o struct correto. Marque “Update On Reimport” para facilitar ajustes.</li>
+      <li><strong>Widget de pré-visualização</strong>: em <em>WBP_StartPreview</em>, coloque três <code>ListView</code> lado a lado (largura 220 cada, altura 260). Títulos “Itens iniciais”, “Buffs iniciais”, “Moedas”.</li>
+      <li><strong>Bindings visuais</strong>: cada item da ListView de itens mostra Slot, ItemID e Level. Adicione cor de fundo alternada (cinza claro/escuro) com <code>Index % 2</code> para legibilidade.</li>
+      <li><strong>Botão Aplicar</strong>: no <code>OnClicked</code>, chame <code>ApplyStartLoad</code>. Antes, verifique <code>bStartGranted</code>; se true, mostre toast “Já aplicado”. Se false, siga o fluxo e ao final set <code>bStartGranted=true</code>.</li>
+      <li><strong>Aplicação item a item</strong>: em <code>ApplyStartLoad</code>, faça ForEach Items → <code>InventoryComponent→ServerAddItem</code>. Após cada inserção, registre no log (Print String “Slot X preenchido”). Isso ajuda iniciantes a ver progresso.</li>
+      <li><strong>Buffs</strong>: para cada buff, crie <code>GameplayEffect</code> blueprint com nome “GE_Start_BuffTag”. Use <code>Apply Gameplay Effect To Self</code> passando duração do CSV. Mostre ícones numa <code>HorizontalBox</code> no canto superior esquerdo (offset 20,70).</li>
+      <li><strong>Moedas</strong>: após VaRest POST de moedas, atualize HUD de moedas chamando evento <code>OnCoinsChanged</code> no widget principal. Se POST falhar, mostre aviso vermelho e refileira a requisição na variável <code>PendingCoinGrant</code>.</li>
+      <li><strong>Botão “Reprocessar script”</strong>: adicione botão que chama <code>LoadFromTables</code> novamente e repovoa ListViews, útil para quem altera CSVs. Bloqueie aplicação se já aplicado, apenas para visualizar.</li>
+      <li><strong>Teste guiado</strong>: crie personagem, abra preview, clique Aplicar e compare cada slot com a planilha. Saia e entre novamente para confirmar que flag impede duplicar; em seguida, apague a flag no backend (SQL) e confirme que aplica outra vez.</li>
+    </ol>
   </div>
 </body>
 </html>

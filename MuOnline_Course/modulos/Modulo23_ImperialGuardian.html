@@ -207,6 +207,46 @@
       <li>UI em clientes exibindo tempo restante, fase atual e status dos portões.</li>
       <li>Persistência de resultados/agenda integrada a Node.js/SQL via VaRest.</li>
     </ul>
+
+    <h2>Guia Blueprint Hiper Detalhado</h2>
+    <p>Miniguia para iniciantes aplicarem Imperial Guardian e Double Goer somente com Blueprints.</p>
+
+    <h3>Setup de Dados</h3>
+    <ol>
+      <li>Crie o struct <strong>BST_IGSchedule</strong> contendo <em>NotifySeconds</em>, <em>EventSeconds</em>, <em>CloseSeconds</em>, <em>GateLevel</em>, <em>MonsterAI_Default</em> e <em>MonsterAI_Support</em>.</li>
+      <li>Importe um CSV para <strong>DT_IGSchedule</strong> com 4 janelas diárias (00:30, 06:30, 12:30, 18:30) e os tempos correspondentes.</li>
+      <li>Monte <strong>DT_IGMonsters</strong> com atributos por dificuldade (Index/Level/Life/Damage/Defense/AttackRate/DefenseRate) e posições de spawn: por exemplo mobs iniciais em X=12400,Y=5200,Z=120, elites em X=13600,Y=5200,Z=120.</li>
+    </ol>
+
+    <h3>Fluxo Blueprint</h3>
+    <ol>
+      <li>Crie <strong>BP_IGState</strong> derivado de <code>GameState</code> com variáveis replicadas <code>CurrentState</code> (Idle/Notify/Open/Playing/Closing), <code>RemainingSeconds</code>, <code>GateOpen</code> (bool) e <code>CurrentScheduleIndex</code>.</li>
+      <li>No <code>BeginPlay</code>, leia <code>DT_IGSchedule</code>, compare com <em>Now</em> (node <em>Get Date Time</em>) e arme timers para <em>Notify</em>. Use <em>Switch on Enum</em> em <code>TickState</code> para acionar <em>Multicast</em> <code>OnStateChanged</code>.</li>
+      <li>Entrada: RPC <code>Server_RequestIGEnter(Level)</code> valida convite (item) e horário. Em sucesso, use <em>Open Level (by Object Reference)</em> para <code>/Game/Maps/IG_Lv&lt;Level&gt;</code> e posicione os players em <code>PlayerStart</code> (Y=5200) voltados para o portão.</li>
+      <li>Spawns: em <em>OnStatePlaying</em>, faça <em>ForEach</em> na <code>DT_IGMonsters</code> filtrando por Level para Double Goer. Use <em>Spawn Actor</em> e aplique stats via <em>Set Members in Struct</em> em um componente <code>MonsterStats</code>.</li>
+      <li>Fechamento: ao zerar <code>RemainingSeconds</code> ou derrotar boss, chame <em>Client Travel</em> de volta e dispare VaRest para registrar resultado.</li>
+    </ol>
+
+    <h3>HUD com Coordenadas</h3>
+    <ol>
+      <li>Widget <strong>WBP_IGTimer</strong> (Canvas 1920x1080): barra de progresso em (X=70,Y=70,W=420,H=22) com três cores (amarelo=Notify, verde=Playing, cinza=Closing). Texto do estado em (X=70,Y=40) fonte 20.</li>
+      <li>Painel de monstros em (X=70,Y=120,W=320,H=240) com <em>ListView</em> para Index/HP; atualize com eventos <em>OnSpawned</em> e <em>OnDeath</em>.</li>
+      <li>Botão “Registrar Grupo” em (X=70,Y=380,W=240,H=40). <em>OnClicked</em> chama <code>Server_RequestIGEnter</code>; desabilite se <code>CurrentState != Notify</code>.</li>
+    </ol>
+
+    <h3>VaRest + SQL</h3>
+    <ol>
+      <li>Endpoint <code>GET /api/imperial/schedule</code> para sincronizar horários na inicialização do servidor UE5.</li>
+      <li>Endpoint <code>POST /api/imperial/register</code> com {level, partyMembers, scheduleIndex}; chame quando o líder clicar no botão.</li>
+      <li>Endpoint <code>POST /api/imperial/result</code> com {level, duration, success, rewardList}; dispare em <em>Closing</em> e grave em tabela <code>ImperialRuns</code>.</li>
+    </ol>
+
+    <h3>Debug</h3>
+    <ul>
+      <li>Console command <code>ig.force StateName</code> (Server) que altera <code>CurrentState</code> e reinicia o timer.</li>
+      <li>Widget debug em (X=1500,Y=80,W=360,H=140) exibindo <code>CurrentState</code>, <code>RemainingSeconds</code>, <code>GateOpen</code> e índice de dificuldade.</li>
+      <li><em>Draw Debug Cylinder</em> no portão (X=11800,Y=5200,Z=120, Raio=260) e <em>Draw Debug Sphere</em> nos spawns para alinhar com o mapa original.</li>
+    </ul>
   </div>
 </body>
 </html>

@@ -170,6 +170,86 @@ ItemDropRate = (ItemDropRate*gBonusManager.GetBonusValue(lpObj,BONUS_INDEX_ITEM_
       <li>Cálculos de XP, drop e resets usam multiplicadores ativos.</li>
       <li>Logs/histórico de bônus são salvos via VaRest/Node.js/SQL.</li>
     </ul>
+
+    <h2 class="mt-4">Guia ultra-detalhado para iniciantes (Blueprints + VaRest/SQL)</h2>
+    <p>Passos literais para montar o agendador de bônus globais em UE5 sem escrever C++.</p>
+
+    <div class="card mb-3">
+      <div class="card-body">
+        <h5 class="card-title">1) Dados e backend</h5>
+        <ol>
+          <li>No UE5, crie <strong>Struct</strong> <code>ST_BonusSlot</code> com: Nome (String), HoraInicio (DateTime), DuracaoMin (Int), MsgInicio (Text), MsgFim (Text), MultXP (Float), MultDrop (Float), MultReset (Float).</li>
+          <li>Crie <strong>DataTable</strong> <code>DT_BonusManager</code> (RowName = “MorningXP”, “WeekendDrop”, etc.). Exemplos:<br>MorningXP: HoraInicio 08:00, Duracao 120, MsgInicio “XP x2 ON”, MultXP=2.0;<br>WeekendDrop: HoraInicio Sábado 18:00, Duracao 180, MsgInicio “Drop x1.5 ON”, MultDrop=1.5.</li>
+          <li>Banco SQL: tabelas <code>BonusSchedule(Id, Name, StartAt, DurationMin, MultXP, MultDrop, MultReset)</code> e <code>BonusHistory(Id, Name, StartedAt, EndedAt, WinnerShard)</code>.</li>
+          <li>Endpoints Node.js/PHP:<br><code>GET /bonus/next</code> (retorna próximo agendamento para sincronizar casos de queda de conexão);<br><code>POST /bonus/start</code> {name, startAt};<br><code>POST /bonus/end</code> {name, endAt};<br><code>POST /logs/bonus</code> {name, multXp, multDrop, multReset, server}.</li>
+          <li>No Blueprint <code>BP_SQLBridge</code>, adicione funções <em>FetchNextBonus</em> (GET /bonus/next) e <em>LogBonus</em> (POST /logs/bonus).</li>
+        </ol>
+      </div>
+    </div>
+
+    <div class="card mb-3">
+      <div class="card-body">
+        <h5 class="card-title">2) Subsistema de bônus (Blueprint)</h5>
+        <ol>
+          <li>Crie <code>BP_BonusSubsystem</code> herdando de <code>GameInstanceSubsystem</code>. Variáveis: <code>BonusAtual</code> (Struct), <code>bAtivo</code> (bool), <code>TempoRestante</code> (int), <code>TimerHandle</code>, <code>MultiplicadorXP</code> (float), <code>MultiplicadorDrop</code>, <code>MultiplicadorReset</code>.</li>
+          <li>No <code>Initialize</code>: carregue <code>DT_BonusManager</code> para array; chame <code>FetchNextBonus</code> (VaRest) e inicie <code>SetTimer</code> que checa a cada 30s se chegou a HoraInicio.</li>
+          <li>Função <strong>AtivarBonus</strong> (inputs: Slot): setar <code>bAtivo=true</code>, <code>TempoRestante=Slot.DuracaoMin*60</code>, copiar multiplicadores, disparar <code>Multicast_ShowBonusMessage(Slot.MsgInicio)</code>, chamar <code>LogBonus</code> (start).</li>
+          <li>Função <strong>TickBonus</strong> (chamada a cada 1s via timer separado): decrementa <code>TempoRestante</code>; quando chega a zero, chama <strong>EncerrarBonus</strong>.</li>
+          <li>Função <strong>EncerrarBonus</strong>: zera multiplicadores (1.0), <code>bAtivo=false</code>, mensagem final, log via VaRest /bonus/end.</li>
+        </ol>
+      </div>
+    </div>
+
+    <div class="card mb-3">
+      <div class="card-body">
+        <h5 class="card-title">3) HUD e feedback</h5>
+        <ol>
+          <li>Crie widget <code>WBP_BonusBanner</code> ancorado no topo centro (<code>Position X=640, Y=10</code>; <code>Size X=620, Y=60</code>).</li>
+          <li>Elementos: retângulo semi-transparente, Texto “XP x2 + Drop x1.5”, subtítulo “Termina em 01:59:30”. Ícone de relógio 28x28 à esquerda.</li>
+          <li>Binding: texto principal concatena multiplicadores ativos; contador usa <code>TempoRestante</code> (format HH:MM:SS). Visibilidade = <code>bAtivo</code>.</li>
+          <li>Evento <code>OnBonusChanged</code> (Dispatch do subsistema) adiciona o widget ao viewport e toca som “Bonus_On”.</li>
+          <li>No fim, animação “FadeOut” 1s e remoção do widget.</li>
+        </ol>
+      </div>
+    </div>
+
+    <div class="card mb-3">
+      <div class="card-body">
+        <h5 class="card-title">4) Aplicação em gameplay (Blueprint apenas)</h5>
+        <ol>
+          <li>Em <code>BP_CombatComponent</code>, antes de dar XP, multiplique: <code>XPBase * BP_BonusSubsystem.MultiplicadorXP</code>.</li>
+          <li>Em <code>BP_LootComponent</code>, ao calcular chance de drop, faça <code>ChanceBase * MultiplicadorDrop</code> e clamp 0–1.</li>
+          <li>Em <code>BP_ResetManager</code>, ao cobrar custo ou dar pontos, aplique <code>MultiplicadorReset</code>.</li>
+          <li>Todos esses componentes devem obter o subsistema via <code>GetGameInstance → GetSubsystem</code> (node pronto).</li>
+        </ol>
+      </div>
+    </div>
+
+    <div class="card mb-3">
+      <div class="card-body">
+        <h5 class="card-title">5) Painel de GM para testes</h5>
+        <ol>
+          <li>Widget <code>WBP_BonusGMPanel</code> ancorado canto direito (<code>Position X=1580, Y=420</code>, <code>Size X=300, Y=220</code>).</li>
+          <li>Lista (ComboBox) com RowNames do <code>DT_BonusManager</code>, botão “Forçar Início”, botão “Finalizar Agora”.</li>
+          <li><em>OnClicked Forçar</em>: pega linha selecionada → chama <code>AtivarBonus</code> direto (sem esperar hora). Atualiza HUD e envia <code>/bonus/start</code>.</li>
+          <li><em>OnClicked Finalizar</em>: chama <code>EncerrarBonus</code> e envia <code>/bonus/end</code>.</li>
+          <li>Checklist visual: texto “Ativo? Sim/Não”, “Tempo Restante: 00:00:00”.</li>
+        </ol>
+      </div>
+    </div>
+
+    <div class="card mb-3">
+      <div class="card-body">
+        <h5 class="card-title">6) Testes rápidos</h5>
+        <ol>
+          <li>Forçar bônus “XP x2”; verificar HUD e multiplicador de XP em combate (mate 1 monstro e compare).</li>
+          <li>Esperar 30s e conferir decremento do contador.</li>
+          <li>Finalizar manualmente e garantir que HUD some e multiplicadores voltam a 1.0.</li>
+          <li>Derrubar o cliente e reconectar: checar se <code>GET /bonus/next</code> restaura estado e HUD.</li>
+          <li>Consultar tabela <code>BonusHistory</code> no SQL para ver logs gravados.</li>
+        </ol>
+      </div>
+    </div>
   </div>
 </body>
 </html>

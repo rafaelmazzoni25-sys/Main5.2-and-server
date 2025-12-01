@@ -195,6 +195,20 @@ BYTE CMuunSystem::MuunInventoryInsertItem(int aIndex,CItem item) {
       <li>Adicione testes automatizados: unit test para <code>RectCheck</code> (ambos válidos/invalidos) e integração que carrega definições do DataTable e aplica um buff em personagem.</li>
     </ol>
 
+    <h3>Guia Blueprint detalhado</h3>
+    <ol>
+      <li>No Content Drawer crie <strong>Blueprints/Muun</strong>. Adicione <em>Structure</em> <code>ST_MuunItem</code> (Index, Name, Width, Height, Durability, OptionId) e <em>Structure</em> <code>ST_MuunSave</code> (Slot, ItemIndex, Durability).</li>
+      <li>Crie um <em>Actor Component</em> <code>BP_MuunInventoryComponent</code>. Marque <strong>Replicates</strong>. Adicione variáveis: <code>Slots (Array Int)</code> tamanho 60 inicializado com 255 (0xFF), <code>Equipped (Array Int)</code> tamanho 2, <code>Items (Array ST_MuunItem)</code>. Construa uma função <code>SetupGrid</code> que seta <code>Slots</code> com 60 valores 255.</li>
+      <li>Função <code>RectCheck</code> (Pure): entrada <code>X,Y,Width,Height</code>; se <code>X+Width &gt; 4</code> ou <code>Y+Height &gt; 15</code>, retorne -1. Senão, duplo loop <code>sy=0..Height-1</code>, <code>sx=0..Width-1</code> verificando <code>Slots[(sy+Y)*4 + (sx+X)] == 255</code>. Se qualquer ocupado, retorne -1; caso contrário, retorne <code>(Y*4+X)</code>.</li>
+      <li>Função <code>InsertItem</code> (Run on Server, Reliable): entrada <code>Item : ST_MuunItem</code>. Faça <code>Index = RectCheck(CandidateX, CandidateY, Item.Width, Item.Height)</code>. Ao receber -1, mostre toast "Sem espaço". Se válido, marque todos os blocos com um ID gerado (ex.: <code>ItemGuid</code>) e armazene <code>Items.Add(Item)</code>. Acione <code>OnRep_Slots</code> para atualizar UI.</li>
+      <li>UI: crie <code>WBP_MuunInventory</code>. No <em>Designer</em>, insira <em>Uniform Grid Panel</em> 4 colunas x 15 linhas, cada célula 40x40 px (Padding 2). Adicione um <em>Overlay</em> com texto "Equip" na coluna 0, linhas 0 e 1 para slots equipados. Vincule as células a <code>Slots</code>, colorindo o fundo de acordo com o item e mostrando tooltip com Name/Durability.</li>
+      <li>Drag & Drop: em cada célula, implemente <code>OnMouseButtonDown</code> criando <code>DragDropOperation</code> contendo <code>ItemGuid</code>. Em <code>OnDrop</code> do destino, converta índice de célula para <code>X = Index % 4</code> e <code>Y = Index / 4</code>, chame <code>ServerMoveMuun</code> (Run on Server) para tentar reposicionar usando <code>RectCheck</code>.</li>
+      <li>Persistência VaRest: ao abrir a UI, VaRest GET <code>/muun/load</code> preenchendo <code>Slots</code> e <code>Items</code> com base na resposta JSON. Ao fechar a UI ou a cada 30s, POST <code>/muun/save</code> com lista de <code>ST_MuunSave</code>. Trate falha mostrando alerta vermelho no topo do widget.</li>
+      <li>Buffs: crie <em>Data Asset</em> <code>DA_MuunEffects</code> mapeando <code>OptionId</code> para <code>GameplayEffect</code>. No componente, a cada <code>Tick</code> server-side, verifique itens equipados e aplique/remova efeitos. Exemplo: OptionId 101 = +5% MoveSpeed; 102 = +50 MaxHP.</li>
+      <li>Checklist visual: adicione <em>Text Block</em> no topo direito da UI mostrando "Slots livres: {count}". Coloque o widget ancorado na direita (X=-520, Y=120, alinhamento 1,0). Use ícone do Muun ativo no canto inferior esquerdo da tela (X=40,Y=720) com brilho pulsante.</li>
+      <li>Teste rápido: em <em>PIE Multiplayer 2</em>, arraste um item 2x2 para posição (X=1,Y=5) e outro 1x1 para (X=3,Y=0). Desconecte e reconecte verificando se os itens voltam e se o buff permanece aplicado após reload via VaRest.</li>
+    </ol>
+
     <h3>Checklist Final</h3>
     <ul>
       <li>Dados Muun carregados em DataTables e sincronizados com backend.</li>
