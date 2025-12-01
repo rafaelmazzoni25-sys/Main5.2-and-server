@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  <title>Módulo 49 – Integração VaRest + SQL Completa</title>
+</head>
+<body class="bg-light">
+  <div class="container py-4">
+    <h1 class="mb-4">Módulo 49 – Implementação Completa do Sistema VaRest + SQL</h1>
+    <p class="lead">Passo a passo para expor APIs REST com Node.js, consumi-las via VaRest no cliente UE5 e garantir persistência em SQL de forma compatível com o ecossistema GameServer/DataServer.</p>
+
+    <h2>Arquitetura Recomendada</h2>
+    <div class="card mb-3">
+      <div class="card-body">
+        <h5 class="card-title">Camadas e papéis</h5>
+        <ul class="mb-0">
+          <li><strong>Cliente UE5 (C++ + Blueprint)</strong>: usa <code>VaRest</code> para enviar/receber JSON, assina pacotes com token de sessão proveniente do <code>ConnectServer/JoinServer</code> (módulos 2 e 38).</li>
+          <li><strong>Gateway REST (Node.js + Express)</strong>: valida tokens, traduz JSON em chamadas SQL parametrizadas e mantém logs/metrics.</li>
+          <li><strong>Banco SQL</strong>: mesmo schema do <em>DataServer</em> (módulo 9), acessado via pool de conexões (<code>mssql</code> ou <code>mysql2</code>).</li>
+          <li><strong>Sincronização com GameServer</strong>: endpoints notificam o GameServer por fila/mensagem (ex.: <code>Redis</code> ou pipe TCP) quando uma alteração deve ser refletida em tempo real.</li>
+        </ul>
+      </div>
+    </div>
+
+    <h2>Preparação do Gateway REST</h2>
+    <div class="row">
+      <div class="col-md-6">
+        <div class="card mb-3">
+          <div class="card-body">
+            <h5 class="card-title">Ambiente e dependências</h5>
+            <ol class="mb-0">
+              <li>Inicialize um projeto Node.js (<code>npm init -y</code>) no diretório de serviços.</li>
+              <li>Instale <code>express</code>, <code>helmet</code>, <code>cors</code> e <code>compression</code> para servir as APIs.</li>
+              <li>Adicione o driver SQL correspondente (<code>mssql</code> para SQL Server ou <code>mysql2</code> para MySQL/MariaDB) e <code>jsonwebtoken</code> para validar tokens.</li>
+              <li>Configure variáveis de ambiente (<code>.env</code>) com host, usuário, senha, banco e chaves de assinatura de token.</li>
+            </ol>
+          </div>
+        </div>
+      </div>
+      <div class="col-md-6">
+        <div class="card mb-3">
+          <div class="card-body">
+            <h5 class="card-title">Pool e segurança</h5>
+            <ul class="mb-0">
+              <li>Crie um <strong>pool</strong> de conexões com limites mínimos/máximos para replicar o comportamento do <code>DataServer</code> e evitar exaustão de recursos.</li>
+              <li>Habilite <em>prepared statements</em> (consultas parametrizadas) para bloquear SQL Injection.</li>
+              <li>Implemente <strong>rate limiting</strong> e logs estruturados (ex.: <code>pino</code>) para rastrear chamadas por personagem/conta.</li>
+              <li>Separe credenciais de leitura/escrita se quiser isolar rotas sensíveis (ex.: loja, reset, cash).</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <h2>APIs Essenciais</h2>
+    <div class="card mb-3">
+      <div class="card-body">
+        <h5 class="card-title">Rotas sugeridas</h5>
+        <table class="table table-striped mb-3">
+          <thead>
+            <tr>
+              <th>Rota</th>
+              <th>Método</th>
+              <th>Finalidade</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><code>/api/auth/session</code></td>
+              <td>POST</td>
+              <td>Valida token recebido do JoinServer e retorna um JWT curto para o VaRest.</td>
+            </tr>
+            <tr>
+              <td><code>/api/character/state</code></td>
+              <td>GET</td>
+              <td>Obtém atributos, inventário resumido e posição persistida (similar ao pacote 0xDB do GameServer).</td>
+            </tr>
+            <tr>
+              <td><code>/api/character/save</code></td>
+              <td>POST</td>
+              <td>Persiste experiência, level, reset e moedas; aceita payload assinado e usa transação SQL.</td>
+            </tr>
+            <tr>
+              <td><code>/api/inventory/update</code></td>
+              <td>POST</td>
+              <td>Aplica mudanças de slots (drop, venda, compra) e retorna checksum/versão para sincronizar o cliente.</td>
+            </tr>
+            <tr>
+              <td><code>/api/event/log</code></td>
+              <td>POST</td>
+              <td>Registra participação em eventos (DS/BC/CC/etc.) e premiações, disparando webhook para o GameServer.</td>
+            </tr>
+          </tbody>
+        </table>
+        <p class="mb-0">Estruture respostas em JSON padronizado (<code>{ success, code, data, checksum }</code>) para facilitar parsing no Blueprint e permitir rollback rápido em caso de falha.</p>
+      </div>
+    </div>
+
+    <h2>Fluxo no Cliente UE5 com VaRest</h2>
+    <div class="card mb-3">
+      <div class="card-body">
+        <h5 class="card-title">Blueprint e C++</h5>
+        <ol>
+          <li><strong>Bootstrap</strong>: crie um <em>Subsystem</em> (ex.: <code>UCourseRestSubsystem</code>) em C++ que armazena o endpoint base e o token JWT obtido em <code>/api/auth/session</code>.</li>
+          <li><strong>Requisições</strong>: use nós <code>VaRest Request</code> (GET/POST) configurando cabeçalhos <code>Authorization: Bearer &lt;token&gt;</code> e <code>Content-Type: application/json</code>.</li>
+          <li><strong>Serialização</strong>: mapeie structs C++ (ex.: <code>FCharacterStateDto</code>, <code>FInventoryChangeDto</code>) para JSON via <code>UVaRestJsonObject</code>, evitando campos extras.</li>
+          <li><strong>Resiliência</strong>: implemente retries com <em>exponential backoff</em>, timeout de 5–10s e fallback para reconexão de sessão (módulo 38) caso receba HTTP 401/403.</li>
+          <li><strong>Validação</strong>: compare o <code>checksum</code> retornado com hashes locais do inventário/estado antes de aplicar mudanças no cliente.</li>
+        </ol>
+      </div>
+    </div>
+
+    <h2>Persistência e Transações SQL</h2>
+    <div class="card mb-3">
+      <div class="card-body">
+        <h5 class="card-title">Padrões críticos</h5>
+        <ul>
+          <li>Use <strong>transações</strong> ao salvar progressão e inventário para garantir atomicidade, equivalente ao comportamento do <code>DataServer</code>.</li>
+          <li>Mantenha <em>stored procedures</em> para operações sensíveis (reset, compra Cash Shop, entrega de eventos) e exponha-as via parâmetros nomeados.</li>
+          <li>Calcule hashes/checksums no lado do servidor para detectar corrupção e rejeitar gravações divergentes.</li>
+          <li>Implemente <strong>versionamento</strong> por registro (coluna <code>row_version</code>) para suportar controle de concorrência otimista.</li>
+        </ul>
+      </div>
+    </div>
+
+    <h2>Sincronização em Tempo Real com GameServer</h2>
+    <div class="card mb-3">
+      <div class="card-body">
+        <h5 class="card-title">Feedback imediato</h5>
+        <ol class="mb-0">
+          <li>Quando uma rota de escrita for chamada (ex.: <code>/api/inventory/update</code>), publique um evento em <code>Redis</code> ou em uma fila TCP para que o GameServer recarregue o estado do jogador.</li>
+          <li>Crie um <em>listener</em> no GameServer (thread dedicada) que consome mensagens e chama as mesmas rotinas de atualização já usadas pelos pacotes 0x32/0x3C/0x4F.</li>
+          <li>Use um campo de <strong>versão</strong> ou <strong>timestamp</strong> na mensagem para evitar aplicar alterações antigas.</li>
+        </ol>
+      </div>
+    </div>
+
+    <h2>Testes e Observabilidade</h2>
+    <div class="card mb-3">
+      <div class="card-body">
+        <h5 class="card-title">Cobertura mínima</h5>
+        <ul>
+          <li><strong>Contratos</strong>: teste de schema JSON (ex.: com <code>ajv</code>) para cada rota.</li>
+          <li><strong>Integração UE5</strong>: automatize chamadas VaRest em <code>AutomationSpec</code> para validar serialização e parsing.</li>
+          <li><strong>Carga</strong>: scripts <em>locust/k6</em> simulando fluxos de login &gt; save &gt; compra para medir latência e saturação do pool SQL.</li>
+          <li><strong>Logs e métricas</strong>: exporte contadores de sucesso/falha por rota, tempo de DB e taxa de retry no cliente.</li>
+        </ul>
+      </div>
+    </div>
+
+    <h2>Checklist Final</h2>
+    <ul>
+      <li>Tokens emitidos pelo JoinServer são aceitos e renovados pelo gateway REST.</li>
+      <li>VaRest envia cabeçalhos corretos e aplica retries com backoff.</li>
+      <li>Queries usam parâmetros, transações e versionamento.</li>
+      <li>GameServer recebe notificações de escrita e aplica mudanças em tempo real.</li>
+      <li>Monitoramento registra latência SQL, erros HTTP e discrepâncias de checksum.</li>
+    </ul>
+  </div>
+</body>
+</html>
