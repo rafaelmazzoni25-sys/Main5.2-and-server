@@ -18,6 +18,18 @@
       <li><strong>Persistência</strong>: <code>DataServer/QueueTimer.cpp</code> + SQL ODBC, mapeados em UE5 via Http/REST e Data Assets.</li>
     </ul>
 
+    <h2>Conversões C++ Legado → UE5 (Networking, Replicação e UI)</h2>
+    <p>Use esta matriz como checklist para cada módulo 1–46: ela aponta qual API C++ é portada e para qual construct UE5. Caso um módulo dependa de vários subsistemas, inclua todas as conversões no mesmo Blueprint/Widget.</p>
+    <ul>
+      <li><strong>Pacotes e Soquetes</strong> (mód. 2, 7, 8, 37, 38): <code>ProtocolSend/Recv.cpp</code> → <em>Blueprint Function Library</em> (<code>BP_Protocol</code>) com <em>Http Request</em> e <em>UDP Socket</em> via plugin; <code>WzSend/WzRecv</code> → <em>Switch on Int</em> + DataTable de handlers; <em>replicação</em> de sessão via <code>GameInstance</code> + <code>OnPostLogin</code>.</li>
+      <li><strong>Estado Global e Timers</strong> (mód. 1, 6, 16, 19, 20, 33–36, 45–46): <code>g_…</code> singletons → <code>UGameInstance</code> vars; <code>SetTimerEx</code>/<code>QueueTimer.cpp</code> → <em>Set Timer by Event</em> + <em>Timer Handles</em>; flags de fases → <em>Gameplay Tags</em> replicadas.</li>
+      <li><strong>UI/HUD</strong> (mód. 10, 13, 29, 30, 32, 36, 42): chamadas Win32/DirectX → Widgets UMG (<code>UI_HUD</code>, <code>UI_Chat</code>, <code>UI_Inventory</code>); <code>TextOut</code>/<code>RenderObject</code> → <em>Bindings</em> + <em>Retainer Box</em>; inputs <code>g_pNewUISystem</code> → <em>Enhanced Input</em> + <code>Widget Switcher</code>.</li>
+      <li><strong>Movimento, IA e Combate</strong> (mód. 3, 4, 12, 14–15, 18, 21–26, 40): <code>gObjMove/Attack/SkillProc</code> → <em>Character Movement Component</em> + <em>Gameplay Ability System</em>; <code>MonsterAI.cpp</code> → <em>Behavior Trees</em>/<em>Blackboard</em>; aggro/respawn flags → <em>Gameplay Tags</em>; sincronização de posição → <em>Multicast</em>/<em>RepNotify</em>.</li>
+      <li><strong>Inventário, Comércio e Itens Especiais</strong> (mód. 5, 17, 27, 29, 32, 41–43): <code>gObjInventory</code> e <code>ChaosBox.cpp</code> → DataTables + <em>Struct Arrays</em> em <code>BP_Inventory</code>; <code>MixItem</code>/<code>TradeButton</code> → eventos UMG; validação server-side no endpoint VaRest correspondente.</li>
+      <li><strong>Social, Guild e Chat</strong> (mód. 11, 30, 39, 40): <code>CGPartyRequest/GCGuildInfo</code> → <em>Server RPC</em>/<em>Multicast</em> para sync de membros; chat <code>GCChatTargetRecv</code> → <em>RPC</em> + buffer circular em <code>UI_Chat</code>; flags de união/rivais → <em>Replicated Variables</em> + Data Assets.</li>
+      <li><strong>Persistência e SQL</strong> (mód. 9, 28, 48–49): ODBC/ODBC32 → <em>VaRest Http Request</em> + <em>JSON Deserialize</em>; <code>QueueTimer.cpp</code> → fila/retentativa em <code>BP_SQLBridge</code>; transações de reset/quests → endpoints dedicados com <em>rollback</em> descritos no Módulo 49.</li>
+    </ul>
+
     <h2>Blueprints: Pilares de Recriação</h2>
     <div class="row">
       <div class="col-md-6">
