@@ -105,6 +105,17 @@ void SetGoalRightRect(int x,int y,int xl,int yl) { m_GoalRight.left=x; m_GoalRig
       <li>Enviar resultados ao backend Node.js via VaRest e atualizar UI de ranking com os dados retornados do SQL.</li>
     </ol>
 
+    <h3>Guia passo a passo em Blueprint (iniciante)</h3>
+    <ol>
+      <li><strong>Tabela</strong>: monte <em>Content/Data/DuelArenas.csv</em> com campos <code>ID</code>, <code>Map</code>, <code>SlotA_X/Y/Z</code>, <code>SlotB_X/Y/Z</code>, <code>CleanTime</code>, <code>StartTime</code>. Importe para <code>FDuelArenaInfo</code>.</li>
+      <li><strong>Manager</strong>: em <code>BP_DuelManager</code> (Actor replicado), adicione arrays replicados <code>Arenas (FDuelArenaInfo)</code> e <code>PlayersInArena (Array of PlayerState)</code>. Marque <em>Net Load on Client</em> e <em>Always Relevant</em>.</li>
+      <li><strong>UI</strong>: crie <code>WBP_Duel</code> com lista de arenas (ListView). Cada item mostra tempo restante e botões “Convidar” e “Aceitar”. Posicione no canto direito (offset <code>-380,150</code>).</li>
+      <li><strong>Convite</strong>: botão “Convidar” chama <code>ServerRequestDuel(Target, ArenaID)</code>. Servidor: verifica arena vazia, insere ambos, seta <code>RemainTime = StartTime</code>, teleporta para <code>SlotA/SlotB</code> e inicia timer (Timer by Event de 1s) que decrementa e dispara <code>MulticastTickTime</code>.</li>
+      <li><strong>Battle Soccer</strong>: crie <code>BP_Ball</code> com <code>Sphere</code> + <code>ProjectileMovement</code>. Dois <code>BP_Goal</code> (Box Collision) em coordenadas definidas na tabela. Em <code>OnBeginOverlap</code> do gol, chame <code>ServerScore(Team)</code> e reposicione bola no centro.</li>
+      <li><strong>Persistência</strong>: ao fim da partida (timer ou score), dispare VaRest POST <code>/pvp/duel</code> com <code>{arenaId, winner, losers[], duration}</code>. No sucesso, chame <code>ClientShowResult</code> e <code>ServerGiveReward</code> usando <code>RewardItemID</code> da tabela.</li>
+      <li><strong>Testes</strong>: abra 2 clientes PIE e 1 servidor. Convide, aceite, observe teleport e contagem regressiva. Marque kills manualmente (usar tecla para disparar <code>ServerScore</code>). Confirme UI de tempo/placar muda nos dois clientes e que o backend recebe o POST.</li>
+    </ol>
+
     <h2>Checklist Final</h2>
     <ul>
       <li>Arenas de duelo replicam estados EMPTY/START/CLEAN com timers idênticos.</li>

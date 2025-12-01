@@ -143,6 +143,16 @@ void CCustomStartItem::InsertItem(LPOBJ lpObj) {
       <li>Validar em PIE e builds dedicadas que apenas novos personagens recebem o pacote inicial e que buffs respeitam duração.</li>
     </ol>
 
+    <h3>Guia detalhado em Blueprint</h3>
+    <ol>
+      <li><strong>Tabelas</strong>: adicione <em>StartItems.csv</em> (Class, Slot, ItemID, Level, Durability, Count), <em>StartBuffs.csv</em> (Class, BuffTag, Duration, Magnitude) e <em>StartCoins.csv</em> (Class, WCoin, GoblinPoint). Importar para structs <code>FStartItemRow</code>, <code>FStartBuffRow</code>, <code>FStartCoinRow</code>.</li>
+      <li><strong>Componente</strong>: em <code>BP_StartLoadComponent</code> (replicado), crie arrays <code>Items</code>, <code>Buffs</code>, <code>Coins</code>. Funções Blueprint: <code>LoadFromTables</code> (filtra por classe), <code>ApplyStartLoad</code> (Authority).</li>
+      <li><strong>Aplicação</strong>: em <code>ApplyStartLoad</code>, faça ForEach em <code>Items</code> e chame <code>InventoryComponent→ServerAddItem</code> com slot explícito. Para buffs, chame <code>AbilitySystem→ApplyGameplayEffectToSelf</code> com duração em segundos. Para moedas, invoque VaRest POST <code>/start/coins</code> antes de setar os valores locais.</li>
+      <li><strong>UI</strong>: <code>WBP_StartPreview</code> com três listas (itens, buffs, moedas) e botão “Aplicar”. Posicione no menu de criação (offset <code>Center, -200</code>). Bindings mostram dados carregados pelo componente.</li>
+      <li><strong>Salvaguarda</strong>: variável <code>bStartGranted</code> (bool replicada) persistida via VaRest POST <code>/start/flag</code>. No login, GET <code>/start/flag</code>; se true, não aplicar novamente.</li>
+      <li><strong>Testes</strong>: crie personagem novo, verifique slots preenchidos exatamente como no CSV (checar número de cada slot). Reentre para garantir que não duplica. Modifique CSV para outra classe e use botão “Sincronizar” (GET /start) para atualizar sem recompilar.</li>
+    </ol>
+
     <h2>Checklist Final</h2>
     <ul>
       <li>DataTables de itens/buffs/moedas importados e carregados.</li>

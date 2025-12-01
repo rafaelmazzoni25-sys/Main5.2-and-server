@@ -172,6 +172,55 @@ case 0x87:
       <li>Fluxo de mix acionado via UI → RPC → VaRest/Node.js → SQL com resultado replicado.</li>
       <li>Logs de tentativa/sucesso armazenados para auditoria.</li>
     </ul>
+
+    <h2>Guia Blueprint ultra detalhado (iniciante)</h2>
+    <p>Instrui o aluno clique a clique para montar a Chaos Machine somente com Blueprints + VaRest.</p>
+
+    <h3>1) Montagem visual</h3>
+    <ul>
+      <li>Crie <code>Widget</code> <strong>WBP_ChaosBox</strong> (800x640):
+        <ul>
+          <li>Grid 4x4 de slots (cada 64x64) alinhado em X=60, Y=80; nomeie <code>Slot_1..Slot_16</code>.</li>
+          <li>Botão "Mix" (X=620, Y=520, W=120, H=50), botão "Limpar" (X=480, Y=520, W=120, H=50).</li>
+          <li>Texto de taxa (X=60, Y=20, W=300) e log de resultado (TextBox readonly em X=60, Y=580, W=680, H=40).</li>
+        </ul>
+      </li>
+      <li>Actor <code>BP_ChaosMachine</code>: StaticMesh da máquina, Box Collision (200x200x150), WidgetComponent para mostrar taxa acima da máquina.</li>
+    </ul>
+
+    <h3>2) Componentes em Blueprint</h3>
+    <ol>
+      <li>No <strong>Character</strong>, adicione <code>BP_ChaosBoxComponent</code> (Scene Component) com variáveis replicadas: <em>Slots</em> (Array de Struct {ItemID, Level, Durability, HasTalisman}), <em>IsOpen</em> (bool).</li>
+      <li>Função <code>OpenChaosBox</code> (Client): <code>Create Widget WBP_ChaosBox</code> → <code>Add to Viewport</code> → seta <em>IsOpen</em>=true.</li>
+      <li>Função <code>ResetSlots</code> (Server, Reliable): limpa array, chama <code>OnRep_Slots</code> no client para limpar UI.</li>
+      <li>Função <code>ServerStartMix</code> (Server, Reliable): lê <em>Slots</em>, monta JSON e chama VaRest (veja abaixo); enquanto processa, desativa botões.</li>
+    </ol>
+
+    <h3>3) Preenchendo slots via drag & drop</h3>
+    <ol>
+      <li>Em cada <code>Slot_X</code>, implemente <em>OnDrop</em>: recebe item do inventário, chama <code>ServerPlaceItemInSlot(Index, ItemData)</code> (RPC Server).</li>
+      <li>No servidor, valide se o item está no inventário e se atende aos requisitos de mix (ex.: Joia do Caos). Se ok, remove do inventário, grava na posição do array e dispara <code>OnRep_Slots</code>.</li>
+      <li><code>OnRep_Slots</code> (client) atualiza o ícone/tooltip do slot correspondente.</li>
+    </ol>
+
+    <h3>4) VaRest + SQL para cálculo</h3>
+    <ul>
+      <li>Endpoint POST <code>/chaos/mix</code> recebe JSON {slots:[{itemId,level,durability,talisman}]}. O Node.js aplica a fórmula da taxa (inclui durabilidade do talismã) e retorna {success, newItemId, log} e grava tabela <code>chaos_logs</code>.</li>
+      <li>No <code>ServerStartMix</code> (Authority):
+        <ol>
+          <li><code>VaRestRequestJSON</code> → URL <code>http://127.0.0.1:3000/chaos/mix</code> → Verb POST.</li>
+          <li>OnSuccess: se <em>success</em>=true, adiciona novo item ao inventário e limpa slots; se falso, apenas limpa slots e mostra log.</li>
+          <li>OnFail: reverte itens ao inventário e mostra mensagem de erro vermelha.</li>
+        </ol>
+      </li>
+    </ul>
+
+    <h3>5) Feedback e debug</h3>
+    <ul>
+      <li>Adicione SFX "Forge_Start" ao clicar Mix, "Forge_Success"/"Forge_Fail" conforme resultado.</li>
+      <li>Exiba barra de progresso (X=60,Y=460,W=680) durante a requisição VaRest (Timeline de 1s) para sinalizar processamento.</li>
+      <li>Checklist do aluno: arrastar item, clicar Mix, ver barra animar, receber log verde/vermelho e inventário refletir consumo/resultado.</li>
+    </ul>
   </div>
 </body>
 </html>

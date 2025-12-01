@@ -132,6 +132,17 @@ if(this->GetPos(lpObj) > 0 && this->GetPos(&gObj[lpTargetID]) > 0) {
       <li>Persistir aceite/divórcio via VaRest em endpoints SQL e atualizar todos os clientes por multicast.</li>
     </ol>
 
+    <h3>Guia detalhado para iniciantes</h3>
+    <ol>
+      <li><strong>DataTable</strong>: crie <em>Content/Data/Marry_Config.csv</em> com colunas <code>Map</code>, <code>ProposeX</code>, <code>ProposeY</code>, <code>AcceptX</code>, <code>AcceptY</code>, <code>CostZen</code>, <code>GiftItemID</code>. Importe como DataTable de <code>FMarryConfig</code>.</li>
+      <li><strong>Componentes</strong>: adicione <code>BP_MarryComponent</code> ao <code>PlayerState</code>. Variáveis replicadas: <code>PartnerName (String)</code>, <code>IsMarried (bool)</code>, <code>PendingProposalFrom (String)</code>, <code>ProposalExpireAt (float)</code>.</li>
+      <li><strong>UI</strong>: crie <code>WBP_Marry</code> com painel 400×260 ancorado topo-esquerda (<code>Offset 30,120</code>). Botões “Propor” e “Aceitar”, texto de status e contador regressivo. Bindings: texto de parceiro mostra <code>PartnerName</code>; contador usa <code>ProposalExpireAt - GetGameTime</code>.</li>
+      <li><strong>Fluxo de proposta</strong>: botão “Propor” chama <code>ServerPropose(TargetPlayerState)</code>. No servidor: valide sexo/mapa/posições comparando <code>GetActorLocation</code> com <code>ProposeX/Y</code> do DataTable; se ok, set <code>PendingProposalFrom</code> no alvo e <code>ProposalExpireAt = Now + MarryMaxTime</code>; use <code>ClientReceiveProposal</code> para abrir UI no alvo.</li>
+      <li><strong>Aceite</strong>: botão “Aceitar” no alvo chama <code>ServerAccept</code>. Servidor valida expirado, custo Zen (checar inventário), grava via VaRest POST <code>/marry/accept</code> ({accountA, accountB, map, pos}). Em caso de sucesso, set <code>IsMarried=true</code> em ambos e sincronize por <code>MulticastUpdateMarriage</code>.</li>
+      <li><strong>Persistência</strong>: no login, chame <code>GET /marry/status/{account}</code> via VaRest; atualize <code>PartnerName/IsMarried</code>. Em divórcio, botão “Divorciar” chama <code>/marry/divorce</code> e limpa campos.</li>
+      <li><strong>Testes</strong>: abra 2 clientes PIE + servidor. Posicione ambos nas coordenadas do DataTable (use <code>Teleport</code> na barra de comandos). Clique “Propor” no cliente A, aceite no B antes do timer expirar; confirme que UI mostra parceiro e que o endpoint recebeu a escrita SQL. Depois teste expiração deixando o timer acabar.</li>
+    </ol>
+
     <h2>Checklist Final</h2>
     <ul>
       <li>Configurações de mapa/posições/custos carregadas de tabela.</li>

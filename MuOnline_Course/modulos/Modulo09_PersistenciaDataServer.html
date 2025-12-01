@@ -121,8 +121,53 @@ DataServerProtocolCore(index,lpMsg[0],lpMsg,lpMsgSize);
         <h6>⏱️ Quando é Executado?</h6>
         <p>
           Chamado por todos os handlers de persistência (ex.: <code>GDCharacterInfoRecv</code>) antes de montar respostas. A conexão inicial ocorre no boot do DataServer e permanece enquanto o processo estiver ativo.</p>
-      </div>
     </div>
+  </div>
+
+  <h2 class="mt-4">Guia Blueprint detalhado (VaRest + SQL + DataTables)</h2>
+  <p class="fw-semibold">Objetivo: iniciante replicar o fluxo do DataServer sem C++, usando Blueprints, VaRest e tabelas SQL.</p>
+  <ol>
+    <li><strong>Preparar o backend</strong>: suba um serviço Node.js com endpoints <code>/character/list</code>, <code>/character/create</code>, <code>/character/delete</code>, <code>/character/info</code>. Cada rota executa queries SQL equivalentes (tabela <code>Character</code> com colunas <code>Name</code>, <code>Class</code>, <code>Level</code>, <code>Strength</code>, <code>Dexterity</code>, <code>Vitality</code>, <code>Energy</code>, <code>Map</code>, <code>X</code>, <code>Y</code>, <code>InventoryBlob</code>).</li>
+    <li>No UE5, crie <em>Blueprint Function Library</em> <code>BP_SQLBridge</code> com funções:
+      <ul>
+        <li><code>SendCharacterList</code> (Inputs: <code>Account</code> String) &rarr; usa <code>Create VaRestRequest</code> (POST) para <code>/character/list</code>, <code>Set Request Body (JSON)</code> com <code>account</code> e <code>authToken</code>, chama <code>Process URL</code>. No <code>OnRequestComplete</code>, chama <code>DecodeCharacterList</code>.</li>
+        <li><code>DecodeCharacterList</code>: use <code>Get Response Object</code> &rarr; <code>Get Field Array (Characters)</code> e preencha um <code>DataTable</code> (RowStruct <code>FCharacterRow</code>) via <code>Add Data Table Row</code>. Dispare <code>OnCharacterListReady</code> (Dispatcher).</li>
+        <li><code>SendCharacterInfo</code> (Inputs: <code>CharName</code>) similar, chamando <code>/character/info</code> e salvando os campos em <code>SaveGame</code> <code>SG_Character</code> (atributos + <code>InventoryBlob</code> base64).</li>
+      </ul>
+    </li>
+    <li>Monte um <code>GameInstance</code> Blueprint (<code>BP_GI_Persistence</code>):
+      <ul>
+        <li>No <code>Event Init</code>, defina <code>BaseURL</code> (<code>http://127.0.0.1:3003</code>) e carregue <code>AuthToken</code> salvo.</li>
+        <li>Crie eventos <code>RequestList</code>, <code>RequestCreate</code>, <code>RequestDelete</code> e <code>RequestInfo</code> chamando as funções de <code>BP_SQLBridge</code>. Conecte o dispatcher <code>OnCharacterListReady</code> a um <code>Widget</code> (<code>BP_SelectCharacter</code>).</li>
+        <li>Para <code>RequestCreate</code>, use <code>Create VaRestRequest</code> (POST) em <code>/character/create</code> com campos do formulário (nome, classe inicial). Se erro, exiba <code>Text</code> vermelho; se sucesso, re-chame <code>RequestList</code> para refrescar.</li>
+      </ul>
+    </li>
+    <li><strong>HUD amigável para iniciantes</strong>:
+      <ul>
+        <li>Crie widget <code>BP_SelectCharacter</code> com <code>ListView</code> (personagens) e botões <code>"Criar"</code>, <code>"Apagar"</code>, <code>"Entrar"</code>.</li>
+        <li>No <code>Event Construct</code> do widget, ligue <code>RequestList</code>. Ao selecionar item da lista, preencha painel de atributos (<code>TextBlocks</code> para STR/DEX/VIT/ENE, Level, Map, Coordenadas).</li>
+        <li>Botão Criar: abre modal <code>BP_CreateChar</code> com campos <code>Name</code>, <code>Class</code>. No botão OK, chama <code>RequestCreate</code>.</li>
+        <li>Botão Apagar: chama <code>Create VaRestRequest</code> em <code>/character/delete</code> com confirmação (caixa de diálogo) e, no sucesso, recarrega lista.</li>
+        <li>Botão Entrar: chama <code>RequestInfo</code> e, ao receber <code>SG_Character</code>, faz <code>Open Level</code> com <code>Options</code> contendo <code>?CharName=...</code> para persistir.</li>
+      </ul>
+    </li>
+    <li><strong>Persistência de inventário no SaveGame</strong>:
+      <ul>
+        <li>Crie struct <code>FInventorySlot</code> (ItemId, Durability, SocketData, ExcellentFlags).</li>
+        <li>Em <code>DecodeCharacterInfo</code>, pegue <code>InventoryBlob</code> (base64) &rarr; <code>VaRest</code> <code>Base64 Decode</code> &rarr; armazene em <code>Array of FInventorySlot</code> no <code>SG_Character</code>.</li>
+        <li>Antes de deslogar, chame <code>Create VaRestRequest</code> (POST) em <code>/character/save</code> com o mesmo blob (re-encode base64). Assim espelha o envio <code>0x04</code> do DataServer.</li>
+      </ul>
+    </li>
+    <li><strong>Checklist visual</strong> (adicione no widget <code>BP_SelectCharacter</code>):
+      <ul>
+        <li>Caixa 1: "Conectei ao serviço" &rarr; fica verde quando <code>OnRequestComplete</code> retorna 200.</li>
+        <li>Caixa 2: "Listei personagens" &rarr; verde quando a <code>ListView</code> tem &gt; 0 itens.</li>
+        <li>Caixa 3: "Criei personagem" &rarr; verde após chamada de criação bem-sucedida.</li>
+        <li>Caixa 4: "Carreguei inventário" &rarr; verde quando <code>SG_Character.Inventory</code> receber slots.</li>
+      </ul>
+    </li>
+    <li>Teste guiado: desligue o serviço SQL e clique em "Listar". Confirme que o widget mostra aviso em vermelho e o botão "Tentar Novamente" refaz o POST quando o serviço voltar, simulando o retry/reconexão do DataServer.</li>
+  </ol>
 
     <div class="card mb-3">
       <div class="card-body">

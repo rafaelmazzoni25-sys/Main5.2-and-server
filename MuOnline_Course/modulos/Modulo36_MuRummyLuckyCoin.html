@@ -168,6 +168,19 @@ public:
       <li>Teste: iniciar sessão MuRummy, embaralhar, mover cartas, consultar saldo de Lucky Coin, registrar e trocar.</li>
     </ol>
 
+    <h3>Blueprint clique a clique (iniciante)</h3>
+    <ol>
+      <li><strong>Deck DataAsset</strong>: crie <em>Content/Data/MuRummy_Deck</em> (DataAsset) com 25 entradas (Color 1-5, Number 1-5). No editor, defina <code>ID = Color*10+Number</code> para mapear em Blueprint sem C++.</li>
+      <li><strong>Actor</strong>: adicione um <em>Blueprint Actor</em> chamado <code>BP_MuRummyActor</code> na cena. Componentes: <code>DeckArray (int, Replicated)</code>, <code>SlotArray (int, Replicated, tamanho 5, default -1)</code>, <code>IsShuffling (bool)</code>. Em <em>Class Defaults</em>, marque <em>Replicates</em> e <em>Always Relevant</em>.</li>
+      <li><strong>Shuffle</strong>: no EventGraph, adicione <code>Event BeginPlay → Branch (Authority)</code>; no true, chame <code>ShuffleDeck</code> (ForLoop i 0→24, pega DataAsset, preenche DeckArray; usa <code>Random Integer In Range</code> com <code>Swap</code> para embaralhar). Termine com <code>Multicast UpdateDeck</code>.</li>
+      <li><strong>UI</strong>: crie <code>WBP_MuRummy</code> com 5 <em>Image</em> slots (tamanho 96×128, âncora topo centro: <code>X=0.5,Y=0</code>, offsets -260, -130, 0, 130, 260). Adicione overlay para mão do jogador (5 slots extras). Adicione <code>Drag&Drop Operation</code> vinculando cada botão ao índice.</li>
+      <li><strong>Comprar carta</strong>: no widget, botão “Comprar” chama <code>Server DrawCard</code> no actor. Implementação: pega topo de <code>DeckArray</code>, define <code>SlotArray[PrimeiroSlotLivre]</code>, marca estado replicado e dispara <code>Multicast RefreshUI</code> para todos.</li>
+      <li><strong>Envio ao servidor</strong>: para evitar clique duplo, crie variável <code>IsBusy</code> (bool replicada) no actor. Em <code>Server RegisterCoin</code>, use <code>Gate</code> com <code>Enter</code> e <code>Exit</code> após callback VaRest.</li>
+      <li><strong>VaRest</strong>: configure endpoints <code>/api/lucky/count</code>, <code>/register</code>, <code>/exchange</code>. No <code>GameInstance</code>, faça <em>Request JSON</em> com método POST passando <code>Account</code> e <code>Token</code>. Na resposta, atualize <code>LuckyBalance</code> e chame um evento do widget <code>OnLuckyBalanceChanged</code>.</li>
+      <li><strong>SQL</strong>: tabela <code>LuckyCoin(account VARCHAR, coins INT, lastExchange DATETIME)</code>. Scripts Node.js devem validar <code>TransactionId</code> vindo do cliente e retornar <code>{coins, history[]}</code>.</li>
+      <li><strong>Teste visual</strong>: crie um nível “LVL_MuRummy”. Insira <code>BP_MuRummyActor</code> e widget na viewport. Abra <em>2 clients PIE + Dedicated Server</em>, clique em “Embaralhar”, “Comprar” e arraste cartas. Verifique se o saldo de Lucky Coin sincroniza nos 2 clientes após <code>Register</code>.</li>
+    </ol>
+
     <h2>Checklist Final</h2>
     <ul>
       <li>MuRummy embaralha e distribui cartas replicadas para todos os clientes da sessão.</li>

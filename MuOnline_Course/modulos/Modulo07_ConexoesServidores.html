@@ -117,6 +117,39 @@ public:
       <li>Documentar o fluxo de boot: carregar config, abrir socket, enviar info, esperar ack, sinalizar GameMode para liberar jogadores.</li>
     </ol>
 
+    <h2 class="mt-4">Guia Blueprint minucioso (Join/Data + VaRest)</h2>
+    <p class="fw-semibold">Objetivo: conectar JoinServer/DataServer com Blueprints, VaRest e sockets, mesmo para quem nunca programou.</p>
+    <ol>
+      <li>No <strong>Content Browser</strong>, crie <em>Blueprint Class</em> &rarr; <code>GameInstance</code> chamada <code>BP_GI_Backend</code>. Em <strong>Project Settings &rarr; Maps &amp; Modes</strong>, defina-a como <em>Game Instance Class</em>.</li>
+      <li>Adicione <em>Variables</em>:
+        <ul>
+          <li><code>JoinServerURL</code> (String) &rarr; padrão <code>http://127.0.0.1:3001</code>.</li>
+          <li><code>DataServerURL</code> (String) &rarr; padrão <code>http://127.0.0.1:3002</code>.</li>
+          <li><code>JoinSocket</code> e <code>DataSocket</code> (Object &rarr; <code>Socket</code> se usar plugin de sockets).</li>
+          <li><code>ReconnectDelay</code> (Float) = 2.0.</li>
+        </ul>
+      </li>
+      <li>No <strong>Event Init</strong> do <code>BP_GI_Backend</code>:
+        <ul>
+          <li>Chame <code>Create Socket</code> (TCP) duas vezes para Join/Data. Guarde o retorno nas variáveis.</li>
+          <li>Use <code>Connect</code> (Node do plugin de sockets) com IP/porta configurados. Se falhar, chame <code>Set Timer by Function Name</code> (Function: <code>TryReconnect</code>, Time: <code>ReconnectDelay</code>, Looping: true).</li>
+          <li>Para cada socket, crie <code>Bind Event to OnMessage</code> apontando para <code>OnJoinMessage</code> e <code>OnDataMessage</code>.</li>
+        </ul>
+      </li>
+      <li>Implemente <code>OnJoinMessage</code>:
+        <ul>
+          <li>Use <code>Parse JSON</code> (VaRest) se a mensagem vier como texto; se binário, repasse para um <code>Blueprint Function Library</code> <code>BP_PacketParser</code> com função <code>DecodeJoinHeader</code>.</li>
+          <li>Se detectar evento de desconexão (flag custom <code>FD_CLOSE</code>), chame <code>Multicast</code> <code>EvictAllPlayers</code> no GameMode.</li>
+          <li>Mostre status em um widget <code>BP_ServerStatus</code>: <code>Set Text</code> para "JoinServer ON" (verde) ou "OFF" (vermelho).</li>
+        </ul>
+      </li>
+      <li>Implemente <code>OnDataMessage</code> de forma similar, mas roteando para handlers <code>HandleCharacterList</code>, <code>HandleCharacterInfo</code>. Cada handler usa <code>For Each</code> para preencher um <code>Data Table</code> local (ex.: lista de personagens) e dispara evento <code>OnCharacterListReady</code> para a HUD.</li>
+      <li>Crie função <code>TryReconnect</code>: para cada socket inválido, <code>Print String</code> "Reconectando..." &rarr; <code>Connect</code> novamente. Se sucesso, chame <code>Clear and Invalidate Timer</code> para parar o loop de reconexão.</li>
+      <li>Adicione um painel visual para iniciantes: crie widget <code>BP_LinkPanel</code> com 2 círculos (Join/Data) usando <code>Image</code> e altere cor (vermelho/verde) via <code>Set Brush Tint</code>. Coloque o widget no <code>Viewport</code> do <code>GameInstance</code> (chame <code>Add to Viewport</code> no <code>Event Init</code>) para ver status sem abrir logs.</li>
+      <li>Inclua testes de sala de aula: abra 2 instâncias PIE, derrube o serviço Join (parar Node.js) e verifique se o círculo volta a verde quando o serviço retornar. Marque cada passo em uma checklist visível dentro do widget (usando <code>CheckBox</code> + <code>Text</code>).</li>
+      <li>Persistência: sempre que conectar, dispare <code>Create VaRestRequest</code> (POST) em <code>/bootstrap</code> enviando <code>ServerCode</code> e <code>MaxUsers</code> e grave o <em>token</em> de sessão retornado em variável <code>AuthToken</code> para ser anexado nos próximos pacotes.</li>
+    </ol>
+
     <h2>Checklist Final</h2>
     <ul>
       <li>Servidor UE5 conecta automaticamente a serviços auxiliares no boot.</li>
