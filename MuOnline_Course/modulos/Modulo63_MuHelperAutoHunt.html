@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  <title>Módulo 63 – MU Helper e Auto-Hunt</title>
+</head>
+<body class="bg-light">
+  <div class="container py-5">
+    <h1 class="mb-4">Módulo 63 – MU Helper e Auto-Hunt</h1>
+    <p class="lead">Replica o sistema de automação do cliente legado (auto-hunt, auto-potion e coleta) para UE5.</p>
+
+    <h3>Pré-requisitos</h3>
+    <ul>
+      <li>Ter implementado input/câmera (Módulo 58) e combate/skills (Módulo 4).</li>
+      <li>Persistência de personagem e inventário funcionando (Módulos 3, 5 e 9).</li>
+    </ul>
+
+    <h2 class="mt-4">Conceitos do Código Original</h2>
+    <div class="card mb-3">
+      <div class="card-body">
+        <h5 class="card-title">Cliente – UI/estado do MU Helper (<code>NewUIHelper.cpp</code>, <code>Interface.cpp</code>)</h5>
+        <p>O helper do legado usa um painel configurável (ranges de skill/potion, filtros de coleta) armazenado em variáveis globais e salvo em ini.</p>
+        <ul>
+          <li>Enum <code>eHelperButton</code> define botões (Start, Config, Potion, Party, PickUp).</li>
+          <li>Struct <code>HELPER_CONFIG</code> guarda checkboxes: <code>bAutoHunt</code>, <code>bPotion</code>, <code>bPick</code>, <code>SkillID</code>, <code>Range</code>, <code>Delay</code>, <code>PickupFilters[256]</code>.</li>
+          <li>Funções de tick (<code>HelperMainProc</code>) chamam <code>gObjUseSkill</code> e simulam cliques de consumo de poção (<code>CGUseItemRecv</code>) quando <code>HP &lt;= Threshold</code>.</li>
+        </ul>
+      </div>
+    </div>
+    <div class="card mb-3">
+      <div class="card-body">
+        <h5 class="card-title">Servidor – Flags e validações (<code>GameServer/Helper.cpp</code>)</h5>
+        <p>O GameServer valida tempo de uso, range e consumo de poções/Zen, e aplica filtros de drop antes de <code>CGPickupItemRecv</code>.</p>
+        <ul>
+          <li>Campos do player: <code>HelperActive</code>, <code>HelperStage</code>, <code>HelperLastTick</code>, <code>HelperConfig</code>.</li>
+          <li>Funções: <code>HelperStart</code>, <code>HelperStop</code>, <code>HelperCheckSkill</code> (range, mana, weapon), <code>HelperAutoPotion</code>, <code>HelperPickItem</code>.</li>
+          <li>Logs de desconexão se o helper exceder limites de mapas proibidos.</li>
+        </ul>
+      </div>
+    </div>
+
+    <h2 class="mt-4">Adaptação UE5 (Blueprints)</h2>
+    <ol>
+      <li>Crie um <strong>DataTable</strong> <code>DT_HelperConfig</code> com linhas por classe contendo: skill padrão, delay mínimo, ranges, filtros de drop (ItemIDs, Zen, Joias) e lista de mapas permitidos.</li>
+      <li>No <code>BP_MuPlayerState</code>, adicione um struct <code>FHelperConfig</code> replicado com os campos do legado (AutoHunt, AutoPotion, thresholds, SkillID, PickupFilters).</li>
+      <li>No <code>BP_MuPlayerController</code>, crie um componente <code>BP_HelperComponent</code> com timers: <code>TickAutoHunt</code> (0.5s), <code>TickAutoPotion</code> (0.2s), <code>TickPickup</code> (0.7s). Cada timer valida mapa, mana/HP e chama:</li>
+      <ul>
+        <li><code>Server_CastSkill(SkillID, TargetLocation)</code> usando o mesmo path/teleporte do Módulo 3.</li>
+        <li><code>Server_ConsumePotion(Slot)</code> ao atingir o threshold.</li>
+        <li><code>Server_PickupItem(ActorRef)</code> se o item estiver em <code>PickupFilters</code> ou for Zen.</li>
+      </ul>
+      <li>Monte um widget <code>WBP_Helper</code> (Canvas 640×360, âncora topo-centro) com botões Start/Stop/Config, sliders de HP/MP threshold, combo Skill e caixas de seleção para Zen/Itens/Quest. Faça binding com o componente:</li>
+      <ul>
+        <li><code>Start</code>: chama <code>Server_SetHelperActive(true)</code> e inicia timers.</li>
+        <li><code>Stop</code>: chama <code>Server_SetHelperActive(false)</code> e limpa timers.</li>
+        <li><code>Save</code>: persiste <code>FHelperConfig</code> via VaRest (<code>/api/helper/save</code>) e salva local em <code>Saved/HelperConfig.json</code>.</li>
+      </ul>
+      <li>Adapte orientação e range: converta coordenadas do legado (Y invertido) para UE5 antes de traçar <code>SphereTraceMulti</code> para encontrar mobs e drops.</li>
+    </ol>
+
+    <h2 class="mt-4">Checklist de Paridade</h2>
+    <ul>
+      <li>Auto-hunt inicia/paralisa com os mesmos botões e respeita lista de mapas permitidos.</li>
+      <li>Consumo de poção replica thresholds e respawn da hotbar como no legado.</li>
+      <li>Filtros de drop aceitam Zen/joias/itens específicos e ignoram os demais.</li>
+      <li>Timers e delays equivalentes ao <code>HelperMainProc</code>, sem disparos rápidos demais.</li>
+      <li>Configurações persistem entre logins e reconectam o helper no estado correto.</li>
+    </ul>
+  </div>
+</body>
+</html>
