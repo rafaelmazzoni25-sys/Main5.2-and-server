@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  <title>Módulo 48 – Operação, Entrega e Observabilidade</title>
+</head>
+<body class="bg-light">
+  <div class="container py-4">
+    <h1 class="mb-4">Módulo 48 – Empacotamento UE5, Build de Servidor, CI/CD e Observabilidade</h1>
+    <p class="lead">Guia operacional para preparar entregas do cliente Unreal Engine 5 e do servidor clássico (Update 15), automatizar o pipeline e assegurar monitoramento/logs consistentes com o resto do curso.</p>
+
+    <h2>Empacotamento do Cliente UE5</h2>
+    <div class="card mb-3">
+      <div class="card-body">
+        <h5 class="card-title">BuildCookRun (Shipping) com assets do curso</h5>
+        <ol class="mb-0">
+          <li>Abrir o projeto UE5 (versão C++ + Blueprint usada nos módulos anteriores) e confirmar que os conteúdos convertidos do <code>Source Main 5.2</code> estão referenciados.</li>
+          <li>Usar o <strong>Unreal Automation Tool</strong> via <code>RunUAT.sh</code> / <code>RunUAT.bat</code> com o comando <code>BuildCookRun</code> para <em>Windows</em> ou <em>Linux</em> dedicados.</li>
+          <li>Incluir <code>-pak</code>, <code>-compressed</code> e <code>-prereqs</code> para gerar instalador, e <code>-CrashReporter</code> para anexar o capturador de crash/stack.</li>
+          <li>Validar binários com o projeto <code>Main.sln</code> (cliente original) aberto apenas como referência de assets/ícones e para manter a paridade de recursos.</li>
+        </ol>
+      </div>
+    </div>
+
+    <h2>Build do Servidor (Update 15)</h2>
+    <div class="row">
+      <div class="col-md-6">
+        <div class="card mb-3">
+          <div class="card-body">
+            <h5 class="card-title">GameServer e auxiliares</h5>
+            <p>Use os <code>.sln</code> existentes para compilar no Visual Studio/MSBuild (mesmo ambiente já usado nos módulos anteriores).</p>
+            <ul>
+              <li><code>Source MuServer Update 15/GameServer/GameServer.sln</code> – ciclo principal e roteamento de protocolos.</li>
+              <li><code>Source MuServer Update 15/JoinServer/JoinServer.sln</code> – autenticação e distribuição de salas.</li>
+              <li><code>Source MuServer Update 15/ConnectServer/ConnectServer.sln</code> – handshake e anti-flood de conexão.</li>
+              <li><code>Source MuServer Update 15/DataServer/DataServer.sln</code> – camada ODBC/SQL e timers (QueueTimer).</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+      <div class="col-md-6">
+        <div class="card mb-3">
+          <div class="card-body">
+            <h5 class="card-title">Passos rápidos</h5>
+            <ol class="mb-0">
+              <li>Checar dependências ODBC/SQL e bibliotecas externas (como indicado nos módulos 7–9).</li>
+              <li>Rodar <code>msbuild GameServer.sln /p:Configuration=Release</code> (repita para Join/Connect/DataServer) para gerar binários.</li>
+              <li>Executar scripts de inicialização usados no curso (ex.: carregamento de <code>Script\*.txt</code>) antes de validar com o cliente UE5.</li>
+            </ol>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <h2>Pipeline de CI/CD</h2>
+    <div class="card mb-3">
+      <div class="card-body">
+        <h5 class="card-title">Automação alinhada ao repositório</h5>
+        <ul>
+          <li><strong>Build cliente</strong>: estágio que chama <code>RunUAT BuildCookRun</code> em uma VM com UE5 e usa os mesmos assets do <code>Main.sln</code> para conferir versões de recursos.</li>
+          <li><strong>Build servidor</strong>: jobs paralelos executando <code>msbuild</code> nos quatro <code>.sln</code> acima, reaproveitando os scripts de <em>Script</em> carregados no tempo de execução.</li>
+          <li><strong>Testes/validadores</strong>: adicionar <code>smoke tests</code> que abrem o cliente empacotado e verificam conexão com <code>ConnectServer</code> + consultas básicas no <code>DataServer</code> (usando os binários gerados do repo).</li>
+          <li><strong>Artefatos</strong>: publicar <code>.pak</code> do cliente e os binários <code>GameServer/JoinServer/ConnectServer/DataServer</code> como artefatos versionados.</li>
+          <li><strong>Watchers</strong>: configurar gatilhos de CI para <code>MuOnline_Course/</code> (documentação) e para modificações em <code>Source Main 5.2/</code> ou <code>Source MuServer Update 15/</code>, evitando builds desnecessários.</li>
+        </ul>
+      </div>
+    </div>
+
+    <h2>Checklist de Monitoramento e Logs</h2>
+    <div class="card mb-3">
+      <div class="card-body">
+        <h5 class="card-title">Antes de liberar para o público</h5>
+        <ol>
+          <li>Ativar logs de rede/timers no cliente (paridade com <code>Winmain.cpp</code> e <code>ProtocolRecv/Send</code>), salvando em arquivo para anexar a crash reports.</li>
+          <li>Configurar rotação e nível de log nos servidores (GameServer/Join/Connect/Data) e expor um endpoint/arquivo <code>health.log</code> com batidas periódicas.</li>
+          <li>Habilitar coleta de métricas de fila (<code>QueueTimer.cpp</code>) e uso de threads para detectar gargalos de persistência.</li>
+          <li>Monitorar watchdogs de janela/entrada (mencionados no Módulo 1) e alarmes de reconexão (Módulo 38) para garantir estabilidade.</li>
+          <li>Registrar versão do build (hash do commit) nos binários e no launcher do cliente UE5 para rastreabilidade.</li>
+        </ol>
+      </div>
+    </div>
+
+    <h2>Entrega Final e Checklist de Publicação</h2>
+    <ul>
+      <li>Validar instalador gerado pelo <code>BuildCookRun</code> em uma máquina limpa, incluindo pré-requisitos e assets compartilhados.</li>
+      <li>Executar sessão completa: login (Connect/Join), carregamento de mapa, combate rápido e transação simples (DataServer) usando os binários do repo.</li>
+      <li>Publicar release com <code>.pak</code> + servidores, anexando changelog e links para os scripts de <em>Script</em> e configurações SQL.</li>
+      <li>Agendar <em>postmortem</em> semanal: revisar logs, métricas e alarmes configurados acima.</li>
+    </ul>
+  </div>
+</body>
+</html>
