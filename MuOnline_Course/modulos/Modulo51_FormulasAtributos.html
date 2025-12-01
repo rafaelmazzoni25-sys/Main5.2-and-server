@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  <title>Módulo 51 – Fórmulas de Atributos, Dano e Resistências</title>
+</head>
+<body class="bg-light">
+  <div class="container py-5">
+    <h1 class="mb-4">Módulo 51 – Fórmulas de Atributos, Dano e Resistências</h1>
+    <p class="lead">Reproduz as fórmulas do cliente/servidor C++ para atributos base, escalas de monstro, cálculo de dano/defesa e desgaste (durabilidade), garantindo 1:1 em UE5.</p>
+
+    <h2 class="mt-4">Conceitos do Código Original</h2>
+
+    <div class="card mb-3">
+      <div class="card-body">
+        <h5 class="card-title">Escala de monstros e atributos iniciais</h5>
+        <h6>📘 O Que é?</h6>
+        <p><code>MonsterConvert</code> escala atributos de monstros pelo nível e <code>CreateClassAttributes</code> define os atributos base de cada classe jogável.</p>
+        <h6>🎯 Para Que Serve?</h6>
+        <p>Garante que monstros e personagens iniciem com valores idênticos ao cliente legado (velocidade de ataque, dano, defesa, bloqueio).</p>
+        <h6>💻 Como Funciona?</h6>
+        <ul>
+          <li><code>MonsterConvert</code> define <em>AttackSpeed</em> e escala dano/defesa/ataque/bloqueio proporcional ao nível do monstro (metade base + metade × Level/9).</li>
+          <li><code>CreateClassAttributes</code> preenche Strength/Dexterity/Vitality/Energy/Life/Mana por classe (Dark Wizard, Knight, Elf, Magic Gladiator, Dark Lord, Summoner, Rage Fighter).</li>
+        </ul>
+        <h6>📁 Onde Encontrar?</h6>
+        <p><code>Source Main 5.2/source/ZzzInfomation.cpp</code> (<code>MonsterConvert</code> e <code>CreateClassAttributes</code>).</p>
+        <h6>⏱️ Quando é Executado?</h6>
+        <p>Na carga de scripts de monstros e na criação/reset de personagem.</p>
+      </div>
+    </div>
+
+    <div class="card mb-3">
+      <div class="card-body">
+        <h5 class="card-title">Cálculo de dano por classe (<code>CHARACTER_MACHINE::CalculateDamage</code>)</h5>
+        <h6>📘 O Que é?</h6>
+        <p>Fórmula de dano mínimo/máximo por mão, variando conforme classe e arma (arco/besta vs. melee).</p>
+        <h6>🎯 Para Que Serve?</h6>
+        <p>Preserva a curva de dano 1:1 do cliente C++ (ex.: Elf usando arco depende de Dexterity, Knight escala com Strength, Dark Lord combina Strength/Energy).</p>
+        <h6>💻 Como Funciona?</h6>
+        <ul>
+          <li>Se arco/besta equipado e com durabilidade: <code>Dexterity/7 + Strength/14</code> para dano mínimo; <code>Dexterity/4 + Strength/8</code> para dano máximo.</li>
+          <li>Para cada classe: Elf usa (Strength+Dexterity)/7 e /4; Knight usa Strength/6–7 e /4; Dark Wizard mistura Strength/Energy; Dark Lord usa Strength/7 + Energy/14; Rage Fighter soma Strength/7 + Vitality/15 etc.</li>
+          <li>Valores finais são aplicados a <code>AttackDamageMin/Max</code> de cada mão.</li>
+        </ul>
+        <h6>📁 Onde Encontrar?</h6>
+        <p><code>Source Main 5.2/source/ZzzInfomation.cpp</code> (<code>CalculateDamage</code>).</p>
+        <h6>⏱️ Quando é Executado?</h6>
+        <p>Ao recalcular atributos (login, equip/unequip, distribuição de pontos).</p>
+      </div>
+    </div>
+
+    <div class="card mb-3">
+      <div class="card-body">
+        <h5 class="card-title">Durabilidade e penalidade visual</h5>
+        <h6>📘 O Que é?</h6>
+        <p><code>CalcDurabilityPercent</code> calcula o desgaste e devolve offsets visuais (0.5/0.3/0.2/0) para representar itens quebrados.</p>
+        <h6>🎯 Para Que Serve?</h6>
+        <p>Define quando um item reduz glow ou mostra rachaduras no cliente; também orienta mensagens de reparo.</p>
+        <h6>💻 Como Funciona?</h6>
+        <ul>
+          <li>Aumenta o máximo de durabilidade conforme nível (até +2 por bloco de 8 níveis).</li>
+          <li>Adiciona +20 se item for Set (ExtOption A/B) ou +15 se tiver option normal.</li>
+          <li>Retorna 0.5/0.3/0.2/0 conforme percentual gasto (&gt;80%, &gt;70%, &gt;50%, caso contrário).</li>
+        </ul>
+        <h6>📁 Onde Encontrar?</h6>
+        <p><code>Source Main 5.2/source/ZzzInfomation.cpp</code> (<code>CalcDurabilityPercent</code>).</p>
+        <h6>⏱️ Quando é Executado?</h6>
+        <p>Ao renderizar itens no cliente e ao aplicar penalidades de durabilidade.</p>
+      </div>
+    </div>
+
+    <div class="card mb-3">
+      <div class="card-body">
+        <h5 class="card-title">Seleção de opções Excellent no servidor</h5>
+        <h6>📘 O Que é?</h6>
+        <p><code>CItemExOptionRate::GetExcellentOptionByRate</code> sorteia quais bits Excellent entram em um item, evitando duplicidade e respeitando ranges por item.</p>
+        <h6>🎯 Para Que Serve?</h6>
+        <p>Garante que a geração de itens (drop/chaos mix) aplique opções Excellent com as mesmas probabilidades do servidor legado.</p>
+        <h6>💻 Como Funciona?</h6>
+        <ul>
+          <li>Lê <code>ItemExOptionRate.txt</code> e armazena (ItemMinIndex/ItemMaxIndex, OptionIndex, OptionRate).</li>
+          <li>Ao sortear, ignora opções já presentes em <code>NewOption</code> e adiciona entradas na <em>RandomManager</em> para o range do item.</li>
+          <li>Devolve <code>OptionIndex</code> escolhido, que será aplicado ao item.</li>
+        </ul>
+        <h6>📁 Onde Encontrar?</h6>
+        <p><code>Source MuServer Update 15/GameServer/GameServer/ItemExcellentOptionRate.cpp</code>.</p>
+        <h6>⏱️ Quando é Executado?</h6>
+        <p>Na criação de item (drop, mix, reward) no servidor.</p>
+      </div>
+    </div>
+
+    <h2 class="mt-4">Passo a Passo – UE5 (Blueprints e DataTables)</h2>
+    <ol>
+      <li><strong>DataTable de classes:</strong> Crie <em>DT_ClassBaseStats</em> com colunas Strength/Dexterity/Vitality/Energy/Life/Mana/LevelLife/LevelMana/VitalityToLife/EnergyToMana/Shield. Preencha com os valores de <code>CreateClassAttributes</code> na mesma ordem.</li>
+      <li><strong>DataTable de escala de monstros:</strong> Crie <em>DT_MonsterScale</em> (RowName = MonsterType). Colunas: AttackSpeed, AttackDamageMin/MaxBase, DefenseBase, AttackRatingBase, BlockBase. Fórmula em Blueprint: <code>Scaled = Base/2 + Base/2 * Level / 9</code>, aplicada no spawn.</li>
+      <li><strong>BP_StatCalculator:</strong> Blueprint Function Library com <code>CalcDamageForClass(Class, Strength, Dexterity, Energy, Vitality, bHasBow, bHasCrossbow)</code>. Use <code>Select</code> por classe para replicar as fórmulas de <code>CalculateDamage</code> (ramos específicos para Elf/bow, Knight, Dark Wizard, Dark Lord, Summoner, Rage Fighter).</li>
+      <li><strong>Aplicação de dano por mão:</strong> No <code>BP_MuCharacter</code>, ao atualizar atributos ou equipar, chame <code>CalcDamageForClass</code> e grave nos atributos replicados <code>AttackDamageMinRight/MaxRight/MinLeft/MaxLeft</code>. Usem <code>Set Members in Struct</code> na struct de atributos replicados.</li>
+      <li><strong>Durabilidade visual:</strong> No Widget de inventário, adicione função <code>GetDurabilityPenalty(ItemData)</code> replicando <code>CalcDurabilityPercent</code> (clamp de durabilidade, +20 se Set, +15 se option &gt; 0; thresholds 0.8/0.7/0.5). Use o retorno para trocar material do ícone (ex.: cinza/rachado) e bloquear equip se retorno &gt; 0.</li>
+      <li><strong>Sortear opção Excellent:</strong> Importe <code>ItemExOptionRate.txt</code> para um <em>DataTable</em> <code>DT_ExcellentRate</code>. Crie <code>BP_ExcellentPicker</code> com função <code>PickExcellent(ItemIndex, ExistingBits)</code>: filtra linhas pelo range do item, ignora bits já presentes, usa <code>Select Random Weighted</code> com <code>OptionRate</code> e devolve o bit escolhido, igual ao <code>GetExcellentOptionByRate</code>.</li>
+      <li><strong>Sincronismo cliente/servidor:</strong> No servidor dedicado UE5, salve atributos calculados em <code>AMuPlayerState</code> (replicated). No cliente, use <code>OnRep</code> para atualizar UI (HUD e tooltips) e manter valores idênticos ao pipeline legado.</li>
+      <li><strong>Validação 1:1:</strong> Crie mapa de teste com dummies de cada classe e um monstro nível 10. Compare valores de dano/defesa/ASPD exibidos com os do cliente legado (usando tabelas exportadas). Ajuste constantes no DataTable até igualar.</li>
+    </ol>
+
+    <h2 class="mt-4">Checklist Final</h2>
+    <ul>
+      <li>Todos os monstros aplicam a escala <code>Base/2 + Base/2*(Level/9)</code> e mantêm <em>AttackSpeed</em> original.</li>
+      <li>Classes usam fórmulas específicas (Elf com arco = Dex/7+Str/14, Knight = Str/6-7, Dark Lord = Str/7+Energy/14, Rage Fighter = Str/7+Vit/15 etc.).</li>
+      <li>Ícones e modelos de item respondem à durabilidade com materiais alternativos.</li>
+      <li>Itens Excellent sorteiam bits via tabela ponderada idêntica à do servidor.</li>
+      <li>HUD/Status exibem atributos replicados do servidor dedicado, sem divergência.</li>
+    </ul>
+  </div>
+</body>
+</html>
