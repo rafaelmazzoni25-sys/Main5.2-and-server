@@ -136,6 +136,45 @@ if(lpObj->Reset < CommandData.MinReset[...]) { return 0; }
       <li>Integração VaRest/Node.js/SQL para comandos persistentes.</li>
       <li>Timers de serviços automáticos executam para todos os jogadores conectados.</li>
     </ul>
+
+    <h2>Guia Blueprint Clique a Clique (iniciante)</h2>
+    <ol>
+      <li>UI e entrada
+        <ul>
+          <li>Abra o widget <strong>W_Chat</strong>; insira um campo <strong>EditableTextBox_Command</strong> (ancorar BottomLeft, posição X=32, Y=560, tamanho 420×32) e botão <strong>Btn_Enviar</strong> (X=460, Y=560, tamanho 90×32).</li>
+          <li>No <strong>Graph</strong> do widget, ligue <em>OnTextCommitted</em> → <em>Run Command</em> e salve <code>PlayerController</code> em variável <strong>PC_Ref</strong>.</li>
+        </ul>
+      </li>
+      <li>RPC e validação
+        <ul>
+          <li>No <strong>PlayerController</strong>, crie <em>Custom Event</em> <strong>ServerExecCommand</strong> (Replicates: Run on Server) com entrada <code>Message (String)</code>.</li>
+          <li>Quebre a string com <em>Parse Into Array</em> (separador espaço); índice 0 vira <strong>Command</strong>. Compare com <em>Switch on String</em> populado via <strong>DataTable</strong> <em>DT_Commands</em> (colunas: Enable, Money, MinLevel, MaxLevel, MinReset).</li>
+          <li>Valide dinheiro/nível/reset lendo de <strong>PlayerState</strong>; se falhar, chame <strong>MC_ShowNotice</strong> (Run on Owning Client) exibindo texto no widget <strong>W_Notice</strong> posicionado em X=20, Y=40.</li>
+        </ul>
+      </li>
+      <li>Execução por tipo
+        <ul>
+          <li><strong>/move</strong>: chame <em>ServerTravel</em> ou <em>Teleport</em> com mapa/tile da tabela; atualize SQL via VaRest (<code>/command/move</code>) com payload <code>{account, mapId, x, y}</code>.</li>
+          <li><strong>/reset</strong>: desconecte inputs, some atributos, chame endpoint <code>/command/reset</code>; quando retornar sucesso, reprovisione stats e emita áudio (SoundCue curto) e mensagem global (<em>Multicast</em>).</li>
+          <li><strong>/post</strong>: encaminhe texto para VaRest <code>/chat/post</code> e replique via <em>Multicast</em> para preencher <strong>W_ChatLog</strong> (scrollbox ancorado TopLeft, X=20, Y=80, largura 540, altura 300).</li>
+          <li>Automáticos (<em>AutoAdd</em>, <em>AutoReset</em>): use <em>SetTimer by Function Name</em> no <strong>GameState</strong> a cada 10s percorrendo <strong>PlayerArray</strong> com validações de saldo.</li>
+        </ul>
+      </li>
+      <li>Persistência e auditoria
+        <ul>
+          <li>Crie <strong>BP_SQLBridge</strong> (Actor singleton) com funções <em>SendCommandAudit</em> (VaRest POST <code>/audit/command</code>) contendo conta, comando e timestamp.</li>
+          <li>Para comandos de GM, exija <strong>Bool IsGM</strong> no PlayerState; se falso, retorne aviso vermelho (<code>LinearColor(1,0.25,0.25,1)</code>).</li>
+        </ul>
+      </li>
+      <li>Checklist visual
+        <ul>
+          <li>Campo de comando e botão alinhados na base do chat.</li>
+          <li>Notices surgem no topo esquerdo e somam alertas sonoros.</li>
+          <li>Logs de auditoria gravados no backend após cada comando aceito.</li>
+          <li>Timers automáticos executam e informam na UI a cada execução.</li>
+        </ul>
+      </li>
+    </ol>
   </div>
 </body>
 </html>

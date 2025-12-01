@@ -221,6 +221,121 @@ total inscritos é recalculado; se sobrar 1, ele recebe coins via GDSetCoinSend 
       <li>Recompensas de moedas são persistidas via VaRest/Node.js/SQL e refletidas no estado do jogador.</li>
       <li>Run and Catch teleporta inscritos, controla entradas, elimina capturados e declara vencedor corretamente.</li>
     </ul>
+
+    <h2 class="mt-4">Guia "clique a clique" para iniciantes (Blueprints + VaRest/SQL)</h2>
+    <p>Use este roteiro literal para recriar os dois eventos sem precisar escrever C++.</p>
+
+    <div class="card mb-3">
+      <div class="card-body">
+        <h5 class="card-title">1) Dados, SQL e endpoints</h5>
+        <ol>
+          <li>No Content Browser crie <strong>Struct</strong> <code>ST_EventInstant</code> com campos: NomeEvento (String), Mapa (Byte), PosX (Int), PosY (Int), TempoSeg (Int), RewardId (Int), RewardQty (Int), Avisos (Int).</li>
+          <li>Crie <strong>DataTable</strong> <code>DT_EventInstant</code> usando a struct. Preencha:
+            <ul>
+              <li><em>Quickly_Default</em>: Mapa=2, PosX=134, PosY=128, TempoSeg=300, RewardId=14, RewardQty=5, Avisos=5.</li>
+              <li><em>RunCatch_Default</em>: Mapa=51, PosX=55, PosY=90, TempoSeg=180, RewardId=16, RewardQty=3, Avisos=3.</li>
+            </ul>
+          </li>
+          <li>Banco SQL: tabela <code>InstantEventsLog(Id, EventName, Winner, Duration, RewardId, Qty, CreatedAt)</code> e <code>Winners(Name, Event)</code> se quiser histórico separado.</li>
+          <li>Backend Node.js (ou PHP) com rotas:<br><code>POST /events/instant</code> {eventName, winner, duration, rewardId, qty};<br><code>POST /rewards/grant</code> {account, itemId, amount};<br><code>POST /notices/global</code> {text}.</li>
+          <li>No Blueprint <code>BP_SQLBridge</code>, crie funções <em>SendEventLog</em> (chama /events/instant) e <em>GrantReward</em> (chama /rewards/grant).</li>
+        </ol>
+      </div>
+    </div>
+
+    <div class="card mb-3">
+      <div class="card-body">
+        <h5 class="card-title">2) Painel do GM (Widget WBP_InstantPanel)</h5>
+        <ol>
+          <li>Canvas ancorado no topo direito (<code>Position X=1580, Y=32</code>, <code>Size X=300, Y=360</code>).</li>
+          <li>Adicione dois botões (Width=260, Height=44): <strong>BTN_Quickly</strong> e <strong>BTN_RunCatch</strong>. Texto: “Iniciar Quickly”, “Iniciar Run&amp;Catch”.</li>
+          <li>Abaixo, um <em>EditableTextBox</em> Tempo (DefaultText “300”) e outro de Recompensa (Default “Bless x5”).</li>
+          <li>Bindings visuais: Checkbox “NPC Spawnado?” ligado a bool <code>bNPCAtivo</code>; Texto “Avisos restantes” ligado a int <code>AvisosRestantes</code>.</li>
+          <li><strong>OnClicked Quickly</strong> (clique a clique):
+            <ul>
+              <li>Node <code>GetDataTableRow</code> (RowName Quickly_Default) → Split Struct.</li>
+              <li><code>SpawnActor BP_EventQuickly</code> → Set <em>TempoRestante</em>, <em>PosX</em>, <em>PosY</em>, <em>RewardId</em>, <em>RewardQty</em>, <em>AvisosRestantes</em>.</li>
+              <li>Chamar <code>Multicast</code> “ShowNotice” com texto “Quickly iniciado! Vá para (134,128)”.</li>
+              <li>Usar VaRest <code>POST /events/instant</code> (eventName="Quickly", winner="", duration=TempoSeg).</li>
+              <li>Marcar <code>bNPCAtivo=true</code>.</li>
+            </ul>
+          </li>
+          <li>Repita fluxo para Run&amp;Catch usando RowName RunCatch_Default.</li>
+        </ol>
+      </div>
+    </div>
+
+    <div class="card mb-3">
+      <div class="card-body">
+        <h5 class="card-title">3) Actor Quickly (BP_EventQuickly)</h5>
+        <ol>
+          <li>Componentes: <em>Billboard</em>, <em>Sphere Collision</em> Radius=120, <em>TextRender</em> “Quickly”.</li>
+          <li>Variáveis replicadas: <code>TempoRestante</code> (int), <code>AvisosRestantes</code> (int), <code>RewardId</code> (int), <code>RewardQty</code> (int), <code>WinnerName</code> (string).</li>
+          <li>No <code>BeginPlay</code>: <code>SetTimer</code> (loop 1s) chamando <code>TickEvento</code>.</li>
+          <li><strong>TickEvento</strong>:
+            <ul>
+              <li><code>TempoRestante--</code>; se <code>TempoRestante % 60 == 0</code> ou <code>TempoRestante &lt;= AvisosRestantes</code>, chame <code>Multicast ShowNotice</code> + UI e toque som “Bell”.</li>
+              <li>Se <code>TempoRestante &lt;= 0</code> → chamar função <code>Finalizar(false)</code>.</li>
+            </ul>
+          </li>
+          <li><strong>OnComponentBeginOverlap</strong> (Sphere): se <code>WinnerName</code> vazio, setar para <code>OtherActor.PlayerName</code> e chamar <code>Finalizar(true)</code>.</li>
+        </ol>
+      </div>
+    </div>
+
+    <div class="card mb-3">
+      <div class="card-body">
+        <h5 class="card-title">4) HUD do Jogador (WBP_EventHUD)</h5>
+        <ol>
+          <li>Ancorar barra no topo centro (<code>Position X=640, Y=32</code>, <code>Size X=640, Y=92</code>).</li>
+          <li>Elementos: Barra de progresso (Width=600, Height=12), Texto “Evento: Quickly”, Texto menor “Corra para (134,128)”, Ícone de sino 32x32.</li>
+          <li>Binding: Percent = <code>TempoRestante / TempoTotal</code>; Texto de aviso vindo de <code>ShowNotice</code> multicast.</li>
+          <li>Adicionar animação “FlashWarning” (Loop) e disparar quando <code>TempoRestante &lt;= 5</code>.</li>
+        </ol>
+      </div>
+    </div>
+
+    <div class="card mb-3">
+      <div class="card-body">
+        <h5 class="card-title">5) Finalização + VaRest</h5>
+        <ol>
+          <li>Função <code>Finalizar(TemVencedor bool)</code> em <code>BP_EventQuickly</code>:
+            <ul>
+              <li>Se <code>TemVencedor</code>: aviso “{WinnerName} venceu Quickly!”. Chame <code>BP_SQLBridge.GrantReward(WinnerName, RewardId, RewardQty)</code>; play fogos.</li>
+              <li>Se não: aviso “Evento encerrado sem vencedor”.</li>
+              <li>Registrar <code>BP_SQLBridge.SendEventLog</code> com duração.</li>
+              <li><code>DestroyActor</code> e limpar timer.</li>
+            </ul>
+          </li>
+          <li>Resete <code>bNPCAtivo=false</code> no painel do GM via <code>RunOnOwningClient</code>.</li>
+        </ol>
+      </div>
+    </div>
+
+    <div class="card mb-3">
+      <div class="card-body">
+        <h5 class="card-title">6) Run and Catch (Blueprint rápido)</h5>
+        <ol>
+          <li>Crie <code>BP_RunCatchManager</code> (Actor replicado) com arrays <code>Inscritos</code> (PlayerState refs) e <code>Ativos</code>, int <code>TempoRestante</code>, bool <code>bAberto</code>.</li>
+          <li><strong>Função AbrirEvento</strong>: setar <code>bAberto=true</code>, <code>TempoRestante=180</code>, <code>SetTimer</code> 1s. Multicast aviso “Inscrições abertas em (55,90)”.</li>
+          <li><strong>Função Inscrever</strong>: RPC no <code>PlayerController</code> que adiciona à lista e teleporta para (55,90, Z=120). Tocou efeito “Spawn_Warp”.</li>
+          <li><strong>Tick</strong>: decrementa <code>TempoRestante</code>; se chega a 0 → finaliza sem vencedor; se <code>Ativos.Num()==1</code> → vencedor recebe <code>GrantReward</code>.</li>
+          <li><strong>Registrar Hit</strong>: no GM, use <code>LineTrace</code> quando clicar; se acertar jogador ativo, remova-o e teleporte para gate de saída (mapa 0, coords 125,125). Atualize HUD via multicast.</li>
+        </ol>
+      </div>
+    </div>
+
+    <div class="card mb-3">
+      <div class="card-body">
+        <h5 class="card-title">7) Testes rápidos</h5>
+        <ol>
+          <li>Iniciar Quickly, verificar spawn e aviso.</li>
+          <li>Entrar na esfera, validar recompensa no SQL e no HUD.</li>
+          <li>Rodar Run&amp;Catch, inscrever 3 jogadores, eliminar 2 pelo GM, checar vencedor e log gravado.</li>
+          <li>Desconectar rede durante evento e voltar: confirmar que HUD recupera tempo restante via variável replicada.</li>
+        </ol>
+      </div>
+    </div>
   </div>
 </body>
 </html>

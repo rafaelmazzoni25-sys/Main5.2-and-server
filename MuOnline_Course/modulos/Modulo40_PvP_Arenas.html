@@ -105,6 +105,17 @@ void SetGoalRightRect(int x,int y,int xl,int yl) { m_GoalRight.left=x; m_GoalRig
       <li>Enviar resultados ao backend Node.js via VaRest e atualizar UI de ranking com os dados retornados do SQL.</li>
     </ol>
 
+    <h3>Guia passo a passo em Blueprint (iniciante)</h3>
+    <ol>
+      <li><strong>Tabela</strong>: monte <em>Content/Data/DuelArenas.csv</em> com campos <code>ID</code>, <code>Map</code>, <code>SlotA_X/Y/Z</code>, <code>SlotB_X/Y/Z</code>, <code>CleanTime</code>, <code>StartTime</code>. Importe para <code>FDuelArenaInfo</code>.</li>
+      <li><strong>Manager</strong>: em <code>BP_DuelManager</code> (Actor replicado), adicione arrays replicados <code>Arenas (FDuelArenaInfo)</code> e <code>PlayersInArena (Array of PlayerState)</code>. Marque <em>Net Load on Client</em> e <em>Always Relevant</em>.</li>
+      <li><strong>UI</strong>: crie <code>WBP_Duel</code> com lista de arenas (ListView). Cada item mostra tempo restante e botões “Convidar” e “Aceitar”. Posicione no canto direito (offset <code>-380,150</code>).</li>
+      <li><strong>Convite</strong>: botão “Convidar” chama <code>ServerRequestDuel(Target, ArenaID)</code>. Servidor: verifica arena vazia, insere ambos, seta <code>RemainTime = StartTime</code>, teleporta para <code>SlotA/SlotB</code> e inicia timer (Timer by Event de 1s) que decrementa e dispara <code>MulticastTickTime</code>.</li>
+      <li><strong>Battle Soccer</strong>: crie <code>BP_Ball</code> com <code>Sphere</code> + <code>ProjectileMovement</code>. Dois <code>BP_Goal</code> (Box Collision) em coordenadas definidas na tabela. Em <code>OnBeginOverlap</code> do gol, chame <code>ServerScore(Team)</code> e reposicione bola no centro.</li>
+      <li><strong>Persistência</strong>: ao fim da partida (timer ou score), dispare VaRest POST <code>/pvp/duel</code> com <code>{arenaId, winner, losers[], duration}</code>. No sucesso, chame <code>ClientShowResult</code> e <code>ServerGiveReward</code> usando <code>RewardItemID</code> da tabela.</li>
+      <li><strong>Testes</strong>: abra 2 clientes PIE e 1 servidor. Convide, aceite, observe teleport e contagem regressiva. Marque kills manualmente (usar tecla para disparar <code>ServerScore</code>). Confirme UI de tempo/placar muda nos dois clientes e que o backend recebe o POST.</li>
+    </ol>
+
     <h2>Checklist Final</h2>
     <ul>
       <li>Arenas de duelo replicam estados EMPTY/START/CLEAN com timers idênticos.</li>
@@ -112,6 +123,18 @@ void SetGoalRightRect(int x,int y,int xl,int yl) { m_GoalRight.left=x; m_GoalRig
       <li>Campo de Battle Soccer tem gols configurados e bola funcional.</li>
       <li>Resultados de duelos e partidas são persistidos via Node.js/SQL e mostrados no cliente.</li>
     </ul>
+
+    <h3>Detalhamento adicional para iniciantes</h3>
+    <ol>
+      <li><strong>Layout</strong>: em <em>WBP_Duel</em>, use um <code>Border</code> 380x520 ancorado canto direito (X=1,Y=0.5, offset -400,-260). Dentro, um <code>VerticalBox</code> com título “Arenas” e uma <code>ListView</code>. Cada item (UserWidget) tem textos “Arena X”, “Estado”, “Tempo” e botões “Convidar/Aceitar”.</li>
+      <li><strong>Bindings</strong>: no item da lista, crie função <code>SetData</code> que recebe <code>FDuelArenaInfo</code>. Bind texto Tempo usando <code>Format Text</code> com <code>RemainTime</code> em segundos. Use <code>ProgressBar</code> para Start/Clean percorrendo de 1→0.</li>
+      <li><strong>Fluxo Convite</strong>: no botão “Convidar”, abra <code>WBP_PlayerSelector</code> (simples ScrollBox de nomes online). Ao clicar num nome, chame <code>ServerRequestDuel</code>. Mostre toast “Aguardando aceite” e esconda botão para evitar spam.</li>
+      <li><strong>Teleporte e posição</strong>: no servidor, após aceitar, use <code>Teleport</code> para <code>SlotA_X/Y/Z</code> e <code>SlotB_X/Y/Z</code> da tabela. Mostre decal no chão (círculo 140 unidades) para orientar iniciantes onde cada player aparecerá.</li>
+      <li><strong>Timer</strong>: no <code>BP_DuelManager</code>, crie <code>Set Timer by Event</code> 1s, armazenando <code>Handle</code>. No evento, decrementa <code>RemainTime</code> e envia <code>MulticastTickTime</code> atualizando UI de todos. Se chegar a 0, finaliza e limpa arena.</li>
+      <li><strong>Battle Soccer passo a passo</strong>: coloque gols em coordenadas da tabela (ex.: X=0,Y=2200 e X=0,Y=-2200) e bola em (0,0,100). Adicione um <code>WidgetComponent</code> na bola com texto “Empurre-me”. Configure <code>OnHit</code> para tocar som e adicionar impulso.</li>
+      <li><strong>Persistência VaRest</strong>: crie função <code>SendResult</code> no manager → <code>VaRest Request (POST)</code> para <code>/pvp/duel</code> com <em>winner, loser, arenaId, duration, score</em>. Em <code>OnSuccess</code>, mostre popup “Salvo no ranking”; em <code>OnFail</code>, guarde em fila local <code>PendingSaves</code> para retry.</li>
+      <li><strong>Testes dirigidos</strong>: roteiro: (1) convidar/aceitar; (2) esperar timer zerar sem kills e verificar resultado empate; (3) marcar gol no Battle Soccer e ver barra de placar subir; (4) desconectar um jogador durante a partida e confirmar limpeza automática da arena.</li>
+    </ol>
   </div>
 </body>
 </html>

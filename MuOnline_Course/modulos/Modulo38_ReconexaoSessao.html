@@ -132,6 +132,17 @@ if(it != m_ReconnectInfo.end()) {
       <li>Incluir UI de feedback (widget) indicando sucesso/falha da restauração.</li>
     </ol>
 
+    <h3>Roteiro granular em Blueprints</h3>
+    <ol>
+      <li><strong>Struct</strong>: crie <code>FReconnectInfo_BP</code> com campos <em>Account (String)</em>, <em>PartyMembers (Array de String)</em>, <em>AutoAdd (bool)</em>, <em>AutoReset (bool)</em>, <em>Password (String)</em>, <em>GensSide (int)</em>, <em>Timestamp (int)</em>.</li>
+      <li><strong>Componente</strong>: adicione <code>BP_ReconnectComponent</code> ao <code>PlayerState</code>. Variáveis replicadas: <code>LastSnapshot</code> (struct), <code>ReconnectTimeout</code> (float). Evento <code>OnSaveSnapshot</code> envia <code>LastSnapshot</code> via <code>VaRest POST /session/snapshot</code> com JSON igual ao struct.</li>
+      <li><strong>Captura na desconexão</strong>: no <code>GameInstance → OnNetworkFailure</code>, recupere o <code>PlayerState</code> local, preencha <code>LastSnapshot</code> (PartyMembers via <code>GetPartyArray</code>, senha de loja se existir) e chame o evento <code>OnSaveSnapshot</code>. Exiba toast “Snapshot salvo”.</li>
+      <li><strong>Restore no login</strong>: após autenticar (evento do módulo 2), chame <code>VaRest GET /session/snapshot/{Account}</code>. Se <code>Timestamp</code> for maior que agora - <code>ReconnectTimeout</code>, aplique: <code>ForEach PartyMembers → ServerJoinParty</code>, set <code>AutoAdd/AutoReset</code> e envie RPC <code>ServerSetPassword</code> para lojas.</li>
+      <li><strong>UI</strong>: crie <code>WBP_ReconnectStatus</code> com indicador “Snapshot encontrado” (verde) ou “Expirado” (vermelho). Coloque em layout topo direito (âncora <code>X=1,Y=0</code>, offset <code>-220,20</code>).</li>
+      <li><strong>Limpeza</strong>: timer em <code>GameInstance</code> executa a cada 30s: se <code>Now - Timestamp &gt; ReconnectTimeout</code>, chama <code>DELETE /session/snapshot/{Account}</code> via VaRest e limpa <code>LastSnapshot</code>.</li>
+      <li><strong>Teste</strong>: com 2 clientes PIE + servidor, forme party, ative auto-add, desconecte o cliente 1, reconecte em 30s e verifique se party/auto-add voltam. Faça segundo teste após expirar o timeout e confirme que nada é restaurado.</li>
+    </ol>
+
     <h2>Checklist Final</h2>
     <ul>
       <li>Snapshot é salvo ao desconectar e removido quando expira.</li>
@@ -139,6 +150,17 @@ if(it != m_ReconnectInfo.end()) {
       <li>Timeout alinhado ao <code>m_PartyReconnectTime</code> configurado.</li>
       <li>Endpoints Node.js/SQL expõem salvar/consultar snapshot e são consumidos via VaRest.</li>
     </ul>
+
+    <h3>Passo a passo minucioso (Blueprint)</h3>
+    <ol>
+      <li><strong>SQL/Node</strong>: crie tabela <code>ReconnectSnapshot(Account PK, Payload JSON, Timestamp BIGINT)</code>. Endpoint <code>POST /session/snapshot</code> armazena JSON completo; <code>GET /session/snapshot/{Account}</code> devolve registro; <code>DELETE</code> remove.</li>
+      <li><strong>Blueprint structs</strong>: abra <em>Content/Blueprints/Social</em>, crie <code>BPST_ReconnectParty</code> (Array de <em>String</em> PartyMembers, <em>bool AutoAdd</em>, <em>bool AutoReset</em>, <em>String Password</em>, <em>String GensVictims</em>, <em>int64 Timestamp</em>).</li>
+      <li><strong>Widget</strong>: <em>WBP_ReconnectStatus</em> com barra horizontal (tamanho 240x48, âncora topo direita X=1,Y=0, offset -260,24). Textos: “Snapshot: Carregado/Expirado”. Um ícone vermelho/verde alterna via <code>Set Brush Tint</code>.</li>
+      <li><strong>Salvar</strong>: no <code>GameInstance → Event OnNetworkFailure</code>, pegue o PlayerState, monte <code>BPST_ReconnectParty</code> preenchendo arrays (use <code>Get All Party Members</code>). Converta para JSON com VaRest (<code>VaRest Json Object → Set Field Array</code>) e chame <code>POST /session/snapshot</code>. Ao concluir, chame <code>Update UI</code> para mostrar “Snapshot salvo”.</li>
+      <li><strong>Restaurar</strong>: após login (evento do módulo 2), chame <code>GET</code>. Se <code>Timestamp</code> &gt; <code>Now - Timeout</code>, faça <code>ForEach PartyMembers → ServerJoinParty</code>, set flags <code>AutoAdd/AutoReset</code>, aplique senha de loja com RPC, e reenvie Gens victims via <code>ServerSetGensVictimList</code>. Atualize UI para “Carregado”. Caso contrário, limpe UI e chame <code>DELETE</code>.</li>
+      <li><strong>Timer de limpeza</strong>: no <code>GameInstance</code>, <code>Set Timer by Event</code> a cada 20s → chama <code>GET</code> e se expirado, dispara <code>DELETE</code> e oculta widget (Set Visibility Hidden).</li>
+      <li><strong>Teste guiado</strong>: no mapa de teste, coloque 3 atores <em>BP_TestNPC</em> que criam party rapidamente. Faça: (1) login, cria party, aciona auto-add/reset, desconecta; (2) reconecta em 10s e confirme restauração completa; (3) reconecta após tempo de expiração e confirme que nada volta e UI marca Expirado.</li>
+    </ol>
   </div>
 </body>
 </html>

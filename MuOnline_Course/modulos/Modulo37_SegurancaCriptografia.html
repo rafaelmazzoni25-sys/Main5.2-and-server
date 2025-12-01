@@ -142,6 +142,17 @@ void UHackCheckComponent::Encrypt(TArray<uint8>& Buffer) {
       <li>Valide em runtime com um servidor de eco TCP Node.js para garantir compatibilidade binária.</li>
     </ol>
 
+    <h3>Guia Blueprint ultra detalhado</h3>
+    <ol>
+      <li><strong>DataTable de chaves</strong>: crie <em>Content/Data/HackKeys.json</em> com campos <code>CustomerName</code>, <code>ServerSerial</code>, <code>MHP1</code>, <code>MHP2</code>. Importe para um <code>DataTable</code> de struct <code>FHackKeys</code> em UE5.</li>
+      <li><strong>Componente</strong>: crie <code>BP_HackCheckComponent</code> (ActorComponent). Variáveis: <code>EncDecKey1/2 (byte)</code>, <code>MHP1/2 (byte)</code>, <code>IsInitialized (bool)</code>. Funções: <code>DeriveKeys</code>, <code>EncryptBuffer</code> (entrada <code>Array de Bytes</code>), <code>DecryptBuffer</code>.</li>
+      <li><strong>Derivação em Blueprint</strong>: em <code>DeriveKeys</code>, leia a primeira linha do DataTable. Use <code>ForEach Byte Array</code> sobre <code>CustomerName</code> convertida para bytes (função <em>String to Bytes</em>) somando com <code>ServerSerial</code> módulo tamanho. Some ao base <code>0xE2/0x76</code> com <code>Add (byte)</code>; salve em variáveis.</li>
+      <li><strong>Interceptação</strong>: crie <code>BP_SocketWrapper</code> (Object Blueprint) com referência a <code>FSocket</code> em C++ ou <code>SocketSubsystem</code> exposed. Antes de <code>Send</code>, chame <code>EncryptBuffer</code>; antes de <code>OnReceived</code>, chame <code>DecryptBuffer</code>. Registre o wrapper em <code>GameInstance → OnStart</code>.</li>
+      <li><strong>VaRest</strong>: no boot offline, chame <code>GET /hack/keys</code>. No callback <code>OnSuccess</code>, faça <code>Set Members FHackKeys</code> e chame <code>DeriveKeys</code>. Se falhar, use valores do DataTable como fallback.</li>
+      <li><strong>HUD de debug</strong>: crie <code>WBP_HackDebug</code> com textos “Key1/Key2/MHP1/MHP2” e botão “Testar eco”. O botão dispara <code>Send Echo</code> com payload <code>[0x01,0x02,0x03]</code> e mostra o retorno decifrado.</li>
+      <li><strong>Teste guiado</strong>: no mapa de teste, adicione <code>BP_HackCheckComponent</code> ao <code>GameMode</code>. Em PIE 2 jogadores + servidor dedicado, envie mensagens simultâneas e verifique no widget se os buffers antes/depois da cifra são iguais ao original após decifrar. Documente prints.</li>
+    </ol>
+
     <h2>Checklist Final</h2>
     <ul>
       <li>Chaves derivadas no boot replicam o cálculo do GameServer.</li>
@@ -149,6 +160,18 @@ void UHackCheckComponent::Encrypt(TArray<uint8>& Buffer) {
       <li>Endpoint Node.js/SQL opcional entregue e consumido via VaRest.</li>
       <li>Testes de ida/volta confirmam buffers idênticos após decodificação.</li>
     </ul>
+
+    <h3>Roteiro clique-a-clique para iniciantes</h3>
+    <ol>
+      <li><strong>Preparar assets</strong>: crie a pasta <em>/Content/Blueprints/Security</em> e um <code>CurveFloat</code> vazio <em>CRV_DebugOpacity</em> (usado para piscar alertas).</li>
+      <li><strong>Widget de debug</strong>: em <em>WBP_HackDebug</em>, ancore um painel no canto superior esquerdo (X=16,Y=16, alinhamento 0,0, tamanho 320x200). Adicione textos “Key1/Key2/MHP1/MHP2”, barra de progresso “Pacotes cifrados” e botão “Forçar eco”.</li>
+      <li><strong>Bindings</strong>: no texto Key1/Key2, use <code>Get EncDecKey1/2</code> lendo variáveis do <code>BP_HackCheckComponent</code>. No botão, crie o evento <code>OnClicked</code> → chama <code>Send Echo</code> em <code>BP_SocketWrapper</code> com payload array <code>[0xAA,0xBB,0xCC]</code>.</li>
+      <li><strong>Socket wrapper</strong>: no blueprint <em>BP_SocketWrapper</em>, variável <code>HackComponent (BP_HackCheckComponent ref)</code>. Em <code>Send Echo</code>, faça <code>Make Array</code> de bytes, passe por <code>EncryptBuffer</code>, depois chame a função C++/Blueprint que envia pelo socket.</li>
+      <li><strong>Captura de entrada</strong>: adicione um <code>Timer by Event</code> no <code>Event BeginPlay</code> do GameInstance para a cada 5s requisitar <code>/hack/keys</code> via VaRest. No sucesso, atualize as variáveis e emita um evento <code>OnKeysUpdated</code> para o widget.</li>
+      <li><strong>Fallback offline</strong>: se o request falhar (<code>OnFail</code>), execute o nó <code>Load DataTable Row</code> com a linha “Default” e aplique as chaves, exibindo um alerta vermelho piscante usando <code>CRV_DebugOpacity</code>.</li>
+      <li><strong>Teste guiado</strong>: abra PIE com 1 client + dedicated server. No console, digite <code>ce GenerateTraffic</code> (ou simule envios). Observe no widget se os contadores “Enviados/Recebidos” aumentam e se o eco retorna com os mesmos bytes decifrados (mostre ambos em um <code>ScrollBox</code>).</li>
+      <li><strong>Validação final</strong>: desconecte a rede (botão “Simular queda” que desliga o socket) e reconecte; o componente deve refazer o GET das chaves e reenviar o eco automaticamente, registrando sucesso/erro no widget.</li>
+    </ol>
   </div>
 </body>
 </html>

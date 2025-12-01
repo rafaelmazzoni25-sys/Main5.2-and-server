@@ -263,6 +263,55 @@ protected:
       <li>Widget de ranking exibe símbolo, título e lista com dados vindos do backend.</li>
       <li>Dados persistem no banco e recarregam ao reconectar.</li>
     </ul>
+
+    <h2>Guia Blueprint ultra detalhado (iniciante)</h2>
+    <p>Como refazer o sistema Gens passo a passo com Blueprints, VaRest e SQL.</p>
+
+    <h3>1) UI e posicionamento</h3>
+    <ul>
+      <li><strong>WBP_GensHUD</strong> (1920x1080):
+        <ul>
+          <li>Banner superior (X=40, Y=30, W=420, H=90) com símbolo à esquerda (64x64) e texto de família/rank à direita.</li>
+          <li>Painel de contribuição (X=40, Y=140, W=420, H=160) com barra de progresso (W=380, H=22) e label "Contribution: 00000".</li>
+          <li>Botão "Ranking" (X=40, Y=320, W=180, H=48) abre modal <code>WBP_GensRanking</code>.</li>
+        </ul>
+      </li>
+      <li><strong>WBP_GensRanking</strong> (800x620): cabeçalho com filtros (família/tier) e <code>ScrollBox</code> preenchido por <code>WBP_GensRow</code> (linha 64px: símbolo 48x48, nome, contribuição, rank).</li>
+    </ul>
+
+    <h3>2) PlayerState e Componentes</h3>
+    <ol>
+      <li>Crie <code>BP_PS_Gens</code> (deriva de PlayerState) com variáveis replicadas: <em>Family</em> (Enum: Duprian/Varnert), <em>Contribution</em> (int), <em>Rank</em> (int), <em>SymbolTexture</em> (SoftObject).</li>
+      <li>No <strong>Character</strong>, adicione componente <code>BP_GensComponent</code> com função <code>ServerRegisterKill(VictimFamily, KillerFamily)</code> (Server, Reliable) e <code>ApplyContributionDelta</code> (Authority).</li>
+      <li>Event BeginPlay (client): cria <code>WBP_GensHUD</code> e associa bindings a <em>OnRep</em> das variáveis do PlayerState.</li>
+    </ol>
+
+    <h3>3) NPC de adesão</h3>
+    <ul>
+      <li>Actor <code>BP_GensNPC</code> com Box Collision (150x150) e TextRender "Join Gens". OnOverlap → mostra <code>Press E</code> em um widget flutuante.</li>
+      <li>Input E (client): abre <code>WBP_GensJoin</code> com dois botões (Duprian, Varnert) e aviso de requisito de nível.</li>
+      <li>Ao clicar, chama <code>RequestJoinFamily(Family)</code> (veja VaRest) e, em sucesso, seta <em>Family</em> no PlayerState, carrega textura do símbolo e fecha UI.</li>
+    </ul>
+
+    <h3>4) VaRest + SQL</h3>
+    <ul>
+      <li>Endpoints:
+        <ul>
+          <li>POST <code>/gens/register</code> → body {account, family} → grava em <code>gens_members</code> (family, contribution, rank, symbol).</li>
+          <li>POST <code>/gens/kill</code> → body {killerAccount, victimAccount} → atualiza contribuição e devolve {delta, newContribution, rank}.</li>
+          <li>GET <code>/gens/ranking?family=Duprian</code> → retorna lista ordenada para o widget.</li>
+        </ul>
+      </li>
+      <li>No <code>BP_GensComponent</code> (Authority): quando <code>ServerRegisterKill</code> é chamado, dispara VaRest POST <code>/gens/kill</code>; no retorno, chama <code>ApplyContributionDelta</code> e replica <em>Contribution</em>/<em>Rank</em>.</li>
+      <li>No <code>WBP_GensRanking</code>, OnConstruct chama VaRest GET ranking e preenche o ScrollBox criando linhas dinâmicas.</li>
+    </ul>
+
+    <h3>5) Debug e validação</h3>
+    <ul>
+      <li>Console command <code>gens.debug</code> mostra widget com valores atuais e último delta recebido.</li>
+      <li>Ative <code>Print String</code> no client quando <em>OnRep_Contribution</em> disparar para confirmar replicação.</li>
+      <li>Checklist do aluno: falar com NPC, escolher família, ver símbolo no HUD, matar rival em mapa permitido e ver contribuição/ ranking atualizar na UI e no backend.</li>
+    </ul>
   </div>
 </body>
 </html>
