@@ -220,6 +220,30 @@ public:
       <li>Documentar os pontos de extensão (UI Manager, sistema de áudio, loader de mapas) no README do projeto UE5 para corresponder aos globais do WinMain.</li>
     </ol>
 
+    <h2>Tutorial clique a clique em Blueprints (iniciante)</h2>
+    <ol>
+      <li>Abrir o <strong>Content Browser</strong> e criar uma pasta <code>/MU/Bootstrap</code>. Dentro dela, clicar com o direito &gt; <em>Blueprint Class</em> &gt; derivar de <code>GameInstance</code> e nomear <strong>BP_MuGameInstance</strong>. Repetir criando <strong>BP_MuServerMode</strong> derivado de <code>GameModeBase</code>.</li>
+      <li>Abrir <strong>Project Settings &gt; Maps &amp; Modes</strong> e em <em>Game Instance Class</em> selecionar <code>BP_MuGameInstance</code>. Em <em>Default GameMode</em> definir <code>BP_MuServerMode</code>. Salvar.</li>
+      <li>No <strong>BP_MuGameInstance</strong>, na guia <em>Event Graph</em>, adicionar um <code>Event Init</code>. Colocar um <em>Sequence</em> com três saídas nomeadas <em>LoadConfig</em>, <em>InitAudio</em>, <em>InitSockets</em>. Cada saída alimenta um <code>Run Blueprint Function</code> que chama funções colapsadas:</li>
+      <ul>
+        <li><strong>LoadConfig</strong>: adicionar um <code>Read File</code> (plugin Victory ou C++ helper) apontando para <code>Saved/Config/Windows/Game.ini</code>, parsear JSON via <code>VaRest Json Object</code> e popular variáveis <em>ServerHost</em>, <em>ServerPort</em>, <em>MusicVolume</em>. Exibir toast usando <code>Create Widget</code> &gt; <code>WBP_Toast</code> (classe simples com texto).</li>
+        <li><strong>InitAudio</strong>: criar variável <em>AmbientSound</em> do tipo <code>AudioComponent</code>, instanciar com <code>Spawn Sound 2D</code> usando <em>MusicVolume</em> lido; salvar referência em <code>AudioRef</code>. Se volume 0, chamar <code>Set Paused (Audio)</code> para replicar <code>StopMp3</code> do código legado.</li>
+        <li><strong>InitSockets</strong>: se o projeto usar plugin de sockets HTTP, adicionar <code>VaRestSubsystem</code> ref com <code>Get Game Instance Subsystem</code>. Em seguida, <code>Set Timer by Function Name</code> (intervalo 5s) chamando <code>PingServer</code> para simular heartbeats de disponibilidade.</li>
+      </ul>
+      <li>Criar um <strong>Widget</strong> <code>WBP_Splash</code> em <code>/MU/UI</code> com fundo preto e texto centralizado (Anchor <em>Full Screen</em>) indicando "Inicializando". No <code>BP_MuGameInstance</code>, ainda no <code>Event Init</code>, usar <code>Create Widget</code> &gt; <code>WBP_Splash</code> e <code>Add to Viewport</code> antes de inicializar sockets; remover após terminar com <code>Remove from Parent</code>.</li>
+      <li>Para reproduzir o <code>DestroyWindow</code> legado, adicionar em <code>BP_MuGameInstance</code> um evento custom <strong>SaveAndShutdown</strong>. Incluir <code>VaRestRequest JSON</code> (POST) para rota <code>/config/save</code> com payload <code>{"Volume": MusicVolume}</code>; ao completar, chamar <code>Quit Game</code>.</li>
+      <li>Em <code>BP_MuServerMode</code>, abrir o <em>Event Graph</em> e ligar <code>Event BeginPlay</code> a um <em>Sequence</em> com saídas <em>MutexCheck</em>, <em>LoadTables</em>, <em>ConnectServices</em>:</li>
+      <ul>
+        <li><strong>MutexCheck</strong>: adicionar variável bool <em>bServerAlreadyRunning</em> controlada por arquivo lock em <code>Saved/Locks/gs.lock</code> usando <code>Does File Exist</code>. Se existir, registrar log com <code>Print String</code> (vermelho) e chamar <code>Quit Game</code>; senão, criar arquivo com <code>Write File</code> contendo timestamp.</li>
+        <li><strong>LoadTables</strong>: criar <em>Data Table</em> <code>DT_Monsters</code> (estrutura com ID, HP, PosX, PosY). No Blueprint, usar <code>Load Data Table Row</code> em um <em>For Each Row</em> e popular um <code>Map&lt;int, FMonsterRow&gt;</code>. Exibir barra de progresso com <code>FScopedSlowTask</code> equivalente usando <code>ProgressBar</code> em widget <code>WBP_ServerBoot</code> (Ancora centro, 600x30 px).</li>
+        <li><strong>ConnectServices</strong>: usar <code>VaRestRequest</code> (GET) para <code>/health</code> do JoinServer e DataServer. Em caso de falha, setar um timer de retry 10s e mostrar alerta em <code>WBP_ServerBoot</code> (texto vermelho, alinhamento topo-direita com margem 24px).</li>
+      </ul>
+      <li>No <strong>Level Blueprint</strong> do mapa inicial (<code>Persistent_Level</code>), adicionar node <code>Get Game Instance</code> -&gt; <code>Cast to BP_MuGameInstance</code> -&gt; <code>Call SaveAndShutdown</code> ao pressionar tecla <em>Esc</em>, replicando o encerramento seguro.</li>
+      <li>Para espelhar o <code>Loop principal</code>, criar um <code>Actor</code> chamado <strong>BP_TickRouter</strong> com <code>Tick Enabled</code>. No <code>Event Tick</code> adicionar <code>Branch</code> se <em>bIsMinimized</em> (bool controlada por <code>On Window Focus Changed</code> via <code>GameViewportClient</code> C++ ou plugin). Se true, chamar <code>Delay 0.5</code> para reduzir carga; se false, executar funções <em>ProcessNetwork</em> e <em>RenderUI</em> (colapsadas em Blueprint) para centralizar a lógica de atualização.</li>
+      <li>Checklist visual: abrir <strong>Play in Editor (PIE)</strong>, verificar que <code>WBP_Splash</code> aparece e some; apertar <em>Esc</em> e checar request <code>/config/save</code> no console VaRest; desconectar rede e confirmar retries de <code>ConnectServices</code>; ajustar volume para 0 e validar que <code>AudioRef</code> pausa.</li>
+      <li>Registrar um comando de console <code>mu.dumpinit</code> em C++ (<code>FAutoConsoleCommand</code>) que imprime no log valores de <em>ServerHost/Port</em>, estado de áudio e status dos serviços. Documentar no final do módulo como macro de depuração que o aluno deve copiar/colar.</li>
+    </ol>
+
     <h2>Checklist Final</h2>
     <ul>
       <li>Cliente UE5 inicializa UI, áudio e configurações sem recursos não inicializados.</li>
