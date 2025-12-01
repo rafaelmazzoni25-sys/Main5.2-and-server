@@ -118,6 +118,18 @@ int gain = baseExp * rate / 100;
       <li>Persistência via VaRest/Node.js/SQL salva e restaura progression.</li>
       <li>Comandos de debug garantem que faixas com <code>-1</code> (sem limite) funcionam.</li>
     </ul>
+
+    <h3>Roteiro ultra detalhado (Blueprint)</h3>
+    <ol>
+      <li><strong>Widgets alinhados</strong>: em <em>WBP_Progression</em>, coloque três barras: XP normal (offset 40,140, largura 420), XP master (offset 40,190, largura 420) e barra de cooldown de reset (offset 40,240, largura 420, cor laranja). Adicione textos “XP”, “Master”, “Cooldown” acima de cada uma.</li>
+      <li><strong>Bindings simples</strong>: barra XP usa <code>Get Exp / Get NextThreshold</code> (float). Barra cooldown usa <code>(PendingCooldownEnd-GetTimeSeconds)/Rule.CooldownSeconds</code> com <code>Clamp 0..1</code>. Texto de reset mostra <code>Format Text "Reset: {0}"</code> lendo variável replicada.</li>
+      <li><strong>Botões</strong>: “Resetar” chama <code>ServerRequestReset</code>. “Adicionar XP (Debug)” adiciona 50k XP local e dispara <code>AddExp</code> server-side para alunos testarem.</li>
+      <li><strong>Setup do componente</strong>: no <code>BP_ProgressionComponent</code>, use <code>Event BeginPlay → LoadDataTables</code> (carrega ExperienceTable e ResetRules). Em seguida, faça <code>VaRest GET /progress/load</code>; no sucesso, <code>Set Members</code> das variáveis e atualize UI.</li>
+      <li><strong>Reset Rule lookup</strong>: crie função <code>GetResetRuleFor(int ResetCount)</code> que percorre a tabela e retorna a linha com <code>Resets == ResetCount</code> ou último com <code>-1</code>. Exponha para Blueprint puro para iniciantes não codarem C++.</li>
+      <li><strong>Feedback visual</strong>: ao completar level mínimo, acione animação de brilho na barra XP (use <code>Timeline</code> com emissive) e habilite botão Resetar. Quando em cooldown, coloque ícone de ampulheta piscando (Opacity animada por <code>Timeline</code>).</li>
+      <li><strong>Persistência passo a passo</strong>: na função <code>SaveProgress</code>, monte JSON com <em>account, level, reset, masterLevel, masterReset, cooldown_until</em>. Chame <code>POST /progress/save</code>. Se falhar, salve no <code>SaveGame</code> local e tente novamente a cada login (fila <code>PendingProgressSaves</code>).</li>
+      <li><strong>Testes guiados</strong>: execute sequência: (1) clicar Add XP até habilitar reset; (2) clicar Resetar e ver variáveis zerarem/contador iniciar; (3) tentar Resetar novamente durante cooldown (deve bloquear com toast “Aguarde”); (4) reconectar e confirmar que cooldown continua contando a partir do backend.</li>
+    </ol>
   </div>
 </body>
 </html>

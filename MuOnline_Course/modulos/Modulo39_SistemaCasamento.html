@@ -150,6 +150,18 @@ if(this->GetPos(lpObj) > 0 && this->GetPos(&gObj[lpTargetID]) > 0) {
       <li>Validação de posição/sexo espelha o servidor legado.</li>
       <li>Estado persistente gravado em Node.js/SQL e sincronizado via VaRest.</li>
     </ul>
+
+    <h3>Guia passo a passo para principiantes</h3>
+    <ol>
+      <li><strong>Preparar UI</strong>: em <em>WBP_Marry</em>, posicione rótulos: “Parceiro”, “Custo Zen”, “Mapa permitido” alinhados à esquerda, com valores à direita. Use fonte 14, cor branca, sombra preta para leitura.</li>
+      <li><strong>Painéis visuais</strong>: adicione um quadro vermelho “Requisitos não atendidos” (visibilidade colapsada) e quadro verde “Pronto para casar”. Troque visibilidade quando qualquer validação falhar (mapa errado, sexo igual, distância &gt; 150 unidades das coordenadas).</li>
+      <li><strong>Botão Propor</strong>: no evento <code>OnClicked</code>, monte sequência: <code>Get Player Under Crosshair → Cast to PlayerState → ServerPropose</code>. Antes de chamar, valide localmente Zen &gt;= custo e distância usando <code>Vector Length</code> entre <code>GetActorLocation</code> e vetor <code>(ProposeX, ProposeY, Z do chão)</code>.</li>
+      <li><strong>Botão Aceitar</strong>: exiba somente se <code>PendingProposalFrom</code> não vazio. No clique, chame <code>ServerAccept</code>. Se retornar sucesso (RPC client), feche quadro vermelho, abra quadro verde e mostre texto “Casados: &lt;Parceiro&gt;”.</li>
+      <li><strong>Sequência VaRest</strong>: crie função Blueprint <code>SaveMarriage</code> → <code>VaRest Make JSON</code> com <em>accountA, accountB, map, pos, timestamp</em> → <code>POST /marry/accept</code>. No sucesso, chame <code>RefreshStatus</code> (GET) para garantir dados sincronizados.</li>
+      <li><strong>Teleporte rápido para teste</strong>: adicione no GameMode um comando <code>ce marry_tp</code> que faz <code>Teleport</code> do personagem para as coordenadas <code>(ProposeX, ProposeY)</code> da tabela, garantindo que iniciantes consigam alinhar posição.</li>
+      <li><strong>Checklist visual</strong>: crie um widget lateral <em>WBP_MarryChecklist</em> com checkboxes “Mapa correto”, “Distância &lt;=150”, “Parceiros sexos diferentes”, “Zen suficiente”, “Timer ativo”. Cada checkbox usa <code>Set Is Checked</code> conforme validações locais para guiar o aluno.</li>
+      <li><strong>Cenário de erro</strong>: force falta de Zen (set 0) e clique Propor. Mostre toast “Sem Zen” e mantenha quadro vermelho visível. Em seguida, adicione Zen via console <code>ce addzen 1000000</code> e repita para demonstrar recuperação.</li>
+    </ol>
   </div>
 </body>
 </html>

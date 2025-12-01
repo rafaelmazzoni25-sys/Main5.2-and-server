@@ -160,6 +160,18 @@ void UHackCheckComponent::Encrypt(TArray<uint8>& Buffer) {
       <li>Endpoint Node.js/SQL opcional entregue e consumido via VaRest.</li>
       <li>Testes de ida/volta confirmam buffers idênticos após decodificação.</li>
     </ul>
+
+    <h3>Roteiro clique-a-clique para iniciantes</h3>
+    <ol>
+      <li><strong>Preparar assets</strong>: crie a pasta <em>/Content/Blueprints/Security</em> e um <code>CurveFloat</code> vazio <em>CRV_DebugOpacity</em> (usado para piscar alertas).</li>
+      <li><strong>Widget de debug</strong>: em <em>WBP_HackDebug</em>, ancore um painel no canto superior esquerdo (X=16,Y=16, alinhamento 0,0, tamanho 320x200). Adicione textos “Key1/Key2/MHP1/MHP2”, barra de progresso “Pacotes cifrados” e botão “Forçar eco”.</li>
+      <li><strong>Bindings</strong>: no texto Key1/Key2, use <code>Get EncDecKey1/2</code> lendo variáveis do <code>BP_HackCheckComponent</code>. No botão, crie o evento <code>OnClicked</code> → chama <code>Send Echo</code> em <code>BP_SocketWrapper</code> com payload array <code>[0xAA,0xBB,0xCC]</code>.</li>
+      <li><strong>Socket wrapper</strong>: no blueprint <em>BP_SocketWrapper</em>, variável <code>HackComponent (BP_HackCheckComponent ref)</code>. Em <code>Send Echo</code>, faça <code>Make Array</code> de bytes, passe por <code>EncryptBuffer</code>, depois chame a função C++/Blueprint que envia pelo socket.</li>
+      <li><strong>Captura de entrada</strong>: adicione um <code>Timer by Event</code> no <code>Event BeginPlay</code> do GameInstance para a cada 5s requisitar <code>/hack/keys</code> via VaRest. No sucesso, atualize as variáveis e emita um evento <code>OnKeysUpdated</code> para o widget.</li>
+      <li><strong>Fallback offline</strong>: se o request falhar (<code>OnFail</code>), execute o nó <code>Load DataTable Row</code> com a linha “Default” e aplique as chaves, exibindo um alerta vermelho piscante usando <code>CRV_DebugOpacity</code>.</li>
+      <li><strong>Teste guiado</strong>: abra PIE com 1 client + dedicated server. No console, digite <code>ce GenerateTraffic</code> (ou simule envios). Observe no widget se os contadores “Enviados/Recebidos” aumentam e se o eco retorna com os mesmos bytes decifrados (mostre ambos em um <code>ScrollBox</code>).</li>
+      <li><strong>Validação final</strong>: desconecte a rede (botão “Simular queda” que desliga o socket) e reconecte; o componente deve refazer o GET das chaves e reenviar o eco automaticamente, registrando sucesso/erro no widget.</li>
+    </ol>
   </div>
 </body>
 </html>

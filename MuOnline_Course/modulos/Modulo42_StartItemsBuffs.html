@@ -161,6 +161,19 @@ void CCustomStartItem::InsertItem(LPOBJ lpObj) {
       <li>Persistência de moedas e flag de aplicação funcionando via VaRest/Node.js/SQL.</li>
       <li>Ferramenta de debug permite reprocessar o script e visualizar concessões.</li>
     </ul>
+
+    <h3>Passo a passo detalhado para alunos sem experiência</h3>
+    <ol>
+      <li><strong>Importação</strong>: arraste os CSVs para a pasta <em>/Content/Data/StartLoad</em> e escolha o struct correto. Marque “Update On Reimport” para facilitar ajustes.</li>
+      <li><strong>Widget de pré-visualização</strong>: em <em>WBP_StartPreview</em>, coloque três <code>ListView</code> lado a lado (largura 220 cada, altura 260). Títulos “Itens iniciais”, “Buffs iniciais”, “Moedas”.</li>
+      <li><strong>Bindings visuais</strong>: cada item da ListView de itens mostra Slot, ItemID e Level. Adicione cor de fundo alternada (cinza claro/escuro) com <code>Index % 2</code> para legibilidade.</li>
+      <li><strong>Botão Aplicar</strong>: no <code>OnClicked</code>, chame <code>ApplyStartLoad</code>. Antes, verifique <code>bStartGranted</code>; se true, mostre toast “Já aplicado”. Se false, siga o fluxo e ao final set <code>bStartGranted=true</code>.</li>
+      <li><strong>Aplicação item a item</strong>: em <code>ApplyStartLoad</code>, faça ForEach Items → <code>InventoryComponent→ServerAddItem</code>. Após cada inserção, registre no log (Print String “Slot X preenchido”). Isso ajuda iniciantes a ver progresso.</li>
+      <li><strong>Buffs</strong>: para cada buff, crie <code>GameplayEffect</code> blueprint com nome “GE_Start_BuffTag”. Use <code>Apply Gameplay Effect To Self</code> passando duração do CSV. Mostre ícones numa <code>HorizontalBox</code> no canto superior esquerdo (offset 20,70).</li>
+      <li><strong>Moedas</strong>: após VaRest POST de moedas, atualize HUD de moedas chamando evento <code>OnCoinsChanged</code> no widget principal. Se POST falhar, mostre aviso vermelho e refileira a requisição na variável <code>PendingCoinGrant</code>.</li>
+      <li><strong>Botão “Reprocessar script”</strong>: adicione botão que chama <code>LoadFromTables</code> novamente e repovoa ListViews, útil para quem altera CSVs. Bloqueie aplicação se já aplicado, apenas para visualizar.</li>
+      <li><strong>Teste guiado</strong>: crie personagem, abra preview, clique Aplicar e compare cada slot com a planilha. Saia e entre novamente para confirmar que flag impede duplicar; em seguida, apague a flag no backend (SQL) e confirme que aplica outra vez.</li>
+    </ol>
   </div>
 </body>
 </html>

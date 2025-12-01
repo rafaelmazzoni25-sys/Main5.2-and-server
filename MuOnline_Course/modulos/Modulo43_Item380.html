@@ -136,6 +136,17 @@ void C380ItemOption::SetInfo(ITEM_380_OPTION_INFO info) {
       <li>Persistência via VaRest/Node.js/SQL sincroniza flag e opções.</li>
       <li>UI exibe claramente que o item é 380 e mostra seus valores.</li>
     </ul>
+
+    <h3>Guia minucioso (Blueprint + UI)</h3>
+    <ol>
+      <li><strong>Indicadores de UI</strong>: em cada slot de inventário (Widget), adicione um ícone “380” (16x16) no canto superior direito do slot (offset X=24,Y= -6). Torne visível quando <code>bHas380Flag</code> for true.</li>
+      <li><strong>Tabela visual</strong>: em <em>WBP_Item380</em>, exiba uma tabela 2×3: linha 1 “Defesa/Atk/SocketCount”, linha 2 valores vindos do DataTable para o item selecionado. Isso ajuda iniciantes a entender o impacto.</li>
+      <li><strong>Fluxo de equipar</strong>: no Blueprint do inventário, <code>OnItemEquipped → Branch bHas380Flag → Add to Equipped380 array → RecalcBonus</code>. Em <code>RecalcBonus</code>, para cada item, some bônus parciais; ao atingir <code>PartsNeeded</code>, aplique <code>FullSetBonus</code> usando <code>Apply Gameplay Effect</code> com tag “Set380.Full”.</li>
+      <li><strong>Sockets passo a passo</strong>: ao clicar em um círculo de socket, abra <code>WBP_SocketPicker</code> (Grade 3x3 de valores possíveis). Ao selecionar, salve no array <code>SocketValues</code> e chame <code>ApplySocketEffects</code>, que percorre cada socket e aplica efeito específico (ex.: +HP, +Dano). Mostre ícone do efeito abaixo do slot.</li>
+      <li><strong>Persistência VaRest detalhada</strong>: crie função <code>Save380</code> → monta JSON <code>{account, items:[{id,set,sockets:[...]}]}</code> → <code>POST /item380/save</code>. Em caso de falha, salve JSON no <code>SaveGame</code> local e tente novamente na próxima troca de mapa.</li>
+      <li><strong>Teste assistido</strong>: prepare dois conjuntos na tabela: Set A com 2 peças (PartsNeeded=2) e Set B com 4 peças. Sequência: equipe peça 1 (ver ícone 380 acender), peça 2 (ver bônus parcial), peça 3/4 (ver bônus completo). Tire a peça 2 e observe remoção do bônus. Relogue e confira se sockets e bônus retornam automaticamente.</li>
+      <li><strong>Depuração</strong>: adicione widget <em>WBP_380Debug</em> com lista de itens equipados e checkbox “Forçar FullSet”. Ao marcar, simula que todas as partes estão presentes para testar efeitos sem coletar as peças.</li>
+    </ol>
   </div>
 </body>
 </html>

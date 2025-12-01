@@ -289,6 +289,17 @@ lpObj-&gt;SkillSummonPartyMap = this-&gt;bot[number].Warp_Map;
       <li>Warper NPC valida requisitos, cobra Zen/PCPoints via VaRest/Node.js/SQL e teleporta para coordenada segura (ou outro servidor) mantendo replicação.</li>
       <li>Mensagens de feedback em UI replicam as notificações do servidor original.</li>
     </ul>
+
+    <h3>Passos adicionais para quem nunca usou Blueprints</h3>
+    <ol>
+      <li><strong>Meshes e colisão</strong>: coloque o <code>SkeletalMesh</code> do NPC e um <code>Billboard</code> com texto “Buff/Warper”. No componente <code>Collision Sphere</code>, marque <em>Generate Overlap Events</em> e ajuste a resposta para <em>Pawn: Overlap</em>.</li>
+      <li><strong>Detecção de proximidade</strong>: em <code>OnComponentBeginOverlap</code>, verifique se é o jogador local → abra <code>WBP_NPCDialog</code>. Em <code>OnEndOverlap</code>, feche o widget automaticamente.</li>
+      <li><strong>Layout do diálogo</strong>: adicione abas usando <code>Widget Switcher</code>. Na aba Buffs, use <code>TileView</code> com cartão 220x80 contendo nome, duração, custo e botão “Aplicar”. Na aba Warp, outra <code>TileView</code> com destino, mapa, custo, requisito VIP.</li>
+      <li><strong>Fluxo Buff</strong>: botão “Aplicar” → <code>Server_RequestBuff(RowID)</code>. No servidor, chame VaRest POST <code>/npc/buff/check</code>; se <code>ok</code> retornar falso, execute <code>ClientShowError</code> mostrando toast vermelho. Se true, aplique <code>GameplayEffect</code> e toque partícula no local do player.</li>
+      <li><strong>Fluxo Warp</strong>: botão “Warp” → <code>Server_RequestWarp(RowID)</code>. Servidor chama VaRest POST <code>/npc/warp</code>; se sucesso, usa <code>Set Timer by Event</code> 3→2→1 (atualizando texto na UI) e, ao final, chama <code>ClientTravel</code> para map/destino do DataTable. Se falhar, mostre toast amarelo “Requisito não atendido”.</li>
+      <li><strong>Retentativa offline</strong>: se qualquer POST falhar, registre em array <code>PendingNpcOps</code> (struct com account, npcType, action). Um timer no GameInstance tenta reenviar a cada 10s até limpar.</li>
+      <li><strong>Teste guiado</strong>: roteiro: (1) entrar sem Zen e tentar buff (esperar erro); (2) adicionar Zen e repetir (buff aplicado + partícula + log salvo); (3) tentar warp para mapa proibido pelo VIP e ver mensagem; (4) warp válido mostrando contagem regressiva e teleporte para coordenadas do CSV.</li>
+    </ol>
   </div>
 </body>
 </html>
