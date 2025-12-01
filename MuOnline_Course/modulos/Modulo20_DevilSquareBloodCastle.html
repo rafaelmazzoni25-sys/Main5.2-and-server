@@ -203,6 +203,44 @@ public:
       <li>Recompensas e logs são persistidos no SQL via Node.js.</li>
       <li>UI do cliente mostra estado/tempo e confirmações de entrada.</li>
     </ul>
+
+    <h2>Guia Blueprint Hiper Detalhado (para iniciantes)</h2>
+    <p>Use este roteiro clique a clique para recriar Devil Square e Blood Castle em UE5 apenas com Blueprints e VaRest.</p>
+    <h3>Configuração de Dados</h3>
+    <ol>
+      <li>No <strong>Content Browser</strong>, crie uma <code>DataTable</code> baseada em <code>FDSBCScheduleRow</code> com campos <em>State</em>, <em>StartTime</em> (HH:MM), <em>WarnSeconds</em>, <em>RewardExp</em>, <em>RewardZen</em>. Importe um CSV com linhas para DevilSquare1-7 e BloodCastle1-8.</li>
+      <li>Crie um <code>Blueprint Actor</code> chamado <strong>BP_DSBC_Controller</strong>. Em <em>Defaults</em> adicione arrays <code>StartTimes</code> (tipo TimeOfDay) e <code>RewardExp</code>/<code>RewardZen</code> (inteiro) preenchendo a partir da DataTable no <code>BeginPlay</code> usando o node <em>Get Data Table Row Names</em> → <em>ForEachLoop</em> → <em>Get Data Table Row</em>.</li>
+      <li>Adicione variáveis <code>CurrentState</code> (Enum: Blank/Notify/Open/Playing/Closing), <code>RemainingSeconds</code> (int) e <code>InstanceMap</code> (Soft Object Path do nível streaming).</li>
+    </ol>
+
+    <h3>FSM e Timers (Blueprint)</h3>
+    <ol>
+      <li>No <code>Event BeginPlay</code>, chame <em>Set Timer by Function Name</em> a cada 1s para <code>TickState</code>. Dentro de <code>TickState</code> diminua <code>RemainingSeconds</code> e troque <code>CurrentState</code> usando um <em>Switch on EDSBCState</em> replicado.</li>
+      <li>Estados: <strong>Blank</strong> (aguarda próximo horário), <strong>Notify</strong> (broadcast UI), <strong>Open</strong> (aceita entradas), <strong>Playing</strong> (cronômetro 900s), <strong>Closing</strong> (expulsa e registra ranking). Use <em>Multicast</em> eventos para empurrar o estado aos clientes.</li>
+      <li>Entrada: crie função <code>Server_RequestEnter(EventType, Level)</code> (Run on Server, Reliable) no PlayerController. Valide convite lendo inventário replicado, depois <em>Open Level (by Object Reference)</em> para o mapa da instância e chame <code>Possess</code> no <code>Character</code>.</li>
+      <li>Saída/expulsão: no estado <em>Closing</em>, execute <em>ForEach Player Controller</em> → <em>Client Travel</em> para o mapa da cidade e limpe buffs temporários.</li>
+    </ol>
+
+    <h3>HUD e Coordenadas</h3>
+    <ol>
+      <li>Crie o Widget <strong>WBP_EventTimer</strong> (Canvas 1920x1080). Adicione uma barra horizontal em (X=60, Y=72, W=420, H=38) ancorada no topo-esquerda. Texto do tempo em (X=70, Y=76) fonte 22, alinhamento center-left.</li>
+      <li>Adicione um botão “Entrar” em (X=520, Y=70, W=120, H=40) com cor #1E90FF. Em <em>OnClicked</em> chame <code>RequestEnter</code> com os parâmetros atuais.</li>
+      <li>Para ranking final, crie <strong>WBP_DSBC_Rank</strong> com <em>ListView</em> 600x400 em (X=660, Y=240) ancorado ao centro. Alimente via <em>On Event Closing</em> do controller replicado.</li>
+    </ol>
+
+    <h3>Persistência VaRest + SQL</h3>
+    <ol>
+      <li>No GameInstance, configure endpoint <code>POST /api/events/dsbc/log</code> (JSON: <em>eventType</em>, <em>level</em>, <em>character</em>, <em>state</em>, <em>score</em>). Use <em>VaRest Request JSON</em> ao entrar, ao terminar e ao expulsar.</li>
+      <li>Crie função <code>Server_LogScore</code> no controller (Run on Server) que chama <em>Execute HTTP Request</em> com VaRest para gravar kills e tempo. Retorne status para o cliente via <em>Client</em> RPC exibindo alerta.</li>
+      <li>No backend, mantenha tabela SQL <code>EventRuns(Id, EventType, Level, Character, Score, DurationSeconds, StartedAt)</code>. Preencha a partir dos POSTs.</li>
+    </ol>
+
+    <h3>Depuração Visual</h3>
+    <ul>
+      <li>Adicione <em>Print String</em> colorido em cada troca de estado (verde=Open, vermelho=Closing) para validar o fluxo.</li>
+      <li>Inclua um <em>Widget Switch</em> debug no canto inferior direito (X=1560, Y=960, 240x80) para forçar estado (botões para Open/Close) somente para GM (Role Authority).</li>
+      <li>Use <em>Draw Debug Sphere</em> nos pontos de spawn dos monstros em cada mapa instanciado para comparar com o layout original.</li>
+    </ul>
   </div>
 </body>
 </html>
