@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  <title>Módulo 50 – Renderização, Animações e Sons Legados</title>
+</head>
+<body class="bg-light">
+  <div class="container py-5">
+    <h1 class="mb-4">Módulo 50 – Renderização, Animações e Sons Legados</h1>
+    <p class="lead">Mapeia flags de renderização, ações e sons do cliente C++ para DataTables, Blueprints e assets na Unreal Engine 5, garantindo fidelidade 1:1.</p>
+
+    <h2 class="mt-4">Conceitos do Código Original</h2>
+
+    <div class="card mb-3">
+      <div class="card-body">
+        <h5 class="card-title">Flags e estrutura BMD (<code>ZzzBMD.h</code>)</h5>
+        <h6>📘 O Que é?</h6>
+        <p>Arquivo que define o formato BMD, incluindo limites (<code>MAX_BONES</code>, <code>MAX_MESH</code>, <code>MAX_VERTICES</code>), flags de render (<code>RENDER_CHROME</code>, <code>RENDER_WAVE</code>, <code>RENDER_NODEPTH</code>, <code>RENDER_BYSCRIPT</code>) e ações (<code>Action_t</code> com <code>PlaySpeed</code> e <code>LockPositions</code>).</p>
+        <h6>🎯 Para Que Serve?</h6>
+        <p>Controla como modelos e animações são desenhados: brilho cromado, ondulação, efeitos adicionais, além da cadência das animações em <code>BMD::Actions</code>.</p>
+        <h6>💻 Como Funciona?</h6>
+        <ul>
+          <li>Flags <code>RENDER_*</code> combinam bits para materiais especiais (cromado, óleo, wave).<br><code>#define RENDER_CHROME 0x00000004</code> / <code>#define RENDER_WAVE 0x00000400</code> etc.</li>
+          <li><code>Action_t</code> contém <code>PlaySpeed</code> e <code>LockPositions</code>; as ações são indexadas no array <code>Actions</code> e são lidas por <code>BMD::PlayAnimation</code> para calcular <code>AnimationFrame</code>.</li>
+          <li><code>MAX_MONSTER_SOUND</code> define 10 slots de som por BMD, preenchidos pelo cliente e disparados conforme a ação.</li>
+        </ul>
+        <h6>📁 Onde Encontrar?</h6>
+        <p><code>Source Main 5.2/source/ZzzBMD.h</code></p>
+        <h6>⏱️ Quando é Executado?</h6>
+        <p>Carregado ao abrir BMDs do personagem, monstros e efeitos; usado por renderização/sons em todo o runtime.</p>
+      </div>
+    </div>
+
+    <div class="card mb-3">
+      <div class="card-body">
+        <h5 class="card-title">IDs de som (<code>DSPlaySound.h</code>)</h5>
+        <h6>📘 O Que é?</h6>
+        <p>Tabela de constantes numéricas para cada efeito de áudio: passos, UI, golpes, skills, eventos.</p>
+        <h6>🎯 Para Que Serve?</h6>
+        <p>Garante que cada ação/skill use o som correto e que o player tenha feedback idêntico ao cliente legado.</p>
+        <h6>💻 Como Funciona?</h6>
+        <ul>
+          <li>Índices de ambiente (0–23), UI (25–42), ataque (60–70), efeitos (80–97), skills (111–133), especiais (140–159) e NPCs (160–210).</li>
+          <li>Os índices são associados aos slots do <code>BMD::Sounds[MAX_MONSTER_SOUND]</code> e disparados conforme animação.</li>
+        </ul>
+        <h6>📁 Onde Encontrar?</h6>
+        <p><code>Source Main 5.2/source/DSPlaySound.h</code></p>
+        <h6>⏱️ Quando é Executado?</h6>
+        <p>A cada evento de UI (click, erro), movimento (passos por tipo de terreno) e execução de skill.</p>
+      </div>
+    </div>
+
+    <h2 class="mt-4">Passo a Passo – UE5 (Blueprints, DataTables, Assets)</h2>
+    <ol>
+      <li><strong>DataTable de animações por modelo:</strong> Crie <em>DT_AnimMap</em> (RowName = BMDName). Colunas: <code>ActionIndex</code>, <code>ActionName</code>, <code>Montage</code> (Soft Object), <code>PlaySpeed</code>, <code>bLockPositions</code>, <code>SoundId</code>, <code>RenderFlags</code>. Preencha usando os índices de ação do BMD original (ex.: <code>MONSTER01_WALK</code>, <code>MONSTER01_ATTACK1</code>).</li>
+      <li><strong>Material presets para flags:</strong> Crie materiais <em>M_Chrome</em>, <em>M_Wave</em>, <em>M_Oil</em> em <code>/Game/MU/Materials</code>. Nas <em>Material Instances</em> (ex.: <em>MI_Wave_Sword</em>), habilite <code>World Position Offset</code> para ondular (seno de tempo) e <code>Reflections</code> para cromado. Mapeie o bitfield <code>RenderFlags</code> → escolha do preset.</li>
+      <li><strong>Sound Cue DataTable:</strong> Monte <em>DT_SoundMap</em> com colunas <code>SoundId</code>, <code>SoundCue</code>, <code>Category</code>. Preencha com os IDs de <code>DSPlaySound.h</code> (ex.: 29 = <em>UI_GetItem</em>, 70 = <em>Attack01</em>, 116 = <em>Storm</em>, 152 = <em>LevelUp</em>).</li>
+      <li><strong>BP_ActionResolver:</strong> Crie Blueprint <em>BP_ActionResolver</em> (Object) com função <code>ApplyRenderAndAudio(BMDName, ActionIndex, SkeletalMesh, AudioComponent)</code>. Nós: <code>Get Data Table Row (DT_AnimMap)</code> → <code>Switch on RenderFlags</code> → <code>Set Material</code> do mesh com o preset; <code>Get Data Table Row (DT_SoundMap)</code> → <code>Set Sound</code> no <code>AudioComponent</code> → <code>Play</code>.</li>
+      <li><strong>AnimInstance:</strong> No <em>AnimBP</em> do personagem/mob, adicione evento <code>OnActionChanged(ActionIndex)</code>. Chame <code>Play Montage</code> com o <code>Montage</code> retornado da <em>DT_AnimMap</em> e, no <code>AnimNotify</code> “PlayStep”/“PlaySwing”, invoque <code>BP_ActionResolver.ApplyRenderAndAudio</code> para manter sincronia.</li>
+      <li><strong>Skills 3D (BMD → Niagara):</strong> Para skills com modelos (ex.: Spirit, Evil Spirit), importe o FBX e crie um <em>Niagara System</em> <code>NS_Skill_Spirit</code>. Adicione <code>Mesh Renderer</code> com material preset conforme <code>RenderFlags</code>. Use <code>NS parameter User.SoundId</code> para buscar <code>SoundCue</code> via <em>DT_SoundMap</em> e tocar no <em>AudioComponent</em> do sistema.</li>
+      <li><strong>Skills 2D (texturas OZ*/DDS):</strong> Converta <code>OZJ/OZT/OZP/OZB/OZD</code> para <code>PNG/TGA/DDS</code>. Crie <em>Flipbook</em> em <code>Paper2D</code> ou <em>Niagara Sprite</em> com <code>Image Sequence</code>. Adapte orientação (inverta Y se necessário) para alinhar ao eixo da UE5.</li>
+      <li><strong>Referenciamento de nível/excelente:</strong> Na tabela <em>DT_ItemAssets</em> (mód. 5), adicione colunas <code>LevelMaterial</code> (array de MI por nível) e <code>ExcellentMaterial</code>. No <code>BP_MuCharacter</code>, quando <code>Item.Level &gt; 0</code>, troque para <code>LevelMaterial[Item.Level]</code>; se <code>Item.Excellent == true</code>, aplique <code>ExcellentMaterial</code> (preset com fresnel/scroll UV) antes do render.</li>
+      <li><strong>Validação 1:1:</strong> Crie um mapa de debug com três manequins e um mob; para cada <code>ActionIndex</code>, acione manualmente e compare frame-rate (PlaySpeed) e som disparado com o cliente legado. Ajuste <code>PlaySpeed</code> na <em>DT_AnimMap</em> até coincidir.</li>
+    </ol>
+
+    <h2 class="mt-4">Checklist Final</h2>
+    <ul>
+      <li>Todos os BMDs possuem entrada em <em>DT_AnimMap</em> com <code>PlaySpeed</code>, <code>SoundId</code> e <code>RenderFlags</code>.</li>
+      <li>Presets de material para <code>RENDER_CHROME</code>, <code>RENDER_WAVE</code> e <code>RENDER_NODEPTH</code> aplicados em runtime.</li>
+      <li>Sounds de passos, UI, ataque, skill e eventos mapeados em <em>DT_SoundMap</em> e disparados por <em>AnimNotifies</em>.</li>
+      <li>Skills 3D/2D importadas (FBX/PNG) com orientação corrigida e áudio sincronizado.</li>
+      <li>Materiais de nível e excelente aplicados em equipamentos, reproduzindo o brilho/glow do cliente original.</li>
+    </ul>
+  </div>
+</body>
+</html>

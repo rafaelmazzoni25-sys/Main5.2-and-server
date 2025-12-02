@@ -185,6 +185,14 @@ class AMuPlayerController : public APlayerController {
           <li>Anúncios: X=640, Y=120, Size 640x96, Anchor Top.</li>
         </ul>
       </li>
+      <li><strong>Mapa de arquivos e posições (HUD + Status):</strong>
+        <ul>
+          <li><code>/Game/UI/HUD/WBP_HUDRoot</code> (Canvas 1920x1080) contendo <code>WBP_HotbarSlot</code>, <code>WBP_Chat</code>, <code>WBP_PartySlot</code> e painel de anúncios; use anchors Bottom-Left para orbs/barras/hotbar e Top-Left para party.</li>
+          <li><code>/Game/UI/HUD/WBP_StatusPanel</code> (Canvas 760x620) para a tela “C” de personagem: abra com tecla <kbd>C</kbd> chamando <code>UIRegistry-&gt;OpenScreen("Status")</code>. Estrutura: Border principal em <strong>X=580, Y=180</strong>; quadro de atributos (FOR/AGI/VIT/ENE/COM) em <strong>X=36, Y=40, W=320, H=260</strong> com botões <code>Btn_AddFor</code> etc.; painel de equipamento 4x4 em <strong>X=420, Y=40</strong> (slots 72x72, espaçamento 8, âncora Top-Left); estatísticas secundárias (Dano/Def/ASPD) em <strong>X=36, Y=340, W=660, H=220</strong>.</li>
+          <li><code>/Game/UI/HUD/WBP_StatusAttributeRow</code> (Row 620x42) para cada atributo: TextBlock do nome à esquerda, valor atual ao centro, botão “+” à direita com <code>OnClicked</code> → <code>Server_AddPoint(Atributo)</code>; ancorar ao topo da lista no painel de atributos.</li>
+          <li><code>/Game/UI/HUD/WBP_Announcement</code> (Overlay 640x96 em <strong>X=640, Y=120</strong>) reutilizado para mensagens de eventos e avisos de distribuição de pontos; vincular <code>Anim_Fade</code> para entrada/saída.</li>
+        </ul>
+      </li>
       <li><strong>Hotbar funcional:</strong> No <em>WBP_HotbarSlot</em>, adicione <em>Button</em> e <em>ProgressBar</em> (cooldown). <em>OnClicked</em> chama <code>Server_CastSkill(Slot)</code> (Run on Server). Após a chamada, inicie <code>Set Timer by Event</code> com <code>Cooldown</code> segundos para encher a barra.</li>
       <li><strong>Chat com bloqueio:</strong> No <em>WBP_Chat</em>, no <code>On Focus Received</code>, chame <code>Set Input Mode UI Only</code> e <code>Set Show Mouse Cursor(true)</code>. No <code>OnTextCommitted</code>, chame <code>Server_SendChat</code>, limpe o texto e retorne para <code>Set Input Mode Game and UI</code> com <code>Hide Cursor During Capture</code> habilitado.</li>
       <li><strong>VaRest para anúncios:</strong> No <code>Event Construct</code> do HUD, adicione <code>Set Timer by Function Name</code> (every 30s) chamando <code>FetchAnnouncements</code>. Implementação: <code>VaRestRequest JSON POST/GET</code> → <code>OnRequestCompleted</code> → <code>Get String Array Field("messages")</code> → enfileirar em <code>AnnouncementQueue</code> → mostrar no painel com animação <em>Fade In</em>.</li>
