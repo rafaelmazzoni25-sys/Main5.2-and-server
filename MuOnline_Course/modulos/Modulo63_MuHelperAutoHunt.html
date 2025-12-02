@@ -8,8 +8,11 @@
 </head>
 <body class="bg-light">
   <div class="container py-5">
-    <h1 class="mb-4">Módulo 63 – MU Helper e Auto-Hunt</h1>
-    <p class="lead">Replica o sistema de automação do cliente legado (auto-hunt, auto-potion e coleta) para UE5.</p>
+      <h1 class="mb-4">Módulo 63 – MU Helper e Auto-Hunt</h1>
+      <p class="lead">Replica o sistema de automação do cliente legado (auto-hunt, auto-potion e coleta) para UE5.</p>
+      <div class="alert alert-warning" role="alert">
+        Não há qualquer <code>Helper</code> ou <code>AutoHunt</code> nos fontes fornecidos (<code>Source Main 5.2</code> e <code>Source MuServer Update 15</code>). Este módulo descreve uma implementação compatível, mas trata-se de feature nova e não de porte literal.
+      </div>
 
     <h3>Pré-requisitos</h3>
     <ul>
@@ -19,9 +22,9 @@
 
     <h2 class="mt-4">Conceitos do Código Original</h2>
     <div class="card mb-3">
-      <div class="card-body">
-        <h5 class="card-title">Cliente – UI/estado do MU Helper (<code>NewUIHelper.cpp</code>, <code>Interface.cpp</code>)</h5>
-        <p>O helper do legado usa um painel configurável (ranges de skill/potion, filtros de coleta) armazenado em variáveis globais e salvo em ini.</p>
+        <div class="card-body">
+          <h5 class="card-title">Cliente – UI/estado do MU Helper (nomes históricos <code>NewUIHelper.cpp</code>, <code>Interface.cpp</code>)</h5>
+          <p>Os nomes indicam o padrão das builds oficiais, mas esses arquivos <strong>não estão no pacote atual</strong>. Use-os apenas como referência de estrutura: painel configurável (ranges de skill/potion, filtros de coleta) armazenado em variáveis globais e salvo em ini.</p>
         <ul>
           <li>Enum <code>eHelperButton</code> define botões (Start, Config, Potion, Party, PickUp).</li>
           <li>Struct <code>HELPER_CONFIG</code> guarda checkboxes: <code>bAutoHunt</code>, <code>bPotion</code>, <code>bPick</code>, <code>SkillID</code>, <code>Range</code>, <code>Delay</code>, <code>PickupFilters[256]</code>.</li>

@@ -8,21 +8,21 @@
 </head>
 <body class="bg-light">
   <div class="container py-5">
-    <h1 class="mb-4">Módulo 72 – Gremory Case, Inventário de Evento e Correio</h1>
-    <p class="lead">Mapeia as estruturas do código legado para Gremory Case, inventário de evento e correio, e descreve como recriar o fluxo 1:1 na Unreal Engine 5 com DataTables, Blueprints e UI detalhada.</p>
-
-    <h2 class="mt-4">Referências do Legado</h2>
-    <div class="card mb-3">
-      <div class="card-body">
-        <ul>
-          <li><strong>Disponibilidade nos fontes fornecidos:</strong> a varredura completa em <code>Source Main 5.2</code> e <code>Source MuServer Update 15</code> não encontrou arquivos ou símbolos contendo “Gremory” ou “EventInventory”. Isso indica que as versões de cliente/servidor entregues não trazem a implementação original dessa feature, exigindo recriação manual no curso.</li>
-          <li><strong><code>GremoryCase.cpp</code></strong>: arrays <code>m_GremoryCase</code> por tipo (<code>EVENT</code>, <code>NPC</code>, <code>PERSONAL</code>), estados <code>STATE_NONE/STATE_STORED/STATE_RECEIVED/STATE_EXPIRED</code>, timers e pacotes <code>0x4F</code>/<code>0xF3 0x40</code>.</li>
-          <li><strong><code>EventInventory.cpp</code></strong>: slots separados para itens temporários, validação de tempo/owner e replicação para o cliente.</li>
-          <li><strong>Correio</strong>: pacotes <code>0xFD</code> para inbox, anexos e confirmação de recebimento; utiliza tabela de mensagens com título, remetente, anexos e data de expiração.</li>
-          <li><strong>Sons/efeitos</strong>: sons de recebimento <code>DS_PLAY_SOUND::ITEM_GET</code> e highlight amarelo no cliente ao receber ou expirar.</li>
-        </ul>
+      <h1 class="mb-4">Módulo 72 – Gremory Case, Inventário de Evento e Correio</h1>
+      <p class="lead">Mapeia as estruturas disponíveis no código legado para inventário de evento e indica claramente o que precisa ser criado do zero (Gremory Case/Correio) para manter a fidelidade pretendida.</p>
+      <div class="alert alert-warning" role="alert">
+        Não há símbolos ou arquivos de <strong>Gremory Case</strong> ou de correio nos diretórios <code>Source Main 5.2</code> e <code>Source MuServer Update 15</code>. Somente o <em>Event Inventory</em> existe no legado. As seções de Gremory/Correio abaixo são propostas de implementação em UE5, não portas diretas.
       </div>
-    </div>
+
+      <h2 class="mt-4">Referências do Legado</h2>
+      <div class="card mb-3">
+        <div class="card-body">
+          <ul>
+            <li><strong><code>DataServer/DataServer/EventInventory.cpp</code></strong>: leitura/escrita da tabela <code>EventInventory</code> em SQL e buffers <code>EventInventory</code> enviados/recebidos.</li>
+            <li><strong><code>GameServer/GameServer/EventInventory.cpp</code></strong> (incluído em <code>User.cpp</code>): buffers duplos <code>EventInventory1</code>/<code>EventInventory2</code>, mapas de slots e limpeza/cópia entre instâncias.</li>
+          </ul>
+        </div>
+      </div>
 
     <h2 class="mt-4">DataTables e Estruturas UE5</h2>
     <div class="card mb-3">
