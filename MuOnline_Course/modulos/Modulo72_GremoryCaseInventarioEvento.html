@@ -15,6 +15,7 @@
     <div class="card mb-3">
       <div class="card-body">
         <ul>
+          <li><strong>Disponibilidade nos fontes fornecidos:</strong> a varredura completa em <code>Source Main 5.2</code> e <code>Source MuServer Update 15</code> não encontrou arquivos ou símbolos contendo “Gremory” ou “EventInventory”. Isso indica que as versões de cliente/servidor entregues não trazem a implementação original dessa feature, exigindo recriação manual no curso.</li>
           <li><strong><code>GremoryCase.cpp</code></strong>: arrays <code>m_GremoryCase</code> por tipo (<code>EVENT</code>, <code>NPC</code>, <code>PERSONAL</code>), estados <code>STATE_NONE/STATE_STORED/STATE_RECEIVED/STATE_EXPIRED</code>, timers e pacotes <code>0x4F</code>/<code>0xF3 0x40</code>.</li>
           <li><strong><code>EventInventory.cpp</code></strong>: slots separados para itens temporários, validação de tempo/owner e replicação para o cliente.</li>
           <li><strong>Correio</strong>: pacotes <code>0xFD</code> para inbox, anexos e confirmação de recebimento; utiliza tabela de mensagens com título, remetente, anexos e data de expiração.</li>
