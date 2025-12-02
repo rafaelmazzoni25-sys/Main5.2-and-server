@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  <title>Módulo 69 – Renderizadores 3D em UI, Guild Mark e Miniatures</title>
+</head>
+<body class="bg-light">
+  <div class="container py-5">
+    <h1 class="mb-4">Módulo 69 – Renderizadores 3D em UI, Guild Mark e Miniatures</h1>
+    <p class="lead">Cobertura do pipeline de renderização 3D dentro da interface (<code>NewUI3DRenderMng</code>, <code>NewUIRenderNumber</code>), caches de guild (<code>GuildCache.cpp</code>) e ilustrações 3D de itens/personagens em janelas como inventário, trade, shop e set option. Ensina a replicar na UE5 com SceneCapture2D, RenderTargets e materiais.</p>
+
+    <h2>Contexto do Código Legado</h2>
+    <ul>
+      <li><strong>NewUI3DRenderMng.cpp:</strong> renderiza modelos BMD em janelas (personagem no inventário, pet no Muun, preview de set 380). Usa viewport próprio com rotação automática.</li>
+      <li><strong>GuildCache.cpp:</strong> baixa/armazenar em memória o emblema da guilda e repassa para renderização em <code>UIGuild</code> e <code>NewUICastleWindow</code>.</li>
+      <li><strong>NewUISetItemExplanation.cpp</strong> e <strong>NewUIItemExplanationWindow.cpp:</strong> mostram preview 3D/ícones com glow e prefixos Excellent/Ancient.</li>
+    </ul>
+
+    <h2>Implementação UE5</h2>
+    <ol>
+      <li><strong>Cena 3D isolada:</strong> crie um nível utilitário <code>LV_UIRender</code> com um <code>SceneCapture2D</code>, luz direcional e skylight. Adicione um <code>BP_UIRenderSpawner</code> que instancia meshes (personagem, pet, item) em <code>(0,0,0)</code> e gira em yaw.</li>
+      <li><strong>RenderTargets:</strong> defina <code>RT_ItemPreview</code> 512x512 e <code>RT_CharacterPreview</code> 1024x1024. Nas janelas UMG, use <code>Image</code> com Brush do RenderTarget (Stretch = ScaleToFit) nas posições: Inventário (X=420,Y=70,W=180,H=240), Loja (X=560,Y=120,W=180,H=200), SetOption (X=420,Y=90,W=200,H=220).</li>
+      <li><strong>Rotação e controle:</strong> exponha eventos <code>SetPreviewMesh(StaticMesh/SkeletalMesh)</code> e <code>SetRotationSpeed(float)</code> no <code>BP_UIRenderSpawner</code>. Bind no UI para arrastar com o mouse (adicione <code>OnMouseMove</code> e <code>OnMouseButtonDown</code> em UMG para alterar yaw).</li>
+      <li><strong>Materiais e glow:</strong> crie <code>MI_ItemPreview_Base</code> com parâmetros <code>GlowColor</code> e <code>GlowPower</code>. Alimente com opções Excellent/Ancient via DataTable e aplique no mesh antes do render (equivalente a <code>CSItemOption::RenderSetItemEffect</code>).</li>
+      <li><strong>Guild Mark:</strong> converta BMP de marca (24x24) para PNG e gere <code>GuildMarkTexture</code> em runtime via <code>CreateTransient</code>. Em UE5, crie <code>WBP_GuildMark</code> com <code>Image</code> 64x64 em janelas de guild/CS (posição X=620,Y=80 em WBP_Guild; X=540,Y=60 em WBP_CastleSiege).</li>
+      <li><strong>Números 3D/2D:</strong> para dano crítico em UI (RenderNumber), use um <code>WidgetComponent</code> ligado ao actor de dano com <code>WBP_FloatingNumber</code> (RichText, escala 1.2, cor amarela). Para counters estáticos (Zen, score), mantenha <code>WBP_NumberRender</code> com atlas convertido.</li>
+    </ol>
+
+    <h2>Checklist</h2>
+    <ul>
+      <li>RenderTargets configurados e referenciados nos widgets (inventário, shop, set option, Muun, pet).</li>
+      <li>BP de renderização com rotação e troca de mesh funcionando via eventos do UI.</li>
+      <li>Materiais com parâmetros de glow/spark alinhados às opções Excellent/Ancient do legado.</li>
+      <li>Guild marks convertidos e aplicados nas janelas de guild/Castle Siege conforme coordenadas indicadas.</li>
+      <li>Floating numbers e atlas numérico reproduzem kerning e cores do cliente C++.</li>
+    </ul>
+  </div>
+</body>
+</html>

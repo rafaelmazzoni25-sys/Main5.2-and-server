@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  <title>Módulo 73 – Rankings, Títulos e Conquistas</title>
+</head>
+<body class="bg-light">
+  <div class="container py-5">
+    <h1 class="mb-4">Módulo 73 – Rankings, Títulos e Conquistas</h1>
+    <p class="lead">Documenta o sistema de rankings, títulos e conquistas do código legado e mostra como replicá-lo na UE5 com coleta de métricas, persistência e UIs posicionadas 1:1.</p>
+
+    <h2 class="mt-4">Referências do Legado</h2>
+    <div class="card mb-3">
+      <div class="card-body">
+        <ul>
+          <li><strong><code>Ranking.cpp</code></strong>: compila listas por XP/Reset/MasterLevel, duelos vencidos, eventos (BC/DS/CC), PK e Gens. Usa estruturas <code>RANK_DATA</code> com <code>Class</code>, <code>Level</code>, <code>Reset</code>, <code>MasterLevel</code>, <code>Win/Lose</code>, <code>Contribution</code>.</li>
+          <li><strong><code>TitleSystem.cpp</code></strong>: flags de conquista (ex.: matar Selupan, concluir BC7, atingir 10 resets) e enum <code>eTITLE_ID</code> com bônus opcionais (drop rate, dano PvE, defesa).</li>
+          <li><strong><code>Quest/Conquista</code></strong>: hooks em <code>GensSystem</code>, <code>InvasionManager</code> e <code>Quest.cpp</code> disparam títulos e registram pontos para ranking de eventos.</li>
+        </ul>
+      </div>
+    </div>
+
+    <h2 class="mt-4">DataTables e Persistência</h2>
+    <div class="card mb-3">
+      <div class="card-body">
+        <ul>
+          <li>Crie <strong><code>DT_RankingSnapshot</code></strong> (Struct <code>FRankingRow</code>): <code>Category</code> (XP/Reset/BC/DS/CC/Gens/PK/Duelo), <code>CharacterName</code>, <code>Class</code>, <code>Level</code>, <code>Reset</code>, <code>MasterLevel</code>, <code>Score</code>, <code>Position</code>, <code>LastUpdate</code>.</li>
+          <li>Crie <strong><code>DT_TitleCatalog</code></strong> (Struct <code>FTitleRow</code>): <code>TitleId</code>, <code>Name</code>, <code>Description</code>, <code>RequirementType</code> (enum KillBoss/Evento/Level/Reset/PvP), <code>RequirementValue</code>, <code>BonusType</code> (Damage/Defense/DropRate/Zen), <code>BonusValue</code>, <code>Icon</code> (UI atlas) e <code>Color</code>.</li>
+          <li>Persistência: no <code>BP_ServerPersistence</code>, grave <code>/characters/{id}/titles.json</code> com flags desbloqueados e título equipado; grave <code>/server/rankings/{categoria}.json</code> a cada atualização.</li>
+        </ul>
+      </div>
+    </div>
+
+    <h2 class="mt-4">Servidor (Blueprints)</h2>
+    <div class="card mb-3">
+      <div class="card-body">
+        <ul>
+          <li>Adicione componente <strong><code>BP_AchievementTracker</code></strong> ao <code>BP_MuPlayerState</code>. Ele registra eventos (OnKillMob, OnEnterEvent, OnDuelResult, OnReset) e chama <code>CheckUnlockTitle</code> para alterar flag e enviar pacote <code>TitleUnlocked</code>.</li>
+          <li>Implemente <strong><code>ServerUpdateRankings</code></strong> em <code>BP_GameServer</code> usando <code>Timer by Function Name</code> (a cada 10 min). Agregue dados de todos os PlayerStates replicados e salve em <code>DT_RankingSnapshot</code> + persistência.</li>
+          <li>Ao equipar um título, atualize <code>EquippedTitleId</code> e aplique bônus em componentes existentes (<code>BonusDamage</code>, <code>BonusDefense</code>, <code>DropRate</code>), mantendo o efeito somente no servidor.</li>
+        </ul>
+      </div>
+    </div>
+
+    <h2 class="mt-4">Cliente/UI (Layout 1:1)</h2>
+    <div class="card mb-3">
+      <div class="card-body">
+        <ul>
+          <li><strong><code>WBP_Ranking</code></strong> (Canvas 900×600, âncora centro). Cabeçalho com tabs (botões 140×32 em x=40/190/340/490/640/790, y=16) para categorias. Lista principal: <code>ScrollBox</code> 840×440 em (30,70) com linhas <code>WBP_RankingRow</code> 820×48 (posições: Rank 40px, Nome 220px, Classe 80px, Level 80px, Score 120px, Atualização 120px). Barra inferior com botão "Atualizar" (120×32 em x=30,y=530) e timestamp.</li>
+          <li><strong><code>WBP_TitlePanel</code></strong> (Canvas 720×520, centro). Grid 3×4 de <code>WBP_TitleCard</code> 210×120 começando em (x=30,y=60) espaçamento 10px. Cada card: ícone 48×48 (x=10,y=10), título (x=70,y=10), descrição (multi-line x=10,y=40), badge de requisito (x=10,y=92) e botão "Equipar" (100×26 em x=100,y=86). Título equipado mostra borda dourada (#FFD166) e glow leve.</li>
+          <li><strong><code>WBP_AchievementToast</code></strong> (280×82, âncora top-center x=0.5,y=0.08). Contém ícone 64×64 esquerda, texto em duas linhas e barra de progresso opcional; anima entrada/saída com <code>Timeline</code> de 0.8s.</li>
+          <li>Bindings: tabs chamam <code>RequestRanking(Category)</code> no PlayerController; botão "Equipar" chama <code>ServerEquipTitle</code>. A lista usa <code>InvalidateLayoutAndVolatility</code> após refresh para manter o scroll no topo.</li>
+          <li>Sons: use <code>SoundCue_TitleUnlock</code> ao desbloquear e <code>SoundCue_UI_Tab</code> ao alternar categoria, mapeados via enum legado.</li>
+        </ul>
+      </div>
+    </div>
+
+    <h2 class="mt-4">Checagens de Fidelidade</h2>
+    <ul>
+      <li>Categorias, colunas e ordem das listas iguais às telas clássicas; cores e ícones de títulos refletindo o atlas original.</li>
+      <li>Bônus aplicados somente quando o título está equipado e condizentes com <code>TitleSystem.cpp</code>.</li>
+      <li>Persistência e atualização periódica alinhadas ao cronograma do legado; toasts aparecem apenas no primeiro desbloqueio.</li>
+    </ul>
+  </div>
+</body>
+</html>

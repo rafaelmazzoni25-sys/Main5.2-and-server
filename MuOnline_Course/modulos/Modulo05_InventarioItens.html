@@ -128,12 +128,190 @@ case 0x26:
       </div>
     </div>
 
+    <div class="card mb-3">
+      <div class="card-body">
+        <h5 class="card-title">Servidor – Seleção do drop (item vs. Zen) e opções</h5>
+
+        <h6>📘 O Que é?</h6>
+        <p>Trecho que decide o que cai ao matar um mob: item específico (com opções e sockets) ou dinheiro (Zen), aplicando bônus e tabelas de mapa.</p>
+
+        <h6>🎯 Para Que Serve?</h6>
+        <p>Reproduz a distribuição de loot 1:1: respeita ItemBag por classe, bônus de drop, Set/Exc, chance de Zen e quantidade.</p>
+
+        <h6>💻 Como Funciona?</h6>
+        <p>
+          Em <code>gObjMonsterDieGiveItem</code> o servidor verifica ItemBags/quests e, se não dispararem, calcula <code>ItemDropRate</code> e <code>ExcItemDropRate</code> com bônus do player/mapa antes de sortear um índice via <code>gMonsterManager.GetMonsterItem</code>. Se falhar ou não houver item, tenta Zen.<br>
+          <pre><code>if(gItemBagManager.DropItemByMonsterClass(lpObj->Class,lpTarget,lpObj->Map,lpObj->X,lpObj->Y)) return;
+if(gQuestObjective.MonsterItemDrop(lpObj)) return;
+if(gItemDrop.DropItem(lpObj,lpTarget)) return;
+int ItemDropRate = gServerInfo.m_ItemDropRate[lpTarget->AccountLevel];
+ItemDropRate = (ItemDropRate*(lpTarget->ItemDropRate+lpTarget->EffectOption.AddItemDropRate))/100;
+ItemDropRate = (ItemDropRate*gMapManager.GetMapItemDropRate(lpObj->Map))/100;
+if((DropIndex=gMonsterManager.GetMonsterItem(DropLevel,ExcItemDrop,gMapManager.GetMapSocketItemDrop(lpObj->Map))) >= GET_ITEM(0,0)
+   && (GetLargeRand()%((lpObj->ItemRate==0)?1:lpObj->ItemRate)) < ItemDropRate) {
+    gItemOptionRate.GetItemOption0(((ExcItemDrop==0)?0:1),&ItemLevel);
+    ...
+    GDCreateItemSend(lpTarget->Index,lpObj->Map,(BYTE)lpObj->X,(BYTE)lpObj->Y,ItemIndex,ItemLevel,0,ItemOption1,ItemOption2,ItemOption3,
+                     lpTarget->Index,ItemNewOption,ItemSetOption,0,0,ItemSocketOption,0xFF,0);
+}
+else if(lpObj->Money > 0 && (GetLargeRand()%((lpObj->MoneyRate==0)?1:lpObj->MoneyRate)) < 10) {
+    int money = ((__int64)lpObj->Money*gServerInfo.m_MoneyAmountDropRate[lpTarget->AccountLevel])/100;
+    if (gServerInfo.m_MoneyValue[lpTarget->AccountLevel] > 0)
+        money = (lpObj->Level*gServerInfo.m_MoneyValue[lpTarget->AccountLevel]);
+    money = ((__int64)money*lpTarget->MoneyAmountDropRate)/100;
+    gMap[lpObj->Map].MoneyItemDrop(money,lpObj->X,lpObj->Y);
+}</code></pre>
+        </p>
+
+        <h6>📁 Onde Encontrar?</h6>
+        <p><code>Source MuServer Update 15/GameServer/GameServer/Monster.cpp</code> (função <code>gObjMonsterDieGiveItem</code>).</p>
+
+        <h6>⏱️ Quando é Executado?</h6>
+        <p>No servidor, ao matar um mob (inclusive bosses), imediatamente antes de enviar o pacote de criação de item/Zen para os jogadores no mapa.</p>
+      </div>
+    </div>
+
+    <div class="card mb-3">
+      <div class="card-body">
+        <h5 class="card-title">Cliente – cálculo de bônus de nível e Excellent</h5>
+
+        <h6>📘 O Que é?</h6>
+        <p>Rotina que recalcula dano, defesa e requisitos de itens considerando nível e flags de Excellent ao gerar tooltips e atributos.</p>
+
+        <h6>🎯 Para Que Serve?</h6>
+        <p>Reproduz os incrementos exatos (+3 por nível, +25 “níveis virtuais” para Excellent) que afetam dano/defesa e requisitos antes de mostrar o item ao jogador.</p>
+
+        <h6>💻 Como Funciona?</h6>
+        <p>
+          Em <code>PrintItem</code>, o cliente soma bônus por nível e, se o item tiver opção Excellent, aplica multiplicadores extras e trata um “ItemLevel” deslocado em +25 para requisitos. Dano/defesa recebem incrementos adicionais quando <code>Excellent == true</code>, e requisitos de Força/Destreza/Energia são recalculados com esse nível aumentado.<br>
+          <pre><code>if(DamageMin > 0) {
+    if(Excellent && p-&gt;Level)
+        DamageMin += p-&gt;DamageMin*25/p-&gt;Level+5;
+    DamageMin += Level*3;
+}
+... // mesmos ajustes para DamageMax e Defense
+int ItemLevel = p-&gt;Level;
+if(Excellent) ItemLevel = p-&gt;Level + 25;
+RequireStrength = 20 + p-&gt;RequireStrength*(ItemLevel+Level*3)*3/100;</code></pre>
+        </p>
+
+        <h6>📁 Onde Encontrar?</h6>
+        <p><code>Source Main 5.2/source/ZzzInfomation.cpp</code> (cálculo em <code>PrintItem</code> com flag <code>Excellent</code>).</p>
+
+        <h6>⏱️ Quando é Executado?</h6>
+        <p>Na montagem de tooltips/listagens de itens, antes de exibir atributos no cliente.</p>
+      </div>
+    </div>
+
+    <div class="card mb-3">
+      <div class="card-body">
+        <h5 class="card-title">Cliente – opções Excellent e texto de tooltips</h5>
+
+        <h6>📘 O Que é?</h6>
+        <p>Leitura do arquivo <code>ItemAddOption.bmd</code> que descreve pares de opção/valor para itens Excellent.</p>
+
+        <h6>🎯 Para Que Serve?</h6>
+        <p>Popular as linhas extras (HP/Mana, Decrease/Reflection, +%Dmg, +%Zen) na tooltip com o valor exato do item.</p>
+
+        <h6>💻 Como Funciona?</h6>
+        <p>
+          O construtor abre <code>Data\Local\ItemAddOption.bmd</code>, lê blocos <code>ITEM_ADD_OPTION</code> e descriptografa com <code>BuxConvert</code>. A função <code>GetItemAddOtioninfoText</code> percorre dois slots (<code>m_byOption1/2</code>, <code>m_byValue1/2</code>) e monta as strings de tooltip conforme o código de opção, usando <code>GlobalText</code> para o rótulo.<br>
+          <pre><code>fread(m_ItemAddOption, nSize, 1, fp);
+BuxConvert((BYTE*)m_ItemAddOption, nSize);
+switch(optiontype) {
+  case 1: sprintf(TempText, GlobalText[2184], optionvalue); break;
+  ...
+}</code></pre>
+        </p>
+
+        <h6>📁 Onde Encontrar?</h6>
+        <p><code>Source Main 5.2/source/ItemAddOptioninfo.cpp</code> (carregamento do BMD e geração de texto).</p>
+
+        <h6>⏱️ Quando é Executado?</h6>
+        <p>No boot do cliente e ao abrir uma tooltip de item com flags Excellent.</p>
+      </div>
+    </div>
+
+      <div class="card mb-3">
+        <div class="card-body">
+          <h5 class="card-title">Cliente – Animação e som do drop</h5>
+
+        <h6>📘 O Que é?</h6>
+        <p>Carregamento dos áudios de drop de item e de ouro usados pelo cliente para feedback imediato ao spawnar loot.</p>
+
+        <h6>🎯 Para Que Serve?</h6>
+        <p>Garantir que o som/efeito ao dropar item ou Zen seja idêntico ao original.</p>
+
+        <h6>💻 Como Funciona?</h6>
+        <p>Em <code>ZzzOpenData.cpp</code>, os waves <code>pDropItem.wav</code> e <code>pDropMoney.wav</code> são carregados como <code>SOUND_DROP_ITEM01</code> e <code>SOUND_DROP_GOLD01</code>. O efeito visual usa o BMD do item com animação idle flutuante.</p>
+
+        <h6>📁 Onde Encontrar?</h6>
+        <p><code>Source Main 5.2/source/ZzzOpenData.cpp</code> (linhas de <code>LoadWaveFile</code> para <code>SOUND_DROP_ITEM01</code> e <code>SOUND_DROP_GOLD01</code>).</p>
+
+        <h6>⏱️ Quando é Executado?</h6>
+        <p>Durante o boot do cliente, antes de entrar no mapa; o som é disparado quando o item/Zen é criado no mundo.</p>
+      </div>
+    </div>
+
+    <div class="card mb-3">
+      <div class="card-body">
+        <h5 class="card-title">Servidor – Uso de Jewel of Bless/Soul para subir nível (0 → 9)</h5>
+
+        <h6>📘 O Que é?</h6>
+        <p>Validação e aplicação de upgrade direto no item (nível +1) quando o jogador usa joias comuns.</p>
+
+        <h6>🎯 Para Que Serve?</h6>
+        <p>Permite elevar rapidamente o nível do item até +9, consumindo joias e respeitando chances de falha/downgrade (Soul).</p>
+
+        <h6>💻 Como Funciona?</h6>
+        <p>
+          Dentro de <code>gItemManager.CGItemUseRecv</code>, o handler verifica se o item usado é <code>Jewel of Bless</code> (<code>GET_ITEM(14,13)</code>) ou <code>Jewel of Soul</code> (<code>GET_ITEM(14,14)</code>). <br>
+          <ul>
+            <li><strong>Bless</strong>: checa <code>m_Level &lt; 9</code>, incrementa <code>m_Level</code> e reseta <code>Durability</code>. A aplicação falha se o item já estiver no +9.</li>
+            <li><strong>Soul</strong>: sorteia chance de sucesso (<code>gServerInfo.m_JewelOfSoulSuccessRate</code> e bônus de <code>+luck</code>), sucesso incrementa <code>m_Level</code>, falha derruba nível em 1.</li>
+            <li>Ao final, envia <code>GCItemDurSend</code>/<code>GCItemModifySend</code> para atualizar o inventário do cliente.</li>
+          </ul>
+        </p>
+
+        <h6>📁 Onde Encontrar?</h6>
+        <p><code>Source MuServer Update 15/GameServer/GameServer/ItemManager.cpp</code> (<code>CGItemUseRecv</code> e auxiliares de Jewel).</p>
+
+        <h6>⏱️ Quando é Executado?</h6>
+        <p>Quando o jogador arrasta a joia para cima de um item equipável no inventário.</p>
+      </div>
+    </div>
+
+    <div class="card mb-3">
+      <div class="card-body">
+        <h5 class="card-title">Cliente – Feedback visual de upgrade (glow/nível)</h5>
+
+        <h6>📘 O Que é?</h6>
+        <p>Shader/efeito de brilho que muda conforme <code>m_Level</code> do item.</p>
+
+        <h6>🎯 Para Que Serve?</h6>
+        <p>Reforçar visualmente a progressão do item (cores e intensidade distintas para +7/+9).</p>
+
+        <h6>💻 Como Funciona?</h6>
+        <p>O cliente lê o nível do item e seleciona materiais de emissive distintos para renderizar o modelo (ex.: <code>item(n)->GetLevel()</code> define o índice do efeito). O mesmo índice é usado para escolher o rastro/flare exibido na tela de inventário.</p>
+
+        <h6>📁 Onde Encontrar?</h6>
+        <p><code>Source Main 5.2/source/ZzzItemRender.cpp</code> (switch de nível para brilho) e materiais associados.</p>
+
+        <h6>⏱️ Quando é Executado?</h6>
+        <p>Quando o item é renderizado no mundo, no inventário ou equipado.</p>
+      </div>
+    </div>
+
     <h2 class="mt-5">Implementação em Unreal Engine 5</h2>
     <ul>
       <li>Modelar itens como <code>UObjects</code> com <code>UDataAsset</code> para dados estáticos (slot, tamanho, flags).</li>
       <li>Replicar inventário em <code>APlayerState</code> usando <code>TArray</code> de structs replicáveis; operações são RPCs de servidor.</li>
       <li>Para looting, implemente um <code>AActor</code> item no mundo com interface de interação, disparando RPC <code>ServerPickupItem</code>.</li>
       <li>Serialize/deserialize usando <code>FArchive</code> ou <code>FNetSerialize</code> para manter compatibilidade com o protocolo desejado.</li>
+      <li><strong>Upgrade por Jewel of Bless/Soul</strong>: crie função <code>ServerApplyJewel(int32 JewelID, int32 TargetSlot)</code> no <code>PlayerController</code> com o seguinte Blueprint: <ol type="a"><li>Leia <code>Inventory[TargetSlot].Level</code>; se &gt;=9, faça <em>Branch</em> para <code>ClientToast("Nível máximo alcançado")</code>.</li><li>Se <code>JewelID==Bless</code>: <code>Inventory[TargetSlot].Level++</code>; consuma a joia; chame <code>MulticastUpdateItem</code> e <code>SaveInventory</code> (VaRest POST).</li><li>Se <code>JewelID==Soul</code>: use <strong>Random Integer in Range (0,99)</strong> + tabela de taxa; sucesso: <code>Level++</code>; falha: <code>Level = max(Level-1,0)</code>. Envie update e log.</li><li>Dispare <strong>AnimNotify</strong> no item (event dispatcher) para atualizar o material do modelo equipado.</li></ol></li>
+      <li><strong>Glow/nível visual</strong>: crie <code>DataTable</code> <code>ItemGlow_DT</code> (campos <code>Level</code>, <code>Material</code>, <code>Particle</code>). No <code>BP_ItemActor</code>, no evento <em>OnRep_ItemData</em>, faça lookup na tabela e aplique <strong>Set Material</strong> e <strong>Spawn Emitter Attached</strong> conforme o nível.</li>
+      <li><strong>Excelente vs. comum</strong>: adicione <code>bIsExcellent</code> no struct replicado e expanda o <code>ItemGlow_DT</code> para ter materiais/FX específicos (colunas <code>Glow_Mundane</code>, <code>Glow_Excellent</code>). Use o mesmo fator de requisito do legado: se <code>bIsExcellent</code> for verdadeiro, calcule <code>Requisito = BaseReq * (BaseLevel + 25 + Level*3) * 0.03 + 20</code> e exiba na tooltip.</li>
+      <li><strong>Tooltip 1:1</strong>: crie um <code>DataTable</code> <code>DT_ItemExcellentOptions</code> com <code>OptionCode</code> → texto (ex.: “Aumenta HP +4%”). No <em>WBP_ItemTooltip</em>, concatene até dois campos conforme <code>OptionCode</code> vindos do item, replicando a ordem original. Prefixe com cor verde/azul igual ao cliente.</li>
     </ul>
     <pre><code>USTRUCT(BlueprintType)
 struct FMuItemSlot {
@@ -175,6 +353,22 @@ void ServerMoveItem(int32 From, int32 To);
       <li><strong>Crie os dados:</strong> Adicione um <code>PrimaryDataAsset</code> <em>DA_ItemTable</em> com array <code>Items</code> (Id, Nome, RarityColor, Icon, SlotType, Width, Height, StackMax). Preencha com os IDs do script original (ex.: "GET_ITEM(0,0)").</li>
       <li><strong>Monte o Blueprint de Inventário:</strong> Em <code>Content/UI</code>, crie <em>WBP_Inventory</em> (UserWidget). Adicione um <em>Canvas Panel</em> e posicione um <em>Border</em> em <strong>X=68, Y=612</strong>, <strong>W=620, H=370</strong> (slots 8x5 usando célula de 72 px, bordas de 10 px). Dentro, insira um <em>UniformGridPanel</em> com <code>Slot Padding (4,4)</code> e preencha dinamicamente via <code>CreateWidget</code> de <em>WBP_InventorySlot</em>.</li>
       <li><strong>Slot Blueprint:</strong> Em <em>WBP_InventorySlot</em>, adicione um <em>Button</em> ocupando 100% da célula, com <em>Image</em> para o ícone e <em>Text</em> para quantidade (fonte 16, alinhado Bottom-Right). Use <code>OnDragDetected</code> para criar um <em>Drag Visual</em> (ícone 64x64) e <code>OnDrop</code> para chamar um evento <code>Server_MoveItem(From, To)</code>.</li>
+        <li><strong>Mapa de arquivos e posições (Inventário/Equip/Shop/Warehouse):</strong>
+          <ul>
+            <li><code>/Game/UI/Inventory/WBP_Inventory</code> (Canvas 1920x1080): Border principal em <strong>X=68, Y=612, W=620, H=370</strong> com <code>UniformGridPanel</code> 8x5 (célula 72 px, Padding 4). Botões <code>Btn_Sort</code> e <code>Btn_Expand</code> 120x36 alinhados no topo direito do Border.</li>
+            <li><code>/Game/UI/Inventory/WBP_Equipment</code> (Anchor Top-Left em <strong>X=720, Y=120</strong>): slots de equipamento 3x4 (72x72, espaçamento 10) nomeados <code>Slot_Weapon</code>, <code>Slot_Shield</code>, <code>Slot_Helm</code>, etc.; painel de atributos rápidos (HP/MP/DEF/ATK) em <strong>X=32, Y=340, W=260, H=120</strong>.</li>
+            <li><code>/Game/UI/Inventory/WBP_Warehouse</code> (Canvas 1920x1080): janela modal 980x520 centrada; grid do baú 8x15 (célula 64 px, Padding 2) em <strong>X=48, Y=64</strong>; lista do inventário do jogador (para transferir) 8x5 em <strong>X=48, Y=420</strong>; botões <code>Btn_Deposit</code> e <code>Btn_Withdraw</code> 140x40 em <strong>X=840, Y=440</strong>. Ancore a janela ao centro e bloqueie input de jogo com <code>Set Input Mode UI Only</code>.</li>
+            <li><code>/Game/UI/Inventory/WBP_NPCShop</code> (Canvas 820x560 ancorado centro): painel esquerdo <strong>X=36, Y=42, W=480, H=472</strong> com grid 6x4 (slot 72 px) para lista de compra; painel direito <strong>X=540, Y=42, W=240, H=472</strong> mostrando detalhes do item (ícone 96x96, descrição, preço). Botões <code>Btn_Buy</code> e <code>Btn_Sell</code> 160x44 em <strong>X=540, Y=460</strong>. A abertura deve ser feita pelo overlap em NPC chamando <code>Create Widget (WBP_NPCShop)</code> → <code>Add to Viewport</code>.</li>
+          </ul>
+        </li>
+        <li><strong>Drop 1:1 (servidor → mundo → UI):</strong>
+          <ul>
+            <li><em>DataTable</em> <code>DT_DropRules</code> em <code>/Game/Data/DT_DropRules</code> com colunas: <code>MonsterClass</code>, <code>ItemBagId</code>, <code>DropLevelOffset</code>, <code>ItemRate</code>, <code>MoneyRate</code>, <code>MoneyValue</code>, <code>BonusMultiplier</code>. Preencha com valores equivalentes aos de <code>gServerInfo</code>/<code>gMapManager</code>.</li>
+            <li><em>Actor</em> <code>BP_LootComponent</code> em <code>/Game/Blueprints/Combat</code>: função <code>Server_ResolveDrop</code> (Run on Server) recebe <code>MonsterClass</code>, <code>MapId</code>, <code>MonsterLevel</code>, <code>ItemRate</code>, <code>MoneyRate</code>, <code>MoneyAmountDropRate</code>. Nó <code>Select</code> → <code>Branch</code> decide se chama <code>SpawnItemDrop</code> ou <code>SpawnZenDrop</code> replicando o fluxo de <code>gObjMonsterDieGiveItem</code>.</li>
+            <li><em>Blueprint</em> <code>BP_ItemDropActor</code> em <code>/Game/Blueprints/World</code>: <code>StaticMesh</code> com <code>Niagara</code> <em>NS_DropFloat</em> e <code>AudioComponent</code> usando <em>AC_DropItem</em> (cue apontando para <code>pDropItem.wav</code>). Para Zen, use <em>AC_DropGold</em> com <code>pDropMoney.wav</code>. Defina <em>Timeline</em> de 0.6s elevando o item 18uu e descendo com easing <em>Ease Out</em>, replicando a animação flutuante.</li>
+            <li><em>UMG</em>: ao receber <code>OnRep_SpawnedLoot</code> no <code>PlayerController</code>, chame <code>Play Sound 2D (AC_DropItem/AC_DropGold)</code> para manter feedback 1:1. O UI de pickup permanece o mesmo (grid 8x5), apenas reage ao overlap.</li>
+          </ul>
+        </li>
       <li><strong>RPCs no PlayerController (Blueprint):</strong> Declare eventos <em>Custom Event</em> <code>Server_MoveItem</code>, <code>Server_PickupItem</code> e <code>Server_DropItem</code> marcados como <em>Run on Server, Reliable</em>. Cada evento chama uma função Blueprint <code>ValidateSlot</code> (checa se o destino está livre) e, em seguida, atualiza o <code>InventorySlots</code> (array replicado no PlayerState).</li>
       <li><strong>Replicação visual imediata:</strong> No PlayerState, crie um array <code>InventorySlots</code> de structs (ItemId, Qty) com <em>RepNotify</em>. No <code>OnRep</code>, atualize todos os <em>WBP_InventorySlot</em> com ícones/quantidade. Isso evita gaps de percepção enquanto a resposta do servidor chega.</li>
       <li><strong>Persistência via VaRest:</strong> No <code>Event BeginPlay</code> do PlayerController, chame VaRest <em>POST</em> para <code>/api/inventory/load</code> com {accountId, characterId}. No <code>OnRequestComplete</code>, converta o JSON em <code>InventorySlots</code>. No <code>EndPlay</code> (ou Logout), envie <code>/api/inventory/save</code> com o snapshot dos slots. Mantenha as rotas compatíveis com o módulo 9.</li>
@@ -183,6 +377,33 @@ void ServerMoveItem(int32 From, int32 To);
       <li><strong>Testes guiados:</strong> Em <code>Automation</code>, crie um teste funcional que: (1) carrega o mapa, (2) arrasta um item para outro slot, (3) verifica atualização na UI e no array replicado, (4) envia logout e confirma via VaRest que o JSON salvo contém o slot modificado.</li>
       <li><strong>Checklist visual:</strong> No viewport 1920x1080, confirme: painel do inventário começa em (68,612), grid 8x5 visível, tooltip alinha ao cursor, ícones não pixelam (use <em>UI Texture Group</em>), textos legíveis em 100%/125% de escala.</li>
     </ol>
+
+    <div class="card mb-3">
+      <div class="card-body">
+        <h5 class="card-title">Conversão de assets originais (BMD/OZ* → FBX/PNG/TGA)</h5>
+
+        <h6>📘 O Que é?</h6>
+        <p>Pipeline para trazer os modelos/ícones originais (BMD + texturas OZJ/OZT/OZB/OZP/OZD/OZG) para formatos compatíveis com a UE5.</p>
+
+        <h6>🎯 Para Que Serve?</h6>
+        <p>Garante visual 1:1 dos itens e personagens usando os assets do cliente legado sem refazer arte.</p>
+
+        <h6>💻 Como Funciona?</h6>
+        <ul>
+          <li><strong>Modelos BMD → FBX</strong>: use um conversor BMD→OBJ/FBX (ex.: bmd2obj + import no Blender → export FBX 2018). Preserve pivô e nomes de ossos; exporte sem aplicar rotações; combine com a textura correspondente (ver abaixo).</li>
+          <li><strong>Texturas</strong>: converta os formatos originais para imagens padrão antes do import para UE5: <code>OZJ → JPG</code>, <code>OZT → TGA</code>, <code>OZB → BMP</code>, <code>OZP → PNG</code>, <code>OZD → DDS</code>, <code>OZG → GFX</code> (mantém atlas SWF). Em lote, use ImageMagick/ffmpeg para <code>*.ozj</code>/<code>*.ozt</code> → <code>.png</code> e aponte o Material para o <em>Base Color</em> no import do FBX.</li>
+          <li><strong>Mapeamento de nomes</strong>: crie DataTable <code>DT_ItemAssets</code> (RowName = <code>Index</code>) com colunas <code>StaticMesh</code>, <code>IconTexture</code>, <code>GlowMaterial</code>. Preencha com os FBXs/texturas importados mantendo o nome original (ex.: <code>item_helmet01.fbx</code>, <code>item_helmet01_icon.png</code>).</li>
+          <li><strong>Import na UE5</strong>: no <code>Content/MU/Items</code>, importe FBX com <em>Import Uniform Scale</em> 1.0 e <em>Material Search Location</em> = <em>Current Content Browser</em>. Para ícones, importe como <em>UI/2D</em> para uso em UMG.</li>
+          <li><strong>Aplicação na UI e no personagem</strong>: o <code>Inventory[Slot].Index</code> referencia a linha em <code>DT_ItemAssets</code>. No <code>WBP_Inventory</code>, use <strong>Get Data Table Row</strong> → <code>IconTexture</code> para preencher <code>Image.Icon</code>. No <code>BP_MuCharacter</code>, ao equipar, faça <code>Set Static Mesh</code> no <code>HelmMesh/SwordMesh</code> com o FBX importado e troque o material para o <code>GlowMaterial</code> conforme nível/opção.</li>
+        </ul>
+
+        <h6>📁 Onde Encontrar?</h6>
+        <p><code>Source Main 5.2/data/*.bmd</code> e <code>data/*.ozj/*.ozt/*.ozp/*.ozb/*.ozd/*.ozg</code> → converta para <code>Content/MU/Items</code> na UE5.</p>
+
+        <h6>⏱️ Quando é Executado?</h6>
+        <p>Durante a preparação do projeto UE5 (antes de construir UI e equipar itens) e sempre que um novo item/skin do legado for importado.</p>
+      </div>
+    </div>
 
     <h2 class="mt-5">Guia ultra-detalhado (cliques + nós Blueprint)</h2>
     <p>Use esta seção como roteiro “faça você mesmo” para iniciantes completos, sem saltos de conhecimento.</p>

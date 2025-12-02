@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  <title>Módulo 74 – OffLevel, OffStore e Persistência de Sessão</title>
+</head>
+<body class="bg-light">
+  <div class="container py-5">
+    <h1 class="mb-4">Módulo 74 – OffLevel, OffStore e Persistência de Sessão</h1>
+    <p class="lead">Descreve como o código legado trata off-attack/offstore e como reproduzir o comportamento em servidores dedicados UE5, preservando posição, ações automáticas e interface.</p>
+
+    <h2 class="mt-4">Referências do Legado</h2>
+    <div class="card mb-3">
+      <div class="card-body">
+        <ul>
+          <li><strong><code>OffTrade.cpp</code></strong>: abre loja pessoal offline, congela a conexão e mantém timers de expiração dos itens à venda; envia pacotes de atualização para clientes próximos.</li>
+          <li><strong><code>OffLevel.cpp</code></strong>: registra skill de auto-ataque, rotação de poções, posição e direção; mantém heartbeat no servidor e consome poções via <code>gObjUsePotion</code>.</li>
+          <li><strong>Mensagens</strong>: utiliza flags no <code>OBJECTSTRUCT</code> (<code>m_bOffLevel</code>, <code>m_bOffTrade</code>) e pacotes de notificação ao reconectar para retomar estado.</li>
+        </ul>
+      </div>
+    </div>
+
+    <h2 class="mt-4">Dados e Persistência UE5</h2>
+    <div class="card mb-3">
+      <div class="card-body">
+        <ul>
+          <li>Adicione ao <code>BP_MuPlayerState</code>: <code>bOffLevel</code>, <code>bOffStore</code>, <code>AutoSkillId</code>, <code>AutoTargets</code> (array de classes/monstros), <code>PotionThreshold</code>, <code>StoreSlots</code> (copiados do inventário) e <code>SavedRotation</code>.</li>
+          <li>Persistência no <code>BP_ServerPersistence</code>: salve em <code>/characters/{id}/offline.json</code> com flags, skill, posição, rotação e data de expiração; salve a lista de itens da loja em <code>/characters/{id}/offstore.json</code>.</li>
+        </ul>
+      </div>
+    </div>
+
+    <h2 class="mt-4">Servidor (Blueprints)</h2>
+    <div class="card mb-3">
+      <div class="card-body">
+        <ul>
+          <li>Crie componente <strong><code>BP_OffSessionComponent</code></strong> anexado ao <code>BP_GameServer</code>. Ele registra handlers: <code>StartOffLevel</code>, <code>StopOffLevel</code>, <code>StartOffStore</code>, <code>StopOffStore</code>.</li>
+          <li>OffLevel: ao receber requisição, verifique requisitos (mapa permitido, slot de skill configurado, poções na hotbar). Salve posição/rotação, defina <code>bOffLevel=true</code> e agende <code>Set Timer by Event</code> a cada 2s para executar <code>ServerAutoCast</code> (usa <code>DT_SkillCatalog</code> para range, delay) e <code>ConsumePotion</code> se HP &lt; threshold.</li>
+          <li>OffStore: crie instância persistente de <code>BP_PersonalStoreActor</code> no mapa com <code>StaticMesh</code> do personagem, rótulo de loja e slots à venda. Atribua <code>bHiddenInGame=false</code> e marque <code>bReplicates=true</code> para aparecer a outros jogadores.</li>
+          <li>Reconexão: no login, se flags off estiverem ativos, desfaça o OffLevel/OffStore ou reaplique estado conforme tempo restante; envie mensagem UI “Sessão offline restaurada” e reabra widgets.</li>
+        </ul>
+      </div>
+    </div>
+
+    <h2 class="mt-4">Cliente/UI (Layout 1:1)</h2>
+    <div class="card mb-3">
+      <div class="card-body">
+        <ul>
+          <li><strong><code>WBP_OffLevel</code></strong> (Canvas 520×320). Posição: centro. Campos: combo de skill (x=30,y=60, 200×32), checkbox “Usar poções automaticamente” (x=30,y=110), slider de HP% (x=30,y=150, largura 200), botão “Iniciar” (120×32 em x=30,y=200) e “Parar” (120×32 em x=170,y=200). Mostre resumo da posição atual (TextBlock em x=300,y=60) e tempo ativo (x=300,y=90).</li>
+          <li><strong><code>WBP_OffStore</code></strong> (Canvas 640×420). Campo “Nome da Loja” (TextBox 300×32 em x=30,y=40), grade 5×4 de slots 80×80 começando em (x=30,y=90). Botão “Publicar” (140×32 em x=30,y=380) e “Encerrar” (140×32 em x=190,y=380). Adicione preview 3D do personagem (SceneCapture, 200×200 em x=420,y=100).</li>
+          <li>Indicador in-game: widget <code>WBP_OffStatus</code> 240×60 âncora superior direita (x=0.98,y=0.12) com texto “OFF LEVEL”/“OFF STORE”, cronômetro e botão de parar; cor verde para store, azul para level.</li>
+          <li>Sons: use <code>SoundCue_OffStart</code> ao iniciar e <code>SoundCue_OffStop</code> ao encerrar, alinhados aos índices de som do legado.</li>
+        </ul>
+      </div>
+    </div>
+
+    <h2 class="mt-4">Checagens de Fidelidade</h2>
+    <ul>
+      <li>Intervalos de auto-cast e requisitos de mapa iguais aos do <code>OffLevel.cpp</code>.</li>
+      <li>Loja permanece ativa enquanto o servidor estiver online; itens e preço preservados após reconexão.</li>
+      <li>UI em coordenadas clássicas e feedback auditivo/visual igual ao cliente original.</li>
+    </ul>
+  </div>
+</body>
+</html>

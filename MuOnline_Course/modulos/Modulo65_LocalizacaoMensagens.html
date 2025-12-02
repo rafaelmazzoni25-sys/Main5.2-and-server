@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  <title>Módulo 65 – Localização, Strings e Mensagens</title>
+</head>
+<body class="bg-light">
+  <div class="container py-5">
+    <h1 class="mb-4">Módulo 65 – Localização, Strings e Mensagens</h1>
+    <p class="lead">Recria o sistema de mensagens, dicas e localizações do cliente C++ usando DataTables, fontes e UMG na UE5.</p>
+
+    <h3>Pré-requisitos</h3>
+    <ul>
+      <li>UI base carregada (Módulo 10) e enums de UI/texturas (Módulo 55) disponíveis.</li>
+      <li>Fonts e atlas convertidos do legado (OZ*/BMD para TTF/PNG).</li>
+    </ul>
+
+    <h2 class="mt-4">Conceitos do Código Original</h2>
+    <div class="card mb-3">
+      <div class="card-body">
+        <h5 class="card-title">Arquivos de strings (<code>Lang/kor</code>, <code>Message.kor</code>, <code>Text.bmd</code>)</h5>
+        <p>O cliente lê tabelas de mensagens numeradas e textos de interface e os busca por índice.</p>
+        <ul>
+          <li><code>gLanguage.Load</code> popula arrays <code>MsgTable[MSG_MAX]</code> e <code>TextTable[TEXT_MAX]</code>.</li>
+          <li>Chamadas espalhadas: <code>gInterface.TextOut(STR_ID, ...)</code> e <code>g_pMessageBox.Text(MSG_ID)</code>.</li>
+          <li>Fontes são escolhidas por contexto (<code>g_hSmallFont</code>, <code>g_hBoldFont</code>) e aplicadas a UI e chat.</li>
+        </ul>
+      </div>
+    </div>
+    <div class="card mb-3">
+      <div class="card-body">
+        <h5 class="card-title">Mensagens do servidor (<code>GameServer/Notice.cpp</code>, <code>MapServerManager.cpp</code>)</h5>
+        <p>Notices, alertas de invasão e mensagens de sistema usam IDs de texto e cores definidas por enum.</p>
+        <ul>
+          <li>Enum <code>eNoticeType</code> (Blue, Red, Gold, Guild, Party) e <code>gNotice.GCNoticeSendToAll</code> para broadcast.</li>
+          <li><code>ChatColor[PKLevel]</code> define cor de nick/mensagem por status PK/hero.</li>
+        </ul>
+      </div>
+    </div>
+
+    <h2 class="mt-4">Adaptação UE5 (Blueprints/UMG)</h2>
+    <ol>
+      <li>Converta <code>Message.kor</code> e <code>Text.bmd</code> para CSV/JSON e crie <code>DT_Messages</code> e <code>DT_UIText</code> com colunas: <code>ID</code>, <code>Context</code> (System/Chat/UI), <code>Text_PT</code>, <code>Text_EN</code>, <code>Color</code>, <code>FontStyle</code>.</li>
+      <li>No <code>BP_LocaleSubsystem</code>, adicione função <code>GetLocalizedText(ID, Context)</code> que retorna <code>FText</code> a partir dos DataTables e da língua ativa.</li>
+      <li>Atualize widgets principais (HUD, chat, painel de evento) para ler textos via <code>GetLocalizedText</code> e aplicar cor/tamanho conforme <code>FontStyle</code>. Mapeie estilos para fontes convertidas (<code>SMALL.ttf</code>, <code>BOLD.ttf</code>, <code>NUMBER.ttf</code>).</li>
+      <li>Implemente replicação de notices: no servidor UE5, crie <code>Server_SendNotice(Type, MessageID, Params)</code> chamando o <code>BP_LocaleSubsystem</code> do cliente para montar a string. Use cores herdadas de <code>eNoticeType</code> e de <code>ChatColor</code> por PK.</li>
+      <li>Para dicas contextuais (tooltips, mensagens de erro de mix/trade), substitua IDs hardcoded por buscas em <code>DT_UIText</code> e certifique-se de usar o mesmo ID/índice do código legado.</li>
+    </ol>
+
+    <h2 class="mt-4">Checklist de Paridade</h2>
+    <ul>
+      <li>Todos os textos do cliente legados disponíveis em PT/EN com o mesmo ID numérico.</li>
+      <li>Notices do servidor replicam cores e prioridades do enum <code>eNoticeType</code>.</li>
+      <li>Chats e nicks exibem cor por PK/hero conforme tabela original.</li>
+      <li>Fonts/kerning e tamanhos correspondem aos estilos SMALL/BOLD/NUMBER usados no cliente C++.</li>
+    </ul>
+  </div>
+</body>
+</html>
