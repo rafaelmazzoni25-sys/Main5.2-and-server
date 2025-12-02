@@ -14,6 +14,10 @@
         Não há qualquer <code>Helper</code> ou <code>AutoHunt</code> nos fontes fornecidos (<code>Source Main 5.2</code> e <code>Source MuServer Update 15</code>). Este módulo descreve uma implementação compatível, mas trata-se de feature nova e não de porte literal.
       </div>
 
+      <div class="alert alert-info" role="alert">
+        <strong>Status vs. legado:</strong> Ausente. Se quiser manter o porte 1:1 estrito, ignore este módulo. Caso implemente, mantenha-o isolado e documente que é um recurso novo.
+      </div>
+
     <h3>Pré-requisitos</h3>
     <ul>
       <li>Ter implementado input/câmera (Módulo 58) e combate/skills (Módulo 4).</li>
@@ -23,9 +27,10 @@
     <h2 class="mt-4">Lacunas do Legado</h2>
     <div class="alert alert-danger" role="alert">
       Não existem arquivos ou símbolos de Helper/Auto-Hunt nos diretórios de cliente (<code>Source Main 5.2</code>) ou servidor (<code>Source MuServer Update 15</code>). Os nomes históricos (<code>NewUIHelper.cpp</code>, <code>HelperMainProc</code>) não aparecem em nenhuma unidade de compilação; portanto, não há fluxo a portar.
+      <br><strong>Consequência:</strong> os nomes de classes, RPCs e widgets abaixo são propostos e devem ser marcados como "novo" nos comentários do projeto UE5.
     </div>
 
-    <h2 class="mt-4">Adaptação UE5 (Blueprints)</h2>
+    <h2 class="mt-4">Adaptação UE5 (Blueprints) – implementação nova</h2>
     <ol>
       <li>Crie um <strong>DataTable</strong> <code>DT_HelperConfig</code> com linhas por classe contendo: skill padrão, delay mínimo, ranges, filtros de drop (ItemIDs, Zen, Joias) e lista de mapas permitidos.</li>
       <li>No <code>BP_MuPlayerState</code>, adicione um struct <code>FHelperConfig</code> replicado com os campos do legado (AutoHunt, AutoPotion, thresholds, SkillID, PickupFilters).</li>
