@@ -9,9 +9,13 @@
 <body class="bg-light">
   <div class="container py-5">
       <h1 class="mb-4">Módulo 63 – MU Helper e Auto-Hunt</h1>
-      <p class="lead">Replica o sistema de automação do cliente legado (auto-hunt, auto-potion e coleta) para UE5.</p>
+      <p class="lead">Este módulo permanece opcional: o pacote legado não contém qualquer código de Helper/Auto-Hunt; use estas instruções apenas para criar um sistema novo.</p>
       <div class="alert alert-warning" role="alert">
         Não há qualquer <code>Helper</code> ou <code>AutoHunt</code> nos fontes fornecidos (<code>Source Main 5.2</code> e <code>Source MuServer Update 15</code>). Este módulo descreve uma implementação compatível, mas trata-se de feature nova e não de porte literal.
+      </div>
+
+      <div class="alert alert-info" role="alert">
+        <strong>Status vs. legado:</strong> Ausente. Se quiser manter o porte 1:1 estrito, ignore este módulo. Caso implemente, mantenha-o isolado e documente que é um recurso novo.
       </div>
 
     <h3>Pré-requisitos</h3>
@@ -20,31 +24,13 @@
       <li>Persistência de personagem e inventário funcionando (Módulos 3, 5 e 9).</li>
     </ul>
 
-    <h2 class="mt-4">Conceitos do Código Original</h2>
-    <div class="card mb-3">
-        <div class="card-body">
-          <h5 class="card-title">Cliente – UI/estado do MU Helper (nomes históricos <code>NewUIHelper.cpp</code>, <code>Interface.cpp</code>)</h5>
-          <p>Os nomes indicam o padrão das builds oficiais, mas esses arquivos <strong>não estão no pacote atual</strong>. Use-os apenas como referência de estrutura: painel configurável (ranges de skill/potion, filtros de coleta) armazenado em variáveis globais e salvo em ini.</p>
-        <ul>
-          <li>Enum <code>eHelperButton</code> define botões (Start, Config, Potion, Party, PickUp).</li>
-          <li>Struct <code>HELPER_CONFIG</code> guarda checkboxes: <code>bAutoHunt</code>, <code>bPotion</code>, <code>bPick</code>, <code>SkillID</code>, <code>Range</code>, <code>Delay</code>, <code>PickupFilters[256]</code>.</li>
-          <li>Funções de tick (<code>HelperMainProc</code>) chamam <code>gObjUseSkill</code> e simulam cliques de consumo de poção (<code>CGUseItemRecv</code>) quando <code>HP &lt;= Threshold</code>.</li>
-        </ul>
-      </div>
-    </div>
-    <div class="card mb-3">
-      <div class="card-body">
-        <h5 class="card-title">Servidor – Flags e validações (<code>GameServer/Helper.cpp</code>)</h5>
-        <p>O GameServer valida tempo de uso, range e consumo de poções/Zen, e aplica filtros de drop antes de <code>CGPickupItemRecv</code>.</p>
-        <ul>
-          <li>Campos do player: <code>HelperActive</code>, <code>HelperStage</code>, <code>HelperLastTick</code>, <code>HelperConfig</code>.</li>
-          <li>Funções: <code>HelperStart</code>, <code>HelperStop</code>, <code>HelperCheckSkill</code> (range, mana, weapon), <code>HelperAutoPotion</code>, <code>HelperPickItem</code>.</li>
-          <li>Logs de desconexão se o helper exceder limites de mapas proibidos.</li>
-        </ul>
-      </div>
+    <h2 class="mt-4">Lacunas do Legado</h2>
+    <div class="alert alert-danger" role="alert">
+      Não existem arquivos ou símbolos de Helper/Auto-Hunt nos diretórios de cliente (<code>Source Main 5.2</code>) ou servidor (<code>Source MuServer Update 15</code>). Os nomes históricos (<code>NewUIHelper.cpp</code>, <code>HelperMainProc</code>) não aparecem em nenhuma unidade de compilação; portanto, não há fluxo a portar.
+      <br><strong>Consequência:</strong> os nomes de classes, RPCs e widgets abaixo são propostos e devem ser marcados como "novo" nos comentários do projeto UE5.
     </div>
 
-    <h2 class="mt-4">Adaptação UE5 (Blueprints)</h2>
+    <h2 class="mt-4">Adaptação UE5 (Blueprints) – implementação nova</h2>
     <ol>
       <li>Crie um <strong>DataTable</strong> <code>DT_HelperConfig</code> com linhas por classe contendo: skill padrão, delay mínimo, ranges, filtros de drop (ItemIDs, Zen, Joias) e lista de mapas permitidos.</li>
       <li>No <code>BP_MuPlayerState</code>, adicione um struct <code>FHelperConfig</code> replicado com os campos do legado (AutoHunt, AutoPotion, thresholds, SkillID, PickupFilters).</li>

@@ -9,25 +9,42 @@
 <body class="bg-light">
   <div class="container py-5">
     <h1 class="mb-4">Módulo 0 – Auditoria do Legado e Escopo</h1>
-    <p class="lead">Este módulo amarra cada tópico do curso ao que realmente existe nos fontes <code>Source Main 5.2</code> e <code>Source MuServer Update 15</code>. Ele sinaliza quais temas têm suporte explícito no C++ legado e quais precisam ser implementados do zero na UE5.</p>
+    <p class="lead">Mapeia cada módulo do curso ao que realmente existe nos fontes <code>Source Main 5.2</code> e <code>Source MuServer Update 15</code>, evitando portar conteúdos que não estejam no código legado.</p>
 
     <h2 class="mt-4">Funcionalidades confirmadas no legado</h2>
     <ul class="list-group mb-4">
-      <li class="list-group-item">Inventário de Evento (<code>EventInventory.cpp</code>/<code>EventInventory.h</code>) está presente no <em>DataServer</em> e no <em>GameServer</em>, com buffers <code>EventInventory1</code>/<code>EventInventory2</code>, slots e salvamento/recuperação de itens temporários.</li>
-      <li class="list-group-item">OffAttack/OffStore aparecem no <em>GameServer</em> (contadores globais e taxas em <code>ServerInfo.cpp</code>), portanto os módulos de operação offline devem usar essas estruturas já existentes.</li>
+      <li class="list-group-item">Inventário de Evento: presente no <em>DataServer</em> (<code>EventInventory.h</code>, buffers <code>EventInventory</code> e métodos <code>GDEventInventoryRecv/SaveRecv</code>).【F:Source MuServer Update 15/DataServer/DataServer/EventInventory.h†L29-L58】</li>
+      <li class="list-group-item">OffStore/OffAttack: contadores globais e comandos no <em>GameServer</em> (<code>User.cpp</code>, <code>CommandManager.*</code> e <code>ServerInfo.cpp</code> para taxas de experiência).【F:Source MuServer Update 15/GameServer/GameServer/CommandManager.h†L79-L81】【F:Source MuServer Update 15/GameServer/GameServer/User.cpp†L118-L436】【F:Source MuServer Update 15/GameServer/GameServer/ServerInfo.cpp†L3333-L3339】</li>
     </ul>
 
     <h2 class="mt-4">Funcionalidades ausentes nos fontes fornecidos</h2>
-    <p class="text-danger mb-3">Não há referências a estas features no código legado; qualquer implementação em UE5 será <strong>nova</strong> e deve ser tratada como tal:</p>
+    <p class="text-danger mb-3">Não há referências diretas a estas features no código legado; qualquer implementação em UE5 deve ser sinalizada como <strong>nova</strong>:</p>
     <ul class="list-group mb-4">
-      <li class="list-group-item">Gremory Case: nenhum símbolo ou arquivo com “Gremory” foi encontrado. O módulo 72 deve ser seguido como blueprint de recriação, não como porte literal.</li>
-      <li class="list-group-item">MU Helper/Auto-Hunt: não há <code>Helper</code>/<code>AutoHunt</code> no cliente ou servidor do pacote fornecido. O módulo 63 descreve um desenho compatível, mas não deriva de código existente.</li>
+      <li class="list-group-item">Gremory Case / Correio: nenhum símbolo “Gremory” foi encontrado nos diretórios de cliente ou servidor.</li>
+      <li class="list-group-item">MU Helper / Auto-Hunt: não existe <code>Helper</code> ou variações de auto-hunt no pacote fornecido.</li>
+      <li class="list-group-item">OffLevel: não há comandos ou estruturas com este nome; somente OffStore/OffAttack aparecem.</li>
     </ul>
+
+    <h2 class="mt-4">Mapa de conformidade por módulo</h2>
+    <div class="table-responsive mb-4">
+      <table class="table table-bordered align-middle">
+        <thead class="table-light">
+          <tr><th>Módulo</th><th>Status vs. legado</th><th>Observação</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>63 – MU Helper/Auto-Hunt</td><td class="text-danger">Ausente</td><td>Não há código de Helper; considere-o implementação nova.</td></tr>
+          <tr><td>72 – Gremory Case / Correio</td><td class="text-danger">Ausente</td><td>Somente EventInventory existe; demais fluxos precisam ser criados.</td></tr>
+            <tr><td>74 – OffStore/OffAttack</td><td class="text-warning">Parcial</td><td>Fluxos de OffStore/OffAttack confirmados; OffLevel não existe no pacote atual.</td></tr>
+        </tbody>
+      </table>
+    </div>
 
     <h2 class="mt-4">Como usar esta auditoria</h2>
     <ul>
       <li>Quando um módulo for marcado aqui como “ausente”, mantenha a fidelidade visual e comportamental desejada, mas documente claramente que se trata de implementação inédita.</li>
       <li>Para módulos confirmados, referencie os arquivos listados para extrair lógica, enums, estruturas e fluxos de rede antes de adaptar aos Blueprints/UMG.</li>
+      <li>Nos módulos híbridos (ex.: <strong>72</strong>), separe as seções “legado” e “fora do legado” no próprio HTML para não misturar instruções novas com o porte 1:1.</li>
+      <li>Se não desejar adicionar features novas (ex.: MU Helper), simplesmente ignore o módulo ou marque-o como “desabilitado” no sumário do projeto UE5.</li>
       <li>Atualize esta página sempre que uma nova checagem identificar (ou refutar) a presença de funcionalidades do legado.</li>
     </ul>
   </div>
