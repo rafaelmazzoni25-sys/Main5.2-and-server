@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  <title>Módulo 58 – Configurações, Hotkeys e Câmera</title>
+</head>
+<body class="bg-light">
+  <div class="container py-5">
+    <h1 class="mb-4">Módulo 58 – Configurações, Hotkeys e Câmera</h1>
+    <p class="lead">Cataloga as opções do cliente legado (vídeo, áudio, interface, keybinds e câmera) e instrui como reproduzir cada flag/enumerador na Unreal Engine 5 com Blueprints e DataTables para manter a experiência 1:1.</p>
+
+    <h2 class="mt-4">Enums e Estruturas do Código Legado</h2>
+    <div class="card mb-3">
+      <div class="card-body">
+        <h5 class="card-title">Opções de Vídeo/Interface</h5>
+        <ul>
+          <li><strong><code>g_Option</code></strong> (exposto em <code>Option.cpp</code>): flags como <code>OPTION_WINDOW_MODE</code>, <code>OPTION_FOG</code>, <code>OPTION_BLOOM</code>, <code>OPTION_HIDE_PETS</code>, <code>OPTION_HIDE_PLAYERS</code>, <code>OPTION_HP_BAR</code>, <code>OPTION_ITEM_TOOLTIP</code>. Cada bit habilita/desabilita elementos de renderização e UI.</li>
+          <li><strong>Resoluções</strong>: vetor <code>g_Resolution[ ]</code> lista resoluções suportadas com <em>Width</em>/<em>Height</em>/<em>Refresh</em>. O cliente grava o índice no ini e recalcula FOV/aspect ratio.</li>
+          <li><strong>UI Scale</strong>: fator <code>g_fUIScale</code> aplicado na matriz ortográfica para redimensionar todos os painéis.</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="card mb-3">
+      <div class="card-body">
+        <h5 class="card-title">Hotkeys e Input</h5>
+        <ul>
+          <li><strong><code>KeyDefine.h</code></strong>: enum <code>eKEY_DEFINE</code> cobre atalhos padrão (inventário, estatísticas, party, chat, câmera livre, auto-target). <code>g_KeySetting[KEY_MAX]</code> mantém o binding atual.</li>
+          <li><strong>Macros e Auto-Ataque</strong>: flags em <code>Option.cpp</code> e comandos de chat (<code>/attack</code>, <code>/offattack</code>) ativam loops de ataque e uso automático de poções (<code>gUseAutoPot</code>).</li>
+          <li><strong>Mouse</strong>: modo de mira alterna entre <em>Follow</em> e <em>Free</em> (botão direito). O legado usa <code>g_MouseInvertY</code> e <code>g_MouseSensitivity</code> para câmera livre.</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="card mb-3">
+      <div class="card-body">
+        <h5 class="card-title">Câmera e Orientação</h5>
+        <ul>
+          <li><strong><code>CameraMove.cpp</code></strong>: define offsets de terceira pessoa (<code>g_CameraDistance</code>, <code>g_CameraHeight</code>), limites de pitch e rotação suave com <code>CameraMove_Check</code>. O eixo frontal é invertido em relação à UE5 (Y no legado corresponde a -X na UE).</li>
+          <li><strong>Zoom e Obstáculos</strong>: função <code>CameraPosition</code> encurta o <em>zoom</em> quando colisão com o terreno (<code>g_HeightMap</code>) é detectada.</li>
+          <li><strong>Transições</strong>: alterna entre câmera fixa (UI) e câmera livre (gameplay) com interpolações de FOV e rotação.</li>
+        </ul>
+      </div>
+    </div>
+
+    <h2 class="mt-4">Replicação 1:1 na Unreal Engine 5</h2>
+    <ol>
+      <li><strong>DataTable de Opções (<code>DT_ClientOptions</code>):</strong> Colunas: <code>Key (Name)</code>, <code>Type (Bool/Int/Float)</code>, <code>Default</code>, <code>Description</code>, <code>Category (Video/UI/Gameplay)</code>. Preencha com cada flag de <code>g_Option</code> e valores padrão.</li>
+      <li><strong>Widget de Opções (<code>WBP_Options</code>):</strong> Layout 1280x720 com seções "Vídeo", "UI", "Input", "Câmera". Use CheckBoxes mapeados aos nomes do <code>DT_ClientOptions</code>, um ComboBox para resolução (linhas de <code>DT_Resolutions</code> com <em>Width/Height/Refresh</em>) e Slider para <em>UI Scale</em>/<em>Sensibilidade</em>.</li>
+      <li><strong>Blueprint <code>BP_OptionManager</code>:</strong> Actor Singleton (GameInstance) com variáveis replicadas <code>bWindowMode</code>, <code>bFog</code>, <code>bBloom</code>, <code>bHidePets</code>, <code>bHidePlayers</code>, <code>bShowHPBar</code>, <code>UIScale</code>, <code>Resolution</code>. Implemente <code>ApplyOptions()</code> que chama <code>Execute Console Command</code> (ex.: <code>r.PostProcessAAQuality</code>) e ajusta <code>ViewportScale</code>/<code>GameUserSettings</code>. Para <code>HidePlayers/Pets</code>, ative tags em <code>BP_MuCharacter</code>/<code>BP_MuPet</code> e defina <code>OwnerNoSee</code> ou <code>CustomDepth</code> off.</li>
+      <li><strong>Keybinds:</strong> Crie <code>InputAction</code> assets alinhados aos enums <code>eKEY_DEFINE</code> (ex.: <em>ToggleInventory</em>, <em>ToggleCharacter</em>, <em>ToggleParty</em>, <em>AutoAttack</em>). Armazene em <code>DT_Keybinds</code> com campos <code>ActionName</code>, <code>DefaultKey</code>, <code>CanRebind</code>. No <code>BP_InputRouter</code> (PlayerController), leia o DataTable para registrar <code>Enhanced Input</code> dinamicamente.</li>
+      <li><strong>Auto-Ataque/Auto-Pot:</strong> Em <code>BP_CombatComponent</code>, adicione <code>bAutoAttack</code> e <code>bAutoPot</code> replicados. Um <code>Set Timer by Function Name</code> dispara <code>TryAutoAttack</code> e <code>TryAutoPot</code>, respeitando cooldown de skill (<code>Delay</code>) e thresholds de HP/SD.</li>
+      <li><strong>Câmera (<code>BP_MuCamera</code>):</strong> Subclasse de <code>CameraActor</code> com <code>SpringArm</code>. Variáveis: <code>CameraDistance</code>, <code>CameraHeight</code>, <code>PitchMin</code>, <code>PitchMax</code>, <code>YawInvert</code>. No <code>Tick</code>, aplique <code>Lerp</code> para transições UI↔Gameplay e faça <code>Sphere Trace</code> para encurtar o SpringArm em colisão, replicando o <em>zoom recuo</em> do legado.</li>
+      <li><strong>Conversão de Orientação:</strong> Ao importar posições/rotacionais do legado, aplique <code>YawUE = -YawLegacy</code> e converta forward <code>(X,Y,Z)_legacy → (-Y, X, Z)_UE</code>. Ajuste também a rolagem de mouse livre invertendo o eixo se <code>bInvertY</code> estiver setado.</li>
+      <li><strong>Persistência:</strong> Salve as opções em <code>SaveGame</code> (<code>SG_ClientOptions</code>) no <code>OnClicked</code> "Salvar" do <code>WBP_Options</code>. No login (<code>BP_LoginFlow</code>), carregue e aplique antes de abrir o mapa.</li>
+    </ol>
+
+    <h2 class="mt-4">Checklist Final</h2>
+    <ul>
+      <li>Todas as flags de <code>g_Option</code> mapeadas em <code>DT_ClientOptions</code>, com widgets no <code>WBP_Options</code> e aplicação em <code>BP_OptionManager</code>.</li>
+      <li>Resoluções e UI Scale aplicadas via <code>GameUserSettings</code> e <code>ViewportScale</code> com efeito imediato.</li>
+      <li>Hotkeys do enum <code>eKEY_DEFINE</code> carregadas de <code>DT_Keybinds</code> e registradas no <code>Enhanced Input</code>.</li>
+      <li>Câmera com offsets equivalentes ao legado, colisão/zoom dinâmico e inversão de orientação Yaw aplicada.</li>
+      <li>Auto-ataque/auto-pot funcionando com timers replicados e thresholds configuráveis.</li>
+    </ul>
+  </div>
+</body>
+</html>
