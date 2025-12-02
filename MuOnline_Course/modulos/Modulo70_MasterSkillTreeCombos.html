@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  <title>Módulo 70 – Master Skill Tree e Combos de Classe</title>
+</head>
+<body class="bg-light">
+  <div class="container py-5">
+    <h1 class="mb-4">Módulo 70 – Master Skill Tree e Combos de Classe</h1>
+    <p class="lead">Documenta o sistema de Master Skill Tree e combos do código legado em C++, separando enums, requisitos e cálculos, e descreve a adaptação 1:1 em Unreal Engine 5 com DataTables, Blueprints e UI detalhada.</p>
+
+    <h2 class="mt-4">Estruturas e Enums do Legado</h2>
+    <div class="card mb-3">
+      <div class="card-body">
+        <h5 class="card-title">Master Skill Tree</h5>
+        <ul>
+          <li><strong><code>MasterSkillTree.cpp</code></strong>: listas <code>g_MasterSkillTreeData</code> e <code>g_MasterSkillTreeNode</code> com <code>Index</code>, <code>SkillID</code>, <code>ReqPoint</code>, <code>Parent</code>, <code>MaxLevel</code>, <code>Penalty</code> e <code>Class</code> (bitmask por personagem).</li>
+          <li><strong>Pacotes</strong>: <code>0x30F</code>/<code>0x30E</code> para request/confirm de alocação; <code>0x30C</code> para reset; <code>0x30D</code> para carregar árvore.</li>
+          <li><strong>Enums</strong>: <code>eMLDL_CLASS</code>, <code>eMGL_CLASS</code> etc. controlam quais nós aparecem. <code>eMST_OPTION</code> lista bônus (dano skill, mana, redução de delay, novas skills).</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="card mb-3">
+      <div class="card-body">
+        <h5 class="card-title">Combos de Classe</h5>
+        <ul>
+          <li><strong><code>Combo.cpp</code></strong>: verifica sequência de skills (ex.: <code>Twisting Slash → Rageful Blow → Death Stab</code> para BK) dentro de janela de tempo (<code>COMBO_AGE_TIME</code>) e multiplica dano com <code>gComboDamage</code>.</li>
+          <li><strong>Buffers/sons</strong>: usa enum de som <code>DS_PLAY_SOUND::SKILL_COMBO</code> e efeitos de hit extra. Flags de anti-cheat impedem repetição fora do intervalo.</li>
+          <li><strong>UI</strong>: client envia <code>GCUseAttackSkill</code> com sequência, servidor confirma via <code>0x1E</code> (target/hit/dano) e atualiza buffs.</li>
+        </ul>
+      </div>
+    </div>
+
+    <h2 class="mt-4">Recriação em UE5 – Dados e Persistência</h2>
+    <div class="card mb-3">
+      <div class="card-body">
+        <ul>
+          <li>Crie uma <strong>DataTable</strong> <code>DT_MasterSkillNodes</code> (struct <code>FMasterSkillNodeRow</code>) com campos: <code>NodeID (int)</code>, <code>SkillID (int)</code>, <code>ParentIDs (TArray&lt;int&gt;)</code>, <code>ReqPoints</code>, <code>MaxLevel</code>, <code>Penalty</code>, <code>AllowedClasses (bitmask)</code>, <code>EffectType (enum)</code>, <code>ValuePerLevel</code>, <code>FX</code> (Niagara/System) e <code>Sound</code>.</li>
+          <li>Crie tabela <code>DT_ComboChains</code> com <code>Class</code>, <code>Sequence (TArray&lt;int&gt; de SkillID)</code>, <code>WindowSeconds</code>, <code>DamageMultiplier</code>, <code>Sound</code>, <code>FX</code>.</li>
+          <li>Adicione ao <code>BP_MuPlayerState</code> arrays replicados <code>MasterSkillPoints</code> e <code>MasterSkillLevels</code> (Map &lt;NodeID, Level&gt;). Persista via <code>BP_ServerPersistence</code> na seção <code>/characters/{guid}/masterskills</code>.</li>
+          <li>Mapeie os enums legados em <code>DT_SkillCatalog</code> (SkillID → nome, animação, efeitos, custo) já usado em outros módulos; inclua entradas de skills de Master Tree (ex.: <code>Gigantic Storm</code>, <code>Mana Shield Mastery</code>).</li>
+        </ul>
+      </div>
+    </div>
+
+    <h2 class="mt-4">Blueprints – Servidor</h2>
+    <div class="card mb-3">
+      <div class="card-body">
+        <ul>
+          <li>No <code>BP_GameServer</code>, crie função <strong><code>ServerAllocateMasterSkill</code></strong> (Input: PlayerState, NodeID, SpendPoints) com <code>Switch on Int</code> para validar <code>ReqPoints</code>, <code>ParentIDs</code> completos e <code>Class</code> permitido. Use <code>Branch</code> → <code>ForEachLoop</code> (ParentIDs) → <code>Map Find</code> (MasterSkillLevels).</li>
+          <li>Ao aplicar, incremente <code>MasterSkillLevels</code>, deduza pontos livres e aplique efeitos: use <code>Select</code> por <code>EffectType</code> (AddFloat to <code>BonusDamage</code>, <code>ReduceCooldown</code>, <code>UnlockSkill</code> adicionando ao <code>UnlockedSkills</code> replicado).</li>
+          <li>Implemente <strong><code>ServerResetMasterSkill</code></strong> (pacote 0x30C equivalente) com reembolso, e dispare <code>Multicast</code> para atualizar UI.</li>
+          <li>Para combos, adicione componente <code>BP_ComboTracker</code> ao personagem: em <code>Event OnSkillCasted</code>, use <code>Set Timer by Event</code> para limpar sequência, <code>Append Array</code> de SkillIDs e compare com <code>DT_ComboChains</code>. Em sucesso, aplique multiplicador no dano final antes de replicar <code>HitResult</code>.</li>
+        </ul>
+      </div>
+    </div>
+
+    <h2 class="mt-4">Blueprints – Cliente/UI</h2>
+    <div class="card mb-3">
+      <div class="card-body">
+        <ul>
+          <li>Crie widget <strong><code>WBP_MasterSkillTree</code></strong> (Canvas 1280×720). Adicione <code>ScrollBox</code> 1120×640 ancorado centro, e dentro um <code>WrapBox</code> para nós. Cada nó usa widget <code>WBP_MasterSkillNode</code> (160×120) com <code>Image</code> do ícone, <code>TextBlock</code> para nível <code>Lv X/Y</code> e <code>Button</code> “+”.</li>
+          <li>Posicionamento 1:1: para classes DK/SM/ELF, organize três colunas (x=40/240/440, y escalonado a cada 140 px). Para DL/RF/GK, segunda linha (x=640/840/1040). Use linhas <code>BP_SplineConnector</code> entre pais e filhos (cor branca; laranja quando desbloqueado).</li>
+          <li>Bind do botão “+”: em <code>WBP_MasterSkillTree</code>, no evento <code>OnClicked</code> do nó, chame <code>ServerAllocateMasterSkill</code> via <code>BP_MuPlayerController</code>; mostre <code>Widget Interaction</code> “Alocando...” e desabilite botão até resposta.</li>
+          <li>Feedback visual 1:1: adicione <code>NiagaraComponent</code> “UnlockFx” (glow azul) no <code>Overlay</code> do nó, e <code>AudioComponent</code> com <code>SoundCue_MasterUnlock</code> mapeado do enum de som de skill tree.</li>
+          <li>Para combos, crie widget <code>WBP_ComboHint</code> (300×80, âncora canto inferior direito x=940,y=620). Mostre sequência esperada (ícones lado a lado) e barra de tempo (progress bar) vinculada ao <code>WindowSeconds</code>. Atualize via evento <code>OnComboProgress</code> do <code>BP_ComboTracker</code>.</li>
+        </ul>
+      </div>
+    </div>
+
+    <h2 class="mt-4">Checagens de Fidelidade 1:1</h2>
+    <ul>
+      <li>Valores de <code>ReqPoints</code>, <code>Penalty</code> e <code>MaxLevel</code> idênticos aos de <code>MasterSkillTree.xml/bmd</code> e arrays do cliente.</li>
+      <li>Sequência e janela dos combos iguais aos do <code>Combo.cpp</code>; dano final reproduz <code>gComboDamage</code> (inclua clamp para PK/PvE se existir no legado).</li>
+      <li>UI: coordenadas, tamanho de ícones e cores dos conectores seguem layout clássico; tooltips exibem nome/descrição/valor por nível e custo de mana conforme <code>DT_SkillCatalog</code>.</li>
+      <li>Persistência: alocações salvas no logout, restauração na entrada e reenvio de habilidades desbloqueadas para hotbar.</li>
+    </ul>
+  </div>
+</body>
+</html>

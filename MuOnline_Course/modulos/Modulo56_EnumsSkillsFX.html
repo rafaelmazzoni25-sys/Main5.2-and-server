@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  <title>Módulo 56 – Enums de Skills, Efeitos Visuais e Sons</title>
+</head>
+<body class="bg-light">
+  <div class="container py-5">
+    <h1 class="mb-4">Módulo 56 – Enums de Skills, Efeitos Visuais e Sons</h1>
+    <p class="lead">Cataloga os enums de skills, atributos e efeitos do cliente legado C++ e descreve como mapear FX 2D/3D (BMD/atlas) para a Unreal Engine 5 de forma 1:1, incluindo sons e restrições por classe/mapa.</p>
+
+    <h2 class="mt-4">Enums e Estruturas do Código Legado</h2>
+    <div class="card mb-3">
+      <div class="card-body">
+        <h5 class="card-title">IDs e Atributos de Skill</h5>
+        <ul>
+          <li><strong><code>MagicInf.h</code></strong>: enum <code>eSkillType</code>/<code>eSkillID</code> lista todas as skills (ex.: <code>SKILL_EVIL_SPIRIT = 9</code>, <code>SKILL_TWISTING_SLASH = 41</code>, <code>SKILL_NOVA = 73</code>, <code>SKILL_CHAOTIC_DESECRATION = 370</code>), com flags de alvo (<code>m_iSkillUseType</code>), alcance (<code>m_iSkillUseRange</code>) e consumo (<code>m_iUseMana</code>/<code>m_iUseBP</code>).</li>
+          <li><strong><code>SkillAttribute.cpp</code></strong>: popula <code>g_SkillAdditionTable</code> e <code>SkillAttribute</code> com <em>Delay</em>, <em>Distance</em>, <em>Attr</em> (tipo de ataque/projétil), <em>Energy</em>/<em>Strength</em> scaling. Esses campos definem cooldown, colisão e comportamento de cast.</li>
+          <li><strong><code>SkillManager.cpp</code></strong>: usa <code>SKILL_ATTRIBUTE</code> para verificar permissão de uso por mapa (<code>CheckSkillRequire</code>) e classe, e despacha FX/som com <code>PlaySkillEffect</code> e <code>PlaySkillSound</code> (IDs vinculados em <code>g_SkillElementInfo</code>).</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="card mb-3">
+      <div class="card-body">
+        <h5 class="card-title">FX e Sons</h5>
+        <ul>
+          <li><strong>BMD vs Textura 2D</strong>: skills como <em>Evil Spirit</em> e <em>Ice Storm</em> usam modelos BMD (convertidos para FBX) com animação no cliente legado. Outras, como <em>Healing</em> ou <em>Poison</em>, usam sprites em atlas (<code>Effect\Skill\*.ozp</code>). O renderer escolhe via campo <code>m_bySkillUseType</code> e <code>m_iSkillAngle</code> (projetil vs área).</li>
+          <li><strong>Sons</strong>: <code>DSPlaySound.h</code>/<code>SoundDef.h</code> mapeiam <code>SOUND_SKILL_*</code> para índices de <code>gSkillSound</code>. Ex.: <code>SOUND_SKILL_EVIL</code>, <code>SOUND_SKILL_TWISTING</code>, <code>SOUND_SKILL_TRIPLE_SHOT</code>.</li>
+          <li><strong>Restrições</strong>: <code>CheckSkillRequire</code> limita uso por classe e mapa (ex.: skills de Castle Siege bloqueadas fora do mapa 30). <code>SkillTerrainCheck</code> usa a malha de colisão (ATT) para validar impacto.</li>
+        </ul>
+      </div>
+    </div>
+
+    <h2 class="mt-4">Replicação 1:1 na Unreal Engine 5</h2>
+    <ol>
+      <li><strong>DataTable de Skills (<code>DT_Skills</code>):</strong> Colunas: <code>SkillId (Name)</code>, <code>DisplayName</code>, <code>UseType (Projectile/AoE/Buff)</code>, <code>Range</code>, <code>Mana</code>, <code>BP</code>, <code>Delay</code>, <code>ClassMask</code>, <code>MapMask</code>, <code>DamageScale (Energy/Strength)</code>, <code>FXAsset</code> (Niagara/SkeletalMesh), <code>Sprite</code> (Texture2D), <code>Sound</code>. Preencha copiando os valores de <code>MagicInf.h</code> e <code>SkillAttribute.cpp</code>.</li>
+      <li><strong>Enum Blueprint <code>E_SkillID</code>:</strong> Crie uma entrada por ID do legado (ex.: <code>EvilSpirit_9</code>, <code>TwistingSlash_41</code>, <code>Nova_73</code>, <code>ChaoticDesecration_370</code>). Use <code>Switch on E_SkillID</code> para recuperar linhas de <code>DT_Skills</code>.</li>
+      <li><strong>FX 3D (BMD→FBX):</strong> Importe os FBX convertidos para <code>/Game/MU/Skills/FBX</code>. Crie Niagara Systems que referenciem o SkeletalMesh/StaticMesh e animem conforme a Timeline original: <em>Spawn</em> → <em>Loop/Travel</em> → <em>Impact</em>. Para projéteis, aplique rotação yaw invertida (legado usa eixo Y para frente) e velocidade derivada de <code>m_iSkillUseRange</code> e <code>m_iSkillAngle</code>.</li>
+      <li><strong>FX 2D (Sprites):</strong> Converta atlas OZP/OZT para PNG e crie <code>PaperFlipbook</code> ou Niagara sprite renderers. Configure <code>Material</code> com <em>Unlit</em> e <em>Masked</em>, e defina UVs conforme os recortes originais.</li>
+      <li><strong>Sons:</strong> Crie <code>DT_SkillSounds</code> (SkillId, SoundWave, Volume, Pitch). Converta <code>gSkillSound</code> e <code>SOUND_SKILL_*</code> em um enum <code>E_SkillSound</code>. Na UE5, chame <code>Play Sound at Location</code> no cast e no impacto, seguindo o índice legado.</li>
+      <li><strong>Checagem de Requisitos:</strong> No <code>BP_SkillManager</code> (ActorComponent), implemente <code>CanUseSkill</code> lendo <code>ClassMask/MapMask</code> e recursos (Mana/BP). O <code>MapMask</code> deriva do campo <code>SkillAttribute</code> que bloqueia skills em mapas específicos.</li>
+      <li><strong>Sincronização de Projéteis:</strong> Use <code>Projectile Movement</code> com <code>Initial Speed</code> proporcional a <code>Range/Delay</code>. Para AoE, use um <code>Sphere Collision</code> e <code>ApplyRadialDamage</code> com radius = <code>Range</code> convertido de tiles → unidades UE (multiplique por <code>TileScale</code> definido no módulo de mapas).</li>
+      <li><strong>AnimNotifies:</strong> Em cada Montage de ataque, adicione notifies para <code>SpawnSkillFX</code> e <code>SpawnSkillSound</code> no frame equivalente ao <code>m_iSkillDelay</code> do legado, garantindo sincronismo com a animação.</li>
+    </ol>
+
+    <h2 class="mt-4">Checklist Final</h2>
+    <ul>
+      <li>Todos os IDs de skill de <code>MagicInf.h</code> mapeados em <code>E_SkillID</code> e <code>DT_Skills</code> com Range/Delay/Mana/BP.</li>
+      <li>FX 3D (BMD→FBX) e 2D (atlas) importados e conectados a Niagara ou Flipbooks com orientação corrigida (yaw invertido).</li>
+      <li>Sons <code>SOUND_SKILL_*</code> referenciados em <code>DT_SkillSounds</code> e tocados via <code>Play Sound at Location</code> no cast/impacto.</li>
+      <li>Requisitos de classe/mapa implementados no <code>BP_SkillManager</code> refletindo <code>CheckSkillRequire</code>.</li>
+    </ul>
+  </div>
+</body>
+</html>

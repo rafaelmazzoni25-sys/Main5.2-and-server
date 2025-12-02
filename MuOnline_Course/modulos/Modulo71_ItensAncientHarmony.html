@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  <title>Módulo 71 – Itens Ancient, Harmony e Sets Especiais</title>
+</head>
+<body class="bg-light">
+  <div class="container py-5">
+    <h1 class="mb-4">Módulo 71 – Itens Ancient, Harmony e Sets Especiais</h1>
+    <p class="lead">Analisa o sistema legado de opções Ancient/Harmony, setoption e sockets auxiliares e descreve a reprodução 1:1 na Unreal Engine 5, incluindo efeitos visuais, UI e validações de servidor.</p>
+
+    <h2 class="mt-4">Estruturas do Código Legado</h2>
+    <div class="card mb-3">
+      <div class="card-body">
+        <ul>
+          <li><strong>Ancient</strong>: tabelas <code>SetItemOption.xml</code>/<code>SetItemOption.bmd</code> mapeiam <code>SetIndex</code>, <code>Option1/2</code>, <code>NeedItemCount</code>, <code>Class</code>. Funções em <code>SetItemOption.cpp</code> somam bônus conforme peças equipadas.</li>
+          <li><strong>Harmony</strong>: <code>JewelOfHarmonySystem.cpp</code> usa enum <code>eJewelHarmonyOption</code> (Dano Mín/Máx, Crit %, SD Rate, etc.), valores por nível em <code>CHAOS_MIX_HARMONY</code> e estados <code>EMPTY/SMELTING/REINFORCED</code>.</li>
+          <li><strong>SetOption/Socket Auxiliar</strong>: <code>ItemAddOption.cpp</code> aplica <code>ItemOptionType</code> (Excellent, Ancient, Harmony) e checa <code>SocketOption</code> extra (ex.: proteção, hp recovery) para espadas/armas.</li>
+          <li><strong>Visual</strong>: <code>ItemRender.cpp</code> liga shaders/glows conforme flags <code>IS_ANCIENT</code>, <code>IS_HARMONY</code>, <code>Option660</code>, além de sons de equipar específicos.</li>
+        </ul>
+      </div>
+    </div>
+
+    <h2 class="mt-4">DataTables e Assets na UE5</h2>
+    <div class="card mb-3">
+      <div class="card-body">
+        <ul>
+          <li><strong><code>DT_ItemSets</code></strong> (struct <code>FItemSetRow</code>): <code>SetIndex</code>, <code>Pieces (TArray&lt;int&gt; ItemID)</code>, <code>NeedCount</code>, <code>BonusOption1</code>, <code>BonusOption2</code>, <code>ClassMask</code>, <code>GlowMaterial</code>, <code>EquipSound</code>.</li>
+          <li><strong><code>DT_HarmonyOptions</code></strong> (struct <code>FHarmonyRow</code>): <code>Category</code> (Weapon/Armor/Accessory), <code>Option</code>, <code>Level</code>, <code>Value</code>, <code>Rate</code>, <code>GlowCurve</code>, <code>Sound</code>.</li>
+          <li><strong><code>DT_SetOptionExtras</code></strong>: tabela para opções adicionais (ex.: SocketAux) com <code>OptionID</code>, <code>Value</code>, <code>TargetItemTypes</code>, <code>FX</code>.</li>
+          <li>Mapeie materiais: <code>M_Glow_Ancient</code> (azul), <code>M_Glow_Harmony</code> (amarelo) e <code>M_Glow_SetOption</code> (verde). Conecte emissive via <code>CurveAtlas</code> para pulsar conforme nível.</li>
+        </ul>
+      </div>
+    </div>
+
+    <h2 class="mt-4">Blueprints – Servidor e Validação</h2>
+    <div class="card mb-3">
+      <div class="card-body">
+        <ul>
+          <li>No <code>BP_GameServer</code>, função <strong><code>ServerApplyJewelHarmony</code></strong>: valida categoria/slot, rola nível via <code>DT_HarmonyOptions</code>, grava no struct de item (<code>FHarmonyData</code>) e replica para cliente. Em falha, retorne código equivalente ao <code>JewelOfHarmonySystem</code> (inventory full, item sem slot).</li>
+          <li><strong>Ancient</strong>: em <code>BP_MuCharacter</code> (server), após equipar item, conte peças por <code>SetIndex</code>. Use <code>Map</code> <code>SetIndex → Count</code>, consulte <code>DT_ItemSets</code> para aplicar <code>BonusOption1/2</code> e envie multicast de ativação/desativação.</li>
+          <li><strong>SetOption/Harmony visual</strong>: anexe componente <code>BP_ItemGlow</code> ao <code>SkeletalMesh</code>. No <code>OnRep_Equipment</code>, para cada slot, escolha material conforme flags (Excellent + Ancient + Harmony). Prioridade: Ancient &gt; Harmony &gt; Excellent.</li>
+          <li><strong>Socket Auxiliar</strong>: tabela <code>DT_SetOptionExtras</code> alimenta multiplicadores. Valide no server ao aplicar skill/ataque (ex.: bônus de SD, redução de dano) antes do cálculo final.</li>
+        </ul>
+      </div>
+    </div>
+
+    <h2 class="mt-4">Blueprints – Cliente, UI e Feedback</h2>
+    <div class="card mb-3">
+      <div class="card-body">
+        <ul>
+          <li>Atualize <code>WBP_Inventory</code> e <code>WBP_Equipment</code> com camadas adicionais: overlay de cor (Ancient azul #3bc6ff, Harmony dourado #f9c74f) e ícone de set (canto superior esquerdo). Cada slot usa <code>Border</code> 64×64; adicione <code>Image</code> 16×16 no canto.</li>
+          <li>Tooltips: em <code>WBP_ItemTooltip</code>, crie seções “Ancient” e “Harmony”. Puxe dados de <code>DT_ItemSets</code> e <code>DT_HarmonyOptions</code> para mostrar bônus ativos (verde) e bloqueados (cinza). Use <code>VerticalBox</code> com margens 8 px e textos <code>12pt</code>.</li>
+          <li>Janela da <strong>Chaos Machine</strong>: inclua botão “Adicionar Harmony” (x=720,y=520, 140×40) e slot dedicado para Jewel of Harmony (x=540,y=360). Bind do botão chama <code>ServerApplyJewelHarmony</code>.</li>
+          <li>Sons: associe <code>SoundCue_EquipAncient</code> e <code>SoundCue_Harmony</code> aos eventos <code>OnEquip</code>/<code>OnHarmonyApplied</code>. No cliente, use <code>Play Sound 2D</code> após confirmação do server.</li>
+          <li>FX de glow: instancie <code>NiagaraSystem</code> (pulsar) no socket <code>spine_03</code> para armaduras e <code>weapon_r</code>/<code>weapon_l</code> para armas. Controle cor por material instanciado dinâmico (<code>Set Vector Parameter Value</code>).</li>
+        </ul>
+      </div>
+    </div>
+
+    <h2 class="mt-4">Checklist de Fidelidade</h2>
+    <ul>
+      <li>Valores de bônus, requisitos de classe e combinações de peças iguais ao <code>SetItemOption</code> e <code>JewelOfHarmonySystem</code> originais.</li>
+      <li>UI usa as mesmas âncoras e tamanhos do cliente legado: inventário 320×512 em canvas 1024×768; tooltips com margens e cores equivalentes.</li>
+      <li>Glows e sons seguem prioridades e cores do legado; material emissive ajusta intensidade conforme nível de Harmony.</li>
+      <li>Persistência: dados de Harmony/Ancient gravados em <code>BP_ServerPersistence</code> junto aos itens e restaurados no login.</li>
+    </ul>
+  </div>
+</body>
+</html>

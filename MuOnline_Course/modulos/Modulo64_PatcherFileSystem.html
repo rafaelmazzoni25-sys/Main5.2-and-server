@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  <title>Módulo 64 – Patcher, FileSystem e CRC</title>
+</head>
+<body class="bg-light">
+  <div class="container py-5">
+    <h1 class="mb-4">Módulo 64 – Patcher, FileSystem e CRC</h1>
+    <p class="lead">Mapeia o carregamento de assets do cliente C++ (BMD/OZ*/MAP/ATT/OBJ), verificação de CRC e como reproduzir o fluxo de patch/update na UE5.</p>
+
+    <h3>Pré-requisitos</h3>
+    <ul>
+      <li>Pipeline de conversão de assets configurado (Módulo 14 e 50).</li>
+      <li>Infra de rede/VaRest para download e checagem de versões.</li>
+    </ul>
+
+    <h2 class="mt-4">Conceitos do Código Original</h2>
+    <div class="card mb-3">
+      <div class="card-body">
+        <h5 class="card-title">Loader de arquivos (<code>OZFile.cpp</code>, <code>MemoryChecker.cpp</code>)</h5>
+        <p>O cliente abre OZJ/OZT/OZB/OZP/OZD, BMD e scripts via offsets de diretório e valida CRC antes de usar.</p>
+        <ul>
+          <li><code>OZ::Load</code> lê cabeçalhos comprimidos, descompacta com tabelas RLE e valida <code>Header.CRC32</code>.</li>
+          <li>Funções auxiliares <code>LoadImage</code>, <code>LoadBMD</code>, <code>LoadMap</code> compartilham a mesma rotina de CRC.</li>
+          <li><code>MemoryChecker</code> compara o hash do executável e de pastas críticas (Data, Local) com valores do patcher.</li>
+        </ul>
+      </div>
+    </div>
+    <div class="card mb-3">
+      <div class="card-body">
+        <h5 class="card-title">Patcher (<code>Launcher/Main.cpp</code>, <code>UpdateServer.cpp</code>)</h5>
+        <p>O launcher consulta <code>UpdateServer</code> para lista de arquivos e CRC, baixa diffs e revalida antes de iniciar o cliente.</p>
+        <ul>
+          <li>Lista de manifestos em <code>Patch/ServerList.dat</code> com campos: Nome, CRC, Tamanho, URL.</li>
+          <li>Regras de prioridade: DLLs e exe antes de assets; falha em CRC aborta o start.</li>
+        </ul>
+      </div>
+    </div>
+
+    <h2 class="mt-4">Adaptação UE5 (Blueprint/C++)</h2>
+    <ol>
+      <li>Crie um serviço Node.js <code>/patch-manifest</code> que exponha JSON com campos <code>Path</code>, <code>Hash</code>, <code>Size</code>, <code>Type</code> (Texture/Mesh/Map/Pak).</li>
+      <li>No launcher UE5 (projeto separado ou modo standalone), adicione um <code>BP_Patcher</code> com steps:</li>
+      <ul>
+        <li><strong>Consulta</strong>: VaRest GET em <code>/patch-manifest</code>, parse para um array de structs.</li>
+        <li><strong>Verificação local</strong>: calcule SHA256/CRC32 de cada arquivo em <code>Content/Paks</code> e <code>Saved/Converted</code>; compare com o manifest.</li>
+        <li><strong>Download</strong>: para arquivos divergentes, baixe em <code>Saved/Downloads</code>, valide hash e mova para o destino.</li>
+      </ul>
+      <li>Implemente um <code>Subsystem</code> C++ ou Blueprint <code>BP_FileSystem</code> que registre caminhos convertidos (FBX, PNG, maps) em um <code>DataTable DT_AssetRegistry</code> com campos: <code>LegacyPath</code>, <code>UEPath</code>, <code>Hash</code>, <code>Type</code>, <code>ConvertedAt</code>.</li>
+      <li>Durante o boot (Módulo 1), carregue <code>DT_AssetRegistry</code> e valide hashes críticos (UI atlases, meshes principais). Se faltar ou divergir, exiba modal de reparo chamando o <code>BP_Patcher</code>.</li>
+      <li>Para MAP/ATT/OBJ convertidos, salve arquivos auxiliares (heightmap RAW + JSON de props) com hash no manifest e configure o <code>BP_MapLoader</code> para rejeitar mapas sem hash válido.</li>
+    </ol>
+
+    <h2 class="mt-4">Checklist de Paridade</h2>
+    <ul>
+      <li>Todos os assets baixados/verificados antes do boot, tal como o patcher original.</li>
+      <li>Hashes/CRC registrados em tabela e validados na carga de UI, mapas e modelos.</li>
+      <li>Fluxo de reparo automático em caso de divergência, impedindo start se arquivos críticos faltarem.</li>
+      <li>Manifesto versionado garante sincronismo entre cliente UE5 e servidor de updates.</li>
+    </ul>
+  </div>
+</body>
+</html>

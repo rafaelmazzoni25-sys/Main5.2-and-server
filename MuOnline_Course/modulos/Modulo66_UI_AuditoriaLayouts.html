@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  <title>Módulo 66 – Auditoria de UI e Layouts 1:1</title>
+</head>
+<body class="bg-light">
+  <div class="container py-5">
+    <h1 class="mb-4">Módulo 66 – Auditoria de UI e Layouts 1:1</h1>
+    <p class="lead">Inventário completo das telas do cliente legado (CNewUIManager) com nomes de widgets, caminhos, anchors e
+coordenadas para reconstrução 1:1 em Unreal Engine 5. Use como checklist para garantir que cada módulo que toca UI
+indique exatamente como montar a tela.</p>
+
+    <h2>Contexto do Código Original</h2>
+    <ul>
+      <li><strong>Gerenciador:</strong> <code>CNewUIManager</code> registra cada janela via IDs como <code>INTERFACE_LOGIN</code>,
+<code>INTERFACE_INVENTORY</code>, <code>INTERFACE_TRADE</code>, etc., definidos em <code>UIControls.h</code> e
+<code>UICustomWindow.h</code>.</li>
+      <li><strong>Texturas:</strong> atlases referenciados via enums <code>IMAGE_LOGIN</code>, <code>IMAGE_INVENTORY</code>,
+<code>BITMAP_SHOP</code> e companhias. Os índices mapeiam para coordenadas de UV dentro dos arquivos OZT/OZP.</li>
+      <li><strong>Posicionamento:</strong> a maioria das telas usa coordenadas absolutas em 640x480 ou 800x600. Este módulo fornece
+a equivalência em 1920x1080 para UE5 preservando proporção (scale boxes).</li>
+      <li><strong>Eventos:</strong> hotkeys e mensagens de rede chamam funções de abertura (<code>OpenInventory</code>,
+<code>OpenPersonalShop</code>, <code>OpenOptionWindow</code>), que disparam renderização no loop principal.</li>
+    </ul>
+
+    <h2>Checklist de Telas e Widgets</h2>
+    <p>Para cada UI, criamos um widget UMG correspondente e indicamos tamanho base, ancoragem e hierarquia mínima.</p>
+    <div class="table-responsive mb-4">
+      <table class="table table-bordered table-sm">
+        <thead class="table-light">
+          <tr>
+            <th>UI Legada</th>
+            <th>Widget UE5</th>
+            <th>Tamanho / Anchor</th>
+            <th>Hierarquia e Observações</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Login (<code>CNewUILogin</code>)</td>
+            <td><code>WBP_Login</code> em <code>/UI/Login/</code></td>
+            <td>Canvas 1920x1080; painel central 520x360 ancorado Center</td>
+            <td>Border → VBox (logo, TextBox Account/Password, botão Conectar). Ícone erro <code>Txt_Error</code> em Y=300.</td>
+          </tr>
+          <tr>
+            <td>Seleção/Criação (<code>CNewUICharSel</code>)</td>
+            <td><code>WBP_CharacterSelect</code></td>
+            <td>Canvas 1920x1080; carrossel central 1280x540, âncora Center</td>
+            <td>Slots 5 personagens (card 240x480), botões “Criar/Apagar/Entrar” em bottom-right (X=1500,Y=900).</td>
+          </tr>
+          <tr>
+            <td>HUD raiz + status rápido</td>
+            <td><code>WBP_HUDRoot</code></td>
+            <td>Canvas 1920x1080</td>
+            <td>Barra HP/MP/SD em topo-esquerda (X=48,Y=32,W=320,H=84); barra XP em bottom (X=240,Y=1010,W=1440,H=28);
+chat em bottom-left 620x220.</td>
+          </tr>
+          <tr>
+            <td>Inventário/Equip (<code>CNewUIInventory</code>)</td>
+            <td><code>WBP_Inventory</code> + <code>WBP_Equipment</code></td>
+            <td>Janela 640x480 ancorada Center</td>
+            <td>Grade 8x4 (slot 64x64, gap 6); coluna direita para equips (Weapon/Shield/Helm/Armor/Pants/Gloves/Boots/Wings)
+com slots 72x72.</td>
+          </tr>
+          <tr>
+            <td>Warehouse (<code>CNewUIWarehouse</code>)</td>
+            <td><code>WBP_Warehouse</code></td>
+            <td>Janela 720x520 Center</td>
+            <td>Grade 8x5 (slot 64x64), botão “Mover” (X=560,Y=460,W=120,H=40), label de Zen em (X=40,Y=460).</td>
+          </tr>
+          <tr>
+            <td>NPC Shop (<code>CNewUINPCShop</code>)</td>
+            <td><code>WBP_NPCShop</code></td>
+            <td>Janela 760x540 Center</td>
+            <td>Grade 6x8 itens (slot 60x60); painel lateral 180x480 direita com Zen, botão “Comprar”, descrição.</td>
+          </tr>
+          <tr>
+            <td>Trade (<code>CNewUITrade</code>)</td>
+            <td><code>WBP_Trade</code></td>
+            <td>Janela 900x520 Center</td>
+            <td>Grid 6x2 para jogador e 6x2 para alvo; campo Zen + botão Confirmar em rodapé; texto sessão no topo.</td>
+          </tr>
+          <tr>
+            <td>CashShop (<code>CNewUICashShop</code>)</td>
+            <td><code>WBP_CashShop</code></td>
+            <td>Janela 1100x760 Center</td>
+            <td>Sidebar categorias (X=40,W=220), área de cards 3x3 (card 220x200), carrinho lateral direita 240px.</td>
+          </tr>
+          <tr>
+            <td>Eventos (Crywolf, DS/BC, Illusion, Arca, CC)</td>
+            <td><code>WBP_EventTimer</code>, <code>WBP_EventRank</code>, específicos por evento</td>
+            <td>Timers top (X≈60..240, Y=60..90); banners center 800x120</td>
+            <td>Respeitar cores/status de cada estado (Notify/Open/Playing/Closing). Anexar a HUD raiz via <code>Add to Viewport</code>
+com ZOrder &gt;= 10.</td>
+          </tr>
+          <tr>
+            <td>Notice/Banner/Invasões</td>
+            <td><code>WBP_NoticeBanner</code></td>
+            <td>Barra 1920x64 top-center</td>
+            <td>Texto scroll, cor por severidade; ícone de evento (32px) à esquerda; botão fechar opcional em X=1860.</td>
+          </tr>
+          <tr>
+            <td>MU Helper / Auto-potion</td>
+            <td><code>WBP_MuHelper</code></td>
+            <td>Janela 620x520 CenterRight</td>
+            <td>Tabs (Ataque/Coleta/Potion) em topo; sliders e checkboxes alinhados em grid 2 colunas (label 200px, controle 320px).</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h2>Passo a Passo UE5 – Reforço de Layout</h2>
+    <ol>
+      <li><strong>Escala e âncoras</strong>: para cada widget, adicione um <em>ScaleBox</em> fixo em 1920x1080 com <em>Stretch</em>
+= ScaleToFit. Dentro dele, use <em>Canvas Panel</em> e posicione elementos pelos valores fornecidos.</li>
+      <li><strong>Nomes de arquivos</strong>: mantenha a convenção <code>WBP_&lt;Tela&gt;</code> em <code>/Game/UI/&lt;Subpasta&gt;</code>.
+Ex.: <code>/Game/UI/Login/WBP_Login</code>, <code>/Game/UI/Inventory/WBP_Inventory</code>, <code>/Game/UI/Events/WBP_EventTimer</code>.</li>
+      <li><strong>Bindings</strong>: crie <code>BP_UIRouter</code> (ActorComponent no PlayerController) com refs para todos os widgets
+principais. Exponha funções <code>ShowInventory</code>, <code>ShowShop</code>, <code>ShowWarehouse</code>, <code>ShowEventHUD</code>
+que fazem <code>Create Widget</code> → <code>Add to Viewport</code> se não existir.</li>
+      <li><strong>Input</strong>: configure <em>Enhanced Input</em> para hotkeys do legado (I inventário, V shop pessoal, B commandos,
+U party). Cada ação chama o método correspondente no <code>BP_UIRouter</code>.</li>
+      <li><strong>Assets convertidos</strong>: ao importar texturas OZ*/DDS, use <em>Texture Group UI</em> e <em>Compression
+Settings = UserInterface2D (RGBA)</em>. Para slots/frames, gere materiais com canal alfa preservado.</li>
+      <li><strong>Estados ativos</strong>: mantenha variáveis <code>bInventoryOpen</code>, <code>bShopOpen</code>, <code>bTradeOpen</code>
+no router para evitar múltiplas instâncias. Use <code>Set Input Mode Game and UI</code> quando qualquer UI de loja/trade estiver
+visível.</li>
+    </ol>
+
+    <h2>Checklist de Completeness por Módulo</h2>
+    <ul>
+      <li><strong>Módulo 2 – Login:</strong> confirmar <code>WBP_Login</code> com campos e botão nas coordenadas acima; VaRest bindings
+para <code>/auth/login</code>.</li>
+      <li><strong>Módulo 3 – HUD:</strong> garantir <code>WBP_HUDRoot</code> com barras e chat posicionados; binds para status replicados.</li>
+      <li><strong>Módulo 5 – Inventário:</strong> <code>WBP_Inventory</code>/<code>WBP_Equipment</code> com slots nomeados e grid 8x4.
+Drag-and-drop ativo em cada <code>Border</code> de slot.</li>
+      <li><strong>Módulo 20/24/25/33:</strong> timers <code>WBP_EventTimer</code> e banners centrais com cores por estado; botões de
+entrada em X=520,Y=70 para DS/BC.</li>
+      <li><strong>Módulo 29/60:</strong> <code>WBP_Trade</code> e <code>WBP_ShopBoard</code> seguindo tamanhos listados; labels de Zen e
+botões confirmam com cores verde/vermelho.</li>
+      <li><strong>Módulo 32:</strong> <code>WBP_CashShop</code> com sidebar, grade e carrinho à direita.</li>
+      <li><strong>Módulo 63:</strong> <code>WBP_MuHelper</code> com abas e sliders coordenados; hotkey padrão End.</li>
+      <li><strong>Módulo 65:</strong> notices coloridos em <code>WBP_NoticeBanner</code> com ZOrder &gt; HUD de combate.</li>
+    </ul>
+
+    <h2>Depuração Visual e QA</h2>
+    <ul>
+      <li>Ative <em>Widget Reflector</em> e verifique que cada widget está em ZOrder esperado (HUD 0-5, timers 10, modais 20+).</li>
+      <li>Use <em>Stat UnitGraph</em> e <em>Stat Slate</em> para checar draw calls; telas devem manter &lt; 2 ms em 1080p.</li>
+      <li>Compare capturas do cliente legado com capturas da UE5 usando sobreposição (ex.: Photoshop com opacidade 50%). Ajuste
+anchors até alinhar.</li>
+      <li>Salve preset de cores e fontes em <code>/Game/UI/Style/DA_UIStyle</code> para garantir consistência entre módulos.</li>
+    </ul>
+  </div>
+</body>
+</html>
