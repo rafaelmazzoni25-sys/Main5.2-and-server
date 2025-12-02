@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  <title>Módulo 67 – UI Framework, Mensageria e Telas de Sistema</title>
+</head>
+<body class="bg-light">
+  <div class="container py-5">
+    <h1 class="mb-4">Módulo 67 – UI Framework, Mensageria e Telas de Sistema</h1>
+    <p class="lead">Mapeia as janelas legadas (LoginWin, CharSelMainWin, NewUICommandWindow, NewUIChatLogWindow, NewUIParty/Guild/Friend/Quest/Help/Option) e as adapta para UMG em UE5 com nomes de widgets, anchors e coordenadas 1:1. Centraliza o fluxo de abertura/fechamento controlado por <code>CNewUIManager</code> e callbacks de input (<code>UIManager.cpp</code>, <code>NewUIManager.cpp</code>).</p>
+
+    <h2>Contexto do Código Legado</h2>
+    <ul>
+      <li><strong>Registradores:</strong> cada janela é registrada em <code>CNewUIManager::AddUIObj</code> com um ID enum (<code>INTERFACE_LOGIN</code>, <code>INTERFACE_INVENTORY</code>, <code>INTERFACE_COMMUNICATION_UI</code>, <code>INTERFACE_PARCHEMENT</code>). Os callbacks de input e render ficam no loop principal (<code>UIManager::RenderFrame</code>).</li>
+      <li><strong>Mensageria:</strong> caixas de mensagem (<code>CBTMessageBox</code>, <code>NewUICustomMessageBox</code>) usam filas para eventos síncronos e assíncronos. Chat, comandos e notificações passam por <code>NewUIChatInputBox</code> e <code>NewUICommandWindow</code>.</li>
+      <li><strong>Fonts e números:</strong> <code>CGFxFontConfigParser</code> e <code>NewUIRenderNumber</code> carregam atlas de números e fontes GFX. Precisamos mapear para FontAssets/UMG usando RichText.</li>
+    </ul>
+
+    <h2>Blueprints e Widgets</h2>
+    <div class="table-responsive mb-4">
+      <table class="table table-bordered table-sm">
+        <thead class="table-light">
+          <tr>
+            <th>UI Legada</th>
+            <th>Widget UE5</th>
+            <th>Tamanho / Anchor</th>
+            <th>Hierarquia e Observações</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Login (<code>LoginWin</code>, <code>LoginMainWin</code>)</td>
+            <td><code>WBP_Login</code> em <code>/UI/Login</code></td>
+            <td>Canvas 1920x1080; painel central 520x360 (Center)</td>
+            <td>Border → VBox: logo, TextBox <code>Txt_Account</code>, TextBox <code>Txt_Password</code>, botão <code>Btn_Connect</code> (W=180,H=44,Y=260). Caixa de erro <code>Txt_Error</code> em Y=310, cor #FF3B30.</td>
+          </tr>
+          <tr>
+            <td>Seleção/Criação (<code>CharSelMainWin</code>, <code>CharMakeWin</code>)</td>
+            <td><code>WBP_CharacterSelect</code>, <code>WBP_CreateChar</code></td>
+            <td>Canvas 1920x1080; carrossel 1280x540 (Center)</td>
+            <td>Slots 5 cards (240x480). Botões “Criar/Apagar/Entrar” alinhados em (X=1500,Y=900). Modal <code>WBP_CreateChar</code> 480x360 Center com Dropdown <code>DD_Class</code>, TextBox nome e botão confirmar.</td>
+          </tr>
+          <tr>
+            <td>Chat/Comandos (<code>NewUIChatInputBox</code>, <code>NewUIChatLogWindow</code>, <code>NewUICommandWindow</code>)</td>
+            <td><code>WBP_Chat</code> e <code>WBP_ChatLog</code></td>
+            <td>Chat Input 620x40 (Bottom-Left: X=40,Y=980); Log 620x220 (Bottom-Left)</td>
+            <td>Input: Border → HBox com Prefixo canal (<code>Txt_Channel</code> 80px), EditableText <code>Txt_Message</code> expansivo. Log: ScrollBox com RichText suportando cores; botão “!” para abrir comandos em X=600,Y=960.</td>
+          </tr>
+          <tr>
+            <td>Party/Guild/Friend (<code>NewUIPartyListWindow</code>, <code>UIGuild</code>, <code>NewUIFriendWindow</code>)</td>
+            <td><code>WBP_PartyList</code>, <code>WBP_Guild</code>, <code>WBP_Friend</code></td>
+            <td>Janela 540x420 (CenterRight para Party), 700x560 (Center para Guild), 520x460 (Center)</td>
+            <td>Party: lista vertical 5 entradas (altura 64), botão “Sair” em Y=360. Guild: abas Info/Membros/Marcador; grade 5x8 para membros; botão “Guerra” em bottom-right. Friend: Tabs Amigos/Block; lista 10 linhas; botão “Adicionar” em Y=400.</td>
+          </tr>
+          <tr>
+            <td>Quest/Diálogos (<code>NewUINPCQuest</code>, <code>NewUIQuestProgress</code>, <code>NewUINPCDialogue</code>)</td>
+            <td><code>WBP_QuestDialog</code>, <code>WBP_QuestProgress</code></td>
+            <td>Janela 720x520 Center</td>
+            <td>Header com ícone NPC 64x64; corpo ScrollBox 640x340; botões aceitar/recusar (X=420,Y=440) e continuar (X=580,Y=440). Progress: lista de objetivos (CheckBox + texto); barra de recompensas com ícones 48x48.</td>
+          </tr>
+          <tr>
+            <td>Ajuda/Opções (<code>NewUIHelpWindow</code>, <code>NewUIOptionWindow</code>, <code>NewUIHotKey</code>)</td>
+            <td><code>WBP_Help</code>, <code>WBP_Options</code>, <code>WBP_Hotkeys</code></td>
+            <td>Help 800x600 Center; Options 820x620 Center; Hotkeys 760x560 Center</td>
+            <td>Help: TreeView à esquerda (X=24,W=220), RichText à direita (W=520). Options: Tabs Video/Audio/Controles; sliders de volume (W=280) e toggles fullscreen/vsync. Hotkeys: Grid 2x8 para binds com EditableText + botão <code>Btn_Rebind</code>.</td>
+          </tr>
+          <tr>
+            <td>Message Boxes (<code>CBTMessageBox</code>, <code>NewUICustomMessageBox</code>)</td>
+            <td><code>WBP_MessageBox</code></td>
+            <td>Modal 420x220 Center</td>
+            <td>TextBlock <code>Txt_Title</code> (Y=18), RichText <code>Txt_Body</code> (Y=58,H=96), botões primário/secundário em HBox (Y=170). Bind eventos para fila de mensagens (Queue).</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h2>Fluxo de Input e Abertura</h2>
+    <ol>
+      <li><strong>PlayerController:</strong> em <code>BP_MuPlayerController</code>, crie um <em>Input Map</em> para teclas (Enter para chat, V para opções, H para ajuda, P para party, G para guild, F para friend, Q para quest). Cada input chama <code>ToggleWidget</code> correspondente.</li>
+      <li><strong>Router de UI:</strong> crie um componente <code>BP_UIRouter</code> anexado ao PlayerController com um <code>Map&lt;Enum_InterfaceID, WidgetClass&gt;</code>. No <code>BeginPlay</code>, instancie e oculte todos os widgets e registre em um <code>UIStack</code> para modalização.</li>
+      <li><strong>Mensagens e filas:</strong> implemente <code>EnqueueMessage(MessageData)</code> e <code>DequeueMessage()</code> para alimentar <code>WBP_MessageBox</code>. Use <code>Timer by Event</code> para auto-close conforme o legado (<code>Timeout</code> em segundos).</li>
+      <li><strong>Fonts/Números:</strong> converta atlas GFX para FontAssets; em widgets numéricos (dano, zen, score), use <code>WBP_NumberRender</code> com <code>HorizontalBox</code> e imagens de dígitos (64x96) ou RichText com fonte monoespaçada para preservar kerning.</li>
+      <li><strong>Sequência de abertura:</strong> defina na GameInstance uma ordem: Login → Servidores → CharSelect → LoadingScene → HUD. Replique o <em>state machine</em> do legado armazenando o <code>CurrentInterface</code> (enum) e notificando o <code>UIRouter</code>.</li>
+    </ol>
+
+    <h2>Checklist para Este Módulo</h2>
+    <ul>
+      <li>Todos os widgets criados nos caminhos indicados, com âncoras e tamanhos exatos.</li>
+      <li>Input bindings configurados no PlayerController seguindo os atalhos do código (<code>NewUIHotKey</code>).</li>
+      <li>Fila de mensagens (MessageBox) funcional com tempo de expiração e botões primário/secundário.</li>
+      <li>Chat/Log com cores e canais; comandos prefixados (/, ~, !, @) roteados para funções adequadas.</li>
+      <li>Help/Options/Hotkeys replicando árvores de texto e sliders de configuração equivalentes ao legado.</li>
+    </ul>
+  </div>
+</body>
+</html>

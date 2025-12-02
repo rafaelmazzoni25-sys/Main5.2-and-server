@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  <title>Módulo 72 – Gremory Case, Inventário de Evento e Correio</title>
+</head>
+<body class="bg-light">
+  <div class="container py-5">
+    <h1 class="mb-4">Módulo 72 – Gremory Case, Inventário de Evento e Correio</h1>
+    <p class="lead">Mapeia as estruturas do código legado para Gremory Case, inventário de evento e correio, e descreve como recriar o fluxo 1:1 na Unreal Engine 5 com DataTables, Blueprints e UI detalhada.</p>
+
+    <h2 class="mt-4">Referências do Legado</h2>
+    <div class="card mb-3">
+      <div class="card-body">
+        <ul>
+          <li><strong>Disponibilidade nos fontes fornecidos:</strong> a varredura completa em <code>Source Main 5.2</code> e <code>Source MuServer Update 15</code> não encontrou arquivos ou símbolos contendo “Gremory” ou “EventInventory”. Isso indica que as versões de cliente/servidor entregues não trazem a implementação original dessa feature, exigindo recriação manual no curso.</li>
+          <li><strong><code>GremoryCase.cpp</code></strong>: arrays <code>m_GremoryCase</code> por tipo (<code>EVENT</code>, <code>NPC</code>, <code>PERSONAL</code>), estados <code>STATE_NONE/STATE_STORED/STATE_RECEIVED/STATE_EXPIRED</code>, timers e pacotes <code>0x4F</code>/<code>0xF3 0x40</code>.</li>
+          <li><strong><code>EventInventory.cpp</code></strong>: slots separados para itens temporários, validação de tempo/owner e replicação para o cliente.</li>
+          <li><strong>Correio</strong>: pacotes <code>0xFD</code> para inbox, anexos e confirmação de recebimento; utiliza tabela de mensagens com título, remetente, anexos e data de expiração.</li>
+          <li><strong>Sons/efeitos</strong>: sons de recebimento <code>DS_PLAY_SOUND::ITEM_GET</code> e highlight amarelo no cliente ao receber ou expirar.</li>
+        </ul>
+      </div>
+    </div>
+
+    <h2 class="mt-4">DataTables e Estruturas UE5</h2>
+    <div class="card mb-3">
+      <div class="card-body">
+        <ul>
+          <li><strong><code>DT_GremoryCase</code></strong> (Struct <code>FGremoryEntry</code>): <code>CaseType</code> (enum Evento/NPC/Personal), <code>ItemDef</code> (row handle para <code>DT_ItemCatalog</code>), <code>Quantity</code>, <code>ExpireAt</code> (DateTime), <code>State</code>, <code>Reason</code> (enum <code>eITEM_LOOT</code>/<code>QUEST</code>/<code>NPC</code>), <code>SourceMap</code>, <code>SourceMob</code>.</li>
+          <li><strong><code>DT_EventInventory</code></strong> (Struct <code>FEventSlot</code>): <code>SlotIndex</code>, <code>ItemDef</code>, <code>ExpireAt</code>, <code>OwnerCharId</code>, <code>IsLocked</code>.</li>
+          <li><strong><code>DT_Mailbox</code></strong> (Struct <code>FMailEntry</code>): <code>MailId</code>, <code>Sender</code>, <code>Title</code>, <code>Body</code>, <code>Attachment</code> (ItemDef), <code>Zen</code>, <code>ExpireAt</code>, <code>Status</code> (Unread/Read/Claimed/Expired).</li>
+        </ul>
+      </div>
+    </div>
+
+    <h2 class="mt-4">Servidor (Blueprints)</h2>
+    <div class="card mb-3">
+      <div class="card-body">
+        <ul>
+          <li>No <code>BP_GameServer</code>, crie função <strong><code>ServerStoreGremoryItem</code></strong> (Input: PlayerState, <code>FGremoryEntry</code>). Use <code>Switch on ECaseType</code> para escolher o array replicado (<code>GremoryEvent</code>, <code>GremoryNpc</code>, <code>GremoryPersonal</code>) dentro do <code>BP_MuPlayerState</code>. Adicione entrada, define <code>State=Stored</code> e agenda <code>Set Timer by Event</code> para expiração.</li>
+          <li>Para drops que vão para o inventário de evento, em <code>BP_LootComponent</code> insira Branch: se <code>bEventItem</code> verdadeiro → chama <code>ServerAddEventInventory</code> e bloqueia pickup direto.</li>
+          <li>Implemente <strong><code>ServerClaimGremoryItem</code></strong> e <strong><code>ServerClaimMailAttachment</code></strong>: validam expiração, slots livres no inventário normal e aplicam <code>Server_MoveItem</code> já existente.</li>
+          <li>Persistência: estenda <code>BP_ServerPersistence</code> para salvar/ler <code>/characters/{id}/gremory.json</code>, <code>/eventinventory.json</code> e <code>/mailbox.json</code>. No login, carregue antes de enviar pacotes de inventário para manter ordem de estados.</li>
+        </ul>
+      </div>
+    </div>
+
+    <h2 class="mt-4">Cliente/UI (Layout 1:1)</h2>
+    <div class="card mb-3">
+      <div class="card-body">
+        <ul>
+          <li>Crie widget <strong><code>WBP_GremoryCase</code></strong> (Canvas 800×540). Anchore ao centro (X=0.5, Y=0.5). Adicione <code>Image</code> de fundo 760×520 em (20,10). Dentro, um <code>TabWidget</code> com três abas “Evento”, “NPC” e “Pessoal” (botões 140×36 alinhados no topo y=12, x=60/220/380).</li>
+          <li>A lista usa <code>ScrollBox</code> 720×360 (x=40, y=80). Cada linha é <code>WBP_GremoryRow</code> (720×72) contendo: ícone 64×64 (x=8,y=4), título (x=88,y=6), descrição (x=88,y=28), tempo restante (x=520,y=6) e botão “Receber” (120×36 em x=580,y=28). Estado expirado aplica cor #FF6B6B e desabilita o botão.</li>
+          <li>Para inventário de evento, crie <strong><code>WBP_EventInventory</code></strong> (Canvas 420×420, âncora centro). Grade 4×4 de slots 72×72 começando em (x=24,y=40). Botões “Mover para Inventário” (120×36 em x=140,y=340) e “Descartar” (120×36 em x=280,y=340).</li>
+          <li>Correio: <strong><code>WBP_Mailbox</code></strong> (Canvas 780×520). Lista de mensagens à esquerda (240×460, x=10,y=30) com <code>WBP_MailRow</code> 220×64 (ícone de status, título, remetente, data). Painel de detalhes à direita (500×460, x=260,y=30) com título 18pt, corpo (Multiline Text), barra de anexos (ícone do item 64×64, texto Zen) e botões “Coletar” (140×36 em x=320,y=400) e “Apagar” (120×36 em x=170,y=400).</li>
+          <li>Bindings: cada botão “Receber/Coletar” chama RPC correspondente via <code>BP_MuPlayerController</code>. Atualize a cor do relógio com <code>Set Color and Opacity</code> baseado em <code>ExpireAt - Now</code> (&lt; 10 min = amarelo; expirado = vermelho).</li>
+          <li>Sons: anexe <code>AudioComponent</code> no <code>Overlay</code> de cada widget com <code>SoundCue_ItemGet</code> e <code>SoundCue_ItemExpire</code> mapeados a partir do enum legado. Dispare <code>Play</code> ao receber/expirar.</li>
+        </ul>
+      </div>
+    </div>
+
+    <h2 class="mt-4">Checagens de Fidelidade</h2>
+    <ul>
+      <li>Estados e tempos iguais aos do legado (expiração, move para inventário, bloqueio quando cheio).</li>
+      <li>Layout 1:1: tamanhos/anchors conforme posições clássicas; textos e ícones carregados de <code>DT_ItemCatalog</code> e <code>DT_UIAtlas</code>.</li>
+      <li>Persistência garante restauração pós-relogin e após crash; timers de expiração continuam no servidor dedicado.</li>
+    </ul>
+  </div>
+</body>
+</html>
